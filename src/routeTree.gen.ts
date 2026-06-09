@@ -22,6 +22,7 @@ import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authen
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedArquivosRouteImport } from './routes/_authenticated/arquivos'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
+import { Route as AuthenticatedConfiguracoesIntegracoesRouteImport } from './routes/_authenticated/configuracoes.integracoes'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -88,6 +89,12 @@ const AuthenticatedAgendaRoute = AuthenticatedAgendaRouteImport.update({
   path: '/agenda',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedConfiguracoesIntegracoesRoute =
+  AuthenticatedConfiguracoesIntegracoesRouteImport.update({
+    id: '/integracoes',
+    path: '/integracoes',
+    getParentRoute: () => AuthenticatedConfiguracoesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,12 +103,13 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AuthenticatedAgendaRoute
   '/arquivos': typeof AuthenticatedArquivosRoute
   '/clientes': typeof AuthenticatedClientesRoute
-  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/projetos': typeof AuthenticatedProjetosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
+  '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,12 +118,13 @@ export interface FileRoutesByTo {
   '/agenda': typeof AuthenticatedAgendaRoute
   '/arquivos': typeof AuthenticatedArquivosRoute
   '/clientes': typeof AuthenticatedClientesRoute
-  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/projetos': typeof AuthenticatedProjetosRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
+  '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -126,12 +135,13 @@ export interface FileRoutesById {
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
   '/_authenticated/arquivos': typeof AuthenticatedArquivosRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
-  '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
   '/_authenticated/projetos': typeof AuthenticatedProjetosRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
+  '/_authenticated/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/projetos'
     | '/relatorios'
     | '/tarefas'
+    | '/configuracoes/integracoes'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/projetos'
     | '/relatorios'
     | '/tarefas'
+    | '/configuracoes/integracoes'
   id:
     | '__root__'
     | '/'
@@ -177,6 +189,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projetos'
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
+    | '/_authenticated/configuracoes/integracoes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -279,14 +292,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgendaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/configuracoes/integracoes': {
+      id: '/_authenticated/configuracoes/integracoes'
+      path: '/integracoes'
+      fullPath: '/configuracoes/integracoes'
+      preLoaderRoute: typeof AuthenticatedConfiguracoesIntegracoesRouteImport
+      parentRoute: typeof AuthenticatedConfiguracoesRoute
+    }
   }
 }
+
+interface AuthenticatedConfiguracoesRouteChildren {
+  AuthenticatedConfiguracoesIntegracoesRoute: typeof AuthenticatedConfiguracoesIntegracoesRoute
+}
+
+const AuthenticatedConfiguracoesRouteChildren: AuthenticatedConfiguracoesRouteChildren =
+  {
+    AuthenticatedConfiguracoesIntegracoesRoute:
+      AuthenticatedConfiguracoesIntegracoesRoute,
+  }
+
+const AuthenticatedConfiguracoesRouteWithChildren =
+  AuthenticatedConfiguracoesRoute._addFileChildren(
+    AuthenticatedConfiguracoesRouteChildren,
+  )
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
   AuthenticatedArquivosRoute: typeof AuthenticatedArquivosRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
-  AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
+  AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
   AuthenticatedProjetosRoute: typeof AuthenticatedProjetosRoute
@@ -298,7 +333,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
   AuthenticatedArquivosRoute: AuthenticatedArquivosRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
-  AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
+  AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
   AuthenticatedProjetosRoute: AuthenticatedProjetosRoute,
@@ -318,3 +353,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
