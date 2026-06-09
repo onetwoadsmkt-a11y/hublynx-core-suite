@@ -224,12 +224,12 @@ function TarefasPage() {
                 {STATUS_COLS.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
-                    <KanbanColumn key={col.key} col={col} tasks={colTasks} onSelect={setSelectedId} />
+                    <KanbanColumn key={col.key} col={col} tasks={colTasks} labelsIndex={labelsIndex} onSelect={setSelectedId} />
                   );
                 })}
               </div>
               <DragOverlay>
-                {activeTask ? <TaskCard task={activeTask} dragging /> : null}
+                {activeTask ? <TaskCard task={activeTask} labels={labelsIndex[activeTask.id] ?? []} dragging /> : null}
               </DragOverlay>
             </DndContext>
           )}
