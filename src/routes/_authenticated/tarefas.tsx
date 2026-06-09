@@ -74,6 +74,24 @@ function TarefasPage() {
     },
   });
 
+  const { data: labelsIndex = {} } = useQuery({
+    queryKey: ["tasks-labels-index"],
+    queryFn: async () => {
+      const [assigns, labels] = await Promise.all([
+        supabase.from("task_label_assignments").select("task_id,label_id"),
+        supabase.from("task_labels").select("id,name,color"),
+      ]);
+      const byId = new Map((labels.data ?? []).map((l: any) => [l.id, l]));
+      const map: Record<string, { id: string; name: string; color: string }[]> = {};
+      (assigns.data ?? []).forEach((a: any) => {
+        const l = byId.get(a.label_id);
+        if (!l) return;
+        (map[a.task_id] ||= []).push(l as any);
+      });
+      return map;
+    },
+  });
+
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-mini"],
     queryFn: async () => {
@@ -206,12 +224,12 @@ function TarefasPage() {
                 {STATUS_COLS.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
-                    <KanbanColumn key={col.key} col={col} tasks={colTasks} onSelect={setSelectedId} />
+                    <KanbanColumn key={col.key} col={col} tasks={colTasks} labelsIndex={labelsIndex} onSelect={setSelectedId} />
                   );
                 })}
               </div>
               <DragOverlay>
-                {activeTask ? <TaskCard task={activeTask} dragging /> : null}
+                {activeTask ? <TaskCard task={activeTask} labels={labelsIndex[activeTask.id] ?? []} dragging /> : null}
               </DragOverlay>
             </DndContext>
           )}
@@ -264,9 +282,18 @@ function TarefasPage() {
   );
 }
 
+type LabelItem = { id: string; name: string; color: string };
+
+const PRIORITY_ACCENT: Record<Priority, string> = {
+  baixa: "from-slate-300 to-slate-400",
+  media: "from-brand-blue to-sky-400",
+  alta: "from-amber-400 to-orange-500",
+  critica: "from-rose-500 to-red-600",
+};
+
 function KanbanColumn({
-  col, tasks, onSelect,
-}: { col: typeof STATUS_COLS[number]; tasks: Task[]; onSelect: (id: string) => void }) {
+  col, tasks, labelsIndex, onSelect,
+}: { col: typeof STATUS_COLS[number]; tasks: Task[]; labelsIndex: Record<string, LabelItem[]>; onSelect: (id: string) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
   return (
     <div ref={setNodeRef} className={`w-72 shrink-0 rounded-xl bg-muted/40 p-3 transition-colors ${isOver ? "ring-2 ring-primary/40" : ""}`}>
@@ -274,48 +301,65 @@ function KanbanColumn({
         <span className={`text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${col.tone}`}>{col.label}</span>
         <span className="text-xs text-muted-foreground tabular-nums">{tasks.length}</span>
       </div>
-      <div className="space-y-2 min-h-[80px]">
+      <div className="space-y-2.5 min-h-[80px]">
         {tasks.map((t) => (
-          <DraggableCard key={t.id} task={t} onSelect={onSelect} />
+          <DraggableCard key={t.id} task={t} labels={labelsIndex[t.id] ?? []} onSelect={onSelect} />
         ))}
       </div>
     </div>
   );
 }
 
-function DraggableCard({ task, onSelect }: { task: Task; onSelect: (id: string) => void }) {
+function DraggableCard({ task, labels, onSelect }: { task: Task; labels: LabelItem[]; onSelect: (id: string) => void }) {
   const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({ id: task.id });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.4 : 1 }
     : { opacity: isDragging ? 0.4 : 1 };
   return (
     <div ref={setNodeRef} style={style}>
-      <TaskCard task={task} onClick={() => onSelect(task.id)} dragHandle={{ ...attributes, ...listeners }} />
+      <TaskCard task={task} labels={labels} onClick={() => onSelect(task.id)} dragHandle={{ ...attributes, ...listeners }} />
     </div>
   );
 }
 
 function TaskCard({
-  task, onClick, dragging, dragHandle,
-}: { task: Task; onClick?: () => void; dragging?: boolean; dragHandle?: any }) {
+  task, labels = [], onClick, dragging, dragHandle,
+}: { task: Task; labels?: LabelItem[]; onClick?: () => void; dragging?: boolean; dragHandle?: any }) {
+  const accent = PRIORITY_ACCENT[task.priority];
   return (
     <div
       onClick={onClick}
-      className={`group bg-background rounded-lg border border-border/60 p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${dragging ? "shadow-lg" : ""}`}
+      className={`group relative overflow-hidden bg-card rounded-xl border border-border/60 shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-card)] hover:border-brand-blue/40 hover:-translate-y-0.5 transition-all cursor-pointer ${dragging ? "shadow-lg ring-2 ring-brand-blue/30" : ""}`}
     >
-      <div className="flex items-start gap-2">
-        <button {...dragHandle} className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab pt-0.5" onClick={(e) => e.stopPropagation()}>
+      {/* Cover: priority accent stripe + labels */}
+      <div className={`h-1.5 w-full bg-gradient-to-r ${accent}`} />
+      {labels.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+          {labels.map((l) => (
+            <span
+              key={l.id}
+              className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full text-white shadow-sm"
+              style={{ backgroundColor: l.color || "#2563EB" }}
+            >
+              {l.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-start gap-2 p-3">
+        <button {...dragHandle} className="text-muted-foreground/30 group-hover:text-muted-foreground cursor-grab pt-0.5" onClick={(e) => e.stopPropagation()}>
           <GripVertical className="h-4 w-4" />
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium leading-snug">{task.title}</p>
+          <p className="text-sm font-semibold leading-snug text-foreground">{task.title}</p>
           {task.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: stripHtml(task.description).slice(0, 140) }} />}
           <div className="flex items-center gap-2 mt-3 flex-wrap">
-            <Badge variant="outline" className={`${PRIORITY_TONE[task.priority]} text-[10px] py-0`}>
+            <Badge variant="outline" className={`${PRIORITY_TONE[task.priority]} text-[10px] py-0 border-0`}>
               {PRIORITY_LABEL[task.priority]}
             </Badge>
             {task.due_date && (
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-[11px] text-muted-foreground font-medium tabular-nums">
                 {format(new Date(task.due_date), "dd/MM")}
               </span>
             )}
