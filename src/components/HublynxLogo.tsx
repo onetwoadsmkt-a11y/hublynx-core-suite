@@ -1,4 +1,4 @@
-import logoAsset from "@/assets/hublynx-logo-v3.png.asset.json";
+import logoAsset from "@/assets/hublynx-logo-v4.png.asset.json";
 
 export function HublynxLogo({ className = "" }: { className?: string }) {
   return (
