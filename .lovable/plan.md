@@ -1,82 +1,32 @@
+## Reestruturar a página `/auth` conforme a imagem
 
-# Hublynx Core — Plano de Construção
+A página atual já tem o split 50/50, mas o conteúdo dos dois lados precisa ser ajustado para bater exatamente com a referência.
 
-Escopo enorme. Vou entregar em **fases incrementais**, cada uma utilizável ao final. Stack do template: **TanStack Start + React + TypeScript + Tailwind v4 + shadcn/ui + Supabase (Lovable Cloud) + React Query + Recharts**. (Roteamento via TanStack Router — equivalente ao React Router pedido.)
+### Painel esquerdo (fundo azul-escuro)
+- Logo Hublynx no topo (já existe).
+- Título: **"O sistema operacional do seu negócio."**
+- Subtítulo: "Tarefas, projetos, clientes, financeiro e agenda em um único lugar. Substitua Trello, planilhas e agendas de papel."
+- Grade 2×2 com 4 cards translúcidos (border branca/10, fundo branco/5, radius arredondado):
+  - **TAREFAS** — Kanban + Lista
+  - **PROJETOS** — Andamento em %
+  - **FINANCEIRO** — A pagar / receber
+  - **AGENDA** — Reuniões e calls
+  Cada card tem um pequeno rótulo verde (`#00D084`, uppercase, tracking wide) acima do texto branco.
+- Rodapé: "© 2026 Hublynx Group" em branco/40.
 
----
+### Painel direito (fundo branco)
+- Tabs no topo: **Entrar** | **Criar conta** (full width, igual atual).
+- Título: **"Bem-vindo de volta!"**
+- Subtítulo em verde: "Acesse o seu Hublynx Core."
+- Formulário Entrar:
+  - Campo E-mail (placeholder `voce@empresa.com`)
+  - Linha Senha + link "Esqueceu a senha?" à direita (verde)
+  - Botão **Entrar** verde full width
+- Abaixo do botão: "Não tem uma conta? **Criar conta**" centralizado (o link troca para a tab de cadastro).
+- Remover o `Card` com borda/sombra — conteúdo flui direto, sem moldura, para ficar idêntico à referência.
+- Mobile (<lg): mostra a logo no topo do painel direito e oculta o painel esquerdo (já é o comportamento atual).
 
-## Fase 1 — Fundação (design system + auth + layout)
+### Arquivo afetado
+- `src/routes/auth.tsx` (apenas markup/estilos; lógica de login/signup/reset preservada).
 
-1. **Design system Hublynx** em `src/styles.css`
-   - Tokens: `--brand-dark #071A3D`, `--brand-blue #2563EB`, `--brand-green #00D084`, cinza `#F8FAFC`, branco
-   - Fonte: **Lexend** (display) + **Inter** (body) via `<link>` no `__root.tsx`
-   - Bordas arredondadas (`--radius: 0.75rem`), sombras suaves, fundo branco
-2. **Lovable Cloud** ativado (Supabase gerenciado)
-3. **Auth completo**: login, signup, recuperação de senha, `/reset-password`, sessão persistente
-   - Tabela `profiles` (nome, avatar, empresa)
-   - Tabela `user_roles` + enum `app_role` (`admin`, `user`) + função `has_role` (padrão seguro)
-   - Trigger auto-cria profile no signup
-4. **Layout principal** sob `_authenticated/`
-   - Sidebar fixa (shadcn sidebar, colapsável) com 9 itens do menu
-   - Header: busca global (⌘K), notificações, dropdown perfil
-   - Logo Hublynx Core no topo da sidebar
-5. **Dashboard executivo** (visual da imagem)
-   - 5 cards de KPI: Tarefas, Projetos, A receber, Reuniões, Clientes
-   - Seções: Tarefas do dia · Financeiro (3 gráficos Recharts) · Projetos em andamento (barras de progresso) · Próximos eventos
-
-## Fase 2 — Tarefas + Projetos + Clientes
-
-6. **Clientes** — CRUD completo (nome, empresa, contatos, redes, endereço, contrato com serviço/valor/renovação), página de detalhe com projetos ativos, faturamento total, histórico
-7. **Projetos** — CRUD, status (5 estados), datas, valor, % progresso automático (baseado em tarefas), abas: Tarefas / Arquivos / Comentários / Histórico
-8. **Tarefas** — CRUD com título, descrição, cliente, projeto, prioridade (4), status (7), datas, responsável, checklist, comentários, anexos
-   - 3 visualizações: **Kanban** (drag-and-drop entre colunas via `@dnd-kit`), **Lista**, **Calendário**
-
-## Fase 3 — Financeiro + Agenda + Arquivos + Relatórios
-
-9. **Financeiro**
-   - Contas a Receber + Contas a Pagar (CRUD, status, forma pagamento)
-   - Categorias pré-cadastradas (receita/despesa conforme spec)
-   - Fluxo de caixa com filtros 7/30/90 dias + gráficos (entradas/saídas/saldo)
-10. **Agenda** — calendário (dia/semana/mês) com 5 tipos de evento
-11. **Arquivos** — upload (Supabase Storage) por categoria, tipos PDF/DOCX/XLSX/PNG/JPG
-12. **Relatórios** — dashboard de KPIs (receita mensal, clientes ativos, projetos ativos, tarefas concluídas, taxa conclusão)
-13. **Configurações** — perfil, empresa, gestão de usuários (admin), preferências
-14. **Notificações** — sistema básico (tabela + dropdown no header)
-
----
-
-## Detalhes técnicos
-
-**Banco de dados (Supabase, todas com RLS escopada por `owner_id = auth.uid()` + GRANTs explícitos para `authenticated` e `service_role`):**
-
-```
-profiles, user_roles
-clients, client_contracts
-projects, project_history
-tasks, task_checklists, task_comments, task_attachments
-finance_categories (seed), finances (a_receber | a_pagar)
-events
-files (metadata) + bucket Storage "files"
-notifications
-settings
-```
-
-Relacionamentos: `clients 1—N projects 1—N tasks`; `tasks N—1 users (responsável)`; `finances N—1 clients` (opcional) e `N—1 finance_categories`; `events N—1 clients` (opcional).
-
-**Roteamento (TanStack Start, sob `_authenticated/`):**
-```
-/dashboard /tarefas /projetos /projetos/$id /clientes /clientes/$id
-/financeiro /agenda /arquivos /relatorios /configuracoes
-```
-Rotas públicas: `/auth`, `/reset-password`.
-
-**Arquitetura escalável (V2-ready):** módulos isolados em `src/features/<modulo>/` (components/hooks/queries/types), server functions em `*.functions.ts`, pronto para adicionar CRM, integrações, webhooks, multiempresa sem refator.
-
----
-
-## O que NÃO entra agora
-CRM/pipeline, integrações (Gmail, WhatsApp, Google Calendar, banco), IA, Make, webhooks, multiempresa, app mobile nativo — fica estruturado mas não implementado.
-
----
-
-Vou começar pela **Fase 1** assim que aprovar. Quer ajustar alguma prioridade antes (ex: pular auth e usar mock, ou começar direto por algum módulo específico)?
+Sem mudanças em banco, rotas ou outros componentes.
