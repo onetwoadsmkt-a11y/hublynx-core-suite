@@ -74,6 +74,24 @@ function TarefasPage() {
     },
   });
 
+  const { data: labelsIndex = {} } = useQuery({
+    queryKey: ["tasks-labels-index"],
+    queryFn: async () => {
+      const [assigns, labels] = await Promise.all([
+        supabase.from("task_label_assignments").select("task_id,label_id"),
+        supabase.from("task_labels").select("id,name,color"),
+      ]);
+      const byId = new Map((labels.data ?? []).map((l: any) => [l.id, l]));
+      const map: Record<string, { id: string; name: string; color: string }[]> = {};
+      (assigns.data ?? []).forEach((a: any) => {
+        const l = byId.get(a.label_id);
+        if (!l) return;
+        (map[a.task_id] ||= []).push(l as any);
+      });
+      return map;
+    },
+  });
+
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-mini"],
     queryFn: async () => {
