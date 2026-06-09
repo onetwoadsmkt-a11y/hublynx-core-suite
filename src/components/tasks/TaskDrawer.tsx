@@ -816,7 +816,7 @@ function RelatedTab({ task }: { task: any }) {
   });
 
   const add = useMutation({
-    mutationFn: async ({ type, id }: { type: string; id: string }) => {
+    mutationFn: async ({ type, id }: { type: "task" | "project" | "client" | "event" | "file"; id: string }) => {
       const { data: u } = await supabase.auth.getUser();
       const { error } = await supabase.from("task_related").insert({
         task_id: task.id, owner_id: u.user!.id, resource_type: type, resource_id: id,
@@ -870,14 +870,14 @@ function RelatedTab({ task }: { task: any }) {
   );
 }
 
-function AddRelatedRow({ onAdd, clients, projects, tasks, events }: any) {
-  const [type, setType] = useState("project");
+function AddRelatedRow({ onAdd, clients, projects, tasks, events }: { onAdd: (type: "task" | "project" | "client" | "event" | "file", id: string) => void; clients: any[]; projects: any[]; tasks: any[]; events: any[] }) {
+  const [type, setType] = useState<"task" | "project" | "client" | "event" | "file">("project");
   const [id, setId] = useState("");
   const list = type === "client" ? clients : type === "project" ? projects : type === "task" ? tasks : events;
   const labelKey = type === "task" || type === "event" ? "title" : "name";
   return (
     <div className="flex gap-2 mt-3">
-      <Select value={type} onValueChange={(v) => { setType(v); setId(""); }}>
+      <Select value={type} onValueChange={(v) => { setType(v as typeof type); setId(""); }}>
         <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectItem value="project">Projeto</SelectItem>
