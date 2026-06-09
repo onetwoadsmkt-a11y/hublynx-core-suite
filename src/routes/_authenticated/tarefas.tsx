@@ -288,7 +288,7 @@ const PRIORITY_ACCENT: Record<Priority, string> = {
   baixa: "from-slate-300 to-slate-400",
   media: "from-brand-blue to-sky-400",
   alta: "from-amber-400 to-orange-500",
-  urgente: "from-rose-500 to-red-600",
+  critica: "from-rose-500 to-red-600",
 };
 
 function KanbanColumn({
