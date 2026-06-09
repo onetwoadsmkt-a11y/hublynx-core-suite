@@ -15,7 +15,7 @@ type Notification = {
   title: string;
   body: string | null;
   link: string | null;
-  read_at: string | null;
+  read: boolean;
   created_at: string;
 };
 
@@ -44,24 +44,24 @@ export function NotificationsBell() {
     return () => { supabase.removeChannel(ch); };
   }, [qc]);
 
-  const unread = items.filter((n) => !n.read_at).length;
+  const unread = items.filter((n) => !n.read).length;
 
   const markRead = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id);
+      await supabase.from("notifications").update({ read: true }).eq("id", id);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
   const markAll = useMutation({
     mutationFn: async () => {
-      await supabase.from("notifications").update({ read_at: new Date().toISOString() }).is("read_at", null);
+      await supabase.from("notifications").update({ read: true }).eq("read", false);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
   function handleClick(n: Notification) {
-    if (!n.read_at) markRead.mutate(n.id);
+    if (!n.read) markRead.mutate(n.id);
     if (n.link) navigate({ to: n.link });
   }
 
@@ -95,10 +95,10 @@ export function NotificationsBell() {
                 <li
                   key={n.id}
                   onClick={() => handleClick(n)}
-                  className={`px-4 py-3 hover:bg-muted/50 cursor-pointer ${!n.read_at ? "bg-primary/5" : ""}`}
+                  className={`px-4 py-3 hover:bg-muted/50 cursor-pointer ${!n.read ? "bg-primary/5" : ""}`}
                 >
                   <div className="flex items-start gap-2">
-                    {!n.read_at && <span className="mt-1.5 h-2 w-2 rounded-full bg-[#00D084] shrink-0" />}
+                    {!n.read && <span className="mt-1.5 h-2 w-2 rounded-full bg-[#00D084] shrink-0" />}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium leading-snug">{n.title}</p>
                       {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}
