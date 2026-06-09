@@ -2,8 +2,9 @@ import { type ReactNode, useState } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users, DollarSign,
-  Calendar, FolderArchive, BarChart3, Settings, Search, Bell, LogOut, ChevronDown,
+  Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
 } from "lucide-react";
+import { NotificationsBell } from "./NotificationsBell";
 import { supabase } from "@/integrations/supabase/client";
 import { HublynxLogo } from "./HublynxLogo";
 import { Input } from "@/components/ui/input";
@@ -135,9 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-            </Button>
+            <NotificationsBell />
             <UserMenu />
           </div>
         </header>
