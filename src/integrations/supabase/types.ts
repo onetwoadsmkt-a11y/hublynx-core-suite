@@ -412,6 +412,50 @@ export type Database = {
         }
         Relationships: []
       }
+      task_attachments: {
+        Row: {
+          id: string
+          mime: string | null
+          name: string
+          owner_id: string
+          size: number
+          storage_path: string
+          task_id: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          id?: string
+          mime?: string | null
+          name: string
+          owner_id: string
+          size: number
+          storage_path: string
+          task_id: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          id?: string
+          mime?: string | null
+          name?: string
+          owner_id?: string
+          size?: number
+          storage_path?: string
+          task_id?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_checklists: {
         Row: {
           created_at: string
@@ -455,24 +499,37 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          mentions: string[]
           owner_id: string
+          parent_id: string | null
           task_id: string
         }
         Insert: {
           body: string
           created_at?: string
           id?: string
+          mentions?: string[]
           owner_id: string
+          parent_id?: string | null
           task_id: string
         }
         Update: {
           body?: string
           created_at?: string
           id?: string
+          mentions?: string[]
           owner_id?: string
+          parent_id?: string | null
           task_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "task_comments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "task_comments_task_id_fkey"
             columns: ["task_id"]
@@ -482,14 +539,234 @@ export type Database = {
           },
         ]
       }
+      task_custom_fields: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          label: string
+          options: Json | null
+          owner_id: string
+          position: number
+          type: Database["public"]["Enums"]["custom_field_type"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          label: string
+          options?: Json | null
+          owner_id: string
+          position?: number
+          type?: Database["public"]["Enums"]["custom_field_type"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          label?: string
+          options?: Json | null
+          owner_id?: string
+          position?: number
+          type?: Database["public"]["Enums"]["custom_field_type"]
+        }
+        Relationships: []
+      }
+      task_custom_values: {
+        Row: {
+          field_id: string
+          id: string
+          owner_id: string
+          task_id: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          field_id: string
+          id?: string
+          owner_id: string
+          task_id: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          field_id?: string
+          id?: string
+          owner_id?: string
+          task_id?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_custom_values_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "task_custom_fields"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_custom_values_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_history: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          field: string | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+          owner_id: string
+          task_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          owner_id: string
+          task_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          owner_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_history_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_label_assignments: {
+        Row: {
+          created_at: string
+          label_id: string
+          owner_id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          label_id: string
+          owner_id: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          label_id?: string
+          owner_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_label_assignments_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "task_labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_label_assignments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_labels: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+        }
+        Relationships: []
+      }
+      task_related: {
+        Row: {
+          created_at: string
+          id: string
+          owner_id: string
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["task_resource_type"]
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_id: string
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["task_resource_type"]
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_id?: string
+          resource_id?: string
+          resource_type?: Database["public"]["Enums"]["task_resource_type"]
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_related_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
+          actual_hours: number | null
           assignee_id: string | null
+          briefing: Json | null
           client_id: string | null
+          completed_at: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           due_date: string | null
+          estimated_hours: number | null
           id: string
+          internal_notes: string | null
           owner_id: string
           position: number
           priority: Database["public"]["Enums"]["task_priority"]
@@ -500,12 +777,18 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actual_hours?: number | null
           assignee_id?: string | null
+          briefing?: Json | null
           client_id?: string | null
+          completed_at?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           due_date?: string | null
+          estimated_hours?: number | null
           id?: string
+          internal_notes?: string | null
           owner_id: string
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
@@ -516,12 +799,18 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actual_hours?: number | null
           assignee_id?: string | null
+          briefing?: Json | null
           client_id?: string | null
+          completed_at?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           due_date?: string | null
+          estimated_hours?: number | null
           id?: string
+          internal_notes?: string | null
           owner_id?: string
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
@@ -582,6 +871,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       client_status: "ativo" | "prospecto" | "inadimplente" | "inativo"
+      custom_field_type: "text" | "number" | "date" | "select" | "url"
       event_type: "reuniao" | "entrega" | "call" | "pagamento" | "follow_up"
       file_category:
         | "contratos"
@@ -599,14 +889,13 @@ export type Database = {
         | "concluido"
         | "cancelado"
       task_priority: "baixa" | "media" | "alta" | "critica"
+      task_resource_type: "task" | "project" | "client" | "event" | "file"
       task_status:
         | "backlog"
-        | "planejado"
+        | "a_fazer"
         | "em_andamento"
-        | "aguardando_cliente"
         | "revisao"
         | "concluido"
-        | "cancelado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -736,6 +1025,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       client_status: ["ativo", "prospecto", "inadimplente", "inativo"],
+      custom_field_type: ["text", "number", "date", "select", "url"],
       event_type: ["reuniao", "entrega", "call", "pagamento", "follow_up"],
       file_category: [
         "contratos",
@@ -755,14 +1045,13 @@ export const Constants = {
         "cancelado",
       ],
       task_priority: ["baixa", "media", "alta", "critica"],
+      task_resource_type: ["task", "project", "client", "event", "file"],
       task_status: [
         "backlog",
-        "planejado",
+        "a_fazer",
         "em_andamento",
-        "aguardando_cliente",
         "revisao",
         "concluido",
-        "cancelado",
       ],
     },
   },
