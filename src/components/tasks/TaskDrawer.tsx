@@ -303,6 +303,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
 
 /* ============================== OVERVIEW ============================== */
 function OverviewTab({ task, update }: { task: any; update: any }) {
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-mini"],
     queryFn: async () => (await supabase.from("projects").select("id,name").order("name")).data ?? [],
