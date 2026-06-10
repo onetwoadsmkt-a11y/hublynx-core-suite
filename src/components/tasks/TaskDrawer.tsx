@@ -155,6 +155,26 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
 
   const status = STATUS_COLS.find((s) => s.key === task.status)!;
 
+  const client = task.client;
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [meetOpen, setMeetOpen] = useState(false);
+  const instantMeet = useServerFn(createInstantMeet);
+  const quickMeet = useMutation({
+    mutationFn: async () =>
+      instantMeet({ data: { taskId: task.id, summary: task.title, durationMinutes: 30 } }),
+    onSuccess: (res: any) => {
+      if (res?.meetLink) {
+        navigator.clipboard?.writeText(res.meetLink).catch(() => {});
+        window.open(res.meetLink, "_blank");
+        toast.success("Reunião criada — link copiado.");
+      } else {
+        toast.success("Reunião criada.");
+      }
+      qc.invalidateQueries({ queryKey: ["task-communications", task.id] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Erro ao criar Meet"),
+  });
+
   return (
     <div className="flex flex-col h-full">
       {/* Header sticky */}
@@ -181,11 +201,52 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}><X className="h-4 w-4" /></Button>
           </div>
         </div>
-        <Input
-          value={task.title}
-          onChange={(e) => update.mutate({ title: e.target.value })}
-          className="text-xl font-semibold border-0 px-0 focus-visible:ring-0 shadow-none h-auto"
-        />
+        <div className="flex items-start gap-4">
+          <Input
+            value={task.title}
+            onChange={(e) => update.mutate({ title: e.target.value })}
+            className="flex-1 text-xl font-semibold border-0 px-0 focus-visible:ring-0 shadow-none h-auto"
+          />
+          {client && (
+            <div className="shrink-0 max-w-[220px] text-right">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Cliente</p>
+              <p className="text-sm font-semibold truncate">{client.name}</p>
+              {client.company && (
+                <p className="text-xs text-muted-foreground truncate">{client.company}</p>
+              )}
+              <div className="mt-2 flex items-center justify-end gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setEmailOpen(true)}
+                  title="Enviar e-mail"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setMeetOpen(true)}
+                  title="Agendar reunião"
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={quickMeet.isPending}
+                  onClick={() => quickMeet.mutate()}
+                  title="Criar link Meet agora"
+                >
+                  <Video className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
@@ -219,6 +280,26 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
           </div>
         </ScrollArea>
       </Tabs>
+
+      {emailOpen && (
+        <SendEmailDialog
+          open={emailOpen}
+          onClose={() => setEmailOpen(false)}
+          taskId={task.id}
+          taskTitle={task.title}
+          defaultTo={client?.email ?? null}
+          clientName={client?.name ?? null}
+        />
+      )}
+      {meetOpen && (
+        <ScheduleMeetingDialog
+          open={meetOpen}
+          onClose={() => setMeetOpen(false)}
+          taskId={task.id}
+          taskTitle={task.title}
+          defaultAttendee={client?.email ?? null}
+        />
+      )}
     </div>
   );
 }
@@ -234,28 +315,7 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
     queryFn: async () => (await supabase.from("clients").select("id,name,company,phone,whatsapp,email").order("name")).data ?? [],
   });
 
-  const client = task.client;
   const project = task.project;
-
-  const [emailOpen, setEmailOpen] = useState(false);
-  const [meetOpen, setMeetOpen] = useState(false);
-  const instantMeet = useServerFn(createInstantMeet);
-  const qc = useQueryClient();
-  const quickMeet = useMutation({
-    mutationFn: async () =>
-      instantMeet({ data: { taskId: task.id, summary: task.title, durationMinutes: 30 } }),
-    onSuccess: (res: any) => {
-      if (res?.meetLink) {
-        navigator.clipboard?.writeText(res.meetLink).catch(() => {});
-        window.open(res.meetLink, "_blank");
-        toast.success("Reunião criada — link copiado.");
-      } else {
-        toast.success("Reunião criada.");
-      }
-      qc.invalidateQueries({ queryKey: ["task-communications", task.id] });
-    },
-    onError: (e: any) => toast.error(e.message ?? "Erro ao criar Meet"),
-  });
 
   return (
     <div className="space-y-6">
@@ -338,53 +398,6 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
       {/* Labels */}
       <LabelsBlock taskId={task.id} />
 
-      {/* Client card */}
-      {client && (
-        <div className="rounded-xl border bg-card p-4 space-y-2">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cliente</p>
-              <p className="text-base font-semibold mt-1">{client.name}</p>
-              {client.company && <p className="text-sm text-muted-foreground">{client.company}</p>}
-            </div>
-            <Button variant="ghost" size="sm" asChild>
-              <a href={`/clientes`}><ExternalLink className="h-3.5 w-3.5 mr-1" /> Abrir</a>
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            {client.email && <div><span className="text-muted-foreground">E-mail:</span> {client.email}</div>}
-            {client.phone && <div><span className="text-muted-foreground">Tel:</span> {client.phone}</div>}
-            {client.whatsapp && <div><span className="text-muted-foreground">WhatsApp:</span> {client.whatsapp}</div>}
-          </div>
-          <div className="pt-3 mt-1 border-t flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={() => setEmailOpen(true)}
-            >
-              <Mail className="h-3.5 w-3.5 mr-1.5" /> E-mail
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={() => setMeetOpen(true)}
-            >
-              <CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Agendar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              disabled={quickMeet.isPending}
-              onClick={() => quickMeet.mutate()}
-            >
-              <Video className="h-3.5 w-3.5 mr-1.5" /> {quickMeet.isPending ? "Criando..." : "Meet"}
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Project card */}
       {project && (
@@ -414,26 +427,6 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
         <p>Criado em {format(new Date(task.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
         {task.completed_at && <p>Concluído em {format(new Date(task.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>}
       </div>
-
-      {emailOpen && (
-        <SendEmailDialog
-          open={emailOpen}
-          onClose={() => setEmailOpen(false)}
-          taskId={task.id}
-          taskTitle={task.title}
-          defaultTo={client?.email ?? null}
-          clientName={client?.name ?? null}
-        />
-      )}
-      {meetOpen && (
-        <ScheduleMeetingDialog
-          open={meetOpen}
-          onClose={() => setMeetOpen(false)}
-          taskId={task.id}
-          taskTitle={task.title}
-          defaultAttendee={client?.email ?? null}
-        />
-      )}
     </div>
   );
 }
