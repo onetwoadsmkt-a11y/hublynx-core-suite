@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -17,16 +16,17 @@ import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import { ClientDrawer } from "@/components/clients/ClientDrawer";
 
 const searchSchema = z.object({
-  q: fallback(z.string(), "").default(""),
-  status: fallback(z.enum(["todos", "ativo", "prospecto", "inadimplente", "inativo"]), "todos").default("todos"),
-  service: fallback(z.string(), "todos").default("todos"),
-  sort: fallback(z.enum(["recent", "name", "value"]), "recent").default("recent"),
+  q: z.string().catch("").default(""),
+  status: z.enum(["todos", "ativo", "prospecto", "inadimplente", "inativo"]).catch("todos").default("todos"),
+  service: z.string().catch("todos").default("todos"),
+  sort: z.enum(["recent", "name", "value"]).catch("recent").default("recent"),
   view: z.string().uuid().optional(),
 });
+type ClientesSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   head: () => ({ meta: [{ title: "Clientes — Hublynx Core" }] }),
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: (s: Record<string, unknown>) => searchSchema.parse(s),
   component: ClientesPage,
 });
 
