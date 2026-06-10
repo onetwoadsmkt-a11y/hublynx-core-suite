@@ -27,13 +27,16 @@ import {
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { format, differenceInCalendarDays } from "date-fns";
 import {
-  TaskDrawer, STATUS_COLS, PRIORITY_LABEL, PRIORITY_TONE,
+  TaskDrawer, PRIORITY_LABEL, PRIORITY_TONE,
   type TaskStatus, type Priority,
 } from "@/components/tasks/TaskDrawer";
+import { useKanbanColumns, DEFAULT_STATUS_COLS, type KanbanColumn } from "@/hooks/useKanbanColumns";
+import { EditKanbanDialog } from "@/components/tasks/EditKanbanDialog";
 import { SendEmailDialog } from "@/components/tasks/SendEmailDialog";
 import { ScheduleMeetingDialog } from "@/components/tasks/ScheduleMeetingDialog";
 import { useServerFn } from "@tanstack/react-start";
 import { createInstantMeet } from "@/lib/google/calendar.functions";
+import { Settings2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
   head: () => ({ meta: [{ title: "Tarefas — Hublynx Core" }] }),
@@ -63,6 +66,8 @@ function TarefasPage() {
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterClient, setFilterClient] = useState<string>("all");
   const [openNew, setOpenNew] = useState(false);
+  const [openEditKanban, setOpenEditKanban] = useState(false);
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
 
   const selectedId = search.task ?? null;
   const setSelectedId = (id: string | null) =>
@@ -156,7 +161,7 @@ function TarefasPage() {
     const { active, over } = e;
     if (!over) return;
     const overId = String(over.id);
-    const targetStatus = STATUS_COLS.find((c) => c.key === overId)?.key;
+    const targetStatus = kanbanCols.find((c) => c.key === overId)?.key;
     if (!targetStatus) return;
     const task = tasks.find((t) => t.id === active.id);
     if (!task || task.status === targetStatus) return;
@@ -170,15 +175,21 @@ function TarefasPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Tarefas</h1>
           <p className="text-muted-foreground mt-1">Organize sua operação em Kanban ou Lista.</p>
         </div>
-        <Dialog open={openNew} onOpenChange={setOpenNew}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#00D084] hover:bg-[#00b873] text-white">
-              <Plus className="h-4 w-4 mr-2" /> Nova tarefa
-            </Button>
-          </DialogTrigger>
-          <NewTaskDialog projects={projects} clients={clients} onClose={() => setOpenNew(false)} />
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setOpenEditKanban(true)}>
+            <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
+          </Button>
+          <Dialog open={openNew} onOpenChange={setOpenNew}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white">
+                <Plus className="h-4 w-4 mr-2" /> Nova tarefa
+              </Button>
+            </DialogTrigger>
+            <NewTaskDialog projects={projects} clients={clients} onClose={() => setOpenNew(false)} />
+          </Dialog>
+        </div>
       </div>
+
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -230,7 +241,7 @@ function TarefasPage() {
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
               <div className="flex gap-4 overflow-x-auto pb-4">
-                {STATUS_COLS.map((col) => {
+                {kanbanCols.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
                     <KanbanColumn key={col.key} col={col} tasks={colTasks} labelsIndex={labelsIndex} clientsById={clientsById} onSelect={setSelectedId} />
@@ -268,7 +279,7 @@ function TarefasPage() {
                   <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Nenhuma tarefa.</TableCell></TableRow>
                 )}
                 {filtered.map((t) => {
-                  const col = STATUS_COLS.find((c) => c.key === t.status);
+                  const col = kanbanCols.find((c) => c.key === t.status);
                   return (
                     <TableRow key={t.id} className="cursor-pointer" onClick={() => setSelectedId(t.id)}>
                       <TableCell className="font-medium">{t.title}</TableCell>
@@ -294,6 +305,7 @@ function TarefasPage() {
       </Tabs>
 
       <TaskDrawer taskId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} />
+      <EditKanbanDialog open={openEditKanban} onOpenChange={setOpenEditKanban} />
     </div>
   );
 }
@@ -311,7 +323,7 @@ const PRIORITY_ACCENT: Record<Priority, string> = {
 function KanbanColumn({
   col, tasks, labelsIndex, clientsById, onSelect,
 }: {
-  col: typeof STATUS_COLS[number];
+  col: KanbanColumn;
   tasks: Task[];
   labelsIndex: Record<string, LabelItem[]>;
   clientsById: Map<string, ClientMini>;
@@ -511,6 +523,7 @@ function stripHtml(s: string) {
 function NewTaskDialog({
   projects, clients, onClose,
 }: { projects: any[]; clients: any[]; onClose: () => void }) {
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -575,7 +588,7 @@ function NewTaskDialog({
             <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {STATUS_COLS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+                {kanbanCols.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

@@ -41,16 +41,12 @@ import {
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-export type TaskStatus = "backlog" | "a_fazer" | "em_andamento" | "revisao" | "concluido";
+export type TaskStatus = string;
 export type Priority = "baixa" | "media" | "alta" | "critica";
 
-export const STATUS_COLS: { key: TaskStatus; label: string; tone: string }[] = [
-  { key: "backlog", label: "Backlog", tone: "bg-muted text-muted-foreground" },
-  { key: "a_fazer", label: "A fazer", tone: "bg-blue-100 text-blue-700" },
-  { key: "em_andamento", label: "Em andamento", tone: "bg-amber-100 text-amber-700" },
-  { key: "revisao", label: "Revisão", tone: "bg-indigo-100 text-indigo-700" },
-  { key: "concluido", label: "Concluído", tone: "bg-emerald-100 text-emerald-700" },
-];
+// Re-export defaults for backward-compat consumers; runtime UI uses useKanbanColumns().
+export { DEFAULT_STATUS_COLS as STATUS_COLS } from "@/hooks/useKanbanColumns";
+import { useKanbanColumns, DEFAULT_STATUS_COLS } from "@/hooks/useKanbanColumns";
 
 export const PRIORITY_TONE: Record<Priority, string> = {
   baixa: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -93,6 +89,7 @@ export function TaskDrawer({
 
 function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const { data: task, isLoading } = useQuery({
     queryKey: ["task", taskId],
     queryFn: async () => {
@@ -153,7 +150,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
     return <div className="p-10 text-sm text-muted-foreground">Carregando…</div>;
   }
 
-  const status = STATUS_COLS.find((s) => s.key === task.status)!;
+  const status = kanbanCols.find((s) => s.key === task.status) ?? { key: task.status, label: task.status, tone: "bg-muted text-muted-foreground" };
 
   const client = task.client;
   const [emailOpen, setEmailOpen] = useState(false);
@@ -306,6 +303,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
 
 /* ============================== OVERVIEW ============================== */
 function OverviewTab({ task, update }: { task: any; update: any }) {
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-mini"],
     queryFn: async () => (await supabase.from("projects").select("id,name").order("name")).data ?? [],
@@ -339,7 +337,7 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
           <Select value={task.status} onValueChange={(v) => update.mutate({ status: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {STATUS_COLS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+              {kanbanCols.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </Field>
@@ -833,6 +831,7 @@ function HistoryTab({ taskId }: { taskId: string }) {
 }
 
 function HistoryRow({ event }: { event: any }) {
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const { data: actor } = useQuery({
     queryKey: ["profile", event.actor_id],
     enabled: !!event.actor_id,
@@ -842,7 +841,7 @@ function HistoryRow({ event }: { event: any }) {
   const label = ACTION_LABELS[event.action] ?? event.action;
   let detail = "";
   if (event.field === "status" && event.old_value && event.new_value) {
-    detail = ` de "${STATUS_COLS.find(s => s.key === event.old_value)?.label ?? event.old_value}" para "${STATUS_COLS.find(s => s.key === event.new_value)?.label ?? event.new_value}"`;
+    detail = ` de "${kanbanCols.find((s) => s.key === event.old_value)?.label ?? event.old_value}" para "${kanbanCols.find((s) => s.key === event.new_value)?.label ?? event.new_value}"`;
   } else if (event.field === "priority" && event.old_value && event.new_value) {
     detail = ` de "${PRIORITY_LABEL[event.old_value as Priority] ?? event.old_value}" para "${PRIORITY_LABEL[event.new_value as Priority] ?? event.new_value}"`;
   } else if (event.new_value) {
