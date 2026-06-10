@@ -316,7 +316,7 @@ const PRIORITY_ACCENT: Record<Priority, string> = {
 function KanbanColumn({
   col, tasks, labelsIndex, clientsById, onSelect,
 }: {
-  col: typeof STATUS_COLS[number];
+  col: KanbanColumn;
   tasks: Task[];
   labelsIndex: Record<string, LabelItem[]>;
   clientsById: Map<string, ClientMini>;
