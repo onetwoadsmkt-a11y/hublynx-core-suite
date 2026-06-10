@@ -414,6 +414,26 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
         <p>Criado em {format(new Date(task.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
         {task.completed_at && <p>Concluído em {format(new Date(task.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>}
       </div>
+
+      {emailOpen && (
+        <SendEmailDialog
+          open={emailOpen}
+          onClose={() => setEmailOpen(false)}
+          taskId={task.id}
+          taskTitle={task.title}
+          defaultTo={client?.email ?? null}
+          clientName={client?.name ?? null}
+        />
+      )}
+      {meetOpen && (
+        <ScheduleMeetingDialog
+          open={meetOpen}
+          onClose={() => setMeetOpen(false)}
+          taskId={task.id}
+          taskTitle={task.title}
+          defaultAttendee={client?.email ?? null}
+        />
+      )}
     </div>
   );
 }
