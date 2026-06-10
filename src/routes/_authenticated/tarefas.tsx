@@ -27,13 +27,16 @@ import {
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { format, differenceInCalendarDays } from "date-fns";
 import {
-  TaskDrawer, STATUS_COLS, PRIORITY_LABEL, PRIORITY_TONE,
+  TaskDrawer, PRIORITY_LABEL, PRIORITY_TONE,
   type TaskStatus, type Priority,
 } from "@/components/tasks/TaskDrawer";
+import { useKanbanColumns, DEFAULT_STATUS_COLS, type KanbanColumn } from "@/hooks/useKanbanColumns";
+import { EditKanbanDialog } from "@/components/tasks/EditKanbanDialog";
 import { SendEmailDialog } from "@/components/tasks/SendEmailDialog";
 import { ScheduleMeetingDialog } from "@/components/tasks/ScheduleMeetingDialog";
 import { useServerFn } from "@tanstack/react-start";
 import { createInstantMeet } from "@/lib/google/calendar.functions";
+import { Settings2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
   head: () => ({ meta: [{ title: "Tarefas — Hublynx Core" }] }),
