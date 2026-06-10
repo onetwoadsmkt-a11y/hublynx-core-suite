@@ -41,16 +41,12 @@ import {
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-export type TaskStatus = "backlog" | "a_fazer" | "em_andamento" | "revisao" | "concluido";
+export type TaskStatus = string;
 export type Priority = "baixa" | "media" | "alta" | "critica";
 
-export const STATUS_COLS: { key: TaskStatus; label: string; tone: string }[] = [
-  { key: "backlog", label: "Backlog", tone: "bg-muted text-muted-foreground" },
-  { key: "a_fazer", label: "A fazer", tone: "bg-blue-100 text-blue-700" },
-  { key: "em_andamento", label: "Em andamento", tone: "bg-amber-100 text-amber-700" },
-  { key: "revisao", label: "Revisão", tone: "bg-indigo-100 text-indigo-700" },
-  { key: "concluido", label: "Concluído", tone: "bg-emerald-100 text-emerald-700" },
-];
+// Re-export defaults for backward-compat consumers; runtime UI uses useKanbanColumns().
+export { DEFAULT_STATUS_COLS as STATUS_COLS } from "@/hooks/useKanbanColumns";
+import { useKanbanColumns, DEFAULT_STATUS_COLS } from "@/hooks/useKanbanColumns";
 
 export const PRIORITY_TONE: Record<Priority, string> = {
   baixa: "bg-emerald-50 text-emerald-700 border-emerald-200",
