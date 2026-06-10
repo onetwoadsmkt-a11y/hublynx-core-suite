@@ -162,6 +162,39 @@ async function findRowIndex(spreadsheetId: string, sheetName: string, recordId: 
   return null;
 }
 
+export async function performSheetsSync(
+  supabase: any,
+  entityType: EntityType,
+  recordId: string,
+) {
+  const def = ENTITY_DEFS[entityType];
+  const { data: record, error } = await supabase
+    .from(def.table)
+    .select(def.select)
+    .eq("id", recordId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!record) return { ok: false as const, reason: "not_found" };
+
+  const cfg = await ensureSpreadsheet(supabase, entityType);
+  const row = def.toRow(record);
+  const sheetName = cfg.sheet_name ?? "Sheet1";
+
+  const rowIndex = await findRowIndex(cfg.spreadsheet_id, sheetName, recordId);
+  if (rowIndex) {
+    await gatewayFetch(
+      `/spreadsheets/${cfg.spreadsheet_id}/values/${sheetName}!A${rowIndex}?valueInputOption=USER_ENTERED`,
+      { method: "PUT", body: JSON.stringify({ values: [row] }) },
+    );
+  } else {
+    await gatewayFetch(
+      `/spreadsheets/${cfg.spreadsheet_id}/values/${sheetName}!A:A:append?valueInputOption=USER_ENTERED`,
+      { method: "POST", body: JSON.stringify({ values: [row] }) },
+    );
+  }
+  return { ok: true as const, spreadsheetUrl: cfg.spreadsheet_url };
+}
+
 export const syncEntityToSheets = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -173,32 +206,7 @@ export const syncEntityToSheets = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const def = ENTITY_DEFS[data.entityType as EntityType];
-    const { data: record, error } = await (context.supabase as any)
-      .from(def.table)
-      .select(def.select)
-      .eq("id", data.recordId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!record) return { ok: false as const, reason: "not_found" };
-
-    const cfg = await ensureSpreadsheet(context.supabase, data.entityType as EntityType);
-    const row = def.toRow(record);
-    const sheetName = cfg.sheet_name ?? "Sheet1";
-
-    const rowIndex = await findRowIndex(cfg.spreadsheet_id, sheetName, data.recordId);
-    if (rowIndex) {
-      await gatewayFetch(
-        `/spreadsheets/${cfg.spreadsheet_id}/values/${sheetName}!A${rowIndex}?valueInputOption=USER_ENTERED`,
-        { method: "PUT", body: JSON.stringify({ values: [row] }) },
-      );
-    } else {
-      await gatewayFetch(
-        `/spreadsheets/${cfg.spreadsheet_id}/values/${sheetName}!A:A:append?valueInputOption=USER_ENTERED`,
-        { method: "POST", body: JSON.stringify({ values: [row] }) },
-      );
-    }
-    return { ok: true as const, spreadsheetUrl: cfg.spreadsheet_url };
+    return performSheetsSync(context.supabase, data.entityType as EntityType, data.recordId);
   });
 
 export const deleteEntityRowFromSheets = createServerFn({ method: "POST" })
