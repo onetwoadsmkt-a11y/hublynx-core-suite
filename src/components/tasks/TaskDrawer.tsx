@@ -28,6 +28,7 @@ import {
   GripVertical, ExternalLink, Tag, ChevronRight,
 } from "lucide-react";
 import { RichTextEditor } from "./RichTextEditor";
+import DOMPurify from "dompurify";
 import { TaskCommunicationsTab } from "./TaskCommunicationsTab";
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
@@ -721,7 +722,7 @@ function CommentRow({ comment, meId, onReply, onDelete }: { comment: any; meId?:
           <span className="text-sm font-medium">{name}</span>
           <span className="text-xs text-muted-foreground">{format(new Date(comment.created_at), "dd/MM 'às' HH:mm")}</span>
         </div>
-        <div className="prose prose-sm max-w-none mt-1" dangerouslySetInnerHTML={{ __html: comment.body }} />
+        <div className="prose prose-sm max-w-none mt-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.body) }} />
         <div className="flex items-center gap-3 mt-1 text-xs">
           {onReply && <button onClick={onReply} className="text-muted-foreground hover:text-foreground">Responder</button>}
           {meId === comment.owner_id && onDelete && (
