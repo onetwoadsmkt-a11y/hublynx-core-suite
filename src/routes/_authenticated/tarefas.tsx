@@ -516,6 +516,7 @@ function stripHtml(s: string) {
 function NewTaskDialog({
   projects, clients, onClose,
 }: { projects: any[]; clients: any[]; onClose: () => void }) {
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
