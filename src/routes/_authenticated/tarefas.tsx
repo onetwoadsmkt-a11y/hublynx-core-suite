@@ -106,10 +106,15 @@ function TarefasPage() {
   const { data: clients = [] } = useQuery({
     queryKey: ["clients-mini"],
     queryFn: async () => {
-      const { data } = await supabase.from("clients").select("id,name").order("name");
+      const { data } = await supabase.from("clients").select("id,name,email").order("name");
       return data ?? [];
     },
   });
+  const clientsById = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; email: string | null }>();
+    (clients as any[]).forEach((c) => m.set(c.id, c));
+    return m;
+  }, [clients]);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
