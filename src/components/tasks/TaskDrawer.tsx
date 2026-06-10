@@ -831,6 +831,7 @@ function HistoryTab({ taskId }: { taskId: string }) {
 }
 
 function HistoryRow({ event }: { event: any }) {
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const { data: actor } = useQuery({
     queryKey: ["profile", event.actor_id],
     enabled: !!event.actor_id,
@@ -840,7 +841,7 @@ function HistoryRow({ event }: { event: any }) {
   const label = ACTION_LABELS[event.action] ?? event.action;
   let detail = "";
   if (event.field === "status" && event.old_value && event.new_value) {
-    detail = ` de "${STATUS_COLS.find(s => s.key === event.old_value)?.label ?? event.old_value}" para "${STATUS_COLS.find(s => s.key === event.new_value)?.label ?? event.new_value}"`;
+    detail = ` de "${kanbanCols.find((s) => s.key === event.old_value)?.label ?? event.old_value}" para "${kanbanCols.find((s) => s.key === event.new_value)?.label ?? event.new_value}"`;
   } else if (event.field === "priority" && event.old_value && event.new_value) {
     detail = ` de "${PRIORITY_LABEL[event.old_value as Priority] ?? event.old_value}" para "${PRIORITY_LABEL[event.new_value as Priority] ?? event.new_value}"`;
   } else if (event.new_value) {
