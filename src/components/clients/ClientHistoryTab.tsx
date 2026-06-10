@@ -75,7 +75,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
                 <Link to="/financeiro" className="hover:underline truncate">
                   {f.description ?? "Lançamento"}
                 </Link>
-                <span className={f.kind === "receita" ? "text-emerald-600" : "text-rose-600"}>
+                <span className={f.kind === "receber" ? "text-emerald-600" : "text-rose-600"}>
                   R$ {Number(f.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                 </span>
               </li>
