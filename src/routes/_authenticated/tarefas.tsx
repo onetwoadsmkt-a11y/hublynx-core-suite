@@ -581,7 +581,7 @@ function NewTaskDialog({
             <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {STATUS_COLS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+                {kanbanCols.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
