@@ -74,6 +74,13 @@ export const upsertClient = createServerFn({ method: "POST" })
       : context.supabase.from("clients").insert(payload).select().single();
     const { data: row, error } = await query;
     if (error) throw new Error(error.message);
+    // Fire-and-forget Google Sheets sync
+    try {
+      const { syncEntityToSheets } = await import("@/lib/google/sheets-sync.functions");
+      await syncEntityToSheets({ data: { entityType: "client", recordId: (row as ClientRow).id } });
+    } catch (e) {
+      console.warn("[sheets-sync] client sync failed:", e);
+    }
     return { client: row as ClientRow };
   });
 
