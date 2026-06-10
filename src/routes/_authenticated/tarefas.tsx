@@ -18,18 +18,22 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Trash2, GripVertical, X } from "lucide-react";
+import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock } from "lucide-react";
 import { toast } from "sonner";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent, closestCorners,
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import {
   TaskDrawer, STATUS_COLS, PRIORITY_LABEL, PRIORITY_TONE,
   type TaskStatus, type Priority,
 } from "@/components/tasks/TaskDrawer";
+import { SendEmailDialog } from "@/components/tasks/SendEmailDialog";
+import { ScheduleMeetingDialog } from "@/components/tasks/ScheduleMeetingDialog";
+import { useServerFn } from "@tanstack/react-start";
+import { createInstantMeet } from "@/lib/google/calendar.functions";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
   head: () => ({ meta: [{ title: "Tarefas — Hublynx Core" }] }),
