@@ -161,7 +161,7 @@ function TarefasPage() {
     const { active, over } = e;
     if (!over) return;
     const overId = String(over.id);
-    const targetStatus = STATUS_COLS.find((c) => c.key === overId)?.key;
+    const targetStatus = kanbanCols.find((c) => c.key === overId)?.key;
     if (!targetStatus) return;
     const task = tasks.find((t) => t.id === active.id);
     if (!task || task.status === targetStatus) return;
