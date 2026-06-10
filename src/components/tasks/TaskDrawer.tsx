@@ -319,6 +319,9 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
 
   return (
     <div className="space-y-6">
+      {/* Labels */}
+      <LabelsBlock taskId={task.id} />
+
       {/* Description */}
       <div className="space-y-2">
         <Label>Descrição</Label>
@@ -394,9 +397,6 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
       ) : null}
 
       <Separator />
-
-      {/* Labels */}
-      <LabelsBlock taskId={task.id} />
 
 
       {/* Project card */}
