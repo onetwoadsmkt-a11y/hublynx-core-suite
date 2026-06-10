@@ -837,36 +837,6 @@ export type Database = {
           },
         ]
       }
-      user_google_connections: {
-        Row: {
-          connected_at: string
-          connection_api_key: string
-          email: string | null
-          id: string
-          scopes: string[]
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          connected_at?: string
-          connection_api_key: string
-          email?: string | null
-          id?: string
-          scopes?: string[]
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          connected_at?: string
-          connection_api_key?: string
-          email?: string | null
-          id?: string
-          scopes?: string[]
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           id: string
