@@ -280,6 +280,26 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
           </div>
         </ScrollArea>
       </Tabs>
+
+      {emailOpen && (
+        <SendEmailDialog
+          open={emailOpen}
+          onClose={() => setEmailOpen(false)}
+          taskId={task.id}
+          taskTitle={task.title}
+          defaultTo={client?.email ?? null}
+          clientName={client?.name ?? null}
+        />
+      )}
+      {meetOpen && (
+        <ScheduleMeetingDialog
+          open={meetOpen}
+          onClose={() => setMeetOpen(false)}
+          taskId={task.id}
+          taskTitle={task.title}
+          defaultAttendee={client?.email ?? null}
+        />
+      )}
     </div>
   );
 }
