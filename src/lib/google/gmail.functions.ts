@@ -85,13 +85,24 @@ export const sendTaskEmail = createServerFn({ method: "POST" })
       .maybeSingle();
     if (taskErr || !task) throw new Error("Tarefa não encontrada");
 
-    let html = data.body.replace(/\n/g, "<br/>");
-    if (data.meetLink) {
-      html += `<br/><br/><p>Link da reunião Google Meet:<br/><a href="${data.meetLink}">${data.meetLink}</a></p>`;
-    }
+    const textBody =
+      data.body + (data.meetLink ? `\n\nLink da reunião Google Meet:\n${data.meetLink}` : "");
+
+    const htmlInner = escapeHtml(data.body).replace(/\n/g, "<br/>");
+    const meetHtml = data.meetLink
+      ? `<p style="margin:16px 0 0">Link da reunião Google Meet:<br/><a href="${data.meetLink}">${escapeHtml(data.meetLink)}</a></p>`
+      : "";
+    const htmlBody = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head><body style="margin:0;padding:16px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;line-height:1.5"><div style="white-space:normal">${htmlInner}</div>${meetHtml}</body></html>`;
 
     const raw = toBase64Url(
-      buildRfc2822({ to: data.to, cc: data.cc, subject: data.subject, body: html }),
+      buildRfc2822({
+        from: "hublynx.dev@gmail.com",
+        to: data.to,
+        cc: data.cc,
+        subject: data.subject,
+        text: textBody,
+        html: htmlBody,
+      }),
     );
 
     const headers = getGoogleGatewayHeaders("mail");
