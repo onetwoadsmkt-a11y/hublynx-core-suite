@@ -1,0 +1,1 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_google_connections TO authenticated; GRANT ALL ON public.user_google_connections TO service_role;
