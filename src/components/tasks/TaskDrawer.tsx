@@ -150,7 +150,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
     return <div className="p-10 text-sm text-muted-foreground">Carregando…</div>;
   }
 
-  const status = STATUS_COLS.find((s) => s.key === task.status)!;
+  const status = kanbanCols.find((s) => s.key === task.status) ?? { key: task.status, label: task.status, tone: "bg-muted text-muted-foreground" };
 
   const client = task.client;
   const [emailOpen, setEmailOpen] = useState(false);
