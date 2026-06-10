@@ -398,53 +398,6 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
       {/* Labels */}
       <LabelsBlock taskId={task.id} />
 
-      {/* Client card */}
-      {client && (
-        <div className="rounded-xl border bg-card p-4 space-y-2">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cliente</p>
-              <p className="text-base font-semibold mt-1">{client.name}</p>
-              {client.company && <p className="text-sm text-muted-foreground">{client.company}</p>}
-            </div>
-            <Button variant="ghost" size="sm" asChild>
-              <a href={`/clientes`}><ExternalLink className="h-3.5 w-3.5 mr-1" /> Abrir</a>
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            {client.email && <div><span className="text-muted-foreground">E-mail:</span> {client.email}</div>}
-            {client.phone && <div><span className="text-muted-foreground">Tel:</span> {client.phone}</div>}
-            {client.whatsapp && <div><span className="text-muted-foreground">WhatsApp:</span> {client.whatsapp}</div>}
-          </div>
-          <div className="pt-3 mt-1 border-t flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={() => setEmailOpen(true)}
-            >
-              <Mail className="h-3.5 w-3.5 mr-1.5" /> E-mail
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={() => setMeetOpen(true)}
-            >
-              <CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Agendar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              disabled={quickMeet.isPending}
-              onClick={() => quickMeet.mutate()}
-            >
-              <Video className="h-3.5 w-3.5 mr-1.5" /> {quickMeet.isPending ? "Criando..." : "Meet"}
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Project card */}
       {project && (
