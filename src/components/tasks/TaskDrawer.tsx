@@ -155,6 +155,26 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
 
   const status = STATUS_COLS.find((s) => s.key === task.status)!;
 
+  const client = task.client;
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [meetOpen, setMeetOpen] = useState(false);
+  const instantMeet = useServerFn(createInstantMeet);
+  const quickMeet = useMutation({
+    mutationFn: async () =>
+      instantMeet({ data: { taskId: task.id, summary: task.title, durationMinutes: 30 } }),
+    onSuccess: (res: any) => {
+      if (res?.meetLink) {
+        navigator.clipboard?.writeText(res.meetLink).catch(() => {});
+        window.open(res.meetLink, "_blank");
+        toast.success("Reunião criada — link copiado.");
+      } else {
+        toast.success("Reunião criada.");
+      }
+      qc.invalidateQueries({ queryKey: ["task-communications", task.id] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Erro ao criar Meet"),
+  });
+
   return (
     <div className="flex flex-col h-full">
       {/* Header sticky */}
@@ -181,11 +201,52 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}><X className="h-4 w-4" /></Button>
           </div>
         </div>
-        <Input
-          value={task.title}
-          onChange={(e) => update.mutate({ title: e.target.value })}
-          className="text-xl font-semibold border-0 px-0 focus-visible:ring-0 shadow-none h-auto"
-        />
+        <div className="flex items-start gap-4">
+          <Input
+            value={task.title}
+            onChange={(e) => update.mutate({ title: e.target.value })}
+            className="flex-1 text-xl font-semibold border-0 px-0 focus-visible:ring-0 shadow-none h-auto"
+          />
+          {client && (
+            <div className="shrink-0 max-w-[220px] text-right">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Cliente</p>
+              <p className="text-sm font-semibold truncate">{client.name}</p>
+              {client.company && (
+                <p className="text-xs text-muted-foreground truncate">{client.company}</p>
+              )}
+              <div className="mt-2 flex items-center justify-end gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setEmailOpen(true)}
+                  title="Enviar e-mail"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setMeetOpen(true)}
+                  title="Agendar reunião"
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={quickMeet.isPending}
+                  onClick={() => quickMeet.mutate()}
+                  title="Criar link Meet agora"
+                >
+                  <Video className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
