@@ -336,7 +336,7 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
           <Select value={task.status} onValueChange={(v) => update.mutate({ status: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {STATUS_COLS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+              {kanbanCols.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </Field>
