@@ -26,10 +26,15 @@ import { useDropzone } from "react-dropzone";
 import {
   X, MoreHorizontal, Copy, Trash2, Plus, Paperclip, Download, Eye,
   GripVertical, ExternalLink, Tag, ChevronRight,
+  Mail, CalendarPlus, Video,
 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { RichTextEditor } from "./RichTextEditor";
 import DOMPurify from "dompurify";
 import { TaskCommunicationsTab } from "./TaskCommunicationsTab";
+import { SendEmailDialog } from "./SendEmailDialog";
+import { ScheduleMeetingDialog } from "./ScheduleMeetingDialog";
+import { createInstantMeet } from "@/lib/google/calendar.functions";
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
 } from "@dnd-kit/core";
