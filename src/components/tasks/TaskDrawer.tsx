@@ -35,6 +35,7 @@ import { TaskCommunicationsTab } from "./TaskCommunicationsTab";
 import { SendEmailDialog } from "./SendEmailDialog";
 import { ScheduleMeetingDialog } from "./ScheduleMeetingDialog";
 import { createInstantMeet } from "@/lib/google/calendar.functions";
+import { syncEntityToSheets, deleteEntityRowFromSheets } from "@/lib/google/sheets-sync.functions";
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
 } from "@dnd-kit/core";
