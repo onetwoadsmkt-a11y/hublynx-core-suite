@@ -157,20 +157,12 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
     },
   });
 
-
-  if (isLoading || !task) {
-    return <div className="p-10 text-sm text-muted-foreground">Carregando…</div>;
-  }
-
-  const status = kanbanCols.find((s) => s.key === task.status) ?? { key: task.status, label: task.status, tone: "bg-muted text-muted-foreground" };
-
-  const client = task.client;
   const [emailOpen, setEmailOpen] = useState(false);
   const [meetOpen, setMeetOpen] = useState(false);
   const instantMeet = useServerFn(createInstantMeet);
   const quickMeet = useMutation({
     mutationFn: async () =>
-      instantMeet({ data: { taskId: task.id, summary: task.title, durationMinutes: 30 } }),
+      instantMeet({ data: { taskId: task?.id, summary: task?.title, durationMinutes: 30 } }),
     onSuccess: (res: any) => {
       if (res?.meetLink) {
         navigator.clipboard?.writeText(res.meetLink).catch(() => {});
@@ -179,10 +171,19 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
       } else {
         toast.success("Reunião criada.");
       }
-      qc.invalidateQueries({ queryKey: ["task-communications", task.id] });
+      qc.invalidateQueries({ queryKey: ["task-communications", task?.id] });
     },
     onError: (e: any) => toast.error(e.message ?? "Erro ao criar Meet"),
   });
+
+  if (isLoading || !task) {
+    return <div className="p-10 text-sm text-muted-foreground">Carregando…</div>;
+  }
+
+  const status = kanbanCols.find((s) => s.key === task.status) ?? { key: task.status, label: task.status, tone: "bg-muted text-muted-foreground" };
+
+  const client = task.client;
+
 
   return (
     <div className="flex flex-col h-full">
