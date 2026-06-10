@@ -103,6 +103,9 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
     },
   });
 
+  const syncSheet = useServerFn(syncEntityToSheets);
+  const deleteSheetRow = useServerFn(deleteEntityRowFromSheets);
+
   const update = useMutation({
     mutationFn: async (patch: any) => {
       const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
@@ -111,6 +114,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task", taskId] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      syncSheet({ data: { entityType: "task", recordId: taskId } }).catch(() => {});
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -124,14 +128,15 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
       toast.success("Tarefa excluída.");
       qc.invalidateQueries({ queryKey: ["tasks"] });
       onClose();
+      deleteSheetRow({ data: { entityType: "task", recordId: taskId } }).catch(() => {});
     },
   });
 
   const duplicate = useMutation({
     mutationFn: async () => {
-      if (!task) return;
+      if (!task) return null;
       const { data: u } = await supabase.auth.getUser();
-      const { error } = await supabase.from("tasks").insert({
+      const { data: inserted, error } = await supabase.from("tasks").insert({
         owner_id: u.user!.id,
         title: task.title + " (cópia)",
         description: task.description,
@@ -141,11 +146,17 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
         client_id: task.client_id,
         assignee_id: task.assignee_id,
         position: 0,
-      });
+      }).select("id").single();
       if (error) throw error;
+      return inserted.id as string;
     },
-    onSuccess: () => { toast.success("Tarefa duplicada."); qc.invalidateQueries({ queryKey: ["tasks"] }); },
+    onSuccess: (id) => {
+      toast.success("Tarefa duplicada.");
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (id) syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
+    },
   });
+
 
   if (isLoading || !task) {
     return <div className="p-10 text-sm text-muted-foreground">Carregando…</div>;
