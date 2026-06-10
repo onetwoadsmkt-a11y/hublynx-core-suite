@@ -160,6 +160,26 @@ function TarefasPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) ?? null : null;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const kanbanScrollRef = useRef<HTMLDivElement>(null);
+  const onKanbanPanStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = kanbanScrollRef.current;
+    if (!el) return;
+    // Só inicia o pan se o clique foi em área vazia (não em um card/coluna interativa)
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-task-card], button, a, input, textarea, select, [role='button']")) return;
+    e.preventDefault();
+    const startX = e.pageX;
+    const startScroll = el.scrollLeft;
+    const onMove = (ev: MouseEvent) => {
+      el.scrollLeft = startScroll - (ev.pageX - startX);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   function onDragStart(e: DragStartEvent) { setActiveId(String(e.active.id)); }
   function onDragEnd(e: DragEndEvent) {
