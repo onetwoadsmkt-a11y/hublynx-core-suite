@@ -246,7 +246,11 @@ function TarefasPage() {
             <p className="text-sm text-muted-foreground">Carregando…</p>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-              <div className="flex gap-4 overflow-x-auto pb-4">
+              <div
+                ref={kanbanScrollRef}
+                onMouseDown={onKanbanPanStart}
+                className="flex gap-4 overflow-x-auto pb-4 cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              >
                 {kanbanCols.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
@@ -254,6 +258,7 @@ function TarefasPage() {
                   );
                 })}
               </div>
+
               <DragOverlay>
                 {activeTask ? (
                   <TaskCard
