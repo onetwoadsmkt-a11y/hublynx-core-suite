@@ -231,6 +231,7 @@ export type Database = {
           owner_id: string
           paid_at: string | null
           payment_method: string | null
+          project_id: string | null
           status: Database["public"]["Enums"]["finance_status"]
           supplier: string | null
           updated_at: string
@@ -247,6 +248,7 @@ export type Database = {
           owner_id: string
           paid_at?: string | null
           payment_method?: string | null
+          project_id?: string | null
           status?: Database["public"]["Enums"]["finance_status"]
           supplier?: string | null
           updated_at?: string
@@ -263,6 +265,7 @@ export type Database = {
           owner_id?: string
           paid_at?: string | null
           payment_method?: string | null
+          project_id?: string | null
           status?: Database["public"]["Enums"]["finance_status"]
           supplier?: string | null
           updated_at?: string
@@ -280,6 +283,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -398,13 +408,277 @@ export type Database = {
         }
         Relationships: []
       }
-      projects: {
+      project_activity: {
         Row: {
-          client_id: string | null
+          action: string
+          actor_id: string | null
+          created_at: string
+          entity: string | null
+          id: string
+          meta: Json | null
+          owner_id: string
+          project_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          entity?: string | null
+          id?: string
+          meta?: Json | null
+          owner_id: string
+          project_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          entity?: string | null
+          id?: string
+          meta?: Json | null
+          owner_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_activity_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_costs: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          incurred_at: string
+          kind: string
+          owner_id: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          incurred_at?: string
+          kind?: string
+          owner_id: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          incurred_at?: string
+          kind?: string
+          owner_id?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_costs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_members: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          owner_id: string
+          project_id: string
+          role: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          project_id: string
+          role?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          project_id?: string
+          role?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_milestones: {
+        Row: {
+          completed_at: string | null
           created_at: string
           description: string | null
           due_date: string | null
           id: string
+          owner_id: string
+          position: number
+          project_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          owner_id: string
+          position?: number
+          project_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          owner_id?: string
+          position?: number
+          project_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_milestones_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_notes: {
+        Row: {
+          content_html: string
+          created_at: string
+          id: string
+          owner_id: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_html?: string
+          created_at?: string
+          id?: string
+          owner_id: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_html?: string
+          created_at?: string
+          id?: string
+          owner_id?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_notes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_risks: {
+        Row: {
+          assignee_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          owner_id: string
+          project_id: string
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          owner_id: string
+          project_id: string
+          severity?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          owner_id?: string
+          project_id?: string
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_risks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          client_id: string | null
+          color: string | null
+          contract_value: number | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          manager_id: string | null
           name: string
           owner_id: string
           progress: number
@@ -415,10 +689,13 @@ export type Database = {
         }
         Insert: {
           client_id?: string | null
+          color?: string | null
+          contract_value?: number | null
           created_at?: string
           description?: string | null
           due_date?: string | null
           id?: string
+          manager_id?: string | null
           name: string
           owner_id: string
           progress?: number
@@ -429,10 +706,13 @@ export type Database = {
         }
         Update: {
           client_id?: string | null
+          color?: string | null
+          contract_value?: number | null
           created_at?: string
           description?: string | null
           due_date?: string | null
           id?: string
+          manager_id?: string | null
           name?: string
           owner_id?: string
           progress?: number
