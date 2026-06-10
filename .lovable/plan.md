@@ -1,34 +1,127 @@
-## Diagnóstico
 
-O e-mail de teste UTF-8 chega bem porque é um HTML completo (`<!doctype html><html><body>…`). Já o envio da tarefa (`src/lib/google/gmail.functions.ts`) monta o corpo assim:
+# Project Command Center
 
-- pega `data.body` (texto digitado no `Textarea`),
-- troca `\n` por `<br/>`,
-- envia com `Content-Type: text/html; charset="UTF-8"` mas **sem `<html><body>` envolvendo**, e **sem alternativa em texto**.
+Hub único para gerenciar todo um projeto sem trocar de tela. Visual premium SaaS (fundo claro, `rounded-2xl`, espaçamento amplo, sombras suaves, tipografia limpa).
 
-Alguns clientes (incluindo Gmail web, dependendo do remetente/threading) tratam esse HTML "fragmento" como inválido e mostram o corpo vazio, truncado ou só o link do Meet. Também não há fallback `text/plain` — quando o HTML falha, não sobra nada para exibir.
+## 1. Estrutura de rotas
 
-## Mudanças
+- `/projetos` → **lista** de projetos (cards/tabela com status, progresso, cliente, prazo, saúde). Botão "Novo projeto".
+- `/projetos/$id` → **Command Center** do projeto (página única, scroll vertical, 15 seções).
 
-### `src/lib/google/gmail.functions.ts`
-1. Construir **duas versões** do corpo:
-   - `textVersion`: o `data.body` original (preserva quebras de linha como `\r\n`), + linha extra com o link do Meet se houver.
-   - `htmlVersion`: HTML completo (`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;line-height:1.5">…</body></html>`) com o texto convertido (escapando `&`, `<`, `>` antes de trocar `\n` por `<br/>`) e o bloco do Meet como `<p><a href="…">…</a></p>`.
-2. Trocar o envelope MIME para **`multipart/alternative`** com boundary aleatório:
-   - parte 1: `text/plain; charset="UTF-8"` + `Content-Transfer-Encoding: base64` (corpo em base64 quebrado a 76 col).
-   - parte 2: `text/html; charset="UTF-8"` + `Content-Transfer-Encoding: base64` (idem).
-3. Manter `Subject` codificado em `=?UTF-8?B?…?=` (já está correto).
-4. Adicionar header `From: hublynx.dev@gmail.com` explícito (alguns clientes destacam melhor).
-5. Manter `toBase64Url` para o `raw` final enviado ao Gmail API.
+Arquivos:
+- `src/routes/_authenticated/projetos.index.tsx` (lista)
+- `src/routes/_authenticated/projetos.$id.tsx` (command center)
+- Substitui o placeholder atual `projetos.tsx`.
 
-### Sem alterações em
-- `SendEmailDialog.tsx` (UI continua igual — usuário digita texto puro).
-- `gmail-test.functions.ts` (já funciona; serve como referência).
-- Schema/validação/inserção em `task_communications`.
+## 2. Banco de dados (novas tabelas)
 
-## Validação
+Migrations com RLS `auth.uid() = owner_id`, GRANTs para `authenticated`/`service_role`, triggers `updated_at`.
 
-Após o ajuste, reabrir uma tarefa, enviar e-mail com acentos e quebras de linha (e opcionalmente Meet) para um Gmail real e conferir:
-- assunto sem "Sobre:" e com acentos corretos,
-- corpo visível com parágrafos preservados,
-- link do Meet clicável no final.
+```text
+projects                (existente — adicionar: manager_id, health_cache, contract_value)
+project_milestones      (project_id, title, status, due_date, order)
+project_members         (project_id, user_id, role)
+project_risks           (project_id, title, description, severity, status, assignee_id)
+project_notes           (project_id, content_html, updated_at)  -- 1:1 autosave
+project_costs           (project_id, kind[internal|external], category, description, amount, incurred_at)
+project_activity        (project_id, actor_id, action, entity, meta jsonb, created_at)
+```
+
+Reutiliza: `tasks` (já tem `project_id`), `files` (já tem `project_id`), `finances` (vincula via `client_id` + novo `project_id` opcional).
+
+## 3. Server functions
+
+`src/lib/projects/projects.functions.ts`:
+- `listProjects`, `getProject`, `createProject`, `updateProject`, `deleteProject`
+- `getProjectDashboard(id)` → retorna em um único payload: projeto, KPIs, alertas, tarefas do dia, semana, milestones, financeiro, custos, equipe, riscos, atividade recente
+- CRUDs para milestones, members, risks, notes (autosave debounced), costs
+
+Cálculos no servidor: progresso (tasks concluídas/total), saúde (regras: atrasos, budget>80%, prazo<7d, riscos críticos), lucro, margem, dias restantes.
+
+## 4. Layout do Command Center (`/projetos/$id`)
+
+Página única, grid responsivo. Ordem das seções:
+
+```text
+┌─ Header: nome, cliente, manager, datas, status badge, progresso, saúde 🟢🟡🔴
+├─ Alertas inteligentes (banner condicional)
+├─ KPI cards (6): progresso | receita | custo | lucro | dias restantes | issues
+├─ Tabs principais: [Visão Geral] [Tarefas] [Financeiro] [Equipe] [Arquivos] [Notas] [Atividade]
+│
+│  Visão Geral:
+│   • Foco do dia (tarefas due today + quick actions)
+│   • Performance semanal (concluídas/atrasadas/novas + produtividade por membro - Recharts)
+│   • Overview mensal (4 charts: progresso, tasks, budget area, horas)
+│   • Roadmap de milestones (timeline com check/edit/add)
+│   • Riscos & blockers (críticos destacados)
+│
+│  Tarefas: Kanban + Lista embutidos (reaproveita componentes de /tarefas filtrados por project_id)
+│  Financeiro: contract value, recebido, pendente, custo, lucro, margem + cost breakdown
+│  Equipe: avatares, role, tarefas ativas, add/remove
+│  Arquivos: upload Supabase Storage por categoria (contratos/briefings/designs/docs/relatórios)
+│  Notas: RichTextEditor com autosave (debounce 1s)
+│  Atividade: feed cronológico
+```
+
+Mobile: tabs viram dropdown, KPIs em 2 colunas, charts full-width.
+
+## 5. Componentes a criar
+
+```text
+src/components/projects/
+  ProjectHeader.tsx
+  ProjectAlerts.tsx
+  KpiCard.tsx                    (reutilizável)
+  HealthBadge.tsx
+  TodayFocus.tsx
+  WeeklyPerformance.tsx
+  MonthlyOverview.tsx            (Recharts)
+  MilestonesRoadmap.tsx
+  ProjectTasksTab.tsx            (Kanban + Lista filtrados)
+  FinancialOverview.tsx
+  CostManagement.tsx
+  TeamPanel.tsx
+  NotesEditor.tsx                (usa RichTextEditor existente + autosave)
+  FilesPanel.tsx
+  RisksPanel.tsx
+  ActivityFeed.tsx
+  ProjectFormDialog.tsx          (criar/editar projeto)
+  ProjectListCard.tsx
+```
+
+## 6. Cálculos automáticos (helpers)
+
+```text
+src/lib/projects/calc.ts
+  computeProgress(tasks)
+  computeFinancials(finances, costs, contractValue)
+  computeHealth({ progress, overdue, budgetUsage, daysToDue, openCriticalRisks })
+```
+
+## 7. Storage
+
+Reutiliza bucket existente para anexos; cria pasta lógica `projects/{project_id}/{categoria}/`. Se faltar bucket público para preview de arquivos, criamos `project-files` privado com signed URLs.
+
+## 8. Integração com módulos existentes
+
+- Tarefas: filtro `project_id=$id`, mesmo TaskDrawer.
+- Financeiro: adiciona `project_id` opcional em `finances` (migration) para vincular receitas/despesas ao projeto.
+- Google Sheets sync (já existente): aproveita hook para futuras sincronizações; fora do escopo desta entrega.
+
+## 9. Entregáveis desta fase
+
+1. Migrations (tabelas + colunas novas em `projects`/`finances`)
+2. Server functions completas
+3. Página de lista `/projetos`
+4. Página `/projetos/$id` com todas as 15 seções funcionais
+5. Componentes listados acima
+6. Atualização do menu lateral (link já existe)
+
+## 10. Observações técnicas
+
+- Loader usa `ensureQueryData(getProjectDashboard)` + `useSuspenseQuery`.
+- Atividade alimentada via triggers de banco em tasks/finances/files (similar ao `tg_tasks_history` atual).
+- Saúde recalculada on-demand no `getProjectDashboard` (não persistida).
+- Notas: única linha por projeto, upsert no autosave.
+
+Após aprovação, executo migrations primeiro, depois server functions e UI.
