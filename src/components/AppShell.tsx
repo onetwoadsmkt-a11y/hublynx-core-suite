@@ -1,8 +1,9 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useEffect } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users, DollarSign,
   Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +15,7 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
@@ -30,30 +32,40 @@ const NAV = [
   { to: "/configuracoes", label: "Configurações", icon: Settings },
 ] as const;
 
-function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <nav className="flex flex-col gap-1 px-3 py-2">
-      {NAV.map((item) => {
-        const active = pathname === item.to || pathname.startsWith(item.to + "/");
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            onClick={onNavigate}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <TooltipProvider delayDuration={0}>
+      <nav className={`flex flex-col gap-1 ${collapsed ? "px-2" : "px-3"} py-2`}>
+        {NAV.map((item) => {
+          const active = pathname === item.to || pathname.startsWith(item.to + "/");
+          const Icon = item.icon;
+          const link = (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={onNavigate}
+              className={`flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium transition-colors ${
+                active
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {!collapsed && item.label}
+            </Link>
+          );
+          return collapsed ? (
+            <Tooltip key={item.to}>
+              <TooltipTrigger asChild>{link}</TooltipTrigger>
+              <TooltipContent side="right">{item.label}</TooltipContent>
+            </Tooltip>
+          ) : (
+            link
+          );
+        })}
+      </nav>
+    </TooltipProvider>
   );
 }
 
@@ -106,16 +118,59 @@ function UserMenu() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("sidebar-collapsed") === "1";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sidebar-collapsed", collapsed ? "1" : "0");
+  }, [collapsed]);
+
   return (
     <div className="min-h-screen flex w-full bg-muted/30">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col border-r bg-sidebar shrink-0">
-        <div className="h-16 flex items-center px-5 border-b">
-          <HublynxLogo />
+      <aside
+        className={`hidden lg:flex flex-col border-r bg-sidebar shrink-0 transition-[width] duration-200 ${
+          collapsed ? "w-16" : "w-64"
+        }`}
+      >
+        <div className={`h-16 flex items-center border-b ${collapsed ? "justify-center px-2" : "justify-between px-3"}`}>
+          {!collapsed && (
+            <div className="pl-2">
+              <HublynxLogo />
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+          >
+            {collapsed ? (
+              <HublynxLogo collapsed />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+          </Button>
         </div>
         <div className="flex-1 overflow-y-auto py-2">
-          <SidebarNav />
+          <SidebarNav collapsed={collapsed} />
         </div>
+        {collapsed && (
+          <div className="p-2 border-t flex justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCollapsed(false)}
+              aria-label="Expandir menu"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
