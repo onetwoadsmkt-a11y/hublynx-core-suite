@@ -1281,6 +1281,9 @@ export type Database = {
         | "aguardando"
         | "concluido"
         | "cancelado"
+        | "ativo"
+        | "aguardando_cliente"
+        | "em_pausa"
       task_priority: "baixa" | "media" | "alta" | "critica"
       task_resource_type: "task" | "project" | "client" | "event" | "file"
     }
@@ -1430,6 +1433,9 @@ export const Constants = {
         "aguardando",
         "concluido",
         "cancelado",
+        "ativo",
+        "aguardando_cliente",
+        "em_pausa",
       ],
       task_priority: ["baixa", "media", "alta", "critica"],
       task_resource_type: ["task", "project", "client", "event", "file"],
