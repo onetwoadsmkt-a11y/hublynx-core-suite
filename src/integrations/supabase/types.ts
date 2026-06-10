@@ -284,6 +284,36 @@ export type Database = {
           },
         ]
       }
+      kanban_columns: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          label: string
+          position: number
+          tone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          label: string
+          position?: number
+          tone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          label?: string
+          position?: number
+          tone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null
@@ -828,7 +858,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["task_priority"]
           project_id: string | null
           start_date: string | null
-          status: Database["public"]["Enums"]["task_status"]
+          status: string
           title: string
           updated_at: string
         }
@@ -850,7 +880,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
           start_date?: string | null
-          status?: Database["public"]["Enums"]["task_status"]
+          status?: string
           title: string
           updated_at?: string
         }
@@ -872,7 +902,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string | null
           start_date?: string | null
-          status?: Database["public"]["Enums"]["task_status"]
+          status?: string
           title?: string
           updated_at?: string
         }
@@ -946,12 +976,6 @@ export type Database = {
         | "cancelado"
       task_priority: "baixa" | "media" | "alta" | "critica"
       task_resource_type: "task" | "project" | "client" | "event" | "file"
-      task_status:
-        | "backlog"
-        | "a_fazer"
-        | "em_andamento"
-        | "revisao"
-        | "concluido"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1102,13 +1126,6 @@ export const Constants = {
       ],
       task_priority: ["baixa", "media", "alta", "critica"],
       task_resource_type: ["task", "project", "client", "event", "file"],
-      task_status: [
-        "backlog",
-        "a_fazer",
-        "em_andamento",
-        "revisao",
-        "concluido",
-      ],
     },
   },
 } as const
