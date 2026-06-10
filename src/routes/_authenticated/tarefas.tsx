@@ -428,7 +428,7 @@ function TaskCard({
         </div>
 
         {/* Corpo: drag handle + título + subtítulo cliente */}
-        <div className="flex items-start gap-2 px-3 pt-2 pb-2">
+        <div className="flex items-start gap-2 px-3 pt-2 pb-3">
           <button
             {...dragHandle}
             className="text-muted-foreground/30 group-hover:text-muted-foreground cursor-grab pt-0.5"
@@ -441,46 +441,45 @@ function TaskCard({
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {client ? client.name : <span className="italic">Sem cliente</span>}
             </p>
-            <div className="mt-2">
+            <div className="mt-2 flex items-center justify-between gap-2">
               <Badge variant="outline" className={`${PRIORITY_TONE[task.priority]} text-[10px] py-0 border-0`}>
                 {PRIORITY_LABEL[task.priority]}
               </Badge>
+              <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+                  onClick={(e) => { stop(e); setEmailOpen(true); }}
+                  title="Enviar e-mail"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+                  onClick={(e) => { stop(e); setMeetOpen(true); }}
+                  title="Agendar reunião"
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+                  disabled={quickMeet.isPending}
+                  onClick={(e) => { stop(e); quickMeet.mutate(); }}
+                  title="Criar link Meet agora"
+                >
+                  <Video className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Ações Google */}
-        <div className="border-t bg-muted/30 px-2 py-1.5 flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-            onClick={(e) => { stop(e); setEmailOpen(true); }}
-            title="Enviar e-mail"
-          >
-            <Mail className="h-3.5 w-3.5 mr-1" /> E-mail
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-            onClick={(e) => { stop(e); setMeetOpen(true); }}
-            title="Agendar reunião"
-          >
-            <CalendarPlus className="h-3.5 w-3.5 mr-1" /> Agendar
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-            disabled={quickMeet.isPending}
-            onClick={(e) => { stop(e); quickMeet.mutate(); }}
-            title="Criar link Meet agora"
-          >
-            <Video className="h-3.5 w-3.5 mr-1" /> {quickMeet.isPending ? "..." : "Meet"}
-          </Button>
-        </div>
       </div>
+
 
       {emailOpen && (
         <SendEmailDialog
