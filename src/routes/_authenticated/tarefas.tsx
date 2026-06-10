@@ -305,6 +305,7 @@ function TarefasPage() {
       </Tabs>
 
       <TaskDrawer taskId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} />
+      <EditKanbanDialog open={openEditKanban} onOpenChange={setOpenEditKanban} />
     </div>
   );
 }
