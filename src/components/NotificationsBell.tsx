@@ -35,12 +35,10 @@ export function NotificationsBell() {
   });
 
   useEffect(() => {
-    const ch = supabase
-      .channel("notifications-bell")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, () => {
-        qc.invalidateQueries({ queryKey: ["notifications"] });
-      })
-      .subscribe();
+    const ch = supabase.channel(`notifications-bell-${Math.random().toString(36).slice(2)}`);
+    ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    }).subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [qc]);
 
