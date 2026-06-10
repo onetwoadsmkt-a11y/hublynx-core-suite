@@ -34,7 +34,7 @@ export function SendEmailDialog({ open, onClose, taskId, taskTitle, defaultTo, c
   useEffect(() => {
     if (open) {
       setTo(defaultTo ?? "");
-      setSubject(taskTitle ? `Sobre: ${taskTitle}` : "");
+      setSubject(taskTitle ?? "");
       setBody(clientName ? `Olá ${clientName},\n\n` : "Olá,\n\n");
       setIncludeMeet(false);
     }
