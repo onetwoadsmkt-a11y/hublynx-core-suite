@@ -539,6 +539,62 @@ export type Database = {
           },
         ]
       }
+      task_communications: {
+        Row: {
+          actor_id: string | null
+          body_snippet: string | null
+          created_at: string
+          id: string
+          kind: string
+          meet_link: string | null
+          metadata: Json
+          owner_id: string
+          provider_id: string | null
+          recipients: string[]
+          start_at: string | null
+          subject: string | null
+          task_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          body_snippet?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          meet_link?: string | null
+          metadata?: Json
+          owner_id: string
+          provider_id?: string | null
+          recipients?: string[]
+          start_at?: string | null
+          subject?: string | null
+          task_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          body_snippet?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          meet_link?: string | null
+          metadata?: Json
+          owner_id?: string
+          provider_id?: string | null
+          recipients?: string[]
+          start_at?: string | null
+          subject?: string | null
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_communications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_custom_fields: {
         Row: {
           created_at: string
