@@ -36,6 +36,7 @@ import { SendEmailDialog } from "@/components/tasks/SendEmailDialog";
 import { ScheduleMeetingDialog } from "@/components/tasks/ScheduleMeetingDialog";
 import { useServerFn } from "@tanstack/react-start";
 import { createInstantMeet } from "@/lib/google/calendar.functions";
+import { syncEntityToSheets } from "@/lib/google/sheets-sync.functions";
 import { Settings2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
