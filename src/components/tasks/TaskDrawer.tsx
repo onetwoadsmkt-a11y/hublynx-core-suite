@@ -26,10 +26,15 @@ import { useDropzone } from "react-dropzone";
 import {
   X, MoreHorizontal, Copy, Trash2, Plus, Paperclip, Download, Eye,
   GripVertical, ExternalLink, Tag, ChevronRight,
+  Mail, CalendarPlus, Video,
 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { RichTextEditor } from "./RichTextEditor";
 import DOMPurify from "dompurify";
 import { TaskCommunicationsTab } from "./TaskCommunicationsTab";
+import { SendEmailDialog } from "./SendEmailDialog";
+import { ScheduleMeetingDialog } from "./ScheduleMeetingDialog";
+import { createInstantMeet } from "@/lib/google/calendar.functions";
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -232,6 +237,26 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
   const client = task.client;
   const project = task.project;
 
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [meetOpen, setMeetOpen] = useState(false);
+  const instantMeet = useServerFn(createInstantMeet);
+  const qc = useQueryClient();
+  const quickMeet = useMutation({
+    mutationFn: async () =>
+      instantMeet({ data: { taskId: task.id, summary: task.title, durationMinutes: 30 } }),
+    onSuccess: (res: any) => {
+      if (res?.meetLink) {
+        navigator.clipboard?.writeText(res.meetLink).catch(() => {});
+        window.open(res.meetLink, "_blank");
+        toast.success("Reunião criada — link copiado.");
+      } else {
+        toast.success("Reunião criada.");
+      }
+      qc.invalidateQueries({ queryKey: ["task-communications", task.id] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Erro ao criar Meet"),
+  });
+
   return (
     <div className="space-y-6">
       {/* Description */}
@@ -331,6 +356,33 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
             {client.phone && <div><span className="text-muted-foreground">Tel:</span> {client.phone}</div>}
             {client.whatsapp && <div><span className="text-muted-foreground">WhatsApp:</span> {client.whatsapp}</div>}
           </div>
+          <div className="pt-3 mt-1 border-t flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => setEmailOpen(true)}
+            >
+              <Mail className="h-3.5 w-3.5 mr-1.5" /> E-mail
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => setMeetOpen(true)}
+            >
+              <CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Agendar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              disabled={quickMeet.isPending}
+              onClick={() => quickMeet.mutate()}
+            >
+              <Video className="h-3.5 w-3.5 mr-1.5" /> {quickMeet.isPending ? "Criando..." : "Meet"}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -362,6 +414,26 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
         <p>Criado em {format(new Date(task.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
         {task.completed_at && <p>Concluído em {format(new Date(task.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>}
       </div>
+
+      {emailOpen && (
+        <SendEmailDialog
+          open={emailOpen}
+          onClose={() => setEmailOpen(false)}
+          taskId={task.id}
+          taskTitle={task.title}
+          defaultTo={client?.email ?? null}
+          clientName={client?.name ?? null}
+        />
+      )}
+      {meetOpen && (
+        <ScheduleMeetingDialog
+          open={meetOpen}
+          onClose={() => setMeetOpen(false)}
+          taskId={task.id}
+          taskTitle={task.title}
+          defaultAttendee={client?.email ?? null}
+        />
+      )}
     </div>
   );
 }
