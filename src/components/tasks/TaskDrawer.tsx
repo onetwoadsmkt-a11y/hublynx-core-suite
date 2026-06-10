@@ -237,12 +237,38 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
   const client = task.client;
   const project = task.project;
 
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [meetOpen, setMeetOpen] = useState(false);
+  const instantMeet = useServerFn(createInstantMeet);
+  const qc = useQueryClient();
+  const quickMeet = useMutation({
+    mutationFn: async () =>
+      instantMeet({ data: { taskId: task.id, summary: task.title, durationMinutes: 30 } }),
+    onSuccess: (res: any) => {
+      if (res?.meetLink) {
+        navigator.clipboard?.writeText(res.meetLink).catch(() => {});
+        window.open(res.meetLink, "_blank");
+        toast.success("Reunião criada — link copiado.");
+      } else {
+        toast.success("Reunião criada.");
+      }
+      qc.invalidateQueries({ queryKey: ["task-communications", task.id] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Erro ao criar Meet"),
+  });
+
   return (
     <div className="space-y-6">
       {/* Description */}
       <div className="space-y-2">
         <Label>Descrição</Label>
         <RichTextEditor
+          value={task.description ?? ""}
+          onChange={(html) => update.mutate({ description: html })}
+          placeholder="Descreva a tarefa..."
+          minHeight={120}
+        />
+      </div>
           value={task.description ?? ""}
           onChange={(html) => update.mutate({ description: html })}
           placeholder="Descreva a tarefa..."
