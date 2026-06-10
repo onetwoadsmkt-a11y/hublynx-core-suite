@@ -1,86 +1,92 @@
-# Integração Google Meet + Ações Google no Card de Tarefa
+## Objetivo
 
-## 1. Novo layout do card (Kanban)
+Transformar `/clientes` (hoje placeholder) numa página completa: lista com filtros, cadastro/edição completos do cliente e anexos de documentos (contratos) por cliente.
 
-Redesenho do `TaskCard` em `src/routes/_authenticated/tarefas.tsx`:
+A tabela `public.clients` e `public.files` já existem com todos os campos necessários — não há mudança de schema, apenas um bucket de storage novo.
 
+## Layout da página
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ Clientes                                  [+ Novo cliente]  │
+├─────────────────────────────────────────────────────────────┤
+│ [🔍 Buscar nome/empresa/email] [Status ▾] [Serviço ▾] [⟳]   │
+├─────────────────────────────────────────────────────────────┤
+│  Cards/grid responsivo:                                     │
+│   ┌─────────────────┐  ┌─────────────────┐                  │
+│   │ Avatar  Nome    │  │ Avatar  Nome    │                  │
+│   │ Empresa · Tag   │  │ Empresa · Tag   │                  │
+│   │ ✉ email · ☎ tel │  │ ✉ email · ☎ tel │                  │
+│   │ R$/mês · renova │  │ R$/mês · renova │                  │
+│   │ [Ver] [Editar]  │  │ [Ver] [Editar]  │                  │
+│   └─────────────────┘  └─────────────────┘                  │
+└─────────────────────────────────────────────────────────────┘
 ```
-┌──────────────────────────────────────┐
-│ ▓▓▓ stripe colorido (prioridade)     │  ← capa
-│ [etiqueta1] [etiqueta2]    ⏰ 15/06 │  ← header: labels esq. / prazo dir.
-│                                       │
-│  Revisar campanha de junho            │  ← título (nome da tarefa)
-│  Cliente: Acme Ltda                   │  ← subtítulo (nome do cliente)
-│                                       │
-│  [✉ Email] [📅 Agendar] [🎥 Meet]    │  ← ações Google
-└──────────────────────────────────────┘
-```
 
-- Prazo no canto superior direito com destaque (badge tabular, vermelho se vencido, âmbar se ≤ 2 dias).
-- Etiquetas no cabeçalho.
-- Título = tarefa, subtítulo = nome do cliente vinculado (resolvido via `client_id`).
-- Três botões compactos no rodapé, desabilitados quando não houver cliente com email (Email/Meet com convite).
+Clique em **Ver** abre um **drawer lateral** com 3 abas:
 
-## 2. Ações Google (todas dentro do sistema)
+1. **Dados** — todos os campos do cadastro (somente leitura, com botão Editar)
+2. **Contratos & Documentos** — lista de anexos + dropzone para upload
+3. **Histórico** — projetos, tarefas e finanças vinculados (apenas listagem com links)  
+obs: os arquivos deverão estar vinvulados ao google drive
 
-Todas via gateway `connector-gateway.lovable.dev` em `createServerFn` com `requireSupabaseAuth`, usando os connectors já linkados (hublynx.dev@gmail.com).
+## Filtros
 
-### a. Enviar email (Gmail)
-- Botão abre modal `SendEmailDialog`:
-  - **Para**: pré-preenchido com `clients.email`, editável, múltiplos destinatários
-  - **Assunto**, **Mensagem** (textarea simples; HTML básico)
-  - Botão "Enviar"
-- Server fn `sendTaskEmail`: monta RFC 2822, base64url, POST `users/me/messages/send` no gateway `google_mail`.
-- Registra em `task_communications` (tipo `email`) com assunto, destinatário, snippet, message_id, timestamp.
+- Busca textual (nome, empresa, email) — debounce 300ms
+- Status: ativo / prospecto / inadimplente / inativo / todos
+- Serviço (lista única derivada dos clientes existentes)
+- Ordenar por: mais recentes / nome A-Z / valor mensal
 
-### b. Agendar reunião (Calendar + Meet)
-- Botão abre modal `ScheduleMeetingDialog`:
-  - **Título** (default: título da tarefa), **Data/hora início**, **Duração** (15/30/45/60 min), **Descrição**, **Participantes** (chips, default = email do cliente), checkbox "Enviar convite por email".
-  - Botão "Agendar".
-- Server fn `scheduleMeeting`: POST `calendars/primary/events?conferenceDataVersion=1&sendUpdates=all` com `conferenceData.createRequest` para gerar link Meet.
-- Registra em `task_communications` (tipo `meeting`) com link Meet, event_id, start_at, attendees.
+Estado dos filtros vai para search params da rota (`validateSearch` + `Route.useSearch`), assim a URL é compartilhável.
 
-### c. Link Meet rápido
-- Botão "Meet agora": cria evento de 30 min começando agora, sem convites; copia o link para o clipboard e abre numa aba.
-- Mesma server fn de agendar, com payload pré-montado.
-- Opção extra dentro do modal de email: "Incluir link Meet" — se marcado, gera o evento e injeta o link no corpo do email antes de enviar.
+## Cadastro (dialog grande, em seções)
 
-## 3. Timeline no TaskDrawer
+- **Identificação**: nome*, empresa, status*, serviço
+- **Contato**: email, telefone, WhatsApp, Instagram, site, endereço
+- **Contrato**: valor mensal, início, renovação
+- **Observações**: notas (textarea)
 
-Nova aba "Comunicações" em `TaskDrawer` mostrando entradas de `task_communications` ordenadas por data desc:
-- Email: ícone ✉, "Para X · Assunto" · timestamp · expandir para ver snippet
-- Meeting: ícone 🎥, "Reunião com X · DD/MM HH:mm" · botão "Abrir Meet" · botão "Copiar link"
+Validação com Zod (nome obrigatório, email válido se preenchido, valor numérico ≥ 0). Mesmo formulário usado para criar e editar.
 
-## 4. Schema (migration)
+## Contratos & Documentos
 
-Tabela nova `task_communications`:
-- `id`, `task_id` (FK tasks), `owner_id`, `actor_id`, `kind` ('email'|'meeting'), `subject`, `recipients text[]`, `body_snippet`, `provider_id` (message_id/event_id), `meet_link`, `start_at`, `metadata jsonb`, `created_at`.
-- RLS: dono da tarefa pode ler/inserir; trigger registra `task_history` (opcional).
-- GRANTs: authenticated CRUD, service_role ALL.
+- Bucket novo de storage: `client-documents` (privado, RLS).
+- Caminho: `{owner_id}/{client_id}/{uuid}-{filename}`
+- Tipos aceitos: PDF, DOC/DOCX, imagens; até 20 MB.
+- Cada upload grava em `public.files` com `category='contratos'` e `client_id`.
+- Lista mostra: ícone por tipo, nome, tamanho, data, botões **Baixar** (signed URL 60 s) e **Excluir**.
 
-## 5. Arquivos
+## Histórico
 
-**Migration**
-- `task_communications` + policies + grants
+Consultas read-only em `projects`, `tasks` e `finances` filtradas por `client_id`. Cada item linka para a página correspondente.
 
-**Server functions** (`src/lib/google/`)
-- `gmail.functions.ts` — `sendTaskEmail`
-- `calendar.functions.ts` — `scheduleMeeting`, `createInstantMeet`
-- `communications.functions.ts` — `listTaskCommunications`
+## Detalhes técnicos
 
-**Componentes** (`src/components/tasks/`)
-- `TaskCard.tsx` — extraído de `tarefas.tsx` com novo layout (título/subtítulo, prazo destacado, botões Google)
-- `SendEmailDialog.tsx`
-- `ScheduleMeetingDialog.tsx`
-- `TaskCommunicationsTab.tsx` — adicionado ao `TaskDrawer`
+**Arquivos a criar/editar:**
 
-**Edição**
-- `tarefas.tsx` — usar novo `TaskCard`, passar `clientById` map
-- `TaskDrawer.tsx` — nova tab "Comunicações"
+- `src/routes/_authenticated/clientes.tsx` — substitui o placeholder; loader via TanStack Query (`ensureQueryData`) e `useSuspenseQuery` no componente. `validateSearch` com filtros.
+- `src/components/clients/ClientCard.tsx` — card da grade.
+- `src/components/clients/ClientFormDialog.tsx` — formulário criar/editar (react-hook-form + zod).
+- `src/components/clients/ClientDrawer.tsx` — drawer com as 3 abas.
+- `src/components/clients/ClientDocumentsTab.tsx` — upload e listagem de documentos.
+- `src/components/clients/ClientHistoryTab.tsx` — projetos/tarefas/finanças.
+- `src/lib/clients/clients.functions.ts` — server fns: `listClients`, `upsertClient`, `deleteClient`.
+- `src/lib/clients/client-documents.functions.ts` — server fns: `listClientDocuments`, `getClientDocumentSignedUrl`, `deleteClientDocument` (upload é direto via supabase client no browser; metadata gravada via server fn `recordClientDocument`).
 
-## Notas técnicas
+**Backend (migration):**
 
-- Connectors compartilhados → todas as ações são enviadas a partir de `hublynx.dev@gmail.com`. O destinatário do email é o cliente; o "remetente visível" é a conta Hublynx.
-- Validação Zod nos server fns (email válido, max lengths, datas futuras para agenda).
-- Sem novos secrets necessários — `GOOGLE_MAIL_API_KEY`, `GOOGLE_CALENDAR_API_KEY` e `LOVABLE_API_KEY` já existem.
-- O Drawer existente continua funcionando; apenas ganha uma aba a mais.
+- Criar bucket `client-documents` (privado) via `storage_create_bucket`.
+- Migration com policies RLS em `storage.objects` para o bucket: dono lê/escreve quando `(storage.foldername(name))[1] = auth.uid()::text`.
+- Nenhuma alteração nas tabelas `clients` ou `files` (já têm tudo).
+
+**Padrões do projeto:**
+
+- Toda chamada protegida usa `requireSupabaseAuth` em server fn.
+- Cores e componentes via design system (shadcn + tokens semânticos).
+- Sonner para toasts.
+
+## Fora de escopo
+
+- Importação CSV de clientes.
+- Assinatura eletrônica de contratos.
+- Envio automático de e-mail ao cliente (já existe nas tarefas; pode ser feito em iteração futura).
