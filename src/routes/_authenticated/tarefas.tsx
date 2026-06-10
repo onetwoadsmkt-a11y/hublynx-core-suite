@@ -36,6 +36,7 @@ import { SendEmailDialog } from "@/components/tasks/SendEmailDialog";
 import { ScheduleMeetingDialog } from "@/components/tasks/ScheduleMeetingDialog";
 import { useServerFn } from "@tanstack/react-start";
 import { createInstantMeet } from "@/lib/google/calendar.functions";
+import { syncEntityToSheets } from "@/lib/google/sheets-sync.functions";
 import { Settings2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
@@ -131,10 +132,12 @@ function TarefasPage() {
     });
   }, [tasks, searchText, filterPriority, filterProject, filterClient]);
 
+  const syncSheet = useServerFn(syncEntityToSheets);
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
       const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
       if (error) throw error;
+      return id;
     },
     onMutate: async ({ id, status }) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
@@ -147,6 +150,9 @@ function TarefasPage() {
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(["tasks"], ctx.prev);
       toast.error("Não foi possível mover a tarefa.");
+    },
+    onSuccess: (id) => {
+      syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
@@ -525,6 +531,7 @@ function NewTaskDialog({
 }: { projects: any[]; clients: any[]; onClose: () => void }) {
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const qc = useQueryClient();
+  const syncSheet = useServerFn(syncEntityToSheets);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("media");
@@ -537,7 +544,7 @@ function NewTaskDialog({
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Sem sessão");
-      const { error } = await supabase.from("tasks").insert({
+      const { data: inserted, error } = await supabase.from("tasks").insert({
         owner_id: u.user.id,
         title,
         description: description || null,
@@ -547,14 +554,16 @@ function NewTaskDialog({
         client_id: clientId === "none" ? null : clientId,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         position: 0,
-      });
+      }).select("id").single();
       if (error) throw error;
+      return inserted.id as string;
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Tarefa criada.");
       setTitle(""); setDescription(""); setDueDate("");
       onClose();
+      syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
     onError: (e: any) => toast.error(e.message),
   });

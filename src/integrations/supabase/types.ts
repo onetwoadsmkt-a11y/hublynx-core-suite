@@ -284,6 +284,33 @@ export type Database = {
           },
         ]
       }
+      google_sheets_sync: {
+        Row: {
+          created_at: string
+          entity_type: string
+          sheet_name: string
+          spreadsheet_id: string
+          spreadsheet_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_type: string
+          sheet_name?: string
+          spreadsheet_id: string
+          spreadsheet_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_type?: string
+          sheet_name?: string
+          spreadsheet_id?: string
+          spreadsheet_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       kanban_columns: {
         Row: {
           created_at: string
