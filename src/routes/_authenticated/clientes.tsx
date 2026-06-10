@@ -6,14 +6,42 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Users } from "lucide-react";
+import { Plus, Search, Users, Pencil, Eye } from "lucide-react";
 import { listClients, type ClientRow } from "@/lib/clients/clients.functions";
-import { ClientCard } from "@/components/clients/ClientCard";
 import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import { ClientDrawer } from "@/components/clients/ClientDrawer";
+
+const STATUS_TONE: Record<ClientRow["status"], string> = {
+  ativo: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  prospecto: "bg-blue-100 text-blue-700 border-blue-200",
+  inadimplente: "bg-rose-100 text-rose-700 border-rose-200",
+  inativo: "bg-muted text-muted-foreground border-border",
+};
+const STATUS_LABEL: Record<ClientRow["status"], string> = {
+  ativo: "Ativo",
+  prospecto: "Prospecto",
+  inadimplente: "Inadimplente",
+  inativo: "Inativo",
+};
+
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "?"
+  );
+}
 
 const searchSchema = z.object({
   q: z.string().catch("").default(""),
@@ -148,15 +176,79 @@ function ClientesPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((c) => (
-              <ClientCard
-                key={c.id}
-                client={c}
-                onView={() => setParam("view", c.id)}
-                onEdit={() => setEditing(c)}
-              />
-            ))}
+          <div className="border rounded-lg overflow-hidden bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="hidden md:table-cell">Status</TableHead>
+                  <TableHead className="hidden lg:table-cell">Serviço</TableHead>
+                  <TableHead className="hidden md:table-cell">Contato</TableHead>
+                  <TableHead className="hidden lg:table-cell">Renovação</TableHead>
+                  <TableHead className="text-right">Valor /mês</TableHead>
+                  <TableHead className="w-[120px] text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((c) => (
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer"
+                    onClick={() => setParam("view", c.id)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                            {initials(c.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{c.name}</p>
+                          {c.company && (
+                            <p className="text-xs text-muted-foreground truncate">{c.company}</p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Badge variant="outline" className={STATUS_TONE[c.status]}>
+                        {STATUS_LABEL[c.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                      {c.service || "—"}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                      <div className="truncate max-w-[200px]">{c.email || "—"}</div>
+                      {(c.phone || c.whatsapp) && (
+                        <div className="text-xs">{c.phone || c.whatsapp}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                      {c.contract_renewal
+                        ? new Date(c.contract_renewal).toLocaleDateString("pt-BR")
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-medium">
+                      {c.monthly_value != null
+                        ? `R$ ${Number(c.monthly_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setParam("view", c.id)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
