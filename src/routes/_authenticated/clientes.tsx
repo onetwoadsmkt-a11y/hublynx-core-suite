@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AppShell } from "@/components/AppShell";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,7 +76,7 @@ function ClientesPage() {
   }
 
   return (
-    <AppShell>
+    <>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
@@ -172,6 +172,6 @@ function ClientesPage() {
         open={!!viewing}
         onOpenChange={(o) => !o && setParam("view", undefined as never)}
       />
-    </AppShell>
+    </>
   );
 }
