@@ -356,6 +356,33 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
             {client.phone && <div><span className="text-muted-foreground">Tel:</span> {client.phone}</div>}
             {client.whatsapp && <div><span className="text-muted-foreground">WhatsApp:</span> {client.whatsapp}</div>}
           </div>
+          <div className="pt-3 mt-1 border-t flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => setEmailOpen(true)}
+            >
+              <Mail className="h-3.5 w-3.5 mr-1.5" /> E-mail
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => setMeetOpen(true)}
+            >
+              <CalendarPlus className="h-3.5 w-3.5 mr-1.5" /> Agendar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              disabled={quickMeet.isPending}
+              onClick={() => quickMeet.mutate()}
+            >
+              <Video className="h-3.5 w-3.5 mr-1.5" /> {quickMeet.isPending ? "Criando..." : "Meet"}
+            </Button>
+          </div>
         </div>
       )}
 
