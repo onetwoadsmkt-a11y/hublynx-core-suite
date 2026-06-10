@@ -235,7 +235,7 @@ function TarefasPage() {
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
               <div className="flex gap-4 overflow-x-auto pb-4">
-                {STATUS_COLS.map((col) => {
+                {kanbanCols.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
                     <KanbanColumn key={col.key} col={col} tasks={colTasks} labelsIndex={labelsIndex} clientsById={clientsById} onSelect={setSelectedId} />
