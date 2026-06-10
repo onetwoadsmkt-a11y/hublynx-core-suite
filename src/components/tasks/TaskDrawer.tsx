@@ -28,6 +28,7 @@ import {
   GripVertical, ExternalLink, Tag, ChevronRight,
 } from "lucide-react";
 import { RichTextEditor } from "./RichTextEditor";
+import { TaskCommunicationsTab } from "./TaskCommunicationsTab";
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -187,6 +188,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
             {[
               ["overview", "Geral"], ["briefing", "Briefing"], ["notes", "Notas"],
               ["checklist", "Checklist"], ["attachments", "Anexos"], ["comments", "Comentários"],
+              ["communications", "Comunicações"],
               ["history", "Histórico"], ["related", "Relacionados"],
             ].map(([k, l]) => (
               <TabsTrigger key={k} value={k}
@@ -205,6 +207,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
             <TabsContent value="checklist" className="mt-0"><ChecklistTab taskId={taskId} /></TabsContent>
             <TabsContent value="attachments" className="mt-0"><AttachmentsTab taskId={taskId} /></TabsContent>
             <TabsContent value="comments" className="mt-0"><CommentsTab taskId={taskId} /></TabsContent>
+            <TabsContent value="communications" className="mt-0"><TaskCommunicationsTab taskId={taskId} /></TabsContent>
             <TabsContent value="history" className="mt-0"><HistoryTab taskId={taskId} /></TabsContent>
             <TabsContent value="related" className="mt-0"><RelatedTab task={task} /></TabsContent>
           </div>
