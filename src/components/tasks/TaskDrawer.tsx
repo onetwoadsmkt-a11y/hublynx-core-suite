@@ -89,6 +89,7 @@ export function TaskDrawer({
 
 function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const { data: task, isLoading } = useQuery({
     queryKey: ["task", taskId],
     queryFn: async () => {
