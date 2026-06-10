@@ -66,6 +66,8 @@ function TarefasPage() {
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterClient, setFilterClient] = useState<string>("all");
   const [openNew, setOpenNew] = useState(false);
+  const [openEditKanban, setOpenEditKanban] = useState(false);
+  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
 
   const selectedId = search.task ?? null;
   const setSelectedId = (id: string | null) =>
