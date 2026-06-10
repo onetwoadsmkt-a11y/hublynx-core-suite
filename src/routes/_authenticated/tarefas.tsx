@@ -175,15 +175,21 @@ function TarefasPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Tarefas</h1>
           <p className="text-muted-foreground mt-1">Organize sua operação em Kanban ou Lista.</p>
         </div>
-        <Dialog open={openNew} onOpenChange={setOpenNew}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#00D084] hover:bg-[#00b873] text-white">
-              <Plus className="h-4 w-4 mr-2" /> Nova tarefa
-            </Button>
-          </DialogTrigger>
-          <NewTaskDialog projects={projects} clients={clients} onClose={() => setOpenNew(false)} />
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setOpenEditKanban(true)}>
+            <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
+          </Button>
+          <Dialog open={openNew} onOpenChange={setOpenNew}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white">
+                <Plus className="h-4 w-4 mr-2" /> Nova tarefa
+              </Button>
+            </DialogTrigger>
+            <NewTaskDialog projects={projects} clients={clients} onClose={() => setOpenNew(false)} />
+          </Dialog>
+        </div>
       </div>
+
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
