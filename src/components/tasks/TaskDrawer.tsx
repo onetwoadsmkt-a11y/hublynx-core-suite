@@ -269,12 +269,6 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
           minHeight={120}
         />
       </div>
-          value={task.description ?? ""}
-          onChange={(html) => update.mutate({ description: html })}
-          placeholder="Descreva a tarefa..."
-          minHeight={120}
-        />
-      </div>
 
       {/* Fields grid */}
       <div className="grid grid-cols-2 gap-4">
