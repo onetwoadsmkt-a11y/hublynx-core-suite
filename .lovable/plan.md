@@ -1,92 +1,55 @@
-## Integração Google por usuário — Hublynx Core
+## Migrar para Connectors Padrão da Lovable
 
-Cada usuário do Hublynx conecta a própria conta Google. Usaremos **App User Connector** da Lovable: um único OAuth na família `google` libera Gmail + Drive + Calendar + Sheets para aquele usuário.
+Vamos abandonar o fluxo per-user (App User Connector + OAuth próprio) e usar os **connectors padrão** da Lovable. Você conecta `hublynx.dev@gmail.com` **uma vez** no workspace e todos os usuários do Hublynx operam sobre essa mesma conta Google (Gmail, Drive, Calendar, Sheets e todas as funcionalidades disponiveis).
 
----
+### O que muda na prática
 
-### 1. Pré-requisito (você faz no Google Cloud, 1x)
+- Não precisamos mais de Google Cloud Console, OAuth próprio, nem do secret `GOOGLE_APP_USER_CONNECTOR_CLIENT_ID`.
+- A "conexão Google" deixa de ser por-usuário e passa a ser **da agência**: e-mails saem de `hublynx.dev@gmail.com`, eventos vão no calendar dessa conta, arquivos no Drive dela, etc.
+- A tabela `user_google_connections` deixa de fazer sentido (pode ser removida ou apenas ignorada).
+- A tela "Configurações → Integrações" muda: em vez de "Conectar Google" por usuário, mostra o **status global** da conexão da workspace (conectado como `hublynx.dev@gmail.com` ✓) — quem conecta de verdade é você, via prompt do Lovable.
 
-Para OAuth por-usuário, é necessário criar credenciais OAuth próprias:
+### Etapas
 
-1. Google Cloud Console → criar projeto (ou usar existente)
-2. **APIs & Services → Library** → habilitar: Gmail API, Google Drive API, Google Calendar API, Google Sheets API
-3. **OAuth consent screen** → External, adicionar domínios `*.lovable.app` e seu domínio custom
-4. **Credentials → Create OAuth client ID → Web application**
-   - Authorized redirect URI: `https://connector-gateway.lovable.dev/api/v1/app-users/oauth2/callback`
-5. Copiar **Client ID** + **Client Secret**
+1. **Conectar os 4 connectors no workspace** (você autentica `hublynx.dev@gmail.com`):
+  - `google_mail`
+  - `google_drive`
+  - `google_calendar`
+  - `google_sheets`
+   Eu disparo o prompt de conexão para cada um; você clica e autoriza.
+2. **Refatorar `src/lib/google/**` para chamar o gateway direto:
+  ```text
+   https://connector-gateway.lovable.dev/{connector_id}/...
+   Authorization: Bearer ${LOVABLE_API_KEY}
+   X-Connection-Api-Key: ${GOOGLE_MAIL_API_KEY | GOOGLE_DRIVE_API_KEY | ...}
+  ```
+   Remover `appUserConnector.ts`, `appUserConnectorClient.ts`, `startGoogleConnect`, `saveGoogleConnection`, `disconnectGoogle`.
+3. **Atualizar a UI** (`GoogleConnectionCard`):
+  - Tira botão "Conectar Google" do usuário final.
+  - Mostra status global: "Conectado como [hublynx.dev@gmail.com](mailto:hublynx.dev@gmail.com)" + lista de serviços ativos (Gmail, Drive, Calendar, Sheets) com check verde quando cada connector tem secret presente.
+  - Adiciona aviso: "Esta conexão é compartilhada pela equipe Hublynx."
+4. **Limpar banco** — migration que dropa `user_google_connections` (não é mais usada).
+5. **Implementar as functions de fato** (próxima fase, depois de validar conexão):
+  - `gmail.functions.ts` — listThreads, getMessage, sendEmail
+  - `drive.functions.ts` — listFiles, getFileUrl
+  - `calendar.functions.ts` — listEvents, createEvent
+  - `sheets.functions.ts` — exportToSheet
+  - Integrar nos módulos Agenda, Arquivos, Clientes, Relatórios (conforme plano original).
 
-Quando estiver pronto, eu peço o secret `GOOGLE_APP_USER_CONNECTOR_CLIENT_ID` (e o secret correspondente que a Lovable usa internamente — explico no momento).
+### Detalhes técnicos
 
----
+- Cada connector vira um secret runtime separado (`GOOGLE_MAIL_API_KEY`, `GOOGLE_DRIVE_API_KEY`, etc.) — lidos em server functions via `process.env`.
+- `LOVABLE_API_KEY` (já existe) autentica no gateway; o `X-Connection-Api-Key` específico identifica qual conta usar.
+- Server functions continuam protegidas por `requireSupabaseAuth` (só usuários logados no Hublynx podem disparar chamadas), mas a conta Google subjacente é única.
+- Sem refresh token manual: o gateway gerencia tokens automaticamente.
 
-### 2. Banco
+### O que você precisa fazer
 
-Tabela única `user_google_connections`:
-```text
-id, user_id, connection_api_key (lovack_*), email, scopes[], connected_at
-UNIQUE(user_id)  -- 1 conta Google por usuário
-```
-RLS: dono lê/escreve apenas a sua. Grants padrão.
+- Aprovar este plano.
+- Quando eu disparar os 4 prompts de conexão, fazer login com `hublynx.dev@gmail.com` e autorizar os escopos pedidos em cada um.
 
----
+### Riscos / observações
 
-### 3. Arquivos novos
-
-```text
-src/integrations/lovable/appUserConnector.ts         # server-only (gateway calls)
-src/integrations/lovable/appUserConnectorClient.ts   # client-safe (popup helper)
-src/lib/google/google.functions.ts                   # startGoogleConnect, saveConnection, listConnection, disconnect
-src/lib/google/gmail.functions.ts                    # listThreads, getMessage, sendEmail
-src/lib/google/drive.functions.ts                    # listFiles, searchFiles, getFileUrl
-src/lib/google/calendar.functions.ts                 # listEvents, createEvent, updateEvent
-src/lib/google/sheets.functions.ts                   # exportToSheet, listSpreadsheets
-src/components/google/GoogleConnectButton.tsx        # botão "Conectar Google" (popup)
-src/components/google/GoogleConnectionCard.tsx       # status + desconectar
-```
-
-### 4. UI por módulo
-
-- **Configurações → Integrações** (nova aba): card "Google Workspace" mostra status (conectado como `email@x.com` ou "Conectar"), lista escopos, botão Desconectar.
-- **Agenda**: se conectado, mostra eventos do Google Calendar lado a lado com eventos internos; botão "Criar no Google Calendar" ao salvar evento.
-- **Arquivos**: aba "Google Drive" lista arquivos do usuário; em Clientes/Projetos/Tarefas, botão "Anexar do Drive" abre picker.
-- **Clientes/Projetos** (detalhe): aba "E-mails" — lista threads do Gmail filtradas por domínio/email do cliente; botão "Enviar e-mail".
-- **Relatórios**: botão "Exportar para Google Sheets" cria planilha com os dados do relatório atual.
-
-### 5. Fluxo OAuth (popup, funciona no preview)
-
-1. Usuário clica "Conectar Google" → server fn `startGoogleConnect` chama `authorizeAppUserOAuth` com `connector_id: "google"`, todos os 4 escopos, `responseMode: "web_message"`
-2. Popup abre, usuário consente
-3. Gateway posta `lovack_*` de volta via `postMessage`
-4. Client chama `saveGoogleConnection` → grava em `user_google_connections`
-5. Próximas chamadas usam `callAsAppUser({ connectorId: "google_mail" | "google_drive" | "google_calendar" | "google_sheets", connectionAPIKey })`
-
-### 6. Escopos solicitados
-
-```text
-gmail.readonly, gmail.send,
-drive.readonly, drive.file,
-calendar, calendar.events,
-spreadsheets, drive.file
-```
-
----
-
-### Entregas em ordem
-
-1. Migration `user_google_connections` (tabela + RLS + grants)
-2. Helpers `appUserConnector.ts` + `appUserConnectorClient.ts`
-3. `google.functions.ts` (connect/save/list/disconnect)
-4. Nova rota `Configurações → Integrações` com card Google + botão conectar/desconectar
-5. **PAUSA** — peço o `GOOGLE_APP_USER_CONNECTOR_CLIENT_ID` e validamos o fluxo OAuth end-to-end
-6. Após validado: gmail/drive/calendar/sheets functions + integração nos módulos (Agenda, Arquivos, Clientes, Relatórios)
-
----
-
-### Riscos e notas
-
-- Se um escopo faltar, a API retorna 403 → trato com `reconnect` automático.
-- O `lovack_*` é por-usuário e por-família Google: 1 chave serve Gmail/Drive/Calendar/Sheets.
-- Tokens são gerenciados pela Lovable (refresh automático), não preciso armazenar refresh_token.
-- Sem credenciais OAuth próprias do Google Cloud, **não é possível** fazer per-user OAuth — connectors padrão da Lovable autenticam só a sua conta (modo workspace), não a de cada usuário.
-
-Quer que eu prossiga com o passo 1 (migration + helpers + UI de conexão) e pause antes de pedir o secret?
+- **Privacidade**: como a conta é única, qualquer usuário do Hublynx que dispare "enviar e-mail" estará mandando como `hublynx.dev@gmail.com`. Se algum dia quiser separar por usuário, voltamos para o fluxo per-user OAuth.
+- O `Gmail` connector tem matriz de escopos: para marcar como lido, arquivar, etc. precisa `gmail.modify` — confirmo isso no momento de conectar.
+- Migration que dropa `user_google_connections` é destrutiva; se tiver dados úteis ali, me avisa antes que eu mantenho a tabela.
