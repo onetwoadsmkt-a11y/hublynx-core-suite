@@ -29,15 +29,18 @@ function buildRfc2822({
   body: string;
 }) {
   const encSubject = `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
+  const encodedBody = Buffer.from(body, "utf-8")
+    .toString("base64")
+    .replace(/(.{76})/g, "$1\r\n");
   const lines = [
     `To: ${to.join(", ")}`,
     cc && cc.length ? `Cc: ${cc.join(", ")}` : null,
     `Subject: ${encSubject}`,
     "MIME-Version: 1.0",
     'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: 7bit",
+    "Content-Transfer-Encoding: base64",
     "",
-    body,
+    encodedBody,
   ].filter(Boolean);
   return lines.join("\r\n");
 }
