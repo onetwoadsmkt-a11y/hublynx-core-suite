@@ -1,0 +1,489 @@
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { z } from "zod";
+
+export type ProjectStatus =
+  | "planejamento"
+  | "ativo"
+  | "aguardando_cliente"
+  | "em_pausa"
+  | "concluido"
+  | "cancelado";
+
+export interface ProjectRow {
+  id: string;
+  owner_id: string;
+  client_id: string | null;
+  manager_id: string | null;
+  name: string;
+  description: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  value: number | null;
+  contract_value: number | null;
+  status: ProjectStatus;
+  progress: number;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---------- Projects CRUD ----------
+export const listProjects = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: projects, error } = await context.supabase
+      .from("projects")
+      .select("*, clients(id, name, company)")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+
+    const ids = (projects ?? []).map((p: any) => p.id);
+    let taskCounts: Record<string, { total: number; done: number; overdue: number }> = {};
+    if (ids.length) {
+      const { data: tasks } = await context.supabase
+        .from("tasks")
+        .select("project_id, status, due_date")
+        .in("project_id", ids);
+      const now = new Date();
+      (tasks ?? []).forEach((t: any) => {
+        const pid = t.project_id as string;
+        if (!taskCounts[pid]) taskCounts[pid] = { total: 0, done: 0, overdue: 0 };
+        taskCounts[pid].total += 1;
+        if (t.status === "concluido") taskCounts[pid].done += 1;
+        else if (t.due_date && new Date(t.due_date) < now) taskCounts[pid].overdue += 1;
+      });
+    }
+
+    return {
+      projects: (projects ?? []).map((p: any) => ({
+        ...p,
+        client: p.clients,
+        task_stats: taskCounts[p.id] ?? { total: 0, done: 0, overdue: 0 },
+      })),
+    };
+  });
+
+const projectInput = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().max(2000).nullable().optional(),
+  client_id: z.string().uuid().nullable().optional(),
+  manager_id: z.string().uuid().nullable().optional(),
+  start_date: z.string().nullable().optional(),
+  due_date: z.string().nullable().optional(),
+  contract_value: z.number().nonnegative().nullable().optional(),
+  status: z.enum([
+    "planejamento",
+    "ativo",
+    "aguardando_cliente",
+    "em_pausa",
+    "concluido",
+    "cancelado",
+  ]),
+  color: z.string().max(20).nullable().optional(),
+});
+
+export const upsertProject = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => projectInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const payload: any = { ...data, owner_id: context.userId };
+    const q = data.id
+      ? context.supabase.from("projects").update(payload).eq("id", data.id).select().single()
+      : context.supabase.from("projects").insert(payload).select().single();
+    const { data: row, error } = await q;
+    if (error) throw new Error(error.message);
+    return { project: row as ProjectRow };
+  });
+
+export const deleteProject = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("projects").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// ---------- Dashboard payload ----------
+function startOfWeek(d = new Date()) {
+  const x = new Date(d);
+  const day = x.getDay();
+  const diff = x.getDate() - day + (day === 0 ? -6 : 1);
+  x.setDate(diff);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+export const getProjectDashboard = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { id } = data;
+    const { data: project, error } = await context.supabase
+      .from("projects")
+      .select("*, clients(id, name, company)")
+      .eq("id", id)
+      .single();
+    if (error) throw new Error(error.message);
+
+    const [
+      tasksRes,
+      milestonesRes,
+      membersRes,
+      risksRes,
+      notesRes,
+      costsRes,
+      financesRes,
+      activityRes,
+      filesRes,
+    ] = await Promise.all([
+      context.supabase.from("tasks").select("*").eq("project_id", id),
+      context.supabase
+        .from("project_milestones")
+        .select("*")
+        .eq("project_id", id)
+        .order("position", { ascending: true }),
+      context.supabase.from("project_members").select("*").eq("project_id", id),
+      context.supabase
+        .from("project_risks")
+        .select("*")
+        .eq("project_id", id)
+        .order("created_at", { ascending: false }),
+      context.supabase.from("project_notes").select("*").eq("project_id", id).maybeSingle(),
+      context.supabase
+        .from("project_costs")
+        .select("*")
+        .eq("project_id", id)
+        .order("incurred_at", { ascending: false }),
+      context.supabase.from("finances").select("*").eq("project_id", id),
+      context.supabase
+        .from("project_activity")
+        .select("*")
+        .eq("project_id", id)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      context.supabase
+        .from("files")
+        .select("*")
+        .eq("project_id", id)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    const tasks = tasksRes.data ?? [];
+    const finances = financesRes.data ?? [];
+    const costs = costsRes.data ?? [];
+    const risks = risksRes.data ?? [];
+
+    const now = new Date();
+    const totalTasks = tasks.length;
+    const doneTasks = tasks.filter((t: any) => t.status === "concluido").length;
+    const overdueTasks = tasks.filter(
+      (t: any) => t.status !== "concluido" && t.due_date && new Date(t.due_date) < now,
+    ).length;
+    const progress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : (project as any).progress ?? 0;
+
+    const revenueReceived = finances
+      .filter((f: any) => f.kind === "receita" && f.status === "pago")
+      .reduce((s: number, f: any) => s + Number(f.amount), 0);
+    const revenuePending = finances
+      .filter((f: any) => f.kind === "receita" && f.status !== "pago")
+      .reduce((s: number, f: any) => s + Number(f.amount), 0);
+    const totalCost = costs.reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const contractValue = Number((project as any).contract_value ?? (project as any).value ?? 0);
+    const profit = revenueReceived - totalCost;
+    const margin = revenueReceived > 0 ? (profit / revenueReceived) * 100 : 0;
+    const budgetUsage = contractValue > 0 ? (totalCost / contractValue) * 100 : 0;
+
+    const dueDate = (project as any).due_date ? new Date((project as any).due_date) : null;
+    const daysRemaining = dueDate
+      ? Math.ceil((dueDate.getTime() - now.getTime()) / 86400000)
+      : null;
+
+    const openCritical = risks.filter(
+      (r: any) => r.severity === "critical" && r.status === "open",
+    ).length;
+
+    // Health
+    let healthScore = 100;
+    if (overdueTasks > 0) healthScore -= Math.min(30, overdueTasks * 5);
+    if (budgetUsage > 80) healthScore -= 20;
+    if (budgetUsage > 100) healthScore -= 20;
+    if (daysRemaining !== null && daysRemaining < 7) healthScore -= 15;
+    if (daysRemaining !== null && daysRemaining < 0) healthScore -= 20;
+    if (openCritical > 0) healthScore -= openCritical * 15;
+    healthScore = Math.max(0, Math.min(100, healthScore));
+    const health: "healthy" | "attention" | "critical" =
+      healthScore >= 75 ? "healthy" : healthScore >= 45 ? "attention" : "critical";
+
+    // Alerts
+    const alerts: { type: string; message: string; severity: "warning" | "danger" }[] = [];
+    if (overdueTasks > 0)
+      alerts.push({
+        type: "overdue",
+        message: `${overdueTasks} tarefa(s) atrasada(s)`,
+        severity: "danger",
+      });
+    if (budgetUsage > 80)
+      alerts.push({
+        type: "budget",
+        message: `Orçamento em ${Math.round(budgetUsage)}% do contrato`,
+        severity: budgetUsage > 100 ? "danger" : "warning",
+      });
+    if (daysRemaining !== null && daysRemaining >= 0 && daysRemaining <= 7)
+      alerts.push({
+        type: "deadline",
+        message: `Prazo em ${daysRemaining} dia(s)`,
+        severity: "warning",
+      });
+    if (openCritical > 0)
+      alerts.push({
+        type: "risk",
+        message: `${openCritical} bloqueio(s) crítico(s) abertos`,
+        severity: "danger",
+      });
+
+    // Today's focus
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayTasks = tasks.filter((t: any) => {
+      if (!t.due_date) return false;
+      const dd = new Date(t.due_date);
+      return dd >= today && dd < tomorrow;
+    });
+
+    // Weekly
+    const weekStart = startOfWeek();
+    const completedThisWeek = tasks.filter(
+      (t: any) => t.completed_at && new Date(t.completed_at) >= weekStart,
+    );
+    const newThisWeek = tasks.filter((t: any) => new Date(t.created_at) >= weekStart);
+    const overdueList = tasks.filter(
+      (t: any) => t.status !== "concluido" && t.due_date && new Date(t.due_date) < now,
+    );
+
+    // Monthly chart data — last 30 days
+    const chartDays: { date: string; completed: number; created: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const next = new Date(d);
+      next.setDate(d.getDate() + 1);
+      const key = d.toISOString().slice(0, 10);
+      const completed = tasks.filter(
+        (t: any) => t.completed_at && new Date(t.completed_at) >= d && new Date(t.completed_at) < next,
+      ).length;
+      const created = tasks.filter(
+        (t: any) => new Date(t.created_at) >= d && new Date(t.created_at) < next,
+      ).length;
+      chartDays.push({ date: key, completed, created });
+    }
+
+    return {
+      project: { ...project, client: (project as any).clients },
+      kpis: {
+        progress,
+        totalTasks,
+        doneTasks,
+        overdueTasks,
+        revenueReceived,
+        revenuePending,
+        totalCost,
+        contractValue,
+        profit,
+        margin,
+        budgetUsage,
+        daysRemaining,
+        openIssues: risks.filter((r: any) => r.status === "open").length,
+        memberCount: (membersRes.data ?? []).length,
+      },
+      health,
+      healthScore,
+      alerts,
+      tasks,
+      todayTasks,
+      weekly: {
+        completed: completedThisWeek,
+        overdue: overdueList,
+        created: newThisWeek,
+      },
+      chartDays,
+      milestones: milestonesRes.data ?? [],
+      members: membersRes.data ?? [],
+      risks,
+      notes: notesRes.data,
+      costs,
+      finances,
+      activity: activityRes.data ?? [],
+      files: filesRes.data ?? [],
+    };
+  });
+
+// ---------- Milestones ----------
+const milestoneInput = z.object({
+  id: z.string().uuid().optional(),
+  project_id: z.string().uuid(),
+  title: z.string().min(1).max(200),
+  description: z.string().max(1000).nullable().optional(),
+  status: z.enum(["pending", "in_progress", "done"]).default("pending"),
+  due_date: z.string().nullable().optional(),
+  position: z.number().int().default(0),
+});
+
+export const upsertMilestone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => milestoneInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const payload: any = {
+      ...data,
+      owner_id: context.userId,
+      completed_at: data.status === "done" ? new Date().toISOString() : null,
+    };
+    const q = data.id
+      ? context.supabase
+          .from("project_milestones")
+          .update(payload)
+          .eq("id", data.id)
+          .select()
+          .single()
+      : context.supabase.from("project_milestones").insert(payload).select().single();
+    const { data: row, error } = await q;
+    if (error) throw new Error(error.message);
+    return { milestone: row };
+  });
+
+export const deleteMilestone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("project_milestones").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// ---------- Members ----------
+export const upsertMember = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid().optional(),
+        project_id: z.string().uuid(),
+        name: z.string().min(1).max(200),
+        role: z.string().max(120).nullable().optional(),
+        email: z.string().email().max(255).nullable().optional().or(z.literal("").transform(() => null)),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const payload: any = { ...data, owner_id: context.userId };
+    const q = data.id
+      ? context.supabase.from("project_members").update(payload).eq("id", data.id).select().single()
+      : context.supabase.from("project_members").insert(payload).select().single();
+    const { data: row, error } = await q;
+    if (error) throw new Error(error.message);
+    return { member: row };
+  });
+
+export const deleteMember = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("project_members").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// ---------- Risks ----------
+export const upsertRisk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid().optional(),
+        project_id: z.string().uuid(),
+        title: z.string().min(1).max(200),
+        description: z.string().max(2000).nullable().optional(),
+        severity: z.enum(["low", "medium", "high", "critical"]),
+        status: z.enum(["open", "mitigated", "resolved"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const payload: any = { ...data, owner_id: context.userId };
+    const q = data.id
+      ? context.supabase.from("project_risks").update(payload).eq("id", data.id).select().single()
+      : context.supabase.from("project_risks").insert(payload).select().single();
+    const { data: row, error } = await q;
+    if (error) throw new Error(error.message);
+    return { risk: row };
+  });
+
+export const deleteRisk = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("project_risks").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// ---------- Costs ----------
+export const upsertCost = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid().optional(),
+        project_id: z.string().uuid(),
+        kind: z.enum(["internal", "external"]),
+        category: z.string().max(120).nullable().optional(),
+        description: z.string().max(500).nullable().optional(),
+        amount: z.number().nonnegative(),
+        incurred_at: z.string(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const payload: any = { ...data, owner_id: context.userId };
+    const q = data.id
+      ? context.supabase.from("project_costs").update(payload).eq("id", data.id).select().single()
+      : context.supabase.from("project_costs").insert(payload).select().single();
+    const { data: row, error } = await q;
+    if (error) throw new Error(error.message);
+    return { cost: row };
+  });
+
+export const deleteCost = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("project_costs").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// ---------- Notes ----------
+export const saveProjectNotes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        project_id: z.string().uuid(),
+        content_html: z.string().max(200000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("project_notes")
+      .upsert(
+        { project_id: data.project_id, content_html: data.content_html, owner_id: context.userId },
+        { onConflict: "project_id" },
+      );
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
