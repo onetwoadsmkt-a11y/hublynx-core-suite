@@ -174,7 +174,7 @@ export const syncEntityToSheets = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const def = ENTITY_DEFS[data.entityType as EntityType];
-    const { data: record, error } = await context.supabase
+    const { data: record, error } = await (context.supabase as any)
       .from(def.table)
       .select(def.select)
       .eq("id", data.recordId)
