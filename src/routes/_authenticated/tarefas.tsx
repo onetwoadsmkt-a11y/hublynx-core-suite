@@ -273,7 +273,7 @@ function TarefasPage() {
                   <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Nenhuma tarefa.</TableCell></TableRow>
                 )}
                 {filtered.map((t) => {
-                  const col = STATUS_COLS.find((c) => c.key === t.status);
+                  const col = kanbanCols.find((c) => c.key === t.status);
                   return (
                     <TableRow key={t.id} className="cursor-pointer" onClick={() => setSelectedId(t.id)}>
                       <TableCell className="font-medium">{t.title}</TableCell>
