@@ -1,101 +1,85 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { authorizeAppUserOAuth, callAsAppUser } from "@/integrations/lovable/appUserConnector";
 
 export const GOOGLE_GATEWAY_URL = "https://connector-gateway.lovable.dev";
 
-export const GOOGLE_SCOPES = [
-  "https://www.googleapis.com/auth/userinfo.email",
-  "https://www.googleapis.com/auth/userinfo.profile",
-  "openid",
-  "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/drive.readonly",
-  "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/calendar",
-  "https://www.googleapis.com/auth/calendar.events",
-  "https://www.googleapis.com/auth/spreadsheets",
-];
+export type GoogleService = "mail" | "drive" | "calendar" | "sheets";
 
-export const startGoogleConnect = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((data: { targetOrigin: string }) => data)
-  .handler(async ({ data, context }) => {
-    const clientId = process.env.GOOGLE_APP_USER_CONNECTOR_CLIENT_ID;
-    if (!clientId) {
-      throw new Error("GOOGLE_APP_USER_CONNECTOR_CLIENT_ID não configurado. Configure nos Secrets.");
-    }
-    const { authorizationUrl } = await authorizeAppUserOAuth({
-      gatewayBaseUrl: GOOGLE_GATEWAY_URL,
-      connectorId: "google",
-      appUserId: context.userId,
-      connectorClientId: clientId,
-      returnUrl: `${data.targetOrigin}/configuracoes/integracoes`,
-      responseMode: "web_message",
-      webMessageTargetOrigin: data.targetOrigin,
-      credentialsConfiguration: { scopes: GOOGLE_SCOPES },
-    });
-    return { authorizationUrl };
-  });
+const SERVICE_TO_ENV: Record<GoogleService, string> = {
+  mail: "GOOGLE_MAIL_API_KEY",
+  drive: "GOOGLE_DRIVE_API_KEY",
+  calendar: "GOOGLE_CALENDAR_API_KEY",
+  sheets: "GOOGLE_SHEETS_API_KEY",
+};
 
-export const saveGoogleConnection = createServerFn({ method: "POST" })
+const SERVICE_LABELS: Record<GoogleService, string> = {
+  mail: "Gmail",
+  drive: "Google Drive",
+  calendar: "Google Calendar",
+  sheets: "Google Sheets",
+};
+
+/**
+ * Server-only helper: returns headers required to call the Lovable connector
+ * gateway for a given Google service. Throws if secrets are missing.
+ */
+export function getGoogleGatewayHeaders(service: GoogleService): HeadersInit {
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  const connKey = process.env[SERVICE_TO_ENV[service]];
+  if (!lovableKey) throw new Error("LOVABLE_API_KEY não configurado");
+  if (!connKey) {
+    throw new Error(
+      `Connector ${SERVICE_LABELS[service]} não conectado (secret ${SERVICE_TO_ENV[service]} ausente).`,
+    );
+  }
+  return {
+    Authorization: `Bearer ${lovableKey}`,
+    "X-Connection-Api-Key": connKey,
+  };
+}
+
+/**
+ * Returns which Google services are currently connected for the workspace.
+ * Used by the UI to show connection status — does NOT expose any secret.
+ */
+export const getGoogleConnectionStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { connectionAPIKey: string }) => data)
-  .handler(async ({ data, context }) => {
-    if (!data.connectionAPIKey?.startsWith("lovack_")) {
-      throw new Error("connectionAPIKey inválida");
-    }
-    // Buscar email do usuário Google
+  .handler(async () => {
+    const services: Array<{ service: GoogleService; label: string; connected: boolean }> = (
+      Object.keys(SERVICE_TO_ENV) as GoogleService[]
+    ).map((service) => ({
+      service,
+      label: SERVICE_LABELS[service],
+      connected: !!process.env[SERVICE_TO_ENV[service]],
+    }));
+
+    // Best-effort: tentar buscar o e-mail da conta conectada via Gmail
     let email: string | null = null;
-    try {
-      const res = await callAsAppUser({
-        gatewayBaseUrl: GOOGLE_GATEWAY_URL,
-        connectionAPIKey: data.connectionAPIKey,
-        connectorId: "google_mail",
-        path: "/gmail/v1/users/me/profile",
-      });
-      if (res.ok) {
-        const profile = await res.json();
-        email = profile.emailAddress ?? null;
+    const mailKey = process.env.GOOGLE_MAIL_API_KEY;
+    const lovableKey = process.env.LOVABLE_API_KEY;
+    if (mailKey && lovableKey) {
+      try {
+        const res = await fetch(
+          `${GOOGLE_GATEWAY_URL}/google_mail/gmail/v1/users/me/profile`,
+          {
+            headers: {
+              Authorization: `Bearer ${lovableKey}`,
+              "X-Connection-Api-Key": mailKey,
+            },
+          },
+        );
+        if (res.ok) {
+          const profile = (await res.json()) as { emailAddress?: string };
+          email = profile.emailAddress ?? null;
+        }
+      } catch {
+        // silencioso — e-mail é informativo
       }
-    } catch {
-      // ignore — email é opcional
     }
 
-    const { error } = await context.supabase
-      .from("user_google_connections")
-      .upsert(
-        {
-          user_id: context.userId,
-          connection_api_key: data.connectionAPIKey,
-          email,
-          scopes: GOOGLE_SCOPES,
-        },
-        { onConflict: "user_id" },
-      );
-    if (error) throw new Error(error.message);
-    return { ok: true, email };
-  });
-
-export const getGoogleConnection = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("user_google_connections")
-      .select("id, email, scopes, connected_at")
-      .eq("user_id", context.userId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return { connection: data };
-  });
-
-export const disconnectGoogle = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { error } = await context.supabase
-      .from("user_google_connections")
-      .delete()
-      .eq("user_id", context.userId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    return {
+      email,
+      services,
+      allConnected: services.every((s) => s.connected),
+    };
   });
