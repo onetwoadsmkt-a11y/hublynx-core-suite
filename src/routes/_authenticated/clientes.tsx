@@ -71,8 +71,8 @@ function ClientesPage() {
     [all, search.view],
   );
 
-  function setParam<K extends keyof typeof search>(key: K, value: (typeof search)[K]) {
-    navigate({ search: (prev) => ({ ...prev, [key]: value }) });
+  function setParam<K extends keyof ClientesSearch>(key: K, value: ClientesSearch[K]) {
+    navigate({ search: (prev: ClientesSearch) => ({ ...prev, [key]: value }) });
   }
 
   return (
