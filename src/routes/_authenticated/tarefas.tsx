@@ -531,6 +531,7 @@ function NewTaskDialog({
 }: { projects: any[]; clients: any[]; onClose: () => void }) {
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const qc = useQueryClient();
+  const syncSheet = useServerFn(syncEntityToSheets);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("media");
@@ -543,7 +544,7 @@ function NewTaskDialog({
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Sem sessão");
-      const { error } = await supabase.from("tasks").insert({
+      const { data: inserted, error } = await supabase.from("tasks").insert({
         owner_id: u.user.id,
         title,
         description: description || null,
@@ -553,14 +554,16 @@ function NewTaskDialog({
         client_id: clientId === "none" ? null : clientId,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         position: 0,
-      });
+      }).select("id").single();
       if (error) throw error;
+      return inserted.id as string;
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Tarefa criada.");
       setTitle(""); setDescription(""); setDueDate("");
       onClose();
+      syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
     onError: (e: any) => toast.error(e.message),
   });
