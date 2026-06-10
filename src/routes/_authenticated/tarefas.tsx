@@ -132,10 +132,12 @@ function TarefasPage() {
     });
   }, [tasks, searchText, filterPriority, filterProject, filterClient]);
 
+  const syncSheet = useServerFn(syncEntityToSheets);
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
       const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
       if (error) throw error;
+      return id;
     },
     onMutate: async ({ id, status }) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
@@ -148,6 +150,9 @@ function TarefasPage() {
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(["tasks"], ctx.prev);
       toast.error("Não foi possível mover a tarefa.");
+    },
+    onSuccess: (id) => {
+      syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
