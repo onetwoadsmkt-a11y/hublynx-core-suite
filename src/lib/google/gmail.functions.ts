@@ -17,32 +17,59 @@ function toBase64Url(s: string) {
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+function b64Wrapped(s: string) {
+  return Buffer.from(s, "utf-8")
+    .toString("base64")
+    .replace(/(.{76})/g, "$1\r\n");
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function buildRfc2822({
+  from,
   to,
   cc,
   subject,
-  body,
+  text,
+  html,
 }: {
+  from: string;
   to: string[];
   cc?: string[];
   subject: string;
-  body: string;
+  text: string;
+  html: string;
 }) {
   const encSubject = `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
-  const encodedBody = Buffer.from(body, "utf-8")
-    .toString("base64")
-    .replace(/(.{76})/g, "$1\r\n");
-  const lines = [
+  const boundary = `=_hublynx_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+
+  const headers = [
+    `From: ${from}`,
     `To: ${to.join(", ")}`,
     cc && cc.length ? `Cc: ${cc.join(", ")}` : null,
     `Subject: ${encSubject}`,
     "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  ].filter(Boolean);
+
+  const parts = [
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    b64Wrapped(text),
+    `--${boundary}`,
     'Content-Type: text/html; charset="UTF-8"',
     "Content-Transfer-Encoding: base64",
     "",
-    encodedBody,
-  ].filter(Boolean);
-  return lines.join("\r\n");
+    b64Wrapped(html),
+    `--${boundary}--`,
+    "",
+  ];
+
+  return [...headers, "", ...parts].join("\r\n");
 }
 
 export const sendTaskEmail = createServerFn({ method: "POST" })
