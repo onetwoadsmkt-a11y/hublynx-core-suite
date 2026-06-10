@@ -1,92 +1,34 @@
-## Objetivo
+## Diagnóstico
 
-Transformar `/clientes` (hoje placeholder) numa página completa: lista com filtros, cadastro/edição completos do cliente e anexos de documentos (contratos) por cliente.
+O e-mail de teste UTF-8 chega bem porque é um HTML completo (`<!doctype html><html><body>…`). Já o envio da tarefa (`src/lib/google/gmail.functions.ts`) monta o corpo assim:
 
-A tabela `public.clients` e `public.files` já existem com todos os campos necessários — não há mudança de schema, apenas um bucket de storage novo.
+- pega `data.body` (texto digitado no `Textarea`),
+- troca `\n` por `<br/>`,
+- envia com `Content-Type: text/html; charset="UTF-8"` mas **sem `<html><body>` envolvendo**, e **sem alternativa em texto**.
 
-## Layout da página
+Alguns clientes (incluindo Gmail web, dependendo do remetente/threading) tratam esse HTML "fragmento" como inválido e mostram o corpo vazio, truncado ou só o link do Meet. Também não há fallback `text/plain` — quando o HTML falha, não sobra nada para exibir.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ Clientes                                  [+ Novo cliente]  │
-├─────────────────────────────────────────────────────────────┤
-│ [🔍 Buscar nome/empresa/email] [Status ▾] [Serviço ▾] [⟳]   │
-├─────────────────────────────────────────────────────────────┤
-│  Cards/grid responsivo:                                     │
-│   ┌─────────────────┐  ┌─────────────────┐                  │
-│   │ Avatar  Nome    │  │ Avatar  Nome    │                  │
-│   │ Empresa · Tag   │  │ Empresa · Tag   │                  │
-│   │ ✉ email · ☎ tel │  │ ✉ email · ☎ tel │                  │
-│   │ R$/mês · renova │  │ R$/mês · renova │                  │
-│   │ [Ver] [Editar]  │  │ [Ver] [Editar]  │                  │
-│   └─────────────────┘  └─────────────────┘                  │
-└─────────────────────────────────────────────────────────────┘
-```
+## Mudanças
 
-Clique em **Ver** abre um **drawer lateral** com 3 abas:
+### `src/lib/google/gmail.functions.ts`
+1. Construir **duas versões** do corpo:
+   - `textVersion`: o `data.body` original (preserva quebras de linha como `\r\n`), + linha extra com o link do Meet se houver.
+   - `htmlVersion`: HTML completo (`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;line-height:1.5">…</body></html>`) com o texto convertido (escapando `&`, `<`, `>` antes de trocar `\n` por `<br/>`) e o bloco do Meet como `<p><a href="…">…</a></p>`.
+2. Trocar o envelope MIME para **`multipart/alternative`** com boundary aleatório:
+   - parte 1: `text/plain; charset="UTF-8"` + `Content-Transfer-Encoding: base64` (corpo em base64 quebrado a 76 col).
+   - parte 2: `text/html; charset="UTF-8"` + `Content-Transfer-Encoding: base64` (idem).
+3. Manter `Subject` codificado em `=?UTF-8?B?…?=` (já está correto).
+4. Adicionar header `From: hublynx.dev@gmail.com` explícito (alguns clientes destacam melhor).
+5. Manter `toBase64Url` para o `raw` final enviado ao Gmail API.
 
-1. **Dados** — todos os campos do cadastro (somente leitura, com botão Editar)
-2. **Contratos & Documentos** — lista de anexos + dropzone para upload
-3. **Histórico** — projetos, tarefas e finanças vinculados (apenas listagem com links)  
-obs: os arquivos deverão estar vinvulados ao google drive
+### Sem alterações em
+- `SendEmailDialog.tsx` (UI continua igual — usuário digita texto puro).
+- `gmail-test.functions.ts` (já funciona; serve como referência).
+- Schema/validação/inserção em `task_communications`.
 
-## Filtros
+## Validação
 
-- Busca textual (nome, empresa, email) — debounce 300ms
-- Status: ativo / prospecto / inadimplente / inativo / todos
-- Serviço (lista única derivada dos clientes existentes)
-- Ordenar por: mais recentes / nome A-Z / valor mensal
-
-Estado dos filtros vai para search params da rota (`validateSearch` + `Route.useSearch`), assim a URL é compartilhável.
-
-## Cadastro (dialog grande, em seções)
-
-- **Identificação**: nome*, empresa, status*, serviço
-- **Contato**: email, telefone, WhatsApp, Instagram, site, endereço
-- **Contrato**: valor mensal, início, renovação
-- **Observações**: notas (textarea)
-
-Validação com Zod (nome obrigatório, email válido se preenchido, valor numérico ≥ 0). Mesmo formulário usado para criar e editar.
-
-## Contratos & Documentos
-
-- Bucket novo de storage: `client-documents` (privado, RLS).
-- Caminho: `{owner_id}/{client_id}/{uuid}-{filename}`
-- Tipos aceitos: PDF, DOC/DOCX, imagens; até 20 MB.
-- Cada upload grava em `public.files` com `category='contratos'` e `client_id`.
-- Lista mostra: ícone por tipo, nome, tamanho, data, botões **Baixar** (signed URL 60 s) e **Excluir**.
-
-## Histórico
-
-Consultas read-only em `projects`, `tasks` e `finances` filtradas por `client_id`. Cada item linka para a página correspondente.
-
-## Detalhes técnicos
-
-**Arquivos a criar/editar:**
-
-- `src/routes/_authenticated/clientes.tsx` — substitui o placeholder; loader via TanStack Query (`ensureQueryData`) e `useSuspenseQuery` no componente. `validateSearch` com filtros.
-- `src/components/clients/ClientCard.tsx` — card da grade.
-- `src/components/clients/ClientFormDialog.tsx` — formulário criar/editar (react-hook-form + zod).
-- `src/components/clients/ClientDrawer.tsx` — drawer com as 3 abas.
-- `src/components/clients/ClientDocumentsTab.tsx` — upload e listagem de documentos.
-- `src/components/clients/ClientHistoryTab.tsx` — projetos/tarefas/finanças.
-- `src/lib/clients/clients.functions.ts` — server fns: `listClients`, `upsertClient`, `deleteClient`.
-- `src/lib/clients/client-documents.functions.ts` — server fns: `listClientDocuments`, `getClientDocumentSignedUrl`, `deleteClientDocument` (upload é direto via supabase client no browser; metadata gravada via server fn `recordClientDocument`).
-
-**Backend (migration):**
-
-- Criar bucket `client-documents` (privado) via `storage_create_bucket`.
-- Migration com policies RLS em `storage.objects` para o bucket: dono lê/escreve quando `(storage.foldername(name))[1] = auth.uid()::text`.
-- Nenhuma alteração nas tabelas `clients` ou `files` (já têm tudo).
-
-**Padrões do projeto:**
-
-- Toda chamada protegida usa `requireSupabaseAuth` em server fn.
-- Cores e componentes via design system (shadcn + tokens semânticos).
-- Sonner para toasts.
-
-## Fora de escopo
-
-- Importação CSV de clientes.
-- Assinatura eletrônica de contratos.
-- Envio automático de e-mail ao cliente (já existe nas tarefas; pode ser feito em iteração futura).
+Após o ajuste, reabrir uma tarefa, enviar e-mail com acentos e quebras de linha (e opcionalmente Meet) para um Gmail real e conferir:
+- assunto sem "Sobre:" e com acentos corretos,
+- corpo visível com parágrafos preservados,
+- link do Meet clicável no final.
