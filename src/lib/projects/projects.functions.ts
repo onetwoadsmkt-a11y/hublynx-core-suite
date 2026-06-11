@@ -440,7 +440,9 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       kanbanCounts,
       financeMonthly,
       nextMilestone,
+      commercial,
       milestones: milestonesRes.data ?? [],
+
       members: membersRes.data ?? [],
       risks,
       notes: notesRes.data,
