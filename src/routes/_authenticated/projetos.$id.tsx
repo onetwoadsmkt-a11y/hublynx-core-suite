@@ -349,8 +349,9 @@ function MonthlyChart({ days }: { days: any[] }) {
   );
 }
 
-function MilestonesSection({ milestones, projectId }: { milestones: any[]; projectId: string }) {
+function MilestonesSection({ milestones, tasks, projectId }: { milestones: any[]; tasks: any[]; projectId: string }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const upFn = useServerFn(upsertMilestone);
   const delFn = useServerFn(deleteMilestone);
   const [open, setOpen] = useState(false);
@@ -375,32 +376,79 @@ function MilestonesSection({ milestones, projectId }: { milestones: any[]; proje
     onSuccess: () => qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] }),
   });
 
+  // Map task status -> roadmap status
+  const taskRoadmapStatus = (s: string): "pending" | "in_progress" | "done" =>
+    s === "concluido" ? "done" : (s === "em_andamento" || s === "revisao" || s === "em_revisao") ? "in_progress" : "pending";
+
+  // Build unified roadmap items
+  type RoadmapItem = { kind: "milestone" | "task"; id: string; title: string; description: string | null; status: "pending" | "in_progress" | "done"; due_date: string | null; raw: any };
+  const items: RoadmapItem[] = useMemo(() => {
+    const a: RoadmapItem[] = (milestones ?? []).map((m: any) => ({
+      kind: "milestone", id: m.id, title: m.title, description: m.description, status: m.status, due_date: m.due_date, raw: m,
+    }));
+    const b: RoadmapItem[] = (tasks ?? []).map((t: any) => ({
+      kind: "task", id: t.id, title: t.title, description: t.description, status: taskRoadmapStatus(t.status), due_date: t.due_date, raw: t,
+    }));
+    return [...a, ...b].sort((x, y) => {
+      const dx = x.due_date ? new Date(x.due_date).getTime() : Infinity;
+      const dy = y.due_date ? new Date(y.due_date).getTime() : Infinity;
+      return dx - dy;
+    });
+  }, [milestones, tasks]);
+
+  const toggleTaskDone = useMutation({
+    mutationFn: async (t: any) => {
+      const next = t.status === "concluido" ? "a_fazer" : "concluido";
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { error } = await supabase.from("tasks").update({ status: next }).eq("id", t.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+
   return (
     <Card className="rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold flex items-center gap-2"><Target className="h-4 w-4" /> Roadmap</h3>
         <Button size="sm" variant="outline" onClick={() => { setEdit(null); setOpen(true); }}><Plus className="h-4 w-4" /> Marco</Button>
       </div>
-      {milestones.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sem marcos cadastrados.</p>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sem marcos ou tarefas cadastradas.</p>
       ) : (
         <ol className="relative border-l-2 border-muted pl-6 space-y-4">
-          {milestones.map((m) => (
-            <li key={m.id} className="relative">
+          {items.map((it) => (
+            <li key={`${it.kind}-${it.id}`} className="relative">
               <span className={`absolute -left-[33px] h-5 w-5 rounded-full border-2 ${
-                m.status === "done" ? "bg-emerald-500 border-emerald-500" :
-                m.status === "in_progress" ? "bg-amber-400 border-amber-400" : "bg-background border-muted-foreground"
+                it.status === "done" ? "bg-emerald-500 border-emerald-500" :
+                it.status === "in_progress" ? "bg-amber-400 border-amber-400" : "bg-background border-muted-foreground"
               }`} />
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className={`font-medium ${m.status === "done" ? "line-through text-muted-foreground" : ""}`}>{m.title}</p>
-                  {m.description && <p className="text-sm text-muted-foreground mt-0.5">{m.description}</p>}
-                  {m.due_date && <p className="text-xs text-muted-foreground mt-1">📅 {new Date(m.due_date).toLocaleDateString("pt-BR")}</p>}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`font-medium ${it.status === "done" ? "line-through text-muted-foreground" : ""}`}>{it.title}</p>
+                    <Badge variant="outline" className={`text-[10px] ${it.kind === "task" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-violet-50 text-violet-700 border-violet-200"}`}>
+                      {it.kind === "task" ? "Tarefa" : "Marco"}
+                    </Badge>
+                  </div>
+                  {it.description && <p className="text-sm text-muted-foreground mt-0.5">{it.description}</p>}
+                  {it.due_date && <p className="text-xs text-muted-foreground mt-1">📅 {new Date(it.due_date).toLocaleDateString("pt-BR")}</p>}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => toggle.mutate(m)}><CheckCircle2 className="h-4 w-4" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setEdit(m); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => del.mutate(m.id)}><Trash2 className="h-4 w-4" /></Button>
+                  {it.kind === "milestone" ? (
+                    <>
+                      <Button size="sm" variant="ghost" onClick={() => toggle.mutate(it.raw)}><CheckCircle2 className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setEdit(it.raw); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => del.mutate(it.id)}><Trash2 className="h-4 w-4" /></Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="ghost" title="Alternar concluído" onClick={() => toggleTaskDone.mutate(it.raw)}><CheckCircle2 className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" title="Abrir tarefa" onClick={() => navigate({ to: "/tarefas", search: { task: it.id } })}><Pencil className="h-4 w-4" /></Button>
+                    </>
+                  )}
                 </div>
               </div>
             </li>
