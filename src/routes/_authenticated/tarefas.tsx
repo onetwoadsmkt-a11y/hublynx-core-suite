@@ -566,6 +566,26 @@ function TaskCard({
           defaultAttendee={client?.email ?? null}
         />
       )}
+      <AlertDialog open={confirmDel} onOpenChange={(o) => !o && setConfirmDel(false)}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A tarefa "{task.title}" será removida permanentemente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 hover:bg-rose-700"
+              disabled={del.isPending}
+              onClick={(e) => { e.preventDefault(); del.mutate(); }}
+            >
+              {del.isPending ? "Excluindo…" : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
