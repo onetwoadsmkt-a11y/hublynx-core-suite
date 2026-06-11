@@ -282,6 +282,78 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       chartDays.push({ date: key, completed, created });
     }
 
+    // Execution panel: today / overdue / waiting-client
+    const execution = {
+      today: todayTasks,
+      overdue: overdueList,
+      waitingClient: tasks.filter(
+        (t: any) => t.status === "em_revisao" || (project as any).status === "aguardando_cliente",
+      ),
+    };
+
+    // Planned vs Actual — weekly buckets between start_date and due_date (or last 12 weeks)
+    const startD = (project as any).start_date ? new Date((project as any).start_date) : null;
+    const endD = (project as any).due_date ? new Date((project as any).due_date) : null;
+    const plannedVsActual: { week: string; planned: number; actual: number }[] = [];
+    if (startD && endD && endD > startD && totalTasks > 0) {
+      const weeks = Math.max(2, Math.ceil((endD.getTime() - startD.getTime()) / (7 * 86400000)));
+      for (let i = 0; i <= weeks; i++) {
+        const wd = new Date(startD);
+        wd.setDate(wd.getDate() + i * 7);
+        const planned = Math.min(100, Math.round((i / weeks) * 100));
+        const actualDone = tasks.filter(
+          (t: any) => t.completed_at && new Date(t.completed_at) <= wd,
+        ).length;
+        const actual = wd > now ? 0 : Math.round((actualDone / totalTasks) * 100);
+        plannedVsActual.push({
+          week: wd.toISOString().slice(5, 10),
+          planned,
+          actual: wd > now && i > 0 ? plannedVsActual[i - 1]?.actual ?? 0 : actual,
+        });
+      }
+    }
+
+    // Upcoming deliveries 7/15/30
+    const horizon = (days: number) => {
+      const limit = new Date(today);
+      limit.setDate(limit.getDate() + days);
+      const inTasks = tasks
+        .filter((t: any) => t.due_date && t.status !== "concluido" && new Date(t.due_date) >= today && new Date(t.due_date) <= limit)
+        .map((t: any) => ({ kind: "task" as const, id: t.id, title: t.title, due_date: t.due_date }));
+      const inMilestones = (milestonesRes.data ?? [])
+        .filter((m: any) => m.due_date && m.status !== "done" && new Date(m.due_date) >= today && new Date(m.due_date) <= limit)
+        .map((m: any) => ({ kind: "milestone" as const, id: m.id, title: m.title, due_date: m.due_date }));
+      return [...inTasks, ...inMilestones].sort(
+        (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
+      );
+    };
+    const upcomingDeliveries = { in7: horizon(7), in15: horizon(15), in30: horizon(30) };
+
+    // Kanban counts (by canonical task status)
+    const kanbanCounts: Record<string, number> = {
+      a_fazer: 0, em_andamento: 0, em_revisao: 0, concluido: 0, cancelado: 0,
+    };
+    tasks.forEach((t: any) => {
+      const k = String(t.status ?? "a_fazer");
+      kanbanCounts[k] = (kanbanCounts[k] ?? 0) + 1;
+    });
+
+    // Finance monthly — last 6 months
+    const financeMonthly: { month: string; revenue: number; cost: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      const revenue = finances
+        .filter((f: any) => f.kind === "receita" && f.status === "pago" && f.created_at && new Date(f.created_at) >= d && new Date(f.created_at) < next)
+        .reduce((s: number, f: any) => s + Number(f.amount), 0);
+      const cost = costs
+        .filter((c: any) => c.incurred_at && new Date(c.incurred_at) >= d && new Date(c.incurred_at) < next)
+        .reduce((s: number, c: any) => s + Number(c.amount), 0);
+      financeMonthly.push({ month: d.toLocaleDateString("pt-BR", { month: "short" }), revenue, cost });
+    }
+
+    const nextMilestone = (milestonesRes.data ?? []).find((m: any) => m.status !== "done") ?? null;
+
     return {
       project: { ...project, client: (project as any).clients },
       kpis: {
@@ -311,6 +383,12 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
         created: newThisWeek,
       },
       chartDays,
+      execution,
+      plannedVsActual,
+      upcomingDeliveries,
+      kanbanCounts,
+      financeMonthly,
+      nextMilestone,
       milestones: milestonesRes.data ?? [],
       members: membersRes.data ?? [],
       risks,
