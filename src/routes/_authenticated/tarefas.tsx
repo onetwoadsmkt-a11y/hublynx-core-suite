@@ -528,7 +528,8 @@ function TaskCard({
                   disabled={quickMeet.isPending}
                   onClick={(e) => { stop(e); quickMeet.mutate(); }}
                   title="Criar link Meet agora"
-                >
+                  <Video className="h-3.5 w-3.5" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
