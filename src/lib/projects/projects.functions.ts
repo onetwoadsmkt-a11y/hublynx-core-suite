@@ -618,3 +618,49 @@ export const saveProjectNotes = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
+// ---------- Recurring invoice (mensal_recorrente / suporte_continuo) ----------
+export const generateRecurringInvoice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ project_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: proj, error: pErr } = await context.supabase
+      .from("projects")
+      .select("id, name, client_id, monthly_value, billing_day, next_billing_date, commercial_model")
+      .eq("id", data.project_id)
+      .single();
+    if (pErr) throw new Error(pErr.message);
+    const p: any = proj;
+    if (!["mensal_recorrente", "suporte_continuo"].includes(p.commercial_model)) {
+      throw new Error("Projeto não é recorrente");
+    }
+    const amount = Number(p.monthly_value ?? 0);
+    if (!amount) throw new Error("Defina o valor mensal do projeto");
+
+    const today = new Date();
+    const base = p.next_billing_date ? new Date(p.next_billing_date) : today;
+    const dueIso = base.toISOString().slice(0, 10);
+
+    const { error: fErr } = await context.supabase.from("finances").insert({
+      owner_id: context.userId,
+      project_id: p.id,
+      client_id: p.client_id,
+      kind: "receita",
+      description: `Cobrança recorrente — ${p.name}`,
+      amount,
+      due_date: dueIso,
+      status: "pendente",
+    });
+    if (fErr) throw new Error(fErr.message);
+
+    // advance next billing by ~1 month
+    const next = new Date(base);
+    next.setMonth(next.getMonth() + 1);
+    const nextIso = next.toISOString().slice(0, 10);
+    await context.supabase
+      .from("projects")
+      .update({ next_billing_date: nextIso })
+      .eq("id", p.id);
+
+    return { ok: true as const, due_date: dueIso, next_billing_date: nextIso };
+  });
