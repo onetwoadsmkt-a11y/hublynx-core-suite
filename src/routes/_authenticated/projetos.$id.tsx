@@ -581,11 +581,11 @@ function KanbanCompact({ counts }: { counts: Record<string, number> }) {
     <Card className="rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h3 className="font-semibold flex items-center gap-2"><ListChecks className="h-4 w-4" /> Kanban</h3>
-        <Button size="sm" variant="ghost" asChild><Link to="/tarefas">Abrir tarefas <ArrowRight className="h-3 w-3" /></Link></Button>
+        <Button size="sm" variant="ghost" asChild><Link to="/tarefas" search={{ task: undefined }}>Abrir tarefas <ArrowRight className="h-3 w-3" /></Link></Button>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {order.map((k) => (
-          <Link key={k} to="/tarefas" className="rounded-xl border bg-muted/30 hover:bg-muted/60 transition-colors p-4 text-center">
+          <Link key={k} to="/tarefas" search={{ task: undefined }} className="rounded-xl border bg-muted/30 hover:bg-muted/60 transition-colors p-4 text-center">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{KANBAN_LABEL[k]}</p>
             <p className="text-2xl font-semibold mt-1">{counts[k] ?? 0}</p>
           </Link>
