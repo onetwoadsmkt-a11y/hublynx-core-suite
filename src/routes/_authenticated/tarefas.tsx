@@ -19,6 +19,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -417,8 +421,22 @@ function TaskCard({
   const accent = PRIORITY_ACCENT[task.priority];
   const [emailOpen, setEmailOpen] = useState(false);
   const [meetOpen, setMeetOpen] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
   const instantMeet = useServerFn(createInstantMeet);
   const qc = useQueryClient();
+
+  const del = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Tarefa excluída.");
+      setConfirmDel(false);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao excluir tarefa."),
+  });
 
   const quickMeet = useMutation({
     mutationFn: async () =>
@@ -517,6 +535,15 @@ function TaskCard({
                 >
                   <Video className="h-3.5 w-3.5" />
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  onClick={(e) => { stop(e); setConfirmDel(true); }}
+                  title="Excluir tarefa"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
             </div>
           </div>
@@ -543,6 +570,26 @@ function TaskCard({
           defaultAttendee={client?.email ?? null}
         />
       )}
+      <AlertDialog open={confirmDel} onOpenChange={(o) => !o && setConfirmDel(false)}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A tarefa "{task.title}" será removida permanentemente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 hover:bg-rose-700"
+              disabled={del.isPending}
+              onClick={(e) => { e.preventDefault(); del.mutate(); }}
+            >
+              {del.isPending ? "Excluindo…" : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
