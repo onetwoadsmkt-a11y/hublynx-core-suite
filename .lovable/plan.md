@@ -1,65 +1,42 @@
-# Plano: Dashboard real + Workspaces por usuário + Admin
+# Integração Tarefas ↔ Roadmap do projeto
 
-## 1. Workspaces por usuário (já parcialmente pronto)
+## Objetivo
+Quando uma tarefa pertencer a um projeto, ela vira automaticamente um item do roadmap desse projeto. No card da tarefa (Kanban) o usuário poderá editar e atualizar o status que reflete no roadmap.
 
-O isolamento por usuário **já existe**: todas as tabelas (`tasks`, `projects`, `clients`, `finances`, `events`, etc.) têm `owner_id` com RLS escopada por `auth.uid() = owner_id`. Cada usuário cadastrado já vê apenas seus próprios dados — é a "área de trabalho" individual.
+## Modelo de dados
+- Adicionar coluna `milestone_id uuid` em `tasks` (FK → `project_milestones.id ON DELETE SET NULL`), índice por `milestone_id`.
+- Manter `project_milestones` como hoje (marcos manuais ainda funcionam).
+- O roadmap do projeto passa a exibir **duas fontes**: marcos manuais + tarefas do projeto, ordenadas por `due_date`/criação.
 
-Vou apenas reforçar:
-- Garantir que toda inserção (via formulários) seta `owner_id = auth.uid()` (auditar pontos faltantes em projetos/finanças/eventos se houver).
-- Mostrar nome da workspace no header (já mostra o nome do usuário).
+Mapeamento status tarefa → status no roadmap:
+- `concluido` → done
+- `em_andamento` / `em_revisao` → in_progress
+- demais → pending
 
-## 2. Admin: hublynx.dev@gmail.com
+## Backend (`src/lib/projects/projects.functions.ts`)
+- `getProjectDashboard`: ao montar a resposta, devolver também `roadmap` = união de `milestones` + `tasks` do projeto, com shape comum `{ kind: "milestone" | "task", id, title, description, status, due_date, source }`.
+- Novo serverFn `updateTaskFromRoadmap({ id, status, title?, description?, due_date? })` que atualiza `tasks` respeitando RLS (usa `requireSupabaseAuth`).
 
-**Migration:**
-- Promover o usuário `hublynx.dev@gmail.com` para role `admin` em `user_roles` (upsert via lookup em `auth.users`).
-- Criar função `is_admin()` SECURITY DEFINER que checa se `auth.uid()` tem role admin.
-- Adicionar policies extras nas tabelas principais (`profiles`, `user_roles`, `projects`, `tasks`, `clients`, `finances`, `events`) permitindo `SELECT/UPDATE/DELETE` quando `is_admin()`. Não duplica — soma à policy existente de owner.
-- View `admin_users_overview` (security invoker) com: `id, email, full_name, created_at, last_sign_in_at, role, contagens (projetos/tarefas/clientes)` — alimentada via join em `auth.users` + agregados.
+## UI
 
-**Server functions (`src/lib/admin/admin.functions.ts`):**
-- `listUsers()` — usa `requireSupabaseAuth` + check `is_admin`, lê via `supabaseAdmin` (`auth.admin.listUsers` + agregados).
-- `setUserRole({ userId, role })` — promove/rebaixa.
-- `deleteUser({ userId })` — `supabaseAdmin.auth.admin.deleteUser` (cascata remove dados via FK).
+### Página do projeto (`projetos.$id.tsx` → `MilestonesSection`)
+- Renderizar o `roadmap` combinado. Itens do tipo `task` ganham badge "Tarefa" e link para abrir a `TaskDrawer`.
+- Botões: marcar concluído (alterna status da tarefa/marco), editar (abre dialog adequado), excluir só para marcos manuais.
 
-**UI nova:**
-- Rota `/_authenticated/admin.usuarios.tsx` — tabela de usuários com role, contadores, ações (mudar role, excluir).
-- Item de menu "Admin → Usuários" no sidebar, **visível só se `useQuery` retornar `is_admin = true`** (hook `useIsAdmin`).
+### Kanban de tarefas (`tarefas.tsx` → `TaskCard`)
+- Adicionar botão **lápis (Editar)** no canto do card que abre a `TaskDrawer` já existente.
+- Adicionar **menu rápido de status** (dropdown) no card para mover a tarefa entre `a_fazer / em_andamento / em_revisao / concluido` sem precisar arrastar — isso atualiza o status que aparece no roadmap.
+- Quando a tarefa tem `project_id`, exibir chip "Roadmap • {nome do projeto}" no card.
 
-## 3. Dashboard real (substituir todos os mocks)
+### TaskDrawer
+- Já tem edição. Garantir que após salvar, invalida tanto `["tasks"]` quanto `["project-dashboard", project_id]` para o roadmap refletir imediato.
 
-Reescrever `src/routes/_authenticated/dashboard.tsx` para usar dados reais via `useQuery` ao Supabase, escopados por RLS (cada usuário vê só o seu; admin vê o seu também — admin global é página separada).
+## Arquivos
+- `supabase/migrations/<ts>_tasks_milestone_link.sql` — coluna + índice + GRANT já existentes.
+- `src/lib/projects/projects.functions.ts` — incluir tarefas no payload + nova mutation.
+- `src/routes/_authenticated/projetos.$id.tsx` — `MilestonesSection` renderiza roadmap combinado.
+- `src/routes/_authenticated/tarefas.tsx` — botão editar + dropdown de status no `TaskCard`, invalidations cruzadas.
 
-**KPIs (cards superiores):**
-| Card | Query |
-|---|---|
-| Tarefas para hoje | `tasks` onde `due_date::date = hoje AND status <> 'concluido'`. Sub: contagem de `due_date < hoje AND status <> 'concluido'` (em atraso). |
-| Projetos ativos | `projects` onde `status = 'ativo'`. Sub: atrasados (`due_date < hoje AND status NOT IN ('concluido','cancelado')`). |
-| A receber (7 dias) | soma `finances.amount` onde `kind='receita' AND status='pendente' AND due_date BETWEEN hoje E hoje+7`. Sub: contagem. |
-| Reuniões hoje | `events` onde `start_at::date = hoje AND event_type IN ('reuniao','call')`. Sub: próximo horário. |
-| Clientes ativos | `clients` onde `status='ativo'`. |
-
-**Seções:**
-- **Tarefas do dia**: lista de `tasks` de hoje (até 6), com checkbox que faz `UPDATE status='concluido'`. Mostra cliente + projeto via join.
-- **Financeiro**: 3 linhas reais — Receber semana, Pagar semana, Saldo previsto. Cada uma com sparkline dos últimos 7 dias (agregado por dia).
-- **Projetos em andamento**: top 5 `projects` com `status='ativo'`, mostrando `progress` real e nome do cliente.
-- **Próximos eventos**: próximos 4 `events` com `start_at >= now()`.
-
-**Saudação:** Bom dia/Boa tarde/Boa noite baseado em horário local + primeiro nome do `profiles.full_name`.
-
-**Estados vazios:** cada seção mostra mensagem amigável ("Nenhuma tarefa para hoje", "Sem projetos ativos ainda", etc.) e CTA para criar.
-
-## 4. Arquivos afetados
-
-```text
-supabase/migrations/<timestamp>_admin_setup.sql           (novo)
-src/lib/admin/admin.functions.ts                          (novo)
-src/hooks/useIsAdmin.ts                                   (novo)
-src/routes/_authenticated/admin.usuarios.tsx              (novo)
-src/components/AppShell.tsx                               (item admin no NAV condicional)
-src/routes/_authenticated/dashboard.tsx                   (reescrita completa, sem mocks)
-```
-
-## 5. Confirmar antes de começar
-
-1. **Email admin**: confirmar que é exatamente `hublynx.dev@gmail.com` (esse usuário já precisa ter feito sign-up no sistema — se ainda não, eu crio o trigger que promove automaticamente quando ele se cadastrar).
-2. **Escopo do admin**: ver e gerenciar **usuários** (role, excluir). Você quer também que o admin consiga **ver os dados** (projetos/tarefas/finanças) de outros usuários? Ou apenas gerenciar contas?
+## Perguntas rápidas
+1. Quero confirmar: toda tarefa de um projeto deve aparecer no roadmap automaticamente, ou só as marcadas com uma flag (ex.: "marco")?
+2. O card no Kanban deve mostrar o nome do projeto/roadmap a que pertence?

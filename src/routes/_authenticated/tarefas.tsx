@@ -18,7 +18,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock } from "lucide-react";
+import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock, Pencil, Target } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -125,6 +125,11 @@ function TarefasPage() {
     (clients as any[]).forEach((c) => m.set(c.id, c));
     return m;
   }, [clients]);
+  const projectsById = useMemo(() => {
+    const m = new Map<string, { id: string; name: string }>();
+    (projects as any[]).forEach((p) => m.set(p.id, p));
+    return m;
+  }, [projects]);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -278,7 +283,7 @@ function TarefasPage() {
                 {kanbanCols.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
-                    <KanbanColumn key={col.key} col={col} tasks={colTasks} labelsIndex={labelsIndex} clientsById={clientsById} onSelect={setSelectedId} />
+                    <KanbanColumn key={col.key} col={col} tasks={colTasks} kanbanCols={kanbanCols} labelsIndex={labelsIndex} clientsById={clientsById} projectsById={projectsById} onSelect={setSelectedId} />
                   );
                 })}
               </div>
@@ -289,6 +294,8 @@ function TarefasPage() {
                     task={activeTask}
                     labels={labelsIndex[activeTask.id] ?? []}
                     client={activeTask.client_id ? clientsById.get(activeTask.client_id) ?? null : null}
+                    project={activeTask.project_id ? projectsById.get(activeTask.project_id) ?? null : null}
+                    kanbanCols={kanbanCols}
                     dragging
                   />
                 ) : null}
@@ -356,12 +363,14 @@ const PRIORITY_ACCENT: Record<Priority, string> = {
 };
 
 function KanbanColumn({
-  col, tasks, labelsIndex, clientsById, onSelect,
+  col, tasks, kanbanCols, labelsIndex, clientsById, projectsById, onSelect,
 }: {
   col: KanbanColumn;
   tasks: Task[];
+  kanbanCols: KanbanColumn[];
   labelsIndex: Record<string, LabelItem[]>;
   clientsById: Map<string, ClientMini>;
+  projectsById: Map<string, { id: string; name: string }>;
   onSelect: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
@@ -378,6 +387,8 @@ function KanbanColumn({
             task={t}
             labels={labelsIndex[t.id] ?? []}
             client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
+            project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
+            kanbanCols={kanbanCols}
             onSelect={onSelect}
           />
         ))}
@@ -387,15 +398,15 @@ function KanbanColumn({
 }
 
 function DraggableCard({
-  task, labels, client, onSelect,
-}: { task: Task; labels: LabelItem[]; client: ClientMini | null; onSelect: (id: string) => void }) {
+  task, labels, client, project, kanbanCols, onSelect,
+}: { task: Task; labels: LabelItem[]; client: ClientMini | null; project: { id: string; name: string } | null; kanbanCols: KanbanColumn[]; onSelect: (id: string) => void }) {
   const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({ id: task.id });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.4 : 1 }
     : { opacity: isDragging ? 0.4 : 1 };
   return (
     <div ref={setNodeRef} style={style}>
-      <TaskCard task={task} labels={labels} client={client} onClick={() => onSelect(task.id)} dragHandle={{ ...attributes, ...listeners }} />
+      <TaskCard task={task} labels={labels} client={client} project={project} kanbanCols={kanbanCols} onClick={() => onSelect(task.id)} dragHandle={{ ...attributes, ...listeners }} />
     </div>
   );
 }
@@ -409,11 +420,13 @@ function dueBadgeTone(due: string | null) {
 }
 
 function TaskCard({
-  task, labels = [], client, onClick, dragging, dragHandle,
+  task, labels = [], client, project, kanbanCols, onClick, dragging, dragHandle,
 }: {
   task: Task;
   labels?: LabelItem[];
   client?: ClientMini | null;
+  project?: { id: string; name: string } | null;
+  kanbanCols?: KanbanColumn[];
   onClick?: () => void;
   dragging?: boolean;
   dragHandle?: any;
@@ -436,6 +449,19 @@ function TaskCard({
       setConfirmDel(false);
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao excluir tarefa."),
+  });
+
+  const quickStatus = useMutation({
+    mutationFn: async (status: string) => {
+      const { error } = await supabase.from("tasks").update({ status }).eq("id", task.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (task.project_id) qc.invalidateQueries({ queryKey: ["project-dashboard", task.project_id] });
+      toast.success("Status atualizado.");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao atualizar status."),
   });
 
   const quickMeet = useMutation({
@@ -502,11 +528,39 @@ function TaskCard({
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {client ? client.name : <span className="italic">Sem cliente</span>}
             </p>
+            {project && (
+              <p className="text-[11px] text-brand-blue mt-1 truncate">
+                <Target className="inline h-3 w-3 mr-1" />Roadmap • {project.name}
+              </p>
+            )}
+            {kanbanCols && kanbanCols.length > 0 && (
+              <div className="mt-2" onClick={stop}>
+                <Select value={task.status} onValueChange={(v) => quickStatus.mutate(v)}>
+                  <SelectTrigger className="h-7 text-[11px] px-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {kanbanCols.map((c) => (
+                      <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="mt-2 flex items-center justify-between gap-2">
               <Badge variant="outline" className={`${PRIORITY_TONE[task.priority]} text-[10px] py-0 border-0`}>
                 {PRIORITY_LABEL[task.priority]}
               </Badge>
               <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+                  onClick={(e) => { stop(e); onClick?.(); }}
+                  title="Editar tarefa"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
