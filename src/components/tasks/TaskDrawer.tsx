@@ -391,8 +391,17 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
         <Field label="Horas estimadas">
           <Input type="number" step="0.25" value={task.estimated_hours ?? ""} onChange={(e) => update.mutate({ estimated_hours: e.target.value ? Number(e.target.value) : null })} />
         </Field>
-        <Field label="Horas reais">
-          <Input type="number" step="0.25" value={task.actual_hours ?? ""} onChange={(e) => update.mutate({ actual_hours: e.target.value ? Number(e.target.value) : null })} />
+        <Field label="Tempo gasto (horas)">
+          <Input type="number" step="0.25" value={task.time_spent_minutes ? (Number(task.time_spent_minutes) / 60) : (task.actual_hours ?? "")} onChange={(e) => {
+            const hrs = e.target.value ? Number(e.target.value) : 0;
+            update.mutate({ time_spent_minutes: Math.round(hrs * 60), actual_hours: hrs || null });
+          }} />
+        </Field>
+        <Field label="Custo interno (R$)">
+          <Input type="number" step="0.01" value={task.internal_cost ?? ""} onChange={(e) => update.mutate({ internal_cost: e.target.value ? Number(e.target.value) : null })} />
+        </Field>
+        <Field label="Valor gerado (R$)">
+          <Input type="number" step="0.01" value={task.generated_value ?? ""} onChange={(e) => update.mutate({ generated_value: e.target.value ? Number(e.target.value) : null })} />
         </Field>
       </div>
 
@@ -401,11 +410,12 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Tempo gasto</span>
-            <span className="tabular-nums">{Number(task.actual_hours ?? 0)}h / {Number(task.estimated_hours)}h</span>
+            <span className="tabular-nums">{(task.time_spent_minutes ? Number(task.time_spent_minutes) / 60 : Number(task.actual_hours ?? 0)).toFixed(2)}h / {Number(task.estimated_hours)}h</span>
           </div>
-          <Progress value={Math.min(100, ((Number(task.actual_hours ?? 0) / Number(task.estimated_hours)) * 100))} className="h-1.5" />
+          <Progress value={Math.min(100, (((task.time_spent_minutes ? Number(task.time_spent_minutes) / 60 : Number(task.actual_hours ?? 0)) / Number(task.estimated_hours)) * 100))} className="h-1.5" />
         </div>
       ) : null}
+
 
       <Separator />
 
