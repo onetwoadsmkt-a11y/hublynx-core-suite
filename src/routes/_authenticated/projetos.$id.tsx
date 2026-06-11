@@ -228,6 +228,16 @@ function ExecutiveHeader({ p, d }: any) {
               {STATUS_LABEL[p.status as ProjectStatus]}
             </Badge>
             <HealthBadge health={d.health} />
+            {p.commercial_model && (
+              <Badge variant="outline" className="border bg-indigo-50 text-indigo-700 border-indigo-200">
+                {COMMERCIAL_LABEL[p.commercial_model]}
+              </Badge>
+            )}
+            {p.service_type && (
+              <Badge variant="outline" className="border bg-slate-50 text-slate-700">
+                {SERVICE_LABEL[p.service_type]}
+              </Badge>
+            )}
           </div>
           {p.description && <p className="text-sm text-muted-foreground mt-2 max-w-2xl line-clamp-2">{p.description}</p>}
           <div className="flex items-center gap-x-5 gap-y-1 mt-3 text-xs text-muted-foreground flex-wrap">
