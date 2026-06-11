@@ -15,21 +15,24 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock,
   TrendingUp, DollarSign, Users as UsersIcon, Calendar as CalIcon, AlertCircle,
-  Activity as ActivityIcon, FileText, Target, Briefcase,
+  Activity as ActivityIcon, FileText, Target, Briefcase, Flag, Hourglass,
+  UserCheck, ListChecks, ArrowRight, Sparkles, Wallet,
 } from "lucide-react";
 import {
-  LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis,
-  Tooltip as RTooltip, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis,
+  Tooltip as RTooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
@@ -53,23 +56,26 @@ const STATUS_TONE: Record<ProjectStatus, string> = {
   cancelado: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
+const KANBAN_LABEL: Record<string, string> = {
+  a_fazer: "A Fazer", em_andamento: "Em Andamento",
+  em_revisao: "Em Revisão", concluido: "Concluído", cancelado: "Cancelado",
+};
+
 function brl(n: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
 }
 
-function KpiCard({ icon: Icon, label, value, sub, tone = "" }: any) {
-  return (
-    <Card className="rounded-2xl p-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
-          <p className={`text-2xl font-semibold mt-1 ${tone}`}>{value}</p>
-          {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-        </div>
-        <div className="rounded-xl bg-muted/60 p-2"><Icon className="h-4 w-4 text-muted-foreground" /></div>
-      </div>
-    </Card>
-  );
+function fmtDate(d?: string | null) {
+  return d ? new Date(d).toLocaleDateString("pt-BR") : "—";
+}
+
+function relativeTime(iso: string) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return "agora";
+  if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `há ${Math.floor(diff / 3600)} h`;
+  if (diff < 7 * 86400) return `há ${Math.floor(diff / 86400)} d`;
+  return new Date(iso).toLocaleDateString("pt-BR");
 }
 
 function HealthBadge({ health }: { health: "healthy" | "attention" | "critical" }) {
@@ -86,10 +92,23 @@ function HealthBadge({ health }: { health: "healthy" | "attention" | "critical" 
   );
 }
 
+function KpiTile({ icon: Icon, label, value, sub, tone = "" }: any) {
+  return (
+    <div className="rounded-2xl border bg-card p-4 hover:shadow-sm transition-shadow">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{label}</span>
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+      </div>
+      <p className={`text-xl font-semibold mt-2 ${tone}`}>{value}</p>
+      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+// =====================================================
 function ProjectCommandCenter() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const getDash = useServerFn(getProjectDashboard);
   const dashQ = useQuery({
     queryKey: ["project-dashboard", id],
@@ -109,13 +128,13 @@ function ProjectCommandCenter() {
   if (dashQ.isLoading) return <div className="p-8 text-muted-foreground">Carregando projeto...</div>;
   if (dashQ.error || !dashQ.data) return <div className="p-8 text-rose-600">Erro ao carregar.</div>;
 
-  const d = dashQ.data;
+  const d: any = dashQ.data;
   const p: any = d.project;
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-[1400px] mx-auto">
+    <div className="p-4 md:p-6 max-w-[1600px] mx-auto">
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="flex items-center justify-between gap-2 mb-4">
         <Button variant="ghost" size="sm" asChild>
           <Link to="/projetos"><ArrowLeft className="h-4 w-4" /> Voltar</Link>
         </Button>
@@ -130,228 +149,236 @@ function ProjectCommandCenter() {
         </div>
       </div>
 
-      {/* Header */}
-      <Card className="rounded-2xl p-6 border-l-4" style={{ borderLeftColor: p.color || "#6366f1" }}>
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">{p.name}</h1>
-              <Badge className={`${STATUS_TONE[p.status as ProjectStatus]} border`} variant="outline">
-                {STATUS_LABEL[p.status as ProjectStatus]}
-              </Badge>
-              <HealthBadge health={d.health} />
-            </div>
-            {p.description && <p className="text-sm text-muted-foreground mt-2 max-w-2xl">{p.description}</p>}
-            <div className="flex items-center gap-6 mt-4 text-sm text-muted-foreground flex-wrap">
-              {p.client && <span className="flex items-center gap-1.5"><Briefcase className="h-4 w-4" />{p.client.name}</span>}
-              <span className="flex items-center gap-1.5"><CalIcon className="h-4 w-4" />
-                {p.start_date ? new Date(p.start_date).toLocaleDateString("pt-BR") : "—"} →{" "}
-                {p.due_date ? new Date(p.due_date).toLocaleDateString("pt-BR") : "—"}
-              </span>
-              {d.kpis.daysRemaining !== null && (
-                <span className={d.kpis.daysRemaining < 0 ? "text-rose-600" : ""}>
-                  <Clock className="h-4 w-4 inline mr-1" />
-                  {d.kpis.daysRemaining < 0 ? `${Math.abs(d.kpis.daysRemaining)} dias atrasado` : `${d.kpis.daysRemaining} dias restantes`}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="md:w-72 shrink-0">
-            <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="text-muted-foreground">Progresso</span>
-              <span className="font-semibold">{d.kpis.progress}%</span>
-            </div>
-            <Progress value={d.kpis.progress} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">
-              {d.kpis.doneTasks} de {d.kpis.totalTasks} tarefas concluídas
-            </p>
-          </div>
-        </div>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6">
+        {/* MAIN COLUMN */}
+        <div className="space-y-6 min-w-0">
+          <ExecutiveHeader p={p} d={d} />
+          <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
+          <KpiRow d={d} />
+          <ExecutionPanel execution={d.execution} onOpenTask={(tid: string) => navigate({ to: "/tarefas", search: { task: tid } as any })} />
+          <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
+          <RoadmapTimeline milestones={d.milestones} projectId={id} />
+          <FinanceSummary kpis={d.kpis} monthly={d.financeMonthly} />
+          <UpcomingDeliveries upcoming={d.upcomingDeliveries} />
+          <KanbanCompact counts={d.kanbanCounts} />
+          <ActivityFeed activity={d.activity} />
 
-      {/* Alerts */}
-      {d.alerts.length > 0 && (
-        <div className="space-y-2">
-          {d.alerts.map((a, i) => (
-            <Card key={i} className={`rounded-2xl p-4 border flex items-center gap-3 ${
-              a.severity === "danger" ? "bg-rose-50 border-rose-200 text-rose-800" : "bg-amber-50 border-amber-200 text-amber-800"
-            }`}>
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-medium">{a.message}</span>
-            </Card>
-          ))}
+          {/* Secondary content as accordion */}
+          <Accordion type="multiple" className="space-y-3">
+            <AccordionItem value="team" className="border rounded-2xl px-4 bg-card">
+              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><UsersIcon className="h-4 w-4" /> Equipe</span></AccordionTrigger>
+              <AccordionContent><TeamSection members={d.members} projectId={id} /></AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="risks" className="border rounded-2xl px-4 bg-card">
+              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" /> Riscos & Bloqueios</span></AccordionTrigger>
+              <AccordionContent><RisksSection risks={d.risks} projectId={id} /></AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="costs" className="border rounded-2xl px-4 bg-card">
+              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><Wallet className="h-4 w-4" /> Custos</span></AccordionTrigger>
+              <AccordionContent><CostsSection costs={d.costs} projectId={id} /></AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="files" className="border rounded-2xl px-4 bg-card">
+              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Arquivos</span></AccordionTrigger>
+              <AccordionContent><FilesSection files={d.files} /></AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="notes" className="border rounded-2xl px-4 bg-card">
+              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Notas & Decisões</span></AccordionTrigger>
+              <AccordionContent><NotesSection notes={d.notes} projectId={id} /></AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
-      )}
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-        <KpiCard icon={Target} label="Progresso" value={`${d.kpis.progress}%`} sub={`${d.kpis.doneTasks}/${d.kpis.totalTasks} tarefas`} />
-        <KpiCard icon={DollarSign} label="Receita" value={brl(d.kpis.revenueReceived)} sub={`${brl(d.kpis.revenuePending)} pendente`} />
-        <KpiCard icon={TrendingUp} label="Custo" value={brl(d.kpis.totalCost)} sub={`${Math.round(d.kpis.budgetUsage)}% do orçamento`} />
-        <KpiCard icon={DollarSign} label="Lucro" value={brl(d.kpis.profit)}
-          sub={`${d.kpis.margin.toFixed(1)}% margem`}
-          tone={d.kpis.profit >= 0 ? "text-emerald-600" : "text-rose-600"} />
-        <KpiCard icon={UsersIcon} label="Equipe" value={d.kpis.memberCount} sub="membros" />
-        <KpiCard icon={AlertCircle} label="Issues" value={d.kpis.openIssues} sub="riscos abertos"
-          tone={d.kpis.openIssues > 0 ? "text-rose-600" : ""} />
+        {/* CONTEXT SIDEBAR */}
+        <ContextSidebar p={p} d={d} />
       </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="flex flex-wrap h-auto">
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="tasks">Tarefas</TabsTrigger>
-          <TabsTrigger value="financial">Financeiro</TabsTrigger>
-          <TabsTrigger value="team">Equipe</TabsTrigger>
-          <TabsTrigger value="files">Arquivos</TabsTrigger>
-          <TabsTrigger value="notes">Notas</TabsTrigger>
-          <TabsTrigger value="risks">Riscos</TabsTrigger>
-          <TabsTrigger value="activity">Atividade</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          <TodayFocus tasks={d.todayTasks} />
-          <WeeklyPerformance weekly={d.weekly} />
-          <MonthlyChart days={d.chartDays} />
-          <MilestonesSection milestones={d.milestones} tasks={d.tasks} projectId={id} />
-        </TabsContent>
-
-        <TabsContent value="tasks" className="mt-6">
-          <Card className="rounded-2xl p-6 text-center">
-            <p className="text-muted-foreground mb-3">Gerencie tarefas deste projeto na página principal de tarefas.</p>
-            <Button asChild><Link to="/tarefas">Abrir Tarefas →</Link></Button>
-            <div className="mt-6 text-left">
-              <p className="text-sm font-medium mb-2">Tarefas vinculadas ({d.tasks.length})</p>
-              <ul className="space-y-1.5">
-                {d.tasks.slice(0, 20).map((t: any) => (
-                  <li key={t.id} className="flex items-center justify-between text-sm py-1.5 border-b last:border-0">
-                    <span className="truncate">{t.title}</span>
-                    <Badge variant="outline" className="text-xs">{t.status}</Badge>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="financial" className="space-y-6 mt-6">
-          <FinancialSection kpis={d.kpis} finances={d.finances} costs={d.costs} projectId={id} />
-        </TabsContent>
-
-        <TabsContent value="team" className="mt-6">
-          <TeamSection members={d.members} projectId={id} />
-        </TabsContent>
-
-        <TabsContent value="files" className="mt-6">
-          <FilesSection files={d.files} />
-        </TabsContent>
-
-        <TabsContent value="notes" className="mt-6">
-          <NotesSection notes={d.notes} projectId={id} />
-        </TabsContent>
-
-        <TabsContent value="risks" className="mt-6">
-          <RisksSection risks={d.risks} projectId={id} />
-        </TabsContent>
-
-        <TabsContent value="activity" className="mt-6">
-          <ActivitySection activity={d.activity} />
-        </TabsContent>
-      </Tabs>
 
       <ProjectFormDialog open={editOpen} onOpenChange={setEditOpen} project={p} />
     </div>
   );
 }
 
-// ---------- Sub-sections ----------
-
-function TodayFocus({ tasks }: { tasks: any[] }) {
+// =====================================================
+// 1. Executive Header
+function ExecutiveHeader({ p, d }: any) {
   return (
-    <Card className="rounded-2xl p-6">
-      <h3 className="font-semibold mb-4 flex items-center gap-2"><Target className="h-4 w-4" /> Foco do dia</h3>
-      {tasks.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma tarefa para hoje.</p>
+    <Card className="rounded-2xl p-6 border-l-4" style={{ borderLeftColor: p.color || "#6366f1" }}>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:justify-between">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">{p.name}</h1>
+            <Badge className={`${STATUS_TONE[p.status as ProjectStatus]} border`} variant="outline">
+              {STATUS_LABEL[p.status as ProjectStatus]}
+            </Badge>
+            <HealthBadge health={d.health} />
+          </div>
+          {p.description && <p className="text-sm text-muted-foreground mt-2 max-w-2xl line-clamp-2">{p.description}</p>}
+          <div className="flex items-center gap-x-5 gap-y-1 mt-3 text-xs text-muted-foreground flex-wrap">
+            {p.client && <span className="flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" />{p.client.name}</span>}
+            <span className="flex items-center gap-1.5"><CalIcon className="h-3.5 w-3.5" />{fmtDate(p.start_date)} → {fmtDate(p.due_date)}</span>
+            {d.kpis.daysRemaining !== null && (
+              <span className={`flex items-center gap-1.5 ${d.kpis.daysRemaining < 0 ? "text-rose-600 font-medium" : ""}`}>
+                <Clock className="h-3.5 w-3.5" />
+                {d.kpis.daysRemaining < 0 ? `${Math.abs(d.kpis.daysRemaining)} dias atrasado` : `${d.kpis.daysRemaining} dias restantes`}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="w-full sm:w-64 shrink-0">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="text-muted-foreground">Progresso geral</span>
+            <span className="font-semibold">{d.kpis.progress}%</span>
+          </div>
+          <Progress value={d.kpis.progress} className="h-2" />
+          <p className="text-[11px] text-muted-foreground mt-1.5">{d.kpis.doneTasks} de {d.kpis.totalTasks} tarefas concluídas</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// 2. Alerts bar
+function AlertsBar({ alerts, nextMilestone }: any) {
+  const extra: any[] = [];
+  if (nextMilestone) extra.push({ type: "milestone", severity: "info", message: `Próximo marco: ${nextMilestone.title}` });
+  const all = [...alerts, ...extra];
+  if (all.length === 0) return null;
+  const icon: any = { overdue: AlertCircle, budget: DollarSign, deadline: Clock, risk: AlertTriangle, milestone: Flag };
+  const tone: any = {
+    danger: "bg-rose-50 border-rose-200 text-rose-800",
+    warning: "bg-amber-50 border-amber-200 text-amber-800",
+    info: "bg-blue-50 border-blue-200 text-blue-800",
+  };
+  return (
+    <div className="flex flex-wrap gap-2">
+      {all.map((a, i) => {
+        const Icon = icon[a.type] ?? Sparkles;
+        return (
+          <div key={i} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${tone[a.severity]}`}>
+            <Icon className="h-3.5 w-3.5 shrink-0" />{a.message}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// 3. KPI row
+function KpiRow({ d }: any) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      <KpiTile icon={Target} label="Progresso" value={`${d.kpis.progress}%`} />
+      <KpiTile icon={ListChecks} label="Tarefas" value={`${d.kpis.doneTasks}/${d.kpis.totalTasks}`} sub={d.kpis.overdueTasks > 0 ? `${d.kpis.overdueTasks} atrasadas` : ""} />
+      <KpiTile icon={DollarSign} label="Receita" value={brl(d.kpis.revenueReceived)} tone="text-emerald-600" />
+      <KpiTile icon={Wallet} label="Custos" value={brl(d.kpis.totalCost)} sub={`${Math.round(d.kpis.budgetUsage)}% orç.`} />
+      <KpiTile icon={TrendingUp} label="Lucro" value={brl(d.kpis.profit)} sub={`${d.kpis.margin.toFixed(1)}%`} tone={d.kpis.profit >= 0 ? "text-emerald-600" : "text-rose-600"} />
+      <KpiTile icon={UsersIcon} label="Equipe" value={d.kpis.memberCount} sub="membros" />
+      <KpiTile icon={AlertCircle} label="Riscos" value={d.kpis.openIssues} sub="abertos" tone={d.kpis.openIssues > 0 ? "text-rose-600" : ""} />
+    </div>
+  );
+}
+
+// 4. Execution panel
+function ExecutionPanel({ execution, onOpenTask }: { execution: { today: any[]; overdue: any[]; waitingClient: any[] }; onOpenTask: (id: string) => void }) {
+  const Col = ({ title, icon: Icon, color, items, render }: any) => (
+    <Card className="rounded-2xl p-4 flex flex-col min-h-[200px]">
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`h-7 w-7 rounded-lg grid place-items-center ${color}`}><Icon className="h-3.5 w-3.5" /></div>
+        <h3 className="font-semibold text-sm">{title}</h3>
+        <Badge variant="outline" className="ml-auto text-[10px]">{items.length}</Badge>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground my-auto text-center py-6">Nada por aqui ✨</p>
       ) : (
-        <ul className="space-y-2">
-          {tasks.map((t) => (
-            <li key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/40">
-              <div className="min-w-0">
-                <p className="font-medium text-sm truncate">{t.title}</p>
-                <p className="text-xs text-muted-foreground">{t.priority} · {t.status}</p>
-              </div>
+        <ul className="space-y-1.5">
+          {items.slice(0, 6).map((t: any) => (
+            <li key={t.id}>
+              <button onClick={() => onOpenTask(t.id)} className="w-full text-left p-2 rounded-lg hover:bg-muted/60 transition-colors">
+                {render(t)}
+              </button>
             </li>
           ))}
         </ul>
       )}
     </Card>
   );
-}
 
-function WeeklyPerformance({ weekly }: { weekly: any }) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Card className="rounded-2xl p-5">
-        <div className="flex items-center gap-2 text-emerald-700 mb-2">
-          <CheckCircle2 className="h-4 w-4" />
-          <p className="text-xs uppercase tracking-wide font-semibold">Concluídas esta semana</p>
-        </div>
-        <p className="text-3xl font-semibold">{weekly.completed.length}</p>
-        <ul className="mt-3 space-y-1 text-sm">
-          {weekly.completed.slice(0, 5).map((t: any) => (
-            <li key={t.id} className="truncate text-muted-foreground">• {t.title}</li>
-          ))}
-        </ul>
-      </Card>
-      <Card className="rounded-2xl p-5">
-        <div className="flex items-center gap-2 text-rose-700 mb-2">
-          <AlertCircle className="h-4 w-4" />
-          <p className="text-xs uppercase tracking-wide font-semibold">Atrasadas</p>
-        </div>
-        <p className="text-3xl font-semibold">{weekly.overdue.length}</p>
-        <ul className="mt-3 space-y-1 text-sm">
-          {weekly.overdue.slice(0, 5).map((t: any) => (
-            <li key={t.id} className="truncate text-muted-foreground">• {t.title}</li>
-          ))}
-        </ul>
-      </Card>
-      <Card className="rounded-2xl p-5">
-        <div className="flex items-center gap-2 text-blue-700 mb-2">
-          <Plus className="h-4 w-4" />
-          <p className="text-xs uppercase tracking-wide font-semibold">Novas esta semana</p>
-        </div>
-        <p className="text-3xl font-semibold">{weekly.created.length}</p>
-        <ul className="mt-3 space-y-1 text-sm">
-          {weekly.created.slice(0, 5).map((t: any) => (
-            <li key={t.id} className="truncate text-muted-foreground">• {t.title}</li>
-          ))}
-        </ul>
-      </Card>
+    <div>
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Central de Execução</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Col title="Fazer hoje" icon={Target} color="bg-blue-50 text-blue-600" items={execution.today}
+          render={(t: any) => (
+            <>
+              <p className="text-sm font-medium truncate">{t.title}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">{t.priority ?? "—"}</p>
+            </>
+          )} />
+        <Col title="Atrasadas" icon={AlertCircle} color="bg-rose-50 text-rose-600" items={execution.overdue}
+          render={(t: any) => {
+            const days = t.due_date ? Math.floor((today.getTime() - new Date(t.due_date).getTime()) / 86400000) : 0;
+            return (
+              <>
+                <p className="text-sm font-medium truncate">{t.title}</p>
+                <p className="text-[11px] text-rose-600 mt-0.5">{days} dia(s) de atraso</p>
+              </>
+            );
+          }} />
+        <Col title="Aguardando cliente" icon={UserCheck} color="bg-amber-50 text-amber-600" items={execution.waitingClient}
+          render={(t: any) => (
+            <>
+              <p className="text-sm font-medium truncate">{t.title}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Solicitado: {fmtDate(t.updated_at ?? t.created_at)}</p>
+            </>
+          )} />
+      </div>
     </div>
   );
 }
 
-function MonthlyChart({ days }: { days: any[] }) {
+// 5. Planned vs Actual
+function PlannedVsActual({ data, progress }: { data: any[]; progress: number }) {
+  if (!data || data.length === 0) {
+    return (
+      <Card className="rounded-2xl p-6">
+        <h3 className="font-semibold flex items-center gap-2 mb-2"><TrendingUp className="h-4 w-4" /> Evolução do projeto</h3>
+        <p className="text-sm text-muted-foreground">Defina datas de início e prazo para visualizar a evolução planejada × realizada.</p>
+      </Card>
+    );
+  }
+  const last = data[data.length - 1];
+  const expected = last?.planned ?? 0;
+  const delta = progress - expected;
   return (
     <Card className="rounded-2xl p-6">
-      <h3 className="font-semibold mb-4 flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Últimos 30 dias</h3>
-      <ResponsiveContainer width="100%" height={240}>
-        <AreaChart data={days}>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h3 className="font-semibold flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Evolução do projeto</h3>
+        <div className="flex items-center gap-4 text-xs">
+          <span><span className="text-muted-foreground">Realizado:</span> <span className="font-semibold">{progress}%</span></span>
+          <span><span className="text-muted-foreground">Previsto:</span> <span className="font-semibold">{expected}%</span></span>
+          <Badge variant="outline" className={delta >= 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"}>
+            {delta >= 0 ? "+" : ""}{delta}%
+          </Badge>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-          <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
-          <YAxis tick={{ fontSize: 10 }} />
+          <XAxis dataKey="week" tick={{ fontSize: 10 }} />
+          <YAxis tick={{ fontSize: 10 }} unit="%" />
           <RTooltip />
-          <Area type="monotone" dataKey="created" stroke="#6366f1" fill="#6366f120" name="Criadas" />
-          <Area type="monotone" dataKey="completed" stroke="#10b981" fill="#10b98120" name="Concluídas" />
-        </AreaChart>
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Line type="monotone" dataKey="planned" stroke="#94a3b8" strokeDasharray="4 4" name="Planejado" dot={false} />
+          <Line type="monotone" dataKey="actual" stroke="#6366f1" strokeWidth={2} name="Realizado" dot={{ r: 3 }} />
+        </LineChart>
       </ResponsiveContainer>
     </Card>
   );
 }
 
-function MilestonesSection({ milestones, tasks, projectId }: { milestones: any[]; tasks: any[]; projectId: string }) {
+// 6. Roadmap horizontal timeline
+function RoadmapTimeline({ milestones, projectId }: { milestones: any[]; projectId: string }) {
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const upFn = useServerFn(upsertMilestone);
   const delFn = useServerFn(deleteMilestone);
   const [open, setOpen] = useState(false);
@@ -376,84 +403,51 @@ function MilestonesSection({ milestones, tasks, projectId }: { milestones: any[]
     onSuccess: () => qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] }),
   });
 
-  // Map task status -> roadmap status
-  const taskRoadmapStatus = (s: string): "pending" | "in_progress" | "done" =>
-    s === "concluido" ? "done" : (s === "em_andamento" || s === "revisao" || s === "em_revisao") ? "in_progress" : "pending";
-
-  // Build unified roadmap items
-  type RoadmapItem = { kind: "milestone" | "task"; id: string; title: string; description: string | null; status: "pending" | "in_progress" | "done"; due_date: string | null; raw: any };
-  const items: RoadmapItem[] = useMemo(() => {
-    const a: RoadmapItem[] = (milestones ?? []).map((m: any) => ({
-      kind: "milestone", id: m.id, title: m.title, description: m.description, status: m.status, due_date: m.due_date, raw: m,
-    }));
-    const b: RoadmapItem[] = (tasks ?? []).map((t: any) => ({
-      kind: "task", id: t.id, title: t.title, description: t.description, status: taskRoadmapStatus(t.status), due_date: t.due_date, raw: t,
-    }));
-    return [...a, ...b].sort((x, y) => {
-      const dx = x.due_date ? new Date(x.due_date).getTime() : Infinity;
-      const dy = y.due_date ? new Date(y.due_date).getTime() : Infinity;
-      return dx - dy;
-    });
-  }, [milestones, tasks]);
-
-  const toggleTaskDone = useMutation({
-    mutationFn: async (t: any) => {
-      const next = t.status === "concluido" ? "a_fazer" : "concluido";
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { error } = await supabase.from("tasks").update({ status: next }).eq("id", t.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] });
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-    },
-  });
+  const done = milestones.filter((m) => m.status === "done").length;
+  const pct = milestones.length ? Math.round((done / milestones.length) * 100) : 0;
 
   return (
     <Card className="rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold flex items-center gap-2"><Target className="h-4 w-4" /> Roadmap</h3>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h3 className="font-semibold flex items-center gap-2"><Flag className="h-4 w-4" /> Roadmap <span className="text-xs font-normal text-muted-foreground">· {pct}% concluído</span></h3>
         <Button size="sm" variant="outline" onClick={() => { setEdit(null); setOpen(true); }}><Plus className="h-4 w-4" /> Marco</Button>
       </div>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sem marcos ou tarefas cadastradas.</p>
+
+      {milestones.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum marco cadastrado. Clique em "Marco" para criar o primeiro.</p>
       ) : (
-        <ol className="relative border-l-2 border-muted pl-6 space-y-4">
-          {items.map((it) => (
-            <li key={`${it.kind}-${it.id}`} className="relative">
-              <span className={`absolute -left-[33px] h-5 w-5 rounded-full border-2 ${
-                it.status === "done" ? "bg-emerald-500 border-emerald-500" :
-                it.status === "in_progress" ? "bg-amber-400 border-amber-400" : "bg-background border-muted-foreground"
-              }`} />
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className={`font-medium ${it.status === "done" ? "line-through text-muted-foreground" : ""}`}>{it.title}</p>
-                    <Badge variant="outline" className={`text-[10px] ${it.kind === "task" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-violet-50 text-violet-700 border-violet-200"}`}>
-                      {it.kind === "task" ? "Tarefa" : "Marco"}
-                    </Badge>
+        <div className="overflow-x-auto pb-3">
+          <div className="flex items-start gap-2 min-w-max">
+            {milestones.map((m, i) => {
+              const isDone = m.status === "done";
+              const isProg = m.status === "in_progress";
+              return (
+                <div key={m.id} className="flex items-start">
+                  <div className="flex flex-col items-center w-44 group">
+                    <div className={`h-9 w-9 rounded-full grid place-items-center border-2 cursor-pointer transition ${
+                      isDone ? "bg-emerald-500 border-emerald-500 text-white" :
+                      isProg ? "bg-amber-100 border-amber-400 text-amber-700" :
+                      "bg-background border-slate-300 text-slate-400"
+                    }`} onClick={() => toggle.mutate(m)} title="Alternar concluído">
+                      {isDone ? <CheckCircle2 className="h-4 w-4" /> : isProg ? <Hourglass className="h-4 w-4" /> : <span className="text-xs">{i + 1}</span>}
+                    </div>
+                    <div className="mt-2 text-center px-1">
+                      <p className={`text-sm font-medium leading-tight ${isDone ? "line-through text-muted-foreground" : ""}`}>{m.title}</p>
+                      {m.due_date && <p className="text-[11px] text-muted-foreground mt-0.5">{fmtDate(m.due_date)}</p>}
+                      <div className="flex items-center justify-center gap-0.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => { setEdit(m); setOpen(true); }}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => del.mutate(m.id)}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
                   </div>
-                  {it.description && <p className="text-sm text-muted-foreground mt-0.5">{it.description}</p>}
-                  {it.due_date && <p className="text-xs text-muted-foreground mt-1">📅 {new Date(it.due_date).toLocaleDateString("pt-BR")}</p>}
-                </div>
-                <div className="flex items-center gap-1">
-                  {it.kind === "milestone" ? (
-                    <>
-                      <Button size="sm" variant="ghost" onClick={() => toggle.mutate(it.raw)}><CheckCircle2 className="h-4 w-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => { setEdit(it.raw); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => del.mutate(it.id)}><Trash2 className="h-4 w-4" /></Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button size="sm" variant="ghost" title="Alternar concluído" onClick={() => toggleTaskDone.mutate(it.raw)}><CheckCircle2 className="h-4 w-4" /></Button>
-                      <Button size="sm" variant="ghost" title="Abrir tarefa" onClick={() => navigate({ to: "/tarefas", search: { task: it.id } })}><Pencil className="h-4 w-4" /></Button>
-                    </>
+                  {i < milestones.length - 1 && (
+                    <div className={`h-0.5 w-8 mt-[18px] ${isDone ? "bg-emerald-400" : "bg-slate-200"}`} />
                   )}
                 </div>
-              </div>
-            </li>
-          ))}
-        </ol>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -487,108 +481,179 @@ function MilestonesSection({ milestones, tasks, projectId }: { milestones: any[]
   );
 }
 
-function FinancialSection({ kpis, finances, costs, projectId }: any) {
-  const qc = useQueryClient();
-  const upFn = useServerFn(upsertCost);
-  const delFn = useServerFn(deleteCost);
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ kind: "internal", category: "", description: "", amount: "", incurred_at: new Date().toISOString().slice(0, 10) });
-
-  const save = useMutation({
-    mutationFn: () => upFn({ data: { project_id: projectId, kind: form.kind as "internal" | "external", category: form.category || null, description: form.description || null, amount: Number(form.amount), incurred_at: form.incurred_at } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] }); setOpen(false); setForm({ kind: "internal", category: "", description: "", amount: "", incurred_at: new Date().toISOString().slice(0, 10) }); },
-  });
-  const del = useMutation({
-    mutationFn: (id: string) => delFn({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] }),
-  });
-
-  const byKind = useMemo(() => {
-    const m = { internal: 0, external: 0 };
-    costs.forEach((c: any) => { m[c.kind as "internal" | "external"] += Number(c.amount); });
-    return [{ name: "Interno", value: m.internal }, { name: "Externo", value: m.external }];
-  }, [costs]);
-
+// 7. Finance summary with sparkline
+function FinanceSummary({ kpis, monthly }: { kpis: any; monthly: any[] }) {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard icon={DollarSign} label="Contrato" value={brl(kpis.contractValue)} />
-        <KpiCard icon={DollarSign} label="Recebido" value={brl(kpis.revenueReceived)} tone="text-emerald-600" />
-        <KpiCard icon={DollarSign} label="Pendente" value={brl(kpis.revenuePending)} tone="text-amber-600" />
-        <KpiCard icon={DollarSign} label="Margem" value={`${kpis.margin.toFixed(1)}%`}
-          tone={kpis.margin >= 0 ? "text-emerald-600" : "text-rose-600"} />
+    <Card className="rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h3 className="font-semibold flex items-center gap-2"><DollarSign className="h-4 w-4" /> Resumo financeiro</h3>
       </div>
-
-      <Card className="rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Custos por tipo</h3>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <KpiTile icon={Briefcase} label="Contrato" value={brl(kpis.contractValue)} />
+        <KpiTile icon={DollarSign} label="Recebido" value={brl(kpis.revenueReceived)} tone="text-emerald-600" />
+        <KpiTile icon={Wallet} label="Custos" value={brl(kpis.totalCost)} />
+        <KpiTile icon={TrendingUp} label="Lucro" value={brl(kpis.profit)} tone={kpis.profit >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <KpiTile icon={Sparkles} label="Margem" value={`${kpis.margin.toFixed(1)}%`} tone={kpis.margin >= 0 ? "text-emerald-600" : "text-rose-600"} />
+      </div>
+      {monthly && monthly.length > 0 && (
+        <div className="mt-4">
+          <ResponsiveContainer width="100%" height={120}>
+            <BarChart data={monthly}>
+              <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+              <YAxis hide />
+              <RTooltip formatter={(v: any) => brl(Number(v))} />
+              <Bar dataKey="revenue" fill="#10b981" radius={[6, 6, 0, 0]} name="Receita" />
+              <Bar dataKey="cost" fill="#f43f5e" radius={[6, 6, 0, 0]} name="Custo" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={byKind}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <RTooltip formatter={(v: any) => brl(Number(v))} />
-            <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
-
-      <Card className="rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Custos lançados</h3>
-          <Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Custo</Button>
-        </div>
-        {costs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum custo lançado.</p>
-        ) : (
-          <ul className="divide-y">
-            {costs.map((c: any) => (
-              <li key={c.id} className="flex items-center justify-between py-2 text-sm">
-                <div>
-                  <p className="font-medium">{c.description || c.category || "(sem descrição)"}</p>
-                  <p className="text-xs text-muted-foreground">{c.kind === "internal" ? "Interno" : "Externo"} · {c.category || "—"} · {new Date(c.incurred_at).toLocaleDateString("pt-BR")}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{brl(Number(c.amount))}</span>
-                  <Button size="sm" variant="ghost" onClick={() => del.mutate(c.id)}><Trash2 className="h-4 w-4" /></Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Novo custo</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Tipo</Label>
-                <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="internal">Interno</SelectItem>
-                    <SelectItem value="external">Externo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Valor</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-            </div>
-            <div><Label>Categoria</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Design, Hospedagem..." /></div>
-            <div><Label>Descrição</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-            <div><Label>Data</Label><Input type="date" value={form.incurred_at} onChange={(e) => setForm({ ...form, incurred_at: e.target.value })} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={() => save.mutate()} disabled={!form.amount}>Salvar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+      )}
+    </Card>
   );
 }
+
+// 8. Upcoming deliveries
+function UpcomingDeliveries({ upcoming }: { upcoming: { in7: any[]; in15: any[]; in30: any[] } }) {
+  const groups = [
+    { label: "Próximos 7 dias", items: upcoming.in7, tone: "text-rose-600 bg-rose-50" },
+    { label: "Próximos 15 dias", items: upcoming.in15.filter((x) => !upcoming.in7.find((y) => y.id === x.id)), tone: "text-amber-600 bg-amber-50" },
+    { label: "Próximos 30 dias", items: upcoming.in30.filter((x) => !upcoming.in15.find((y) => y.id === x.id)), tone: "text-blue-600 bg-blue-50" },
+  ];
+  const total = upcoming.in30.length;
+  return (
+    <Card className="rounded-2xl p-6">
+      <h3 className="font-semibold flex items-center gap-2 mb-4"><CalIcon className="h-4 w-4" /> Próximas entregas</h3>
+      {total === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhuma entrega prevista nos próximos 30 dias.</p>
+      ) : (
+        <div className="space-y-4">
+          {groups.map((g) => g.items.length > 0 && (
+            <div key={g.label}>
+              <p className={`inline-block text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${g.tone} mb-2`}>{g.label}</p>
+              <ul className="space-y-1.5">
+                {g.items.map((it) => (
+                  <li key={`${it.kind}-${it.id}`} className="flex items-center justify-between text-sm py-1.5 border-b last:border-0">
+                    <span className="flex items-center gap-2 truncate"><span className="text-base">{it.kind === "milestone" ? "🎯" : "📋"}</span><span className="truncate">{it.title}</span></span>
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">{fmtDate(it.due_date)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// 9. Kanban compact
+function KanbanCompact({ counts }: { counts: Record<string, number> }) {
+  const order = ["a_fazer", "em_andamento", "em_revisao", "concluido"];
+  return (
+    <Card className="rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h3 className="font-semibold flex items-center gap-2"><ListChecks className="h-4 w-4" /> Kanban</h3>
+        <Button size="sm" variant="ghost" asChild><Link to="/tarefas">Abrir tarefas <ArrowRight className="h-3 w-3" /></Link></Button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {order.map((k) => (
+          <Link key={k} to="/tarefas" className="rounded-xl border bg-muted/30 hover:bg-muted/60 transition-colors p-4 text-center">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{KANBAN_LABEL[k]}</p>
+            <p className="text-2xl font-semibold mt-1">{counts[k] ?? 0}</p>
+          </Link>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// 10. Activity feed
+function ActivityFeed({ activity }: { activity: any[] }) {
+  return (
+    <Card className="rounded-2xl p-6">
+      <h3 className="font-semibold flex items-center gap-2 mb-4"><ActivityIcon className="h-4 w-4" /> Atividade recente</h3>
+      {activity.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sem atividade registrada ainda.</p>
+      ) : (
+        <ul className="space-y-3">
+          {activity.slice(0, 12).map((a) => {
+            const initials = (a.actor_name ?? "?").slice(0, 2).toUpperCase();
+            return (
+              <li key={a.id} className="flex items-start gap-3 text-sm">
+                <div className="h-8 w-8 shrink-0 rounded-full bg-primary/10 text-primary grid place-items-center text-xs font-semibold">{initials}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm"><span className="font-medium">{a.actor_name ?? "Sistema"}</span> <span className="text-muted-foreground">{a.action}</span></p>
+                  <p className="text-[11px] text-muted-foreground">{relativeTime(a.created_at)}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+// 11. Context sidebar (sticky on desktop)
+function ContextSidebar({ p, d }: any) {
+  const riskLabel = d.kpis.openIssues === 0 ? { l: "Baixo", c: "text-emerald-600" } :
+    d.kpis.openIssues < 3 ? { l: "Médio", c: "text-amber-600" } : { l: "Alto", c: "text-rose-600" };
+  const nextDelivery = d.upcomingDeliveries.in30[0];
+  return (
+    <aside className="lg:sticky lg:top-4 lg:self-start space-y-3">
+      <Card className="rounded-2xl p-4">
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Projeto</p>
+        <p className="font-semibold mt-1 truncate">{p.name}</p>
+        <Badge className={`${STATUS_TONE[p.status as ProjectStatus]} border mt-2`} variant="outline">{STATUS_LABEL[p.status as ProjectStatus]}</Badge>
+      </Card>
+      <Card className="rounded-2xl p-4 space-y-3 text-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-xs">Saúde</span>
+          <HealthBadge health={d.health} />
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-xs">Cliente</span>
+          <span className="font-medium truncate ml-2">{p.client?.name ?? "—"}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-xs">Prazo</span>
+          <span className="font-medium">{fmtDate(p.due_date)}</span>
+        </div>
+        {d.kpis.daysRemaining !== null && (
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-xs">Dias restantes</span>
+            <span className={`font-medium ${d.kpis.daysRemaining < 0 ? "text-rose-600" : ""}`}>{d.kpis.daysRemaining}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-xs">Equipe</span>
+          <span className="font-medium">{d.kpis.memberCount}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-xs">Risco</span>
+          <span className={`font-medium ${riskLabel.c}`}>{riskLabel.l}</span>
+        </div>
+      </Card>
+      {d.nextMilestone && (
+        <Card className="rounded-2xl p-4">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><Flag className="h-3 w-3" /> Próximo marco</p>
+          <p className="font-medium text-sm mt-1.5">{d.nextMilestone.title}</p>
+          {d.nextMilestone.due_date && <p className="text-[11px] text-muted-foreground mt-0.5">{fmtDate(d.nextMilestone.due_date)}</p>}
+        </Card>
+      )}
+      {nextDelivery && (
+        <Card className="rounded-2xl p-4">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><CalIcon className="h-3 w-3" /> Próxima entrega</p>
+          <p className="font-medium text-sm mt-1.5 truncate">{nextDelivery.title}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{fmtDate(nextDelivery.due_date)}</p>
+        </Card>
+      )}
+    </aside>
+  );
+}
+
+// =====================================================
+// Secondary sections (accordion content)
 
 function TeamSection({ members, projectId }: { members: any[]; projectId: string }) {
   const qc = useQueryClient();
@@ -607,20 +672,15 @@ function TeamSection({ members, projectId }: { members: any[]; projectId: string
   });
 
   return (
-    <Card className="rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold flex items-center gap-2"><UsersIcon className="h-4 w-4" /> Equipe</h3>
-        <Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Membro</Button>
-      </div>
+    <div className="pb-4">
+      <div className="flex justify-end mb-3"><Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Membro</Button></div>
       {members.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum membro alocado.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {members.map((m) => (
             <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
-              <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm">
-                {m.name.slice(0, 2).toUpperCase()}
-              </div>
+              <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm">{m.name.slice(0, 2).toUpperCase()}</div>
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-sm truncate">{m.name}</p>
                 <p className="text-xs text-muted-foreground truncate">{m.role || m.email || "—"}</p>
@@ -644,67 +704,7 @@ function TeamSection({ members, projectId }: { members: any[]; projectId: string
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
-  );
-}
-
-function FilesSection({ files }: { files: any[] }) {
-  return (
-    <Card className="rounded-2xl p-6">
-      <h3 className="font-semibold mb-4 flex items-center gap-2"><FileText className="h-4 w-4" /> Arquivos</h3>
-      {files.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum arquivo. Use o módulo Arquivos para fazer upload.</p>
-      ) : (
-        <ul className="divide-y">
-          {files.map((f) => (
-            <li key={f.id} className="flex items-center justify-between py-2 text-sm">
-              <div>
-                <p className="font-medium">{f.name}</p>
-                <p className="text-xs text-muted-foreground">{f.category} · {new Date(f.created_at).toLocaleDateString("pt-BR")}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
-function NotesSection({ notes, projectId }: { notes: any; projectId: string }) {
-  const saveFn = useServerFn(saveProjectNotes);
-  const [html, setHtml] = useState(notes?.content_html ?? "");
-  const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<Date | null>(notes ? new Date(notes.updated_at) : null);
-
-  useEffect(() => {
-    setHtml(notes?.content_html ?? "");
-  }, [notes?.content_html]);
-
-  useEffect(() => {
-    if (html === (notes?.content_html ?? "")) return;
-    const t = setTimeout(async () => {
-      setSaving(true);
-      try {
-        await saveFn({ data: { project_id: projectId, content_html: html } });
-        setSavedAt(new Date());
-      } finally {
-        setSaving(false);
-      }
-    }, 1000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [html]);
-
-  return (
-    <Card className="rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold flex items-center gap-2"><FileText className="h-4 w-4" /> Notas & decisões</h3>
-        <span className="text-xs text-muted-foreground">
-          {saving ? "Salvando..." : savedAt ? `Salvo às ${savedAt.toLocaleTimeString("pt-BR")}` : ""}
-        </span>
-      </div>
-      <RichTextEditor value={html} onChange={setHtml} placeholder="Reuniões, decisões, observações..." minHeight={240} />
-    </Card>
+    </div>
   );
 }
 
@@ -731,18 +731,13 @@ function RisksSection({ risks, projectId }: { risks: any[]; projectId: string })
   });
 
   const sevTone: Record<string, string> = {
-    low: "bg-slate-100 text-slate-700",
-    medium: "bg-amber-50 text-amber-700",
-    high: "bg-orange-50 text-orange-700",
-    critical: "bg-rose-100 text-rose-800 border-rose-300",
+    low: "bg-slate-100 text-slate-700", medium: "bg-amber-50 text-amber-700",
+    high: "bg-orange-50 text-orange-700", critical: "bg-rose-100 text-rose-800 border-rose-300",
   };
 
   return (
-    <Card className="rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Riscos & bloqueios</h3>
-        <Button size="sm" variant="outline" onClick={() => { setEdit(null); setOpen(true); }}><Plus className="h-4 w-4" /> Risco</Button>
-      </div>
+    <div className="pb-4">
+      <div className="flex justify-end mb-3"><Button size="sm" variant="outline" onClick={() => { setEdit(null); setOpen(true); }}><Plus className="h-4 w-4" /> Risco</Button></div>
       {risks.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum risco registrado.</p>
       ) : (
@@ -767,7 +762,6 @@ function RisksSection({ risks, projectId }: { risks: any[]; projectId: string })
           ))}
         </ul>
       )}
-
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>{edit ? "Editar risco" : "Novo risco"}</DialogTitle></DialogHeader>
@@ -780,10 +774,8 @@ function RisksSection({ risks, projectId }: { risks: any[]; projectId: string })
                 <Select value={form.severity} onValueChange={(v) => setForm({ ...form, severity: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="medium">Média</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="critical">Crítica</SelectItem>
+                    <SelectItem value="low">Baixa</SelectItem><SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem><SelectItem value="critical">Crítica</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -792,8 +784,7 @@ function RisksSection({ risks, projectId }: { risks: any[]; projectId: string })
                 <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="open">Aberto</SelectItem>
-                    <SelectItem value="mitigated">Mitigado</SelectItem>
+                    <SelectItem value="open">Aberto</SelectItem><SelectItem value="mitigated">Mitigado</SelectItem>
                     <SelectItem value="resolved">Resolvido</SelectItem>
                   </SelectContent>
                 </Select>
@@ -806,29 +797,125 @@ function RisksSection({ risks, projectId }: { risks: any[]; projectId: string })
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 }
 
-function ActivitySection({ activity }: { activity: any[] }) {
+function CostsSection({ costs, projectId }: { costs: any[]; projectId: string }) {
+  const qc = useQueryClient();
+  const upFn = useServerFn(upsertCost);
+  const delFn = useServerFn(deleteCost);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ kind: "internal", category: "", description: "", amount: "", incurred_at: new Date().toISOString().slice(0, 10) });
+
+  const save = useMutation({
+    mutationFn: () => upFn({ data: { project_id: projectId, kind: form.kind as "internal" | "external", category: form.category || null, description: form.description || null, amount: Number(form.amount), incurred_at: form.incurred_at } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] }); setOpen(false); setForm({ kind: "internal", category: "", description: "", amount: "", incurred_at: new Date().toISOString().slice(0, 10) }); },
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => delFn({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] }),
+  });
+
   return (
-    <Card className="rounded-2xl p-6">
-      <h3 className="font-semibold mb-4 flex items-center gap-2"><ActivityIcon className="h-4 w-4" /> Atividade recente</h3>
-      {activity.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sem atividade registrada ainda.</p>
+    <div className="pb-4">
+      <div className="flex justify-end mb-3"><Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Custo</Button></div>
+      {costs.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum custo lançado.</p>
       ) : (
-        <ul className="space-y-3">
-          {activity.map((a) => (
-            <li key={a.id} className="flex items-start gap-3 text-sm">
-              <div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0" />
-              <div className="flex-1">
-                <p className="font-medium">{a.action}</p>
-                <p className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString("pt-BR")}</p>
+        <ul className="divide-y">
+          {costs.map((c: any) => (
+            <li key={c.id} className="flex items-center justify-between py-2 text-sm">
+              <div>
+                <p className="font-medium">{c.description || c.category || "(sem descrição)"}</p>
+                <p className="text-xs text-muted-foreground">{c.kind === "internal" ? "Interno" : "Externo"} · {c.category || "—"} · {fmtDate(c.incurred_at)}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">{brl(Number(c.amount))}</span>
+                <Button size="sm" variant="ghost" onClick={() => del.mutate(c.id)}><Trash2 className="h-4 w-4" /></Button>
               </div>
             </li>
           ))}
         </ul>
       )}
-    </Card>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Novo custo</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Tipo</Label>
+                <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="internal">Interno</SelectItem><SelectItem value="external">Externo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Valor</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+            </div>
+            <div><Label>Categoria</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
+            <div><Label>Descrição</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+            <div><Label>Data</Label><Input type="date" value={form.incurred_at} onChange={(e) => setForm({ ...form, incurred_at: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button onClick={() => save.mutate()} disabled={!form.amount}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function FilesSection({ files }: { files: any[] }) {
+  return (
+    <div className="pb-4">
+      {files.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhum arquivo. Use o módulo Arquivos para fazer upload.</p>
+      ) : (
+        <ul className="divide-y">
+          {files.map((f) => (
+            <li key={f.id} className="flex items-center justify-between py-2 text-sm">
+              <div>
+                <p className="font-medium">{f.name}</p>
+                <p className="text-xs text-muted-foreground">{f.category} · {fmtDate(f.created_at)}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function NotesSection({ notes, projectId }: { notes: any; projectId: string }) {
+  const saveFn = useServerFn(saveProjectNotes);
+  const [html, setHtml] = useState(notes?.content_html ?? "");
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(notes ? new Date(notes.updated_at) : null);
+
+  useEffect(() => { setHtml(notes?.content_html ?? ""); }, [notes?.content_html]);
+
+  useEffect(() => {
+    if (html === (notes?.content_html ?? "")) return;
+    const t = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await saveFn({ data: { project_id: projectId, content_html: html } });
+        setSavedAt(new Date());
+      } finally { setSaving(false); }
+    }, 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [html]);
+
+  return (
+    <div className="pb-4">
+      <div className="flex items-center justify-end mb-2">
+        <span className="text-xs text-muted-foreground">{saving ? "Salvando..." : savedAt ? `Salvo às ${savedAt.toLocaleTimeString("pt-BR")}` : ""}</span>
+      </div>
+      <RichTextEditor value={html} onChange={setHtml} placeholder="Reuniões, decisões, observações..." minHeight={240} />
+    </div>
   );
 }
