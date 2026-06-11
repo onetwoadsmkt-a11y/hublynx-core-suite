@@ -63,6 +63,20 @@ const KANBAN_LABEL: Record<string, string> = {
   em_revisao: "Em Revisão", concluido: "Concluído", cancelado: "Cancelado",
 };
 
+const COMMERCIAL_LABEL: Record<string, string> = {
+  projeto_fechado: "Projeto Fechado",
+  mensal_recorrente: "Mensal Recorrente",
+  banco_horas: "Banco de Horas",
+  por_hora: "Por Hora",
+  suporte_continuo: "Suporte Contínuo",
+};
+const SERVICE_LABEL: Record<string, string> = {
+  desenvolvimento: "Desenvolvimento", trafego_pago: "Tráfego Pago",
+  gestao_conteudo: "Conteúdo", consultoria: "Consultoria",
+  design: "Design", suporte: "Suporte", outros: "Outros",
+};
+
+
 function brl(n: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
 }
