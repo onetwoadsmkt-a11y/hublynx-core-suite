@@ -1,0 +1,19 @@
+export type AgendaSource = "task" | "meeting" | "gcal";
+
+export type AgendaEvent = {
+  id: string;
+  source: AgendaSource;
+  title: string;
+  start: string; // ISO
+  end: string | null; // ISO
+  allDay: boolean;
+  taskId?: string | null;
+  clientId?: string | null;
+  clientName?: string | null;
+  projectId?: string | null;
+  projectName?: string | null;
+  meetLink?: string | null;
+  htmlLink?: string | null;
+  status?: string | null;
+  description?: string | null;
+};
