@@ -528,11 +528,39 @@ function TaskCard({
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {client ? client.name : <span className="italic">Sem cliente</span>}
             </p>
+            {project && (
+              <p className="text-[11px] text-brand-blue mt-1 truncate">
+                <Target className="inline h-3 w-3 mr-1" />Roadmap • {project.name}
+              </p>
+            )}
+            {kanbanCols && kanbanCols.length > 0 && (
+              <div className="mt-2" onClick={stop}>
+                <Select value={task.status} onValueChange={(v) => quickStatus.mutate(v)}>
+                  <SelectTrigger className="h-7 text-[11px] px-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {kanbanCols.map((c) => (
+                      <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="mt-2 flex items-center justify-between gap-2">
               <Badge variant="outline" className={`${PRIORITY_TONE[task.priority]} text-[10px] py-0 border-0`}>
                 {PRIORITY_LABEL[task.priority]}
               </Badge>
               <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+                  onClick={(e) => { stop(e); onClick?.(); }}
+                  title="Editar tarefa"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
