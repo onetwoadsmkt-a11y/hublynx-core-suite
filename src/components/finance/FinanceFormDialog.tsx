@@ -38,7 +38,7 @@ export function FinanceFormDialog({
   const [paymentMethod, setPaymentMethod] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [installments, setInstallments] = useState(1);
-  const [status, setStatus] = useState<"pendente" | "recebido" | "pago">("pendente");
+  const [status, setStatus] = useState<"pendente" | "pago">("pendente");
 
   useEffect(() => {
     if (!open) return;
@@ -52,8 +52,7 @@ export function FinanceFormDialog({
     setPaymentMethod(initial?.payment_method ?? "");
     setRecurring(initial?.recurrence === "monthly");
     setInstallments(initial?.installment_total ?? 1);
-    const s = initial?.status;
-    setStatus(s === "recebido" || s === "pago" ? s : "pendente");
+    setStatus(initial?.status === "pago" ? "pago" : "pendente");
   }, [open, initial]);
 
   const mut = useMutation({
@@ -88,6 +87,7 @@ export function FinanceFormDialog({
   });
 
   const cats = (lookups?.categories ?? []).filter((c) => c.kind === kind);
+  const isReceita = kind === "receber";
   const filteredProjects = clientId
     ? (lookups?.projects ?? []).filter((p) => p.client_id === clientId)
     : lookups?.projects ?? [];
@@ -97,7 +97,7 @@ export function FinanceFormDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {initial ? "Editar" : "Nova"} {kind === "receita" ? "Receita" : "Despesa"}
+            {initial ? "Editar" : "Nova"} {isReceita ? "Receita" : "Despesa"}
           </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
@@ -116,7 +116,7 @@ export function FinanceFormDialog({
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {kind === "receita" ? (
+            {isReceita ? (
               <div>
                 <Label>Cliente</Label>
                 <Select value={clientId || "none"} onValueChange={(v) => setClientId(v === "none" ? "" : v)}>
@@ -161,9 +161,7 @@ export function FinanceFormDialog({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value={kind === "receita" ? "recebido" : "pago"}>
-                    {kind === "receita" ? "Recebido" : "Pago"}
-                  </SelectItem>
+                  <SelectItem value="pago">{isReceita ? "Recebido" : "Pago"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

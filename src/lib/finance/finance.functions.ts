@@ -7,6 +7,7 @@ import type {
   DashboardKpis,
   DREData,
   FinanceCategory,
+  FinanceKind,
   FinanceRow,
   ForecastBucket,
   ProfitabilityRow,
@@ -51,6 +52,9 @@ const monthSchema = z.object({
   year: z.number().int().min(2000).max(2100),
 });
 
+const kindSchema = z.enum(["receber", "pagar"]);
+const statusSchema = z.enum(["pendente", "pago", "atrasado"]);
+
 // ── ensureDefaultCategories ──────────────────────────────────────────────
 export const ensureDefaultCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -61,13 +65,13 @@ export const ensureDefaultCategories = createServerFn({ method: "POST" })
       .select("kind, name")
       .eq("owner_id", userId);
     const have = new Set((existing ?? []).map((c) => `${c.kind}:${c.name}`));
-    const rows: Array<{ owner_id: string; kind: "receita" | "despesa"; name: string; is_default: boolean }> = [];
+    const rows: Array<{ owner_id: string; kind: FinanceKind; name: string; is_default: boolean }> = [];
     for (const n of DEFAULT_INCOME_CATS)
-      if (!have.has(`receita:${n}`))
-        rows.push({ owner_id: userId, kind: "receita", name: n, is_default: true });
+      if (!have.has(`receber:${n}`))
+        rows.push({ owner_id: userId, kind: "receber", name: n, is_default: true });
     for (const n of DEFAULT_EXPENSE_CATS)
-      if (!have.has(`despesa:${n}`))
-        rows.push({ owner_id: userId, kind: "despesa", name: n, is_default: true });
+      if (!have.has(`pagar:${n}`))
+        rows.push({ owner_id: userId, kind: "pagar", name: n, is_default: true });
     if (rows.length) await supabase.from("finance_categories").insert(rows);
     return { ok: true, created: rows.length };
   });
@@ -87,7 +91,6 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
     const created: string[] = [];
     for (const c of contracts ?? []) {
       if (c.recurrence_until && c.recurrence_until < todayISO()) continue;
-      // find last generated child
       const { data: children } = await supabase
         .from("finances")
         .select("due_date")
@@ -96,19 +99,16 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
         .limit(1);
       const lastDue = children?.[0]?.due_date ?? c.due_date;
       const next = addMonths(lastDue, 1);
-      const today = todayISO();
       const lookahead = new Date();
       lookahead.setDate(lookahead.getDate() + 35);
       const lookaheadISO = lookahead.toISOString().slice(0, 10);
       if (next > lookaheadISO) continue;
-      if (next < today && lastDue >= today) continue;
-      // create up to 2 future ones to keep pipeline filled
       let cursor = next;
       for (let i = 0; i < 2; i++) {
         if (cursor > lookaheadISO) break;
         const { error } = await supabase.from("finances").insert({
           owner_id: userId,
-          kind: c.kind,
+          kind: c.kind as FinanceKind,
           client_id: c.client_id,
           project_id: c.project_id,
           category_id: c.category_id,
@@ -146,11 +146,10 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       receita_prevista = 0,
       despesa_realizada = 0,
       despesa_prevista = 0;
-    const today = todayISO();
     for (const r of rows ?? []) {
       const amt = Number(r.amount) || 0;
-      const paid = r.status === "recebido" || r.status === "pago";
-      if (r.kind === "receita") {
+      const paid = r.status === "pago";
+      if (r.kind === "receber") {
         if (paid) receita_realizada += amt;
         else receita_prevista += amt;
       } else {
@@ -161,30 +160,28 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
     const lucro = receita_realizada - despesa_realizada;
     const margem = receita_realizada > 0 ? (lucro / receita_realizada) * 100 : 0;
 
-    // Saldo de caixa: tudo realizado até hoje
+    const today = todayISO();
     const { data: allPaid } = await supabase
       .from("finances")
       .select("kind, amount")
       .eq("owner_id", userId)
-      .in("status", ["recebido", "pago"])
+      .eq("status", "pago")
       .lte("paid_at", today);
     let saldo_caixa = 0;
     for (const r of allPaid ?? []) {
       const amt = Number(r.amount) || 0;
-      saldo_caixa += r.kind === "receita" ? amt : -amt;
+      saldo_caixa += r.kind === "receber" ? amt : -amt;
     }
 
-    // Inadimplência: receitas pendentes vencidas
     const { data: overdue } = await supabase
       .from("finances")
       .select("amount")
       .eq("owner_id", userId)
-      .eq("kind", "receita")
+      .eq("kind", "receber")
       .eq("status", "pendente")
       .lt("due_date", today);
     const inadimplencia = (overdue ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
-    // MRR: monthly_value de clientes ativos + recorrências mensais
     const { data: clientsActive } = await supabase
       .from("clients")
       .select("monthly_value, status")
@@ -198,7 +195,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       .eq("recurrence", "monthly")
       .is("parent_id", null);
     for (const r of recurringFin ?? []) {
-      if (r.kind === "receita") mrr += Number(r.amount) || 0;
+      if (r.kind === "receber") mrr += Number(r.amount) || 0;
     }
 
     return {
@@ -216,7 +213,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
 
 // ── listFinances ─────────────────────────────────────────────────────────
 const listSchema = z.object({
-  kind: z.enum(["receita", "despesa"]),
+  kind: kindSchema,
   month: z.number().int().min(1).max(12),
   year: z.number().int().min(2000).max(2100),
   status: z.string().optional(),
@@ -241,19 +238,20 @@ export const listFinances = createServerFn({ method: "POST" })
       .lte("due_date", to)
       .order("due_date", { ascending: true });
 
-    if (data.status && data.status !== "all") q = q.eq("status", data.status as never);
+    if (data.status && data.status !== "all" && (data.status === "pendente" || data.status === "pago" || data.status === "atrasado")) {
+      q = q.eq("status", data.status);
+    }
     if (data.clientId) q = q.eq("client_id", data.clientId);
 
     const { data: rows } = await q;
     const today = todayISO();
-    return (rows ?? []).map((r) => {
+    const out: FinanceRow[] = [];
+    for (const r of rows ?? []) {
       const status =
-        r.status === "pendente" && r.due_date < today
-          ? ("atrasado" as const)
-          : (r.status as FinanceRow["status"]);
+        r.status === "pendente" && r.due_date < today ? "atrasado" : (r.status as FinanceRow["status"]);
       const row: FinanceRow = {
         id: r.id,
-        kind: r.kind as FinanceRow["kind"],
+        kind: r.kind as FinanceKind,
         description: r.description,
         amount: Number(r.amount) || 0,
         due_date: r.due_date,
@@ -264,32 +262,33 @@ export const listFinances = createServerFn({ method: "POST" })
         category_id: r.category_id,
         supplier: r.supplier,
         payment_method: r.payment_method,
-        recurrence: (r.recurrence ?? "none") as FinanceRow["recurrence"],
-        recurrence_day: r.recurrence_day as number | null,
-        recurrence_until: r.recurrence_until as string | null,
-        parent_id: r.parent_id as string | null,
-        installment_no: r.installment_no as number | null,
-        installment_total: r.installment_total as number | null,
+        recurrence: ((r as { recurrence?: string }).recurrence ?? "none") as FinanceRow["recurrence"],
+        recurrence_day: (r as { recurrence_day?: number | null }).recurrence_day ?? null,
+        recurrence_until: (r as { recurrence_until?: string | null }).recurrence_until ?? null,
+        parent_id: (r as { parent_id?: string | null }).parent_id ?? null,
+        installment_no: (r as { installment_no?: number | null }).installment_no ?? null,
+        installment_total: (r as { installment_total?: number | null }).installment_total ?? null,
         client_name: (r.clients as { name: string } | null)?.name ?? null,
         project_name: (r.projects as { name: string } | null)?.name ?? null,
         category_name: (r.finance_categories as { name: string } | null)?.name ?? null,
       };
       if (data.q) {
         const hay = `${row.description ?? ""} ${row.client_name ?? ""} ${row.supplier ?? ""} ${row.project_name ?? ""}`.toLowerCase();
-        if (!hay.includes(data.q.toLowerCase())) return null as unknown as FinanceRow;
+        if (!hay.includes(data.q.toLowerCase())) continue;
       }
-      return row;
-    }).filter(Boolean) as FinanceRow[];
+      out.push(row);
+    }
+    return out;
   });
 
 // ── upsertFinance ────────────────────────────────────────────────────────
 const upsertSchema = z.object({
   id: z.string().uuid().optional(),
-  kind: z.enum(["receita", "despesa"]),
+  kind: kindSchema,
   description: z.string().max(500).nullable().optional(),
   amount: z.number().positive(),
   due_date: z.string(),
-  status: z.enum(["pendente", "recebido", "pago", "cancelado"]).default("pendente"),
+  status: statusSchema.default("pendente"),
   client_id: z.string().uuid().nullable().optional(),
   project_id: z.string().uuid().nullable().optional(),
   category_id: z.string().uuid().nullable().optional(),
@@ -330,7 +329,6 @@ export const upsertFinance = createServerFn({ method: "POST" })
       return { ok: true, id: data.id };
     }
 
-    // Parcelado
     if (data.installments && data.installments > 1) {
       const total = data.installments;
       const each = Math.round((data.amount / total) * 100) / 100;
@@ -354,7 +352,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
         .select("id")
         .single();
       if (e1 || !first) throw new Error(e1?.message ?? "insert failed");
-      const rest = [] as Array<Record<string, unknown>>;
+      const rest: Array<Record<string, unknown>> = [];
       for (let i = 2; i <= total; i++) {
         rest.push({
           owner_id: userId,
@@ -377,28 +375,25 @@ export const upsertFinance = createServerFn({ method: "POST" })
       return { ok: true, id: first.id };
     }
 
-    // Recorrência mensal: cria o contrato (parent)
-    const insertPayload: Record<string, unknown> = {
-      owner_id: userId,
-      kind: data.kind,
-      description: data.description ?? null,
-      amount: data.amount,
-      due_date: data.due_date,
-      status: data.status,
-      client_id: data.client_id ?? null,
-      project_id: data.project_id ?? null,
-      category_id: data.category_id ?? null,
-      supplier: data.supplier ?? null,
-      payment_method: data.payment_method ?? null,
-      paid_at: data.paid_at ?? null,
-      recurrence: data.recurrence,
-      recurrence_day: data.recurrence_day ?? null,
-      recurrence_until: data.recurrence_until ?? null,
-    };
-
     const { data: ins, error } = await supabase
       .from("finances")
-      .insert(insertPayload as never)
+      .insert({
+        owner_id: userId,
+        kind: data.kind,
+        description: data.description ?? null,
+        amount: data.amount,
+        due_date: data.due_date,
+        status: data.status,
+        client_id: data.client_id ?? null,
+        project_id: data.project_id ?? null,
+        category_id: data.category_id ?? null,
+        supplier: data.supplier ?? null,
+        payment_method: data.payment_method ?? null,
+        paid_at: data.paid_at ?? null,
+        recurrence: data.recurrence,
+        recurrence_day: data.recurrence_day ?? null,
+        recurrence_until: data.recurrence_until ?? null,
+      })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
@@ -409,13 +404,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
 export const markFinanceStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z
-      .object({
-        id: z.string().uuid(),
-        status: z.enum(["pendente", "recebido", "pago", "cancelado"]),
-        paid_at: z.string().nullable().optional(),
-      })
-      .parse(d),
+    z.object({ id: z.string().uuid(), status: statusSchema, paid_at: z.string().nullable().optional() }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -423,10 +412,7 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
       .from("finances")
       .update({
         status: data.status,
-        paid_at:
-          data.status === "recebido" || data.status === "pago"
-            ? data.paid_at ?? todayISO()
-            : null,
+        paid_at: data.status === "pago" ? data.paid_at ?? todayISO() : null,
       })
       .eq("id", data.id)
       .eq("owner_id", userId);
@@ -477,7 +463,7 @@ export const getCashflowSeries = createServerFn({ method: "POST" })
       if (!date) continue;
       const slot = byDate.get(date) ?? { in: 0, out: 0 };
       const amt = Number(r.amount) || 0;
-      if (r.kind === "receita") slot.in += amt;
+      if (r.kind === "receber") slot.in += amt;
       else slot.out += amt;
       byDate.set(date, slot);
     }
@@ -503,12 +489,12 @@ export const getDRE = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", from)
       .lte("due_date", to)
-      .in("status", ["recebido", "pago"]);
+      .eq("status", "pago");
     let receita_bruta = 0,
       despesas = 0;
     for (const r of fin ?? []) {
       const amt = Number(r.amount) || 0;
-      if (r.kind === "receita") receita_bruta += amt;
+      if (r.kind === "receber") receita_bruta += amt;
       else despesas += amt;
     }
     const { data: costs } = await supabase
@@ -540,7 +526,7 @@ export const getProfitabilityByClient = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", data.from)
       .lte("due_date", data.to)
-      .in("status", ["recebido", "pago"]);
+      .eq("status", "pago");
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount, projects(client_id)")
@@ -555,7 +541,7 @@ export const getProfitabilityByClient = createServerFn({ method: "POST" })
       if (!r.client_id || !map.has(r.client_id)) continue;
       const row = map.get(r.client_id)!;
       const amt = Number(r.amount) || 0;
-      if (r.kind === "receita") row.receita += amt;
+      if (r.kind === "receber") row.receita += amt;
       else row.custos += amt;
     }
     for (const c of costs ?? []) {
@@ -588,7 +574,7 @@ export const getProfitabilityByProject = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", data.from)
       .lte("due_date", data.to)
-      .in("status", ["recebido", "pago"]);
+      .eq("status", "pago");
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount, project_id")
@@ -603,7 +589,7 @@ export const getProfitabilityByProject = createServerFn({ method: "POST" })
       if (!r.project_id || !map.has(r.project_id)) continue;
       const row = map.get(r.project_id)!;
       const amt = Number(r.amount) || 0;
-      if (r.kind === "receita") row.receita += amt;
+      if (r.kind === "receber") row.receita += amt;
       else row.custos += amt;
     }
     for (const c of costs ?? []) {
@@ -634,7 +620,7 @@ export const getForecast = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, kind, description, amount, due_date, status")
       .eq("owner_id", userId)
-      .in("status", ["pendente"])
+      .eq("status", "pendente")
       .gte("due_date", todayISOv)
       .lte("due_date", horizonISO)
       .order("due_date", { ascending: true });
@@ -649,14 +635,14 @@ export const getForecast = createServerFn({ method: "GET" })
       const amt = Number(r.amount) || 0;
       for (const b of buckets) {
         if (days <= b.days) {
-          if (r.kind === "receita") b.receivables += amt;
+          if (r.kind === "receber") b.receivables += amt;
           else b.payables += amt;
           b.items.push({
             id: r.id,
             due_date: r.due_date,
             description: r.description ?? "",
             amount: amt,
-            kind: r.kind as "receita" | "despesa",
+            kind: r.kind as FinanceKind,
           });
         }
       }
@@ -686,7 +672,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       alerts.push({
         id: `overdue-${r.id}`,
         level: "red",
-        title: r.kind === "receita" ? "Receita vencida" : "Despesa vencida",
+        title: r.kind === "receber" ? "Receita vencida" : "Despesa vencida",
         description: `${r.description ?? "—"} • venceu em ${r.due_date}`,
       });
     }
@@ -699,7 +685,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       .select("id, amount, description, due_date")
       .eq("owner_id", userId)
       .eq("status", "pendente")
-      .eq("kind", "receita")
+      .eq("kind", "receber")
       .gte("due_date", today)
       .lte("due_date", soonISO);
     for (const r of (upcoming ?? []).slice(0, 5)) {
@@ -743,19 +729,18 @@ export const listCategories = createServerFn({ method: "GET" })
       .or(`owner_id.eq.${userId},owner_id.is.null`)
       .order("kind")
       .order("name");
-    return (data ?? []) as FinanceCategory[];
+    return (data ?? []).map((c) => ({
+      id: c.id,
+      kind: c.kind as FinanceKind,
+      name: c.name,
+      is_default: c.is_default,
+    }));
   });
 
 export const upsertCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z
-      .object({
-        id: z.string().uuid().optional(),
-        kind: z.enum(["receita", "despesa"]),
-        name: z.string().min(1).max(80),
-      })
-      .parse(d),
+    z.object({ id: z.string().uuid().optional(), kind: kindSchema, name: z.string().min(1).max(80) }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -787,7 +772,7 @@ export const deleteCategory = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ── List recurring contracts ─────────────────────────────────────────────
+// ── Recurring contracts list ─────────────────────────────────────────────
 export const listRecurringContracts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -801,18 +786,18 @@ export const listRecurringContracts = createServerFn({ method: "GET" })
       .order("due_date", { ascending: true });
     return (data ?? []).map((r) => ({
       id: r.id,
-      kind: r.kind as "receita" | "despesa",
+      kind: r.kind as FinanceKind,
       amount: Number(r.amount) || 0,
       description: r.description,
-      day: r.recurrence_day as number | null,
-      until: r.recurrence_until as string | null,
+      day: (r as { recurrence_day?: number | null }).recurrence_day ?? null,
+      until: (r as { recurrence_until?: string | null }).recurrence_until ?? null,
       next: r.due_date as string,
       client_name: (r.clients as { name: string } | null)?.name ?? null,
       project_name: (r.projects as { name: string } | null)?.name ?? null,
     }));
   });
 
-// ── Lookups for forms ────────────────────────────────────────────────────
+// ── Lookups ──────────────────────────────────────────────────────────────
 export const getFinanceFormLookups = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -829,6 +814,6 @@ export const getFinanceFormLookups = createServerFn({ method: "GET" })
     return {
       clients: (clientsRes.data ?? []) as { id: string; name: string }[],
       projects: (projectsRes.data ?? []) as { id: string; name: string; client_id: string | null }[],
-      categories: (catsRes.data ?? []) as { id: string; kind: "receita" | "despesa"; name: string }[],
+      categories: (catsRes.data ?? []).map((c) => ({ id: c.id, kind: c.kind as FinanceKind, name: c.name })),
     };
   });
