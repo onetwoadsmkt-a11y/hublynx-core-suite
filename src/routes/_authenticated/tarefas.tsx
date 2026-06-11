@@ -420,11 +420,13 @@ function dueBadgeTone(due: string | null) {
 }
 
 function TaskCard({
-  task, labels = [], client, onClick, dragging, dragHandle,
+  task, labels = [], client, project, kanbanCols, onClick, dragging, dragHandle,
 }: {
   task: Task;
   labels?: LabelItem[];
   client?: ClientMini | null;
+  project?: { id: string; name: string } | null;
+  kanbanCols?: KanbanColumn[];
   onClick?: () => void;
   dragging?: boolean;
   dragHandle?: any;
