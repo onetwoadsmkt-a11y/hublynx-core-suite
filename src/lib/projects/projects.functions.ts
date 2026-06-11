@@ -363,6 +363,48 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
 
     const nextMilestone = (milestonesRes.data ?? []).find((m: any) => m.status !== "done") ?? null;
 
+    // ---------- Commercial block ----------
+    const p: any = project;
+    const model: string = p.commercial_model ?? "projeto_fechado";
+    const hoursWorked = (tasks as any[]).reduce((s, t: any) => {
+      const minutes = Number(t.time_spent_minutes ?? 0);
+      const legacy = Number(t.actual_hours ?? 0) * 60;
+      return s + (minutes > 0 ? minutes : legacy);
+    }, 0) / 60;
+    const hoursContracted = Number(p.contracted_hours ?? 0);
+    const hoursRemaining = Math.max(0, hoursContracted - hoursWorked);
+    const hourlyRate = Number(p.hourly_rate ?? 0);
+    const monthlyValue = Number(p.monthly_value ?? 0);
+    const billableValue = hourlyRate > 0 ? hoursWorked * hourlyRate : 0;
+
+    const recurringFinances = finances.filter((f: any) => f.kind === "receita");
+    const monthsPaid = recurringFinances.filter((f: any) => f.status === "pago").length;
+    const monthsPending = recurringFinances.filter((f: any) => f.status !== "pago").length;
+    const nextBilling = p.next_billing_date ?? recurringFinances
+      .filter((f: any) => f.status !== "pago" && f.due_date)
+      .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0]?.due_date ?? null;
+
+    const commercial = {
+      model,
+      serviceType: p.service_type ?? null,
+      contractValue,
+      monthlyValue,
+      hourlyRate,
+      hoursWorked: Math.round(hoursWorked * 100) / 100,
+      hoursContracted,
+      hoursRemaining: Math.round(hoursRemaining * 100) / 100,
+      billableValue,
+      monthsPaid,
+      monthsPending,
+      nextBilling,
+      revenue: revenueReceived,
+      pending: revenuePending,
+      costs: totalCost,
+      profit,
+      margin,
+    };
+
+
     return {
       project: { ...project, client: (project as any).clients },
       kpis: {
