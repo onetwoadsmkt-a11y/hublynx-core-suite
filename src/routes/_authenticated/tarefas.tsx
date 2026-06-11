@@ -417,8 +417,22 @@ function TaskCard({
   const accent = PRIORITY_ACCENT[task.priority];
   const [emailOpen, setEmailOpen] = useState(false);
   const [meetOpen, setMeetOpen] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
   const instantMeet = useServerFn(createInstantMeet);
   const qc = useQueryClient();
+
+  const del = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Tarefa excluída.");
+      setConfirmDel(false);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao excluir tarefa."),
+  });
 
   const quickMeet = useMutation({
     mutationFn: async () =>
