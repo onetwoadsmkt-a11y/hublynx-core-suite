@@ -82,7 +82,16 @@ const projectInput = z.object({
     "cancelado",
   ]),
   color: z.string().max(20).nullable().optional(),
+  // commercial model
+  service_type: z.enum(["desenvolvimento","trafego_pago","gestao_conteudo","consultoria","design","suporte","outros"]).nullable().optional(),
+  commercial_model: z.enum(["projeto_fechado","mensal_recorrente","banco_horas","por_hora","suporte_continuo"]).optional(),
+  hourly_rate: z.number().nonnegative().nullable().optional(),
+  contracted_hours: z.number().nonnegative().nullable().optional(),
+  monthly_value: z.number().nonnegative().nullable().optional(),
+  billing_day: z.number().int().min(1).max(28).nullable().optional(),
+  next_billing_date: z.string().nullable().optional(),
 });
+
 
 export const upsertProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
