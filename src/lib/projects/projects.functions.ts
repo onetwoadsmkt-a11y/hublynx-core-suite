@@ -82,7 +82,16 @@ const projectInput = z.object({
     "cancelado",
   ]),
   color: z.string().max(20).nullable().optional(),
+  // commercial model
+  service_type: z.enum(["desenvolvimento","trafego_pago","gestao_conteudo","consultoria","design","suporte","outros"]).nullable().optional(),
+  commercial_model: z.enum(["projeto_fechado","mensal_recorrente","banco_horas","por_hora","suporte_continuo"]).optional(),
+  hourly_rate: z.number().nonnegative().nullable().optional(),
+  contracted_hours: z.number().nonnegative().nullable().optional(),
+  monthly_value: z.number().nonnegative().nullable().optional(),
+  billing_day: z.number().int().min(1).max(28).nullable().optional(),
+  next_billing_date: z.string().nullable().optional(),
 });
+
 
 export const upsertProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -185,10 +194,10 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const progress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : (project as any).progress ?? 0;
 
     const revenueReceived = finances
-      .filter((f: any) => f.kind === "receita" && f.status === "pago")
+      .filter((f: any) => f.kind === "receber" && f.status === "pago")
       .reduce((s: number, f: any) => s + Number(f.amount), 0);
     const revenuePending = finances
-      .filter((f: any) => f.kind === "receita" && f.status !== "pago")
+      .filter((f: any) => f.kind === "receber" && f.status !== "pago")
       .reduce((s: number, f: any) => s + Number(f.amount), 0);
     const totalCost = costs.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const contractValue = Number((project as any).contract_value ?? (project as any).value ?? 0);
@@ -344,7 +353,7 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       const revenue = finances
-        .filter((f: any) => f.kind === "receita" && f.status === "pago" && f.created_at && new Date(f.created_at) >= d && new Date(f.created_at) < next)
+        .filter((f: any) => f.kind === "receber" && f.status === "pago" && f.created_at && new Date(f.created_at) >= d && new Date(f.created_at) < next)
         .reduce((s: number, f: any) => s + Number(f.amount), 0);
       const cost = costs
         .filter((c: any) => c.incurred_at && new Date(c.incurred_at) >= d && new Date(c.incurred_at) < next)
@@ -353,6 +362,48 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     }
 
     const nextMilestone = (milestonesRes.data ?? []).find((m: any) => m.status !== "done") ?? null;
+
+    // ---------- Commercial block ----------
+    const p: any = project;
+    const model: string = p.commercial_model ?? "projeto_fechado";
+    const hoursWorked = (tasks as any[]).reduce((s, t: any) => {
+      const minutes = Number(t.time_spent_minutes ?? 0);
+      const legacy = Number(t.actual_hours ?? 0) * 60;
+      return s + (minutes > 0 ? minutes : legacy);
+    }, 0) / 60;
+    const hoursContracted = Number(p.contracted_hours ?? 0);
+    const hoursRemaining = Math.max(0, hoursContracted - hoursWorked);
+    const hourlyRate = Number(p.hourly_rate ?? 0);
+    const monthlyValue = Number(p.monthly_value ?? 0);
+    const billableValue = hourlyRate > 0 ? hoursWorked * hourlyRate : 0;
+
+    const recurringFinances = finances.filter((f: any) => f.kind === "receber");
+    const monthsPaid = recurringFinances.filter((f: any) => f.status === "pago").length;
+    const monthsPending = recurringFinances.filter((f: any) => f.status !== "pago").length;
+    const nextBilling = p.next_billing_date ?? recurringFinances
+      .filter((f: any) => f.status !== "pago" && f.due_date)
+      .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0]?.due_date ?? null;
+
+    const commercial = {
+      model,
+      serviceType: p.service_type ?? null,
+      contractValue,
+      monthlyValue,
+      hourlyRate,
+      hoursWorked: Math.round(hoursWorked * 100) / 100,
+      hoursContracted,
+      hoursRemaining: Math.round(hoursRemaining * 100) / 100,
+      billableValue,
+      monthsPaid,
+      monthsPending,
+      nextBilling,
+      revenue: revenueReceived,
+      pending: revenuePending,
+      costs: totalCost,
+      profit,
+      margin,
+    };
+
 
     return {
       project: { ...project, client: (project as any).clients },
@@ -389,7 +440,9 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       kanbanCounts,
       financeMonthly,
       nextMilestone,
+      commercial,
       milestones: milestonesRes.data ?? [],
+
       members: membersRes.data ?? [],
       risks,
       notes: notesRes.data,
@@ -564,4 +617,50 @@ export const saveProjectNotes = createServerFn({ method: "POST" })
       );
     if (error) throw new Error(error.message);
     return { ok: true as const };
+  });
+
+// ---------- Recurring invoice (mensal_recorrente / suporte_continuo) ----------
+export const generateRecurringInvoice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ project_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: proj, error: pErr } = await context.supabase
+      .from("projects")
+      .select("id, name, client_id, monthly_value, billing_day, next_billing_date, commercial_model")
+      .eq("id", data.project_id)
+      .single();
+    if (pErr) throw new Error(pErr.message);
+    const p: any = proj;
+    if (!["mensal_recorrente", "suporte_continuo"].includes(p.commercial_model)) {
+      throw new Error("Projeto não é recorrente");
+    }
+    const amount = Number(p.monthly_value ?? 0);
+    if (!amount) throw new Error("Defina o valor mensal do projeto");
+
+    const today = new Date();
+    const base = p.next_billing_date ? new Date(p.next_billing_date) : today;
+    const dueIso = base.toISOString().slice(0, 10);
+
+    const { error: fErr } = await context.supabase.from("finances").insert({
+      owner_id: context.userId,
+      project_id: p.id,
+      client_id: p.client_id,
+      kind: "receber",
+      description: `Cobrança recorrente — ${p.name}`,
+      amount,
+      due_date: dueIso,
+      status: "pendente",
+    });
+    if (fErr) throw new Error(fErr.message);
+
+    // advance next billing by ~1 month
+    const next = new Date(base);
+    next.setMonth(next.getMonth() + 1);
+    const nextIso = next.toISOString().slice(0, 10);
+    await context.supabase
+      .from("projects")
+      .update({ next_billing_date: nextIso })
+      .eq("id", p.id);
+
+    return { ok: true as const, due_date: dueIso, next_billing_date: nextIso };
   });

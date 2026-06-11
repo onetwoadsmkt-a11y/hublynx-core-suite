@@ -1,60 +1,69 @@
-# Redesign — Project Command Center
+# Evolução do módulo de Projetos — Modelos Comerciais
 
-Transformar `projetos/$id` em um painel executivo único (estilo Linear / Notion / ClickUp), substituindo o layout atual baseado em abas por uma página de rolagem vertical com sidebar fixa de contexto à direita.
+Mantém toda a estrutura atual (Clientes, Projetos, Tarefas, Financeiro, Equipe, Arquivos). A mudança é **aditiva**: novos campos no projeto, comportamento financeiro derivado e uma nova aba **Comercial** dentro do projeto.
 
-## Estrutura nova (ordem em tela)
+## 1. Schema (migration única)
 
-1. **Header Executivo** — nome, cliente, status, responsável, datas, progresso %, dias restantes, **HealthBadge** (🟢/🟡/🔴) calculado no backend (já existe em `getProjectDashboard`).
-2. **Barra de Alertas Inteligentes** — chips coloridos com ícone (atrasadas, orçamento, prazo, aprovação cliente, próximo marco). Reusa `dashboard.alerts` + deriva "aguardando cliente" e "próximo marco".
-3. **KPIs em linha** — Progresso, Tarefas (done/total), Receita, Custos, Lucro, Margem, Equipe, Riscos abertos.
-4. **Central de Execução** — três colunas:
-   - **Fazer Hoje** (tasks com `due_date = hoje`)
-   - **Atrasadas** (tasks vencidas, com dias de atraso)
-   - **Aguardando Cliente** (tasks com label/status "aguardando_cliente" — derivar do status do projeto + flag em task; ver pergunta abaixo)
-5. **Evolução do Projeto** — `LineChart` Planejado × Realizado por semana (planejado linear do start→due; realizado = tarefas concluídas acumuladas).
-6. **Roadmap Visual** — timeline horizontal com nós (✓ done, ◉ in_progress, ○ pending), criar/editar/concluir marco inline.
-7. **Resumo Financeiro** — cards Contrato/Recebido/Custos/Lucro/Margem + mini sparkline mensal.
-8. **Próximas Entregas** — tarefas/marcos agrupados em 7/15/30 dias.
-9. **Kanban Compacto** — contadores por coluna, clique → `/tarefas?project=<id>`.
-10. **Feed de Atividades** — `project_activity` em formato timeline com avatar/nome/ação/tempo relativo.
-11. **Sidebar fixa de contexto** (direita, desktop) — projeto, status, responsável, prazo, equipe, risco, próximo marco, próxima entrega.
+Adições em `public.projects`:
+- `service_type text` — `desenvolvimento | trafego_pago | gestao_conteudo | consultoria | design | suporte | outros`
+- `commercial_model text not null default 'projeto_fechado'` — `projeto_fechado | mensal_recorrente | banco_horas | por_hora | suporte_continuo`
+- `hourly_rate numeric(12,2)` — usado em `por_hora` e `banco_horas`
+- `contracted_hours numeric(10,2)` — usado em `banco_horas`
+- `monthly_value numeric(12,2)` — usado em `mensal_recorrente` e `suporte_continuo`
+- `billing_day smallint` — dia do mês da cobrança recorrente (1–28)
+- `next_billing_date date` — próxima cobrança calculada/manual
 
-Abas atuais (Tarefas, Marcos, Equipe, Riscos, Custos, Financeiro, Arquivos, Atividade, Notas) viram **acordeões/seções secundárias** no fim da página ou ficam acessíveis via botões "Ver tudo" em cada bloco. Nada é removido — apenas reorganizado.
+Adições em `public.tasks`:
+- `time_spent_minutes integer not null default 0` — somatório real (mantém `actual_hours` legado, mas o novo campo é a fonte para faturamento)
+- `internal_cost numeric(12,2)`
+- `generated_value numeric(12,2)`
+- `billable boolean not null default true`
 
-## Mudanças técnicas
+Sem nova tabela: receitas/custos continuam em `finances` e `project_costs`. Cobranças recorrentes são geradas como registros em `finances` (type=receita, category=recorrente, project_id, due_date = próximo vencimento). Um job/manual cria os próximos meses.
 
-### Backend (`src/lib/projects/projects.functions.ts`)
-Estender `getProjectDashboard` para retornar:
-- `execution`: `{ today: Task[], overdue: Task[], waitingClient: Task[] }`
-- `plannedVsActual`: `{ week: string, planned: number, actual: number }[]` (12 semanas)
-- `upcomingDeliveries`: `{ in7: [], in15: [], in30: [] }` (tarefas + marcos com due_date)
-- `kanbanCounts`: `Record<status, number>`
-- `financeMonthly`: `{ month, revenue, cost }[]` (últimos 6 meses, para sparkline)
-- `nextMilestone`: próximo `project_milestones` com status ≠ done
+Inclui GRANTs já existentes — apenas `ALTER TABLE ADD COLUMN`, sem mexer em policies.
 
-Sem mudança de schema — tudo derivado do que já existe.
+## 2. Backend (`src/lib/projects/projects.functions.ts`)
 
-### Frontend
-Reescrever `src/routes/_authenticated/projetos.$id.tsx`. Quebrar em sub-componentes em `src/components/projects/command-center/`:
-- `ExecutiveHeader.tsx`
-- `AlertsBar.tsx`
-- `KpiRow.tsx`
-- `ExecutionPanel.tsx` (3 colunas)
-- `PlannedVsActualChart.tsx`
-- `RoadmapTimeline.tsx` (horizontal, com botões inline criar/editar/concluir reaproveitando `upsertMilestone`)
-- `FinanceSummary.tsx`
-- `UpcomingDeliveries.tsx`
-- `KanbanCompact.tsx`
-- `ActivityFeed.tsx`
-- `ContextSidebar.tsx` (sticky, `lg:` only)
+- Estender `projectInput` (zod) e `upsertProject` com os novos campos + validação condicional por `commercial_model`.
+- Estender `getProjectDashboard` retornando bloco `commercial`:
+  - `model`, `serviceType`, `contractValue`, `monthlyValue`, `hourlyRate`
+  - `revenue` (soma `finances` recebidas), `pending` (a receber), `costs`, `profit`, `margin`
+  - `hoursWorked` (soma `tasks.time_spent_minutes/60` do projeto)
+  - `hoursContracted`, `hoursRemaining` (banco de horas)
+  - `monthsPaid`, `monthsPending`, `nextBilling` (recorrente)
+  - `billableValue` (por hora: `hoursWorked * hourlyRate`)
+- Nova fn `generateRecurringInvoice({ projectId })` — cria próximo `finances` pendente e avança `next_billing_date`.
 
-Layout: grid `lg:grid-cols-[1fr_320px]`, sidebar `sticky top-4`. Cards com `rounded-2xl`, bordas suaves, sem ruído visual.
+## 3. Frontend
 
-## Não muda
-- Schema do banco.
-- Outras rotas (dashboard, tarefas, kanban global).
-- Componentes de drawer/dialog existentes (`ProjectFormDialog`, `TaskDrawer`) — reusados.
+**`ProjectFormDialog.tsx`**: adicionar selects `Tipo de Serviço` e `Modelo Comercial`; campos extras aparecem condicionalmente:
+- `projeto_fechado` → `contract_value`
+- `mensal_recorrente` / `suporte_continuo` → `monthly_value`, `billing_day`
+- `banco_horas` → `hourly_rate`, `contracted_hours`
+- `por_hora` → `hourly_rate`
 
-## Perguntas antes de implementar
-1. "Aguardando Cliente" na coluna 3 da Central de Execução — devo usar tasks cujo **projeto** está `aguardando_cliente`, ou criar um campo/label específico por tarefa? (sugestão: derivar de `tasks.status = 'em_revisao'` + projeto em qualquer status — é o sinal mais próximo hoje, sem mudar schema).
-2. As **abas atuais** (Equipe, Riscos, Custos, Notas, Arquivos completos) devem virar acordeões no fim da mesma página, ou ficarem em rotas filhas (`/projetos/$id/equipe`)? (sugestão: acordeões — mantém tudo numa tela só, fiel ao briefing).
+**Página do projeto (`projetos.$id.tsx`)**:
+- Header: badge do modelo comercial ao lado do status.
+- KPI Row: adicionar tiles dinâmicos conforme o modelo (Horas Trabalhadas, Horas Restantes, Próxima Cobrança, Receita Gerada). Os já existentes (Receita, Custos, Lucro, Margem) permanecem.
+- Nova aba/acordeão **Comercial** (`src/components/projects/command-center/CommercialPanel.tsx`):
+  - Cabeçalho com Tipo de Serviço, Modelo, Valor Contratado.
+  - Bloco financeiro: Receita, Custos, Lucro, Margem.
+  - Bloco específico do modelo:
+    - Fechado: contratado / recebido / pendente.
+    - Recorrente: próxima cobrança, meses pagos/pendentes, receita acumulada, botão "Gerar próxima cobrança".
+    - Por hora: horas registradas, horas faturadas, receita gerada.
+    - Banco de horas: contratadas / utilizadas / restantes + barra de consumo.
+  - Lista das tarefas com horas/custos consumidos.
+
+**`TaskDrawer.tsx`**: nova seção "Tempo & Custo" com inputs `time_spent` (h:mm), `internal_cost`, `generated_value`, toggle `billable`. Só destaca quando o projeto da tarefa é `por_hora` ou `banco_horas`.
+
+## 4. Não muda
+- Navegação, rotas, módulos.
+- Esquema de tarefas/clientes/finances além das colunas adicionadas.
+- RLS, policies, GRANTs (apenas novas colunas em tabelas existentes).
+- Componentes do redesign Command Center recém-feitos — Comercial entra como mais um bloco.
+
+## Perguntas
+1. **Cobranças recorrentes**: gerar automaticamente via `pg_cron` mensal, ou apenas botão manual "Gerar próxima cobrança"? (sugestão: começar manual + `next_billing_date` visível; automatizar depois.)
+2. **Horas trabalhadas**: usar o novo `time_spent_minutes` (entrada manual no drawer) ou aproveitar `actual_hours` já existente como única fonte? (sugestão: novo campo em minutos para precisão; migrar `actual_hours` para preencher inicial.)
