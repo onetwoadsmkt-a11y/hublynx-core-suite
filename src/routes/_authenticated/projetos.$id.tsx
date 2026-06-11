@@ -6,8 +6,10 @@ import {
   getProjectDashboard, upsertMilestone, deleteMilestone,
   upsertMember, deleteMember, upsertRisk, deleteRisk,
   upsertCost, deleteCost, saveProjectNotes, deleteProject,
+  generateRecurringInvoice,
   type ProjectStatus,
 } from "@/lib/projects/projects.functions";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
