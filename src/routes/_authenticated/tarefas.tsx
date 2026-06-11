@@ -283,7 +283,7 @@ function TarefasPage() {
                 {kanbanCols.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
-                    <KanbanColumn key={col.key} col={col} tasks={colTasks} labelsIndex={labelsIndex} clientsById={clientsById} onSelect={setSelectedId} />
+                    <KanbanColumn key={col.key} col={col} tasks={colTasks} kanbanCols={kanbanCols} labelsIndex={labelsIndex} clientsById={clientsById} projectsById={projectsById} onSelect={setSelectedId} />
                   );
                 })}
               </div>
@@ -294,6 +294,8 @@ function TarefasPage() {
                     task={activeTask}
                     labels={labelsIndex[activeTask.id] ?? []}
                     client={activeTask.client_id ? clientsById.get(activeTask.client_id) ?? null : null}
+                    project={activeTask.project_id ? projectsById.get(activeTask.project_id) ?? null : null}
+                    kanbanCols={kanbanCols}
                     dragging
                   />
                 ) : null}
