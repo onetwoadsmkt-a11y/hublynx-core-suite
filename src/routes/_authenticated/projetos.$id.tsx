@@ -213,7 +213,7 @@ function ProjectCommandCenter() {
           <TodayFocus tasks={d.todayTasks} />
           <WeeklyPerformance weekly={d.weekly} />
           <MonthlyChart days={d.chartDays} />
-          <MilestonesSection milestones={d.milestones} projectId={id} />
+          <MilestonesSection milestones={d.milestones} tasks={d.tasks} projectId={id} />
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-6">
