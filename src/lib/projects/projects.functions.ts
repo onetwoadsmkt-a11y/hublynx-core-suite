@@ -194,10 +194,10 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const progress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : (project as any).progress ?? 0;
 
     const revenueReceived = finances
-      .filter((f: any) => f.kind === "receita" && f.status === "pago")
+      .filter((f: any) => f.kind === "receber" && f.status === "pago")
       .reduce((s: number, f: any) => s + Number(f.amount), 0);
     const revenuePending = finances
-      .filter((f: any) => f.kind === "receita" && f.status !== "pago")
+      .filter((f: any) => f.kind === "receber" && f.status !== "pago")
       .reduce((s: number, f: any) => s + Number(f.amount), 0);
     const totalCost = costs.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const contractValue = Number((project as any).contract_value ?? (project as any).value ?? 0);
@@ -353,7 +353,7 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       const revenue = finances
-        .filter((f: any) => f.kind === "receita" && f.status === "pago" && f.created_at && new Date(f.created_at) >= d && new Date(f.created_at) < next)
+        .filter((f: any) => f.kind === "receber" && f.status === "pago" && f.created_at && new Date(f.created_at) >= d && new Date(f.created_at) < next)
         .reduce((s: number, f: any) => s + Number(f.amount), 0);
       const cost = costs
         .filter((c: any) => c.incurred_at && new Date(c.incurred_at) >= d && new Date(c.incurred_at) < next)
@@ -377,7 +377,7 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const monthlyValue = Number(p.monthly_value ?? 0);
     const billableValue = hourlyRate > 0 ? hoursWorked * hourlyRate : 0;
 
-    const recurringFinances = finances.filter((f: any) => f.kind === "receita");
+    const recurringFinances = finances.filter((f: any) => f.kind === "receber");
     const monthsPaid = recurringFinances.filter((f: any) => f.status === "pago").length;
     const monthsPending = recurringFinances.filter((f: any) => f.status !== "pago").length;
     const nextBilling = p.next_billing_date ?? recurringFinances
@@ -645,7 +645,7 @@ export const generateRecurringInvoice = createServerFn({ method: "POST" })
       owner_id: context.userId,
       project_id: p.id,
       client_id: p.client_id,
-      kind: "receita",
+      kind: "receber",
       description: `Cobrança recorrente — ${p.name}`,
       amount,
       due_date: dueIso,
