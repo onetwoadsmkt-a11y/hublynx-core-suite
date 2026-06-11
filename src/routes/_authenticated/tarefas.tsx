@@ -529,7 +529,14 @@ function TaskCard({
                   onClick={(e) => { stop(e); quickMeet.mutate(); }}
                   title="Criar link Meet agora"
                 >
-                  <Video className="h-3.5 w-3.5" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  onClick={(e) => { stop(e); setConfirmDel(true); }}
+                  title="Excluir tarefa"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
