@@ -227,11 +227,17 @@ export type Database = {
           description: string | null
           due_date: string
           id: string
+          installment_no: number | null
+          installment_total: number | null
           kind: Database["public"]["Enums"]["finance_kind"]
           owner_id: string
           paid_at: string | null
+          parent_id: string | null
           payment_method: string | null
           project_id: string | null
+          recurrence: string
+          recurrence_day: number | null
+          recurrence_until: string | null
           status: Database["public"]["Enums"]["finance_status"]
           supplier: string | null
           updated_at: string
@@ -244,11 +250,17 @@ export type Database = {
           description?: string | null
           due_date: string
           id?: string
+          installment_no?: number | null
+          installment_total?: number | null
           kind: Database["public"]["Enums"]["finance_kind"]
           owner_id: string
           paid_at?: string | null
+          parent_id?: string | null
           payment_method?: string | null
           project_id?: string | null
+          recurrence?: string
+          recurrence_day?: number | null
+          recurrence_until?: string | null
           status?: Database["public"]["Enums"]["finance_status"]
           supplier?: string | null
           updated_at?: string
@@ -261,11 +273,17 @@ export type Database = {
           description?: string | null
           due_date?: string
           id?: string
+          installment_no?: number | null
+          installment_total?: number | null
           kind?: Database["public"]["Enums"]["finance_kind"]
           owner_id?: string
           paid_at?: string | null
+          parent_id?: string | null
           payment_method?: string | null
           project_id?: string | null
+          recurrence?: string
+          recurrence_day?: number | null
+          recurrence_until?: string | null
           status?: Database["public"]["Enums"]["finance_status"]
           supplier?: string | null
           updated_at?: string
@@ -283,6 +301,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "finances"
             referencedColumns: ["id"]
           },
           {
