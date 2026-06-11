@@ -18,7 +18,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock } from "lucide-react";
+import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock, Pencil, Target } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
