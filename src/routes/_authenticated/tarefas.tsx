@@ -363,12 +363,14 @@ const PRIORITY_ACCENT: Record<Priority, string> = {
 };
 
 function KanbanColumn({
-  col, tasks, labelsIndex, clientsById, onSelect,
+  col, tasks, kanbanCols, labelsIndex, clientsById, projectsById, onSelect,
 }: {
   col: KanbanColumn;
   tasks: Task[];
+  kanbanCols: KanbanColumn[];
   labelsIndex: Record<string, LabelItem[]>;
   clientsById: Map<string, ClientMini>;
+  projectsById: Map<string, { id: string; name: string }>;
   onSelect: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
@@ -385,6 +387,8 @@ function KanbanColumn({
             task={t}
             labels={labelsIndex[t.id] ?? []}
             client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
+            project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
+            kanbanCols={kanbanCols}
             onSelect={onSelect}
           />
         ))}
@@ -394,15 +398,15 @@ function KanbanColumn({
 }
 
 function DraggableCard({
-  task, labels, client, onSelect,
-}: { task: Task; labels: LabelItem[]; client: ClientMini | null; onSelect: (id: string) => void }) {
+  task, labels, client, project, kanbanCols, onSelect,
+}: { task: Task; labels: LabelItem[]; client: ClientMini | null; project: { id: string; name: string } | null; kanbanCols: KanbanColumn[]; onSelect: (id: string) => void }) {
   const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({ id: task.id });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.4 : 1 }
     : { opacity: isDragging ? 0.4 : 1 };
   return (
     <div ref={setNodeRef} style={style}>
-      <TaskCard task={task} labels={labels} client={client} onClick={() => onSelect(task.id)} dragHandle={{ ...attributes, ...listeners }} />
+      <TaskCard task={task} labels={labels} client={client} project={project} kanbanCols={kanbanCols} onClick={() => onSelect(task.id)} dragHandle={{ ...attributes, ...listeners }} />
     </div>
   );
 }
