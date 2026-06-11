@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -16,12 +16,13 @@ import { FinanceFormDialog } from "@/components/finance/FinanceFormDialog";
 import { brl } from "@/components/finance/KpiCard";
 import type { FinanceKind, FinanceRow } from "@/lib/finance/types";
 
-export function FinanceListPage({ kind, title }: { kind: FinanceKind; title: string }) {
+export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { month, year } = { month: new Date().getMonth() + 1, year: new Date().getFullYear() };
-  const search = (Route as never as { useSearch: () => { month: number; year: number } })
-    .useSearch?.() ?? { month, year };
+  const routerSearch = useRouterState({ select: (s) => s.location.search as { month?: number; year?: number } });
+  const month = Number(routerSearch?.month) || new Date().getMonth() + 1;
+  const year = Number(routerSearch?.year) || new Date().getFullYear();
+  const search = { month, year };
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [q, setQ] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -150,5 +151,5 @@ export function FinanceListPage({ kind, title }: { kind: FinanceKind; title: str
 }
 
 export const Route = createFileRoute("/_authenticated/financeiro/receber")({
-  component: () => <FinanceListPage kind="receber" title="Contas a Receber" />,
+  component: () => <FinanceListPage kind="receber" />,
 });
