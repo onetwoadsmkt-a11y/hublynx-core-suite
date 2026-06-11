@@ -175,6 +175,8 @@ function ProjectCommandCenter() {
           <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
           <RoadmapTimeline milestones={d.milestones} projectId={id} />
           <FinanceSummary kpis={d.kpis} monthly={d.financeMonthly} />
+          <CommercialPanel commercial={d.commercial} projectId={id} />
+
           <UpcomingDeliveries upcoming={d.upcomingDeliveries} />
           <KanbanCompact counts={d.kanbanCounts} />
           <ActivityFeed activity={d.activity} />
