@@ -1,6 +1,16 @@
-export type FinanceKind = "receita" | "despesa";
-export type FinanceStatus = "pendente" | "recebido" | "pago" | "atrasado" | "cancelado";
+// Use DB enums directly.
+// kind: 'receber' (receita) | 'pagar' (despesa)
+// status: 'pendente' | 'pago' | 'atrasado'
+export type FinanceKind = "receber" | "pagar";
+export type FinanceStatus = "pendente" | "pago" | "atrasado";
 export type Recurrence = "none" | "monthly";
+
+export const KIND_LABEL: Record<FinanceKind, string> = { receber: "Receita", pagar: "Despesa" };
+export const STATUS_LABEL: Record<FinanceStatus, string> = {
+  pendente: "Pendente",
+  pago: "Pago",
+  atrasado: "Atrasado",
+};
 
 export type FinanceRow = {
   id: string;
