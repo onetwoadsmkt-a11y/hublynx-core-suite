@@ -42,7 +42,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
   return (
     <TooltipProvider delayDuration={0}>
       <nav className={`flex flex-col gap-1 ${collapsed ? "px-2" : "px-3"} py-2`}>
-        {NAV.map((item) => {
+        {items.map((item) => {
           const active = pathname === item.to || pathname.startsWith(item.to + "/");
           const Icon = item.icon;
           const link = (
