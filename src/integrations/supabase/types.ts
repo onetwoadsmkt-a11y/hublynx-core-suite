@@ -671,51 +671,72 @@ export type Database = {
       }
       projects: {
         Row: {
+          billing_day: number | null
           client_id: string | null
           color: string | null
+          commercial_model: string
           contract_value: number | null
+          contracted_hours: number | null
           created_at: string
           description: string | null
           due_date: string | null
+          hourly_rate: number | null
           id: string
           manager_id: string | null
+          monthly_value: number | null
           name: string
+          next_billing_date: string | null
           owner_id: string
           progress: number
+          service_type: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
           value: number | null
         }
         Insert: {
+          billing_day?: number | null
           client_id?: string | null
           color?: string | null
+          commercial_model?: string
           contract_value?: number | null
+          contracted_hours?: number | null
           created_at?: string
           description?: string | null
           due_date?: string | null
+          hourly_rate?: number | null
           id?: string
           manager_id?: string | null
+          monthly_value?: number | null
           name: string
+          next_billing_date?: string | null
           owner_id: string
           progress?: number
+          service_type?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
           value?: number | null
         }
         Update: {
+          billing_day?: number | null
           client_id?: string | null
           color?: string | null
+          commercial_model?: string
           contract_value?: number | null
+          contracted_hours?: number | null
           created_at?: string
           description?: string | null
           due_date?: string | null
+          hourly_rate?: number | null
           id?: string
           manager_id?: string | null
+          monthly_value?: number | null
           name?: string
+          next_billing_date?: string | null
           owner_id?: string
           progress?: number
+          service_type?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -1150,6 +1171,7 @@ export type Database = {
         Row: {
           actual_hours: number | null
           assignee_id: string | null
+          billable: boolean
           briefing: Json | null
           client_id: string | null
           completed_at: string | null
@@ -1158,7 +1180,9 @@ export type Database = {
           description: string | null
           due_date: string | null
           estimated_hours: number | null
+          generated_value: number | null
           id: string
+          internal_cost: number | null
           internal_notes: string | null
           owner_id: string
           position: number
@@ -1166,12 +1190,14 @@ export type Database = {
           project_id: string | null
           start_date: string | null
           status: string
+          time_spent_minutes: number
           title: string
           updated_at: string
         }
         Insert: {
           actual_hours?: number | null
           assignee_id?: string | null
+          billable?: boolean
           briefing?: Json | null
           client_id?: string | null
           completed_at?: string | null
@@ -1180,7 +1206,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           estimated_hours?: number | null
+          generated_value?: number | null
           id?: string
+          internal_cost?: number | null
           internal_notes?: string | null
           owner_id: string
           position?: number
@@ -1188,12 +1216,14 @@ export type Database = {
           project_id?: string | null
           start_date?: string | null
           status?: string
+          time_spent_minutes?: number
           title: string
           updated_at?: string
         }
         Update: {
           actual_hours?: number | null
           assignee_id?: string | null
+          billable?: boolean
           briefing?: Json | null
           client_id?: string | null
           completed_at?: string | null
@@ -1202,7 +1232,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           estimated_hours?: number | null
+          generated_value?: number | null
           id?: string
+          internal_cost?: number | null
           internal_notes?: string | null
           owner_id?: string
           position?: number
@@ -1210,6 +1242,7 @@ export type Database = {
           project_id?: string | null
           start_date?: string | null
           status?: string
+          time_spent_minutes?: number
           title?: string
           updated_at?: string
         }
