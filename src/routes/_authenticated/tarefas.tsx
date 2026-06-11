@@ -125,6 +125,11 @@ function TarefasPage() {
     (clients as any[]).forEach((c) => m.set(c.id, c));
     return m;
   }, [clients]);
+  const projectsById = useMemo(() => {
+    const m = new Map<string, { id: string; name: string }>();
+    (projects as any[]).forEach((p) => m.set(p.id, p));
+    return m;
+  }, [projects]);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
