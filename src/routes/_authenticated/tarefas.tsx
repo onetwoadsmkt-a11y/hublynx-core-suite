@@ -76,7 +76,7 @@ function TarefasPage() {
 
   const selectedId = search.task ?? null;
   const setSelectedId = (id: string | null) =>
-    navigate({ to: "/tarefas", search: id ? { task: id } : {}, replace: true });
+    navigate({ to: "/tarefas", search: { task: id ?? undefined }, replace: true });
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],

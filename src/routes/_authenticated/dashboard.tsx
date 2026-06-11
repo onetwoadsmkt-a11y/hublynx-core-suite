@@ -194,7 +194,7 @@ function Dashboard() {
         <Card className="shadow-[var(--shadow-soft)]">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Tarefas do dia</CardTitle>
-            <Button asChild variant="outline" size="sm"><Link to="/tarefas">Ver todas</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link to="/tarefas" search={{ task: undefined }}>Ver todas</Link></Button>
           </CardHeader>
           <CardContent className="space-y-1">
             {data?.tasks.length === 0 && (
