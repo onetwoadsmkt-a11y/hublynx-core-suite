@@ -71,7 +71,7 @@ function Dashboard() {
         supabase.from("projects").select("id", { count: "exact", head: true })
           .lt("due_date", today.startDate).not("status", "in", "(concluido,cancelado)"),
         supabase.from("finances").select("amount")
-          .eq("kind", "receita").eq("status", "pendente")
+          .eq("kind", "receber").eq("status", "pendente")
           .gte("due_date", today.startDate).lte("due_date", in7),
         supabase.from("events").select("id,title,start_at,event_type")
           .gte("start_at", today.start).lte("start_at", today.end).order("start_at"),
@@ -86,9 +86,9 @@ function Dashboard() {
           .select("id,title,start_at,end_at,event_type")
           .gte("start_at", today.start).order("start_at").limit(4),
         supabase.from("finances").select("amount,due_date,paid_at")
-          .eq("kind", "receita").gte("due_date", today.startDate).lte("due_date", in7),
+          .eq("kind", "receber").gte("due_date", today.startDate).lte("due_date", in7),
         supabase.from("finances").select("amount,due_date,paid_at")
-          .eq("kind", "despesa").gte("due_date", today.startDate).lte("due_date", in7),
+          .eq("kind", "pagar").gte("due_date", today.startDate).lte("due_date", in7),
         supabase.from("finances").select("amount,kind,due_date")
           .gte("due_date", minus7).lte("due_date", in7),
       ]);
@@ -98,7 +98,7 @@ function Dashboard() {
       const payWeek = (finPayWeek.data ?? []).reduce((s, r: any) => s + Number(r.amount || 0), 0);
 
       // Build 7-day sparkline buckets
-      const buckets = (kind: "receita" | "despesa") => {
+      const buckets = (kind: "receber" | "pagar") => {
         const days: { i: number; v: number }[] = [];
         for (let i = -3; i <= 3; i++) {
           const day = plusDays(i);
@@ -109,8 +109,8 @@ function Dashboard() {
         }
         return days;
       };
-      const seriesR = buckets("receita");
-      const seriesP = buckets("despesa");
+      const seriesR = buckets("receber");
+      const seriesP = buckets("pagar");
       const seriesS = seriesR.map((r, i) => ({ i: r.i, v: r.v - seriesP[i].v }));
 
       const nextEvent = (eventsToday.data ?? []).find((e: any) => new Date(e.start_at) >= new Date());
