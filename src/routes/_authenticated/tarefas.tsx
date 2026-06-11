@@ -451,6 +451,19 @@ function TaskCard({
     onError: (e: any) => toast.error(e?.message ?? "Erro ao excluir tarefa."),
   });
 
+  const quickStatus = useMutation({
+    mutationFn: async (status: string) => {
+      const { error } = await supabase.from("tasks").update({ status }).eq("id", task.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (task.project_id) qc.invalidateQueries({ queryKey: ["project-dashboard", task.project_id] });
+      toast.success("Status atualizado.");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao atualizar status."),
+  });
+
   const quickMeet = useMutation({
     mutationFn: async () =>
       instantMeet({ data: { taskId: task.id, summary: task.title, durationMinutes: 30 } }),
