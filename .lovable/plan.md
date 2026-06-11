@@ -1,69 +1,73 @@
-# Evolução do módulo de Projetos — Modelos Comerciais
+# Plano — Módulo Agenda (Hublynx Core)
 
-Mantém toda a estrutura atual (Clientes, Projetos, Tarefas, Financeiro, Equipe, Arquivos). A mudança é **aditiva**: novos campos no projeto, comportamento financeiro derivado e uma nova aba **Comercial** dentro do projeto.
+Substituir o placeholder atual de `/agenda` por um Command Center de calendário minimalista (estilo Linear/Notion) que unifica **Tarefas**, **Clientes** e **Google Calendar**, com três visualizações (Dia / Semana / Mês) e sincronização em tempo real.
 
-## 1. Schema (migration única)
+## 1. Fontes de dados unificadas
 
-Adições em `public.projects`:
-- `service_type text` — `desenvolvimento | trafego_pago | gestao_conteudo | consultoria | design | suporte | outros`
-- `commercial_model text not null default 'projeto_fechado'` — `projeto_fechado | mensal_recorrente | banco_horas | por_hora | suporte_continuo`
-- `hourly_rate numeric(12,2)` — usado em `por_hora` e `banco_horas`
-- `contracted_hours numeric(10,2)` — usado em `banco_horas`
-- `monthly_value numeric(12,2)` — usado em `mensal_recorrente` e `suporte_continuo`
-- `billing_day smallint` — dia do mês da cobrança recorrente (1–28)
-- `next_billing_date date` — próxima cobrança calculada/manual
+Server function `getAgendaEvents({ from, to })` em `src/lib/agenda/agenda.functions.ts` que retorna um array normalizado `AgendaEvent`:
 
-Adições em `public.tasks`:
-- `time_spent_minutes integer not null default 0` — somatório real (mantém `actual_hours` legado, mas o novo campo é a fonte para faturamento)
-- `internal_cost numeric(12,2)`
-- `generated_value numeric(12,2)`
-- `billable boolean not null default true`
+```
+{ id, source: 'task' | 'meeting' | 'gcal' | 'client',
+  title, start, end?, allDay,
+  taskId?, clientId?, clientName?, projectId?,
+  meetLink?, htmlLink?, color, status }
+```
 
-Sem nova tabela: receitas/custos continuam em `finances` e `project_costs`. Cobranças recorrentes são geradas como registros em `finances` (type=receita, category=recorrente, project_id, due_date = próximo vencimento). Um job/manual cria os próximos meses.
+Combina três origens:
+- **Tasks** (`tasks` com `due_date` no intervalo) → vincula `client_id` / `project_id`.
+- **Reuniões internas** (`task_communications` kind=`meeting` com `start_at`) → já trazem `meet_link`.
+- **Google Calendar** (`/calendars/primary/events?timeMin=&timeMax=&singleEvents=true`) via gateway, reaproveitando `getGoogleGatewayHeaders('calendar')` de `google.functions.ts`. Se a conta Google não estiver conectada, ignora silenciosamente esta fonte.
 
-Inclui GRANTs já existentes — apenas `ALTER TABLE ADD COLUMN`, sem mexer em policies.
+## 2. Página `/agenda` (substitui o placeholder)
 
-## 2. Backend (`src/lib/projects/projects.functions.ts`)
+`src/routes/_authenticated/agenda.tsx`:
+- Header executivo: título, navegação `‹ Hoje ›`, label do período, switch **Dia / Semana / Mês** (Tabs), botão **Nova tarefa** e **Agendar reunião** (reutiliza `ScheduleMeetingDialog`).
+- Filtros laterais compactos: cliente (select), origem (chips: Tarefas / Reuniões / Google), busca.
+- URL como estado via `validateSearch` (`view`, `date`, `clientId`, `sources`) — navegação preserva contexto.
+- Grid principal com 3 componentes:
+  - `AgendaMonth` — grade 7×N, dots coloridos por origem, clique no dia → drill no Dia.
+  - `AgendaWeek` — colunas por dia, faixa horária 6h–22h, eventos posicionados por hora.
+  - `AgendaDay` — coluna única, timeline detalhada, painel lateral com "Próximos" e "Sem horário (all-day)".
+- Cards arredondados, fundo branco, bordas suaves, cores semânticas por origem (tarefa = primary, reunião = accent, gcal = muted).
+- Estados vazios curtos, skeletons durante load.
 
-- Estender `projectInput` (zod) e `upsertProject` com os novos campos + validação condicional por `commercial_model`.
-- Estender `getProjectDashboard` retornando bloco `commercial`:
-  - `model`, `serviceType`, `contractValue`, `monthlyValue`, `hourlyRate`
-  - `revenue` (soma `finances` recebidas), `pending` (a receber), `costs`, `profit`, `margin`
-  - `hoursWorked` (soma `tasks.time_spent_minutes/60` do projeto)
-  - `hoursContracted`, `hoursRemaining` (banco de horas)
-  - `monthsPaid`, `monthsPending`, `nextBilling` (recorrente)
-  - `billableValue` (por hora: `hoursWorked * hourlyRate`)
-- Nova fn `generateRecurringInvoice({ projectId })` — cria próximo `finances` pendente e avança `next_billing_date`.
+## 3. Tempo real
 
-## 3. Frontend
+- TanStack Query (`['agenda', range, filters]`) com `ensureQueryData` no loader.
+- Supabase Realtime: canal `agenda-live` ouvindo `postgres_changes` em `tasks` e `task_communications` (filtrado por `owner_id = userId`) → invalida a query.
+- Google Calendar: polling leve a cada 60s via `refetchInterval` (Workers/Webhook push fica fora do escopo desta entrega) + refetch ao focar janela.
+- Migração: `ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks, public.task_communications` (idempotente).
 
-**`ProjectFormDialog.tsx`**: adicionar selects `Tipo de Serviço` e `Modelo Comercial`; campos extras aparecem condicionalmente:
-- `projeto_fechado` → `contract_value`
-- `mensal_recorrente` / `suporte_continuo` → `monthly_value`, `billing_day`
-- `banco_horas` → `hourly_rate`, `contracted_hours`
-- `por_hora` → `hourly_rate`
+## 4. Ações rápidas no evento
 
-**Página do projeto (`projetos.$id.tsx`)**:
-- Header: badge do modelo comercial ao lado do status.
-- KPI Row: adicionar tiles dinâmicos conforme o modelo (Horas Trabalhadas, Horas Restantes, Próxima Cobrança, Receita Gerada). Os já existentes (Receita, Custos, Lucro, Margem) permanecem.
-- Nova aba/acordeão **Comercial** (`src/components/projects/command-center/CommercialPanel.tsx`):
-  - Cabeçalho com Tipo de Serviço, Modelo, Valor Contratado.
-  - Bloco financeiro: Receita, Custos, Lucro, Margem.
-  - Bloco específico do modelo:
-    - Fechado: contratado / recebido / pendente.
-    - Recorrente: próxima cobrança, meses pagos/pendentes, receita acumulada, botão "Gerar próxima cobrança".
-    - Por hora: horas registradas, horas faturadas, receita gerada.
-    - Banco de horas: contratadas / utilizadas / restantes + barra de consumo.
-  - Lista das tarefas com horas/custos consumidos.
+- Clique em evento abre `Popover`:
+  - Tarefa → "Abrir tarefa" (`/tarefas?task=<id>`), "Marcar concluída", "Reagendar" (date picker inline → server fn que atualiza `due_date`).
+  - Reunião → "Entrar no Meet", "Copiar link", "Abrir tarefa".
+  - GCal → "Abrir no Google", título/horário (read-only nesta etapa).
+- Botão **Agendar reunião** abre `ScheduleMeetingDialog` desacoplado de uma task — adicionar prop opcional `standalone` para permitir escolher tarefa (autocomplete) antes de enviar.
 
-**`TaskDrawer.tsx`**: nova seção "Tempo & Custo" com inputs `time_spent` (h:mm), `internal_cost`, `generated_value`, toggle `billable`. Só destaca quando o projeto da tarefa é `por_hora` ou `banco_horas`.
+## 5. Integração com módulos existentes
 
-## 4. Não muda
-- Navegação, rotas, módulos.
-- Esquema de tarefas/clientes/finances além das colunas adicionadas.
-- RLS, policies, GRANTs (apenas novas colunas em tabelas existentes).
-- Componentes do redesign Command Center recém-feitos — Comercial entra como mais um bloco.
+- Sem mexer em navegação atual; apenas troca o placeholder de Agenda.
+- Reuso: `scheduleMeeting` (`calendar.functions.ts`), `ScheduleMeetingDialog`, `useKanbanColumns` não aplicável aqui.
+- Tipos compartilhados em `src/lib/agenda/types.ts`.
 
-## Perguntas
-1. **Cobranças recorrentes**: gerar automaticamente via `pg_cron` mensal, ou apenas botão manual "Gerar próxima cobrança"? (sugestão: começar manual + `next_billing_date` visível; automatizar depois.)
-2. **Horas trabalhadas**: usar o novo `time_spent_minutes` (entrada manual no drawer) ou aproveitar `actual_hours` já existente como única fonte? (sugestão: novo campo em minutos para precisão; migrar `actual_hours` para preencher inicial.)
+## Detalhes técnicos
+
+- Sem libs novas pesadas: grid próprio (CSS grid) — evita `react-big-calendar`. `date-fns` já presente.
+- Server fn protegida com `requireSupabaseAuth`; chamada via `useServerFn` + `useQuery` (rota pública para SSR seguro).
+- Tratamento de timezone: tudo em UTC no transporte, exibição com `Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' })`.
+- Acessibilidade: navegação por teclado (←/→ muda período, D/S/M troca view).
+
+## Arquivos
+
+- `src/lib/agenda/agenda.functions.ts` (novo)
+- `src/lib/agenda/types.ts` (novo)
+- `src/components/agenda/AgendaHeader.tsx`, `AgendaMonth.tsx`, `AgendaWeek.tsx`, `AgendaDay.tsx`, `EventPopover.tsx` (novos)
+- `src/routes/_authenticated/agenda.tsx` (substitui placeholder)
+- Migração: habilitar Realtime em `tasks` e `task_communications`.
+
+## Fora de escopo
+
+- Criação/edição de eventos diretamente no Google Calendar (apenas leitura + criação via reunião com Meet, que já existe).
+- Push notifications do GCal (watch channel) — fica para evolução futura; polling 60s atende o requisito de "tempo real" prático.
