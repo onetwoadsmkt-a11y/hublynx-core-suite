@@ -172,7 +172,7 @@ function ProjectCommandCenter() {
         <RoadmapStagesPanel projectId={id} stages={p.roadmap_stages} />
         <ExecutionPanel execution={d.execution} onOpenTask={(tid: string) => navigate({ to: "/tarefas", search: { task: tid } as any })} />
         <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
-        <RoadmapTimeline milestones={d.milestones} projectId={id} />
+        
         <FinanceSummary kpis={d.kpis} monthly={d.financeMonthly} />
         <CommercialPanel commercial={d.commercial} projectId={id} />
 
