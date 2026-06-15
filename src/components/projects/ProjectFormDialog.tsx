@@ -95,7 +95,8 @@ export function ProjectFormDialog({
         billing_day: "", next_billing_date: "",
       });
     }
-  }, [project, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, (project as any)?.id]);
 
   const m = useMutation({
     mutationFn: async () =>
