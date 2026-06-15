@@ -38,6 +38,7 @@ import {
 } from "recharts";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
+import { ProjectCommercialTable } from "@/components/projects/ProjectCommercialTable";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { toast } from "sonner";
 
