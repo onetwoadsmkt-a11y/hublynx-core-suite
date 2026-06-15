@@ -222,18 +222,6 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Financeiro */}
-        <Card className="shadow-[var(--shadow-soft)]">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Financeiro (próximos 7 dias)</CardTitle>
-            <Button asChild variant="outline" size="sm"><Link to="/financeiro">Ver relatório</Link></Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <FinanceRow label="Receber esta semana" value={fmtBRL(data?.finance.recvWeek ?? 0)} color="#00D084" data={data?.finance.seriesR ?? []} />
-            <FinanceRow label="Pagar esta semana" value={fmtBRL(data?.finance.payWeek ?? 0)} color="#EF4444" data={data?.finance.seriesP ?? []} />
-            <FinanceRow label="Saldo previsto" value={fmtBRL(data?.finance.balance ?? 0)} color="#2563EB" data={data?.finance.seriesS ?? []} />
-          </CardContent>
-        </Card>
 
         {/* Projetos em andamento */}
         <Card className="shadow-[var(--shadow-soft)]">
