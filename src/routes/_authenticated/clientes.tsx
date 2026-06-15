@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Users, Pencil, Eye } from "lucide-react";
 import { listClients, type ClientRow } from "@/lib/clients/clients.functions";
+import { listProjects } from "@/lib/projects/projects.functions";
 import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import { ClientDrawer } from "@/components/clients/ClientDrawer";
 
@@ -46,8 +47,7 @@ function initials(name: string) {
 const searchSchema = z.object({
   q: z.string().catch("").default(""),
   status: z.enum(["todos", "ativo", "prospecto", "inadimplente", "inativo"]).catch("todos").default("todos"),
-  service: z.string().catch("todos").default("todos"),
-  sort: z.enum(["recent", "name", "value"]).catch("recent").default("recent"),
+  sort: z.enum(["recent", "name"]).catch("recent").default("recent"),
   view: z.string().uuid().optional(),
 });
 type ClientesSearch = z.infer<typeof searchSchema>;
@@ -62,6 +62,7 @@ function ClientesPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/clientes" });
   const listFn = useServerFn(listClients);
+  const listProjectsFn = useServerFn(listProjects);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ClientRow | null>(null);
 
@@ -69,19 +70,24 @@ function ClientesPage() {
     queryKey: ["clients"],
     queryFn: () => listFn(),
   });
+  const { data: projectsData } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => listProjectsFn(),
+  });
   const all = data?.clients ?? [];
 
-  const services = useMemo(() => {
-    const set = new Set<string>();
-    all.forEach((c) => c.service && set.add(c.service));
-    return Array.from(set).sort();
-  }, [all]);
+  const projectCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (projectsData?.projects ?? []).forEach((p: any) => {
+      if (p.client_id) counts[p.client_id] = (counts[p.client_id] ?? 0) + 1;
+    });
+    return counts;
+  }, [projectsData]);
 
   const filtered = useMemo(() => {
     const q = search.q.trim().toLowerCase();
     let rows = all.filter((c) => {
       if (search.status !== "todos" && c.status !== search.status) return false;
-      if (search.service !== "todos" && c.service !== search.service) return false;
       if (q) {
         const hay = `${c.name} ${c.company ?? ""} ${c.email ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -89,8 +95,6 @@ function ClientesPage() {
       return true;
     });
     if (search.sort === "name") rows = [...rows].sort((a, b) => a.name.localeCompare(b.name));
-    else if (search.sort === "value")
-      rows = [...rows].sort((a, b) => (b.monthly_value ?? 0) - (a.monthly_value ?? 0));
     return rows;
   }, [all, search]);
 
@@ -112,7 +116,7 @@ function ClientesPage() {
               <Users className="h-6 w-6" /> Clientes
             </h1>
             <p className="text-sm text-muted-foreground">
-              Cadastro, contratos e histórico de cada cliente.
+              Cadastro e histórico de cada cliente.
             </p>
           </div>
           <Button onClick={() => setCreateOpen(true)}>
@@ -140,21 +144,11 @@ function ClientesPage() {
               <SelectItem value="inativo">Inativo</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={search.service} onValueChange={(v) => setParam("service", v)}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Serviço" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os serviços</SelectItem>
-              {services.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={search.sort} onValueChange={(v) => setParam("sort", v as typeof search.sort)}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="recent">Mais recentes</SelectItem>
               <SelectItem value="name">Nome (A–Z)</SelectItem>
-              <SelectItem value="value">Maior valor mensal</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -182,10 +176,8 @@ function ClientesPage() {
                 <TableRow>
                   <TableHead>Cliente</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
-                  <TableHead className="hidden lg:table-cell">Serviço</TableHead>
                   <TableHead className="hidden md:table-cell">Contato</TableHead>
-                  <TableHead className="hidden lg:table-cell">Renovação</TableHead>
-                  <TableHead className="text-right">Valor /mês</TableHead>
+                  <TableHead className="text-right">Projetos</TableHead>
                   <TableHead className="w-[120px] text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -216,24 +208,16 @@ function ClientesPage() {
                         {STATUS_LABEL[c.status]}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                      {c.service || "—"}
-                    </TableCell>
                     <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                       <div className="truncate max-w-[200px]">{c.email || "—"}</div>
                       {(c.phone || c.whatsapp) && (
                         <div className="text-xs">{c.phone || c.whatsapp}</div>
                       )}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                      {c.contract_renewal
-                        ? new Date(c.contract_renewal).toLocaleDateString("pt-BR")
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-medium">
-                      {c.monthly_value != null
-                        ? `R$ ${Number(c.monthly_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                        : "—"}
+                    <TableCell className="text-right">
+                      <Badge variant="outline" className="font-medium">
+                        {projectCounts[c.id] ?? 0}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">
