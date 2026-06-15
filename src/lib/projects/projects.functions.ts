@@ -664,3 +664,26 @@ export const generateRecurringInvoice = createServerFn({ method: "POST" })
 
     return { ok: true as const, due_date: dueIso, next_billing_date: nextIso };
   });
+
+// ---------- Roadmap stages ----------
+const stageSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  done: z.boolean(),
+});
+
+export const updateRoadmapStages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      project_id: z.string().uuid(),
+      stages: z.array(stageSchema).min(1).max(20),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("projects")
+      .update({ roadmap_stages: data.stages })
+      .eq("id", data.project_id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });

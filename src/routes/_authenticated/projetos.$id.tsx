@@ -37,6 +37,7 @@ import {
   Tooltip as RTooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
+import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { toast } from "sonner";
 
@@ -168,7 +169,7 @@ function ProjectCommandCenter() {
       <div className="space-y-6 min-w-0">
         <ExecutiveHeader p={p} d={d} />
         <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
-        <KpiRow d={d} />
+        <RoadmapStagesPanel projectId={id} stages={p.roadmap_stages} />
         <ExecutionPanel execution={d.execution} onOpenTask={(tid: string) => navigate({ to: "/tarefas", search: { task: tid } as any })} />
         <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
         <RoadmapTimeline milestones={d.milestones} projectId={id} />
