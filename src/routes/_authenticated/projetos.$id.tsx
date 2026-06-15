@@ -924,7 +924,11 @@ function NotesSection({ notes, projectId }: { notes: any; projectId: string }) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(notes ? new Date(notes.updated_at) : null);
 
-  useEffect(() => { setHtml(notes?.content_html ?? ""); }, [notes?.content_html]);
+  // Carrega o conteúdo apenas na primeira vez que `notes` chega — evita sobrescrever o que o usuário está digitando quando a query refaz fetch.
+  useEffect(() => {
+    if (notes?.content_html != null && html === "") setHtml(notes.content_html);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes?.id]);
 
   useEffect(() => {
     if (html === (notes?.content_html ?? "")) return;
