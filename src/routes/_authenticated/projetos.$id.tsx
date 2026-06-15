@@ -40,6 +40,7 @@ import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
 import { ProjectCommercialTable } from "@/components/projects/ProjectCommercialTable";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
+import { NewTaskSheet } from "@/components/tasks/NewTaskSheet";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/projetos/$id")({
@@ -257,6 +258,27 @@ function ExecutiveHeader({ p, d }: any) {
         </div>
       </div>
     </Card>
+  );
+}
+
+function QuickCreateTaskButton({
+  projectId, clientId, projectName, clientName,
+}: { projectId: string; clientId: string | null; projectName: string; clientName: string | null }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)} className="bg-[#00D084] hover:bg-[#00b873] text-white">
+        <Plus className="h-4 w-4 mr-2" /> Criar tarefa
+      </Button>
+      <NewTaskSheet
+        open={open}
+        onOpenChange={setOpen}
+        defaultProjectId={projectId}
+        defaultClientId={clientId}
+        projectName={projectName}
+        clientName={clientName}
+      />
+    </>
   );
 }
 
