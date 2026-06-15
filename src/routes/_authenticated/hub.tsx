@@ -7,6 +7,7 @@ import {
   Calendar, CheckSquare, FolderKanban, Users, DollarSign,
   FolderArchive, Sparkles, ArrowRight, Clock,
 } from "lucide-react";
+import hubDarkBg from "@/assets/hub-dark-bg.png.asset.json";
 
 export const Route = createFileRoute("/_authenticated/hub")({
   head: () => ({ meta: [{ title: "Hub Central — Hublynx Core" }] }),
