@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { Fragment, useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -226,7 +226,7 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
               const onlyExp = g.kinds.size === 1 && g.kinds.has("pagar");
               const totalColor = onlyRev ? "text-emerald-600" : onlyExp ? "text-rose-600" : "text-foreground";
               return (
-                <FragmentGroup key={`g-${g.label}`}>
+                <Fragment key={`g-${g.label}`}>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide">
                       {g.label} <span className="text-muted-foreground font-normal normal-case">· {g.rows.length} {g.rows.length === 1 ? "item" : "itens"}</span>
@@ -274,7 +274,7 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
                       </TableRow>
                     );
                   })}
-                </FragmentGroup>
+                </Fragment>
               );
             })}
           </TableBody>
