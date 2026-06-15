@@ -1033,6 +1033,8 @@ function CommercialPanel({ commercial, projectId }: { commercial: any; projectId
           )}
         </div>
       )}
+
+      <ProjectCommercialTable projectId={projectId} />
     </Card>
   );
 }
