@@ -24,9 +24,13 @@ const DEFAULT_STAGES: RoadmapStage[] = [
 export function RoadmapStagesPanel({
   projectId,
   stages: initialStages,
+  disabled = false,
+  disabledMessage,
 }: {
   projectId: string;
   stages: RoadmapStage[] | null | undefined;
+  disabled?: boolean;
+  disabledMessage?: string;
 }) {
   const qc = useQueryClient();
   const updateFn = useServerFn(updateRoadmapStages);
@@ -34,6 +38,19 @@ export function RoadmapStagesPanel({
     Array.isArray(initialStages) && initialStages.length > 0
       ? initialStages
       : DEFAULT_STAGES;
+
+  if (disabled) {
+    return (
+      <Card className="rounded-2xl p-5 opacity-80">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-semibold text-sm">Roadmap do Projeto</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {disabledMessage ?? "Roadmap indisponível para este modelo de projeto."}
+        </p>
+      </Card>
+    );
+  }
 
   const [editing, setEditing] = useState(false);
 

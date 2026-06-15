@@ -622,7 +622,13 @@ export const saveProjectNotes = createServerFn({ method: "POST" })
 // ---------- Recurring invoice (mensal_recorrente / suporte_continuo) ----------
 export const generateRecurringInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ project_id: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({
+      project_id: z.string().uuid(),
+      amount: z.number().positive().optional(),
+      description: z.string().max(500).optional(),
+    }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { data: proj, error: pErr } = await context.supabase
       .from("projects")
@@ -631,14 +637,12 @@ export const generateRecurringInvoice = createServerFn({ method: "POST" })
       .single();
     if (pErr) throw new Error(pErr.message);
     const p: any = proj;
-    if (!["mensal_recorrente", "suporte_continuo"].includes(p.commercial_model)) {
-      throw new Error("Projeto não é recorrente");
-    }
-    const amount = Number(p.monthly_value ?? 0);
-    if (!amount) throw new Error("Defina o valor mensal do projeto");
+    const isRecurring = ["mensal_recorrente", "suporte_continuo"].includes(p.commercial_model);
+    const amount = Number(data.amount ?? p.monthly_value ?? 0);
+    if (!amount) throw new Error("Informe um valor para a cobrança");
 
     const today = new Date();
-    const base = p.next_billing_date ? new Date(p.next_billing_date) : today;
+    const base = isRecurring && p.next_billing_date ? new Date(p.next_billing_date) : today;
     const dueIso = base.toISOString().slice(0, 10);
 
     const { error: fErr } = await context.supabase.from("finances").insert({
@@ -646,23 +650,104 @@ export const generateRecurringInvoice = createServerFn({ method: "POST" })
       project_id: p.id,
       client_id: p.client_id,
       kind: "receber",
-      description: `Cobrança recorrente — ${p.name}`,
+      description: data.description ?? `Cobrança — ${p.name}`,
       amount,
       due_date: dueIso,
       status: "pendente",
     });
     if (fErr) throw new Error(fErr.message);
 
-    // advance next billing by ~1 month
-    const next = new Date(base);
-    next.setMonth(next.getMonth() + 1);
-    const nextIso = next.toISOString().slice(0, 10);
-    await context.supabase
-      .from("projects")
-      .update({ next_billing_date: nextIso })
-      .eq("id", p.id);
+    if (isRecurring) {
+      const next = new Date(base);
+      next.setMonth(next.getMonth() + 1);
+      const nextIso = next.toISOString().slice(0, 10);
+      await context.supabase
+        .from("projects")
+        .update({ next_billing_date: nextIso })
+        .eq("id", p.id);
+      return { ok: true as const, due_date: dueIso, next_billing_date: nextIso };
+    }
+    return { ok: true as const, due_date: dueIso, next_billing_date: null };
+  });
 
-    return { ok: true as const, due_date: dueIso, next_billing_date: nextIso };
+// ---------- Project finance entries (reuses `finances` table) ----------
+export const listProjectFinances = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ project_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("finances")
+      .select("id, kind, description, amount, due_date, paid_at, status, recurrence, payment_method")
+      .eq("project_id", data.project_id)
+      .order("due_date", { ascending: false });
+    if (error) throw new Error(error.message);
+    const items = (rows ?? []) as any[];
+    let revenue = 0, expense = 0;
+    for (const r of items) {
+      const amt = Number(r.amount) || 0;
+      if (r.status === "pago") {
+        if (r.kind === "receber") revenue += amt;
+        else expense += amt;
+      }
+    }
+    return { items, totals: { revenue, expense, balance: revenue - expense } };
+  });
+
+const financeEntrySchema = z.object({
+  id: z.string().uuid().optional(),
+  project_id: z.string().uuid(),
+  kind: z.enum(["receber", "pagar"]),
+  periodicity: z.enum(["diaria", "mensal"]),
+  description: z.string().max(500).optional().nullable(),
+  amount: z.number().positive(),
+  due_date: z.string().min(8),
+  status: z.enum(["pendente", "pago"]),
+  payment_method: z.string().max(80).optional().nullable(),
+});
+
+export const upsertProjectFinance = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => financeEntrySchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: proj, error: pErr } = await context.supabase
+      .from("projects")
+      .select("id, client_id")
+      .eq("id", data.project_id)
+      .single();
+    if (pErr) throw new Error(pErr.message);
+
+    const payload: any = {
+      owner_id: context.userId,
+      project_id: data.project_id,
+      client_id: (proj as any).client_id,
+      kind: data.kind,
+      description: data.description ?? null,
+      amount: data.amount,
+      due_date: data.due_date,
+      status: data.status,
+      payment_method: data.payment_method ?? null,
+      recurrence: data.periodicity === "mensal" ? "monthly" : "none",
+      paid_at: data.status === "pago" ? new Date().toISOString() : null,
+    };
+    if (data.id) {
+      const { error } = await context.supabase
+        .from("finances").update(payload).eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { ok: true as const, id: data.id };
+    }
+    const { data: ins, error } = await context.supabase
+      .from("finances").insert(payload).select("id").single();
+    if (error) throw new Error(error.message);
+    return { ok: true as const, id: (ins as any).id };
+  });
+
+export const deleteProjectFinance = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("finances").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });
 
 // ---------- Roadmap stages ----------
