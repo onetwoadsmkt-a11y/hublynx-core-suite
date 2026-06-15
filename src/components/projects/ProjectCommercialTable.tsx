@@ -120,11 +120,7 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
       if (isNaN(d.getTime())) continue;
       set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     }
-    return Array.from(set).sort((a, b) => {
-      if (a === currentMonthKey) return -1;
-      if (b === currentMonthKey) return 1;
-      return b.localeCompare(a);
-    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [items, currentMonthKey]);
 
   function monthLabelOf(key: string) {
