@@ -252,13 +252,8 @@ function ExecutiveHeader({ p, d }: any) {
             )}
           </div>
         </div>
-        <div className="w-full sm:w-64 shrink-0">
-          <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-muted-foreground">Progresso geral</span>
-            <span className="font-semibold">{d.kpis.progress}%</span>
-          </div>
-          <Progress value={d.kpis.progress} className="h-2" />
-          <p className="text-[11px] text-muted-foreground mt-1.5">{d.kpis.doneTasks} de {d.kpis.totalTasks} tarefas concluídas</p>
+        <div className="shrink-0">
+          <QuickCreateTaskButton projectId={p.id} clientId={p.client?.id ?? null} projectName={p.name} clientName={p.client?.name ?? null} />
         </div>
       </div>
     </Card>
