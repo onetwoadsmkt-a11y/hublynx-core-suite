@@ -276,18 +276,8 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
                   </TableCell>
                 </TableRow>
                 {mg.descs.map((g) => {
-                  const onlyRev = g.kinds.size === 1 && g.kinds.has("receber");
-                  const onlyExp = g.kinds.size === 1 && g.kinds.has("pagar");
-                  const totalColor = onlyRev ? "text-emerald-600" : onlyExp ? "text-rose-600" : "text-foreground";
                   return (
                     <Fragment key={`g-${mg.key}-${g.label}`}>
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide pl-4">
-                          {g.label} <span className="text-muted-foreground font-normal normal-case">· {g.rows.length} {g.rows.length === 1 ? "item" : "itens"}</span>
-                        </TableCell>
-                        <TableCell className={`text-right font-semibold ${totalColor}`}>{brl(g.total)}</TableCell>
-                        <TableCell colSpan={2} />
-                      </TableRow>
                       {g.rows.map((r) => {
                         const per = r.recurrence === "monthly" ? "Mensal" : "Diária";
                         const isRev = r.kind === "receber";
