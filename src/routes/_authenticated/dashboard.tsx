@@ -163,10 +163,6 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">{greeting()}, {me ?? "..."}! 👋</h1>
-        <p className="text-muted-foreground mt-1">Aqui está o resumo da sua operação hoje.</p>
-      </div>
 
       <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
         {KPI.map((kp) => {
