@@ -16,6 +16,7 @@ import {
 import { deleteClient, type ClientRow } from "@/lib/clients/clients.functions";
 import { ClientDocumentsTab } from "./ClientDocumentsTab";
 import { ClientHistoryTab } from "./ClientHistoryTab";
+import { ClientProjectsTab } from "./ClientProjectsTab";
 import { ClientFormDialog } from "./ClientFormDialog";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -88,6 +89,7 @@ export function ClientDrawer({
           <Tabs defaultValue="dados" className="flex-1 flex flex-col min-h-0">
             <TabsList className="mx-6 mt-2 self-start">
               <TabsTrigger value="dados">Dados</TabsTrigger>
+              <TabsTrigger value="projetos">Projetos</TabsTrigger>
               <TabsTrigger value="docs">Contratos & Documentos</TabsTrigger>
               <TabsTrigger value="historico">Histórico</TabsTrigger>
             </TabsList>
@@ -124,6 +126,10 @@ export function ClientDrawer({
                     <Field label="Observações" value={<span className="whitespace-pre-wrap">{client.notes}</span>} />
                   </>
                 )}
+              </TabsContent>
+
+              <TabsContent value="projetos" className="px-6 py-4 mt-0">
+                <ClientProjectsTab clientId={client.id} />
               </TabsContent>
 
               <TabsContent value="docs" className="px-6 py-4 mt-0">
