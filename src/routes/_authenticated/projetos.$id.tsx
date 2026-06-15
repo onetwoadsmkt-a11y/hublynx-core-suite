@@ -40,6 +40,7 @@ import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
 import { ProjectCommercialTable } from "@/components/projects/ProjectCommercialTable";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
+import { NewTaskSheet } from "@/components/tasks/NewTaskSheet";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/projetos/$id")({
@@ -252,16 +253,32 @@ function ExecutiveHeader({ p, d }: any) {
             )}
           </div>
         </div>
-        <div className="w-full sm:w-64 shrink-0">
-          <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-muted-foreground">Progresso geral</span>
-            <span className="font-semibold">{d.kpis.progress}%</span>
-          </div>
-          <Progress value={d.kpis.progress} className="h-2" />
-          <p className="text-[11px] text-muted-foreground mt-1.5">{d.kpis.doneTasks} de {d.kpis.totalTasks} tarefas concluídas</p>
+        <div className="shrink-0">
+          <QuickCreateTaskButton projectId={p.id} clientId={p.client?.id ?? null} projectName={p.name} clientName={p.client?.name ?? null} />
         </div>
       </div>
     </Card>
+  );
+}
+
+function QuickCreateTaskButton({
+  projectId, clientId, projectName, clientName,
+}: { projectId: string; clientId: string | null; projectName: string; clientName: string | null }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)} className="bg-[#00D084] hover:bg-[#00b873] text-white">
+        <Plus className="h-4 w-4 mr-2" /> Criar tarefa
+      </Button>
+      <NewTaskSheet
+        open={open}
+        onOpenChange={setOpen}
+        defaultProjectId={projectId}
+        defaultClientId={clientId}
+        projectName={projectName}
+        clientName={clientName}
+      />
+    </>
   );
 }
 
