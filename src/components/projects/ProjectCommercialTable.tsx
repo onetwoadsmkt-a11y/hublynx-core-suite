@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,8 @@ type Entry = {
   status: Status | "atrasado";
   recurrence: "none" | "monthly";
   payment_method: string | null;
+  installment_no?: number | null;
+  installment_total?: number | null;
 };
 
 function brl(n: number) {
@@ -62,6 +64,9 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Entry | null>(null);
   const [defaultKind, setDefaultKind] = useState<Kind>("receber");
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsEntry, setDetailsEntry] = useState<Entry | null>(null);
 
   const [chargeOpen, setChargeOpen] = useState(false);
   const [chargeAmount, setChargeAmount] = useState("");
@@ -100,14 +105,43 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
   });
 
   const items: Entry[] = (q.data?.items ?? []) as any;
+
+  // Mês atual
+  const monthLabel = useMemo(() => {
+    const d = new Date();
+    const s = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }, []);
+
   const filtered = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
     return items.filter((it) => {
       if (kindFilter !== "all" && it.kind !== kindFilter) return false;
       const per: Periodicity = it.recurrence === "monthly" ? "mensal" : "diaria";
       if (periodFilter !== "all" && per !== periodFilter) return false;
+      const d = new Date(it.due_date);
+      if (d.getFullYear() !== y || d.getMonth() !== m) return false;
       return true;
     });
   }, [items, kindFilter, periodFilter]);
+
+  // Agrupar por descrição
+  const groups = useMemo(() => {
+    const map = new Map<string, { label: string; rows: Entry[]; total: number; kinds: Set<Kind> }>();
+    for (const r of filtered) {
+      const raw = (r.description ?? "").trim();
+      const key = raw ? raw.toLowerCase() : "__sem__";
+      const label = raw || "Sem descrição";
+      const g = map.get(key) ?? { label, rows: [], total: 0, kinds: new Set<Kind>() };
+      g.rows.push(r);
+      g.total += Number(r.amount) || 0;
+      g.kinds.add(r.kind);
+      map.set(key, g);
+    }
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  }, [filtered]);
 
   const totals = useMemo(() => {
     let rev = 0, exp = 0;
@@ -130,9 +164,12 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
     <div className="border rounded-2xl p-4 bg-card mt-4">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <div>
-          <h4 className="font-semibold text-sm">Lançamentos Comerciais</h4>
+          <h4 className="font-semibold text-sm flex items-center gap-2">
+            Lançamentos Comerciais
+            <Badge variant="outline" className="text-[10px] font-normal">{monthLabel}</Badge>
+          </h4>
           <p className="text-xs text-muted-foreground">
-            Receitas e despesas (diárias e mensais) deste projeto.
+            Agrupados por descrição · mês atual.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -181,44 +218,63 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
             {q.isLoading && (
               <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Carregando…</TableCell></TableRow>
             )}
-            {!q.isLoading && filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhum lançamento</TableCell></TableRow>
+            {!q.isLoading && groups.length === 0 && (
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhum lançamento no mês atual</TableCell></TableRow>
             )}
-            {filtered.map((r) => {
-              const per = r.recurrence === "monthly" ? "Mensal" : "Diária";
-              const isRev = r.kind === "receber";
+            {groups.map((g) => {
+              const onlyRev = g.kinds.size === 1 && g.kinds.has("receber");
+              const onlyExp = g.kinds.size === 1 && g.kinds.has("pagar");
+              const totalColor = onlyRev ? "text-emerald-600" : onlyExp ? "text-rose-600" : "text-foreground";
               return (
-                <TableRow key={r.id}>
-                  <TableCell className="whitespace-nowrap">{fmtDate(r.due_date)}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={isRev ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}>
-                      {isRev ? "Receita" : "Despesa"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs">{per}</TableCell>
-                  <TableCell className="max-w-[260px] truncate">{r.description || "—"}</TableCell>
-                  <TableCell className={`text-right font-medium ${isRev ? "text-emerald-600" : "text-rose-600"}`}>
-                    {brl(Number(r.amount))}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={
-                      r.status === "pago" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : r.status === "atrasado" ? "border-rose-200 bg-rose-50 text-rose-700"
-                      : "border-amber-200 bg-amber-50 text-amber-700"
-                    }>
-                      {r.status === "pago" ? (isRev ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(r); setDefaultKind(r.kind); setDialogOpen(true); }}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600"
-                      onClick={() => { if (confirm("Remover lançamento?")) delMut.mutate(r.id); }}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                <>
+                  <TableRow key={`g-${g.label}`} className="bg-muted/40 hover:bg-muted/40">
+                    <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide">
+                      {g.label} <span className="text-muted-foreground font-normal normal-case">· {g.rows.length} {g.rows.length === 1 ? "item" : "itens"}</span>
+                    </TableCell>
+                    <TableCell className={`text-right font-semibold ${totalColor}`}>{brl(g.total)}</TableCell>
+                    <TableCell colSpan={2} />
+                  </TableRow>
+                  {g.rows.map((r) => {
+                    const per = r.recurrence === "monthly" ? "Mensal" : "Diária";
+                    const isRev = r.kind === "receber";
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell className="whitespace-nowrap pl-6">{fmtDate(r.due_date)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={isRev ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}>
+                            {isRev ? "Receita" : "Despesa"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">{per}</TableCell>
+                        <TableCell className="max-w-[260px] truncate">{r.description || "—"}</TableCell>
+                        <TableCell className={`text-right font-medium ${isRev ? "text-emerald-600" : "text-rose-600"}`}>
+                          {brl(Number(r.amount))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={
+                            r.status === "pago" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : r.status === "atrasado" ? "border-rose-200 bg-rose-50 text-rose-700"
+                            : "border-amber-200 bg-amber-50 text-amber-700"
+                          }>
+                            {r.status === "pago" ? (isRev ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setDetailsEntry(r); setDetailsOpen(true); }}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(r); setDefaultKind(r.kind); setDialogOpen(true); }}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600"
+                            onClick={() => { if (confirm("Remover lançamento?")) delMut.mutate(r.id); }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </>
               );
             })}
           </TableBody>
@@ -244,6 +300,18 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
         }}
       />
 
+      <EntryDetailsDialog
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        entry={detailsEntry}
+        onEdit={(e) => {
+          setDetailsOpen(false);
+          setEditing(e);
+          setDefaultKind(e.kind);
+          setDialogOpen(true);
+        }}
+      />
+
       <Dialog open={chargeOpen} onOpenChange={setChargeOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Gerar cobrança</DialogTitle></DialogHeader>
@@ -266,6 +334,66 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function EntryDetailsDialog({
+  open, onOpenChange, entry, onEdit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  entry: Entry | null;
+  onEdit: (e: Entry) => void;
+}) {
+  if (!entry) return null;
+  const isRev = entry.kind === "receber";
+  const per = entry.recurrence === "monthly" ? "Mensal" : "Diária";
+
+  const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="flex items-start justify-between gap-4 py-2 border-b last:border-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium text-right">{value}</span>
+    </div>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            Resumo do lançamento
+            <Badge variant="outline" className={isRev ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}>
+              {isRev ? "Receita" : "Despesa"}
+            </Badge>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid">
+          <Row label="Descrição" value={entry.description || "—"} />
+          <Row label="Valor" value={<span className={isRev ? "text-emerald-600" : "text-rose-600"}>{brl(Number(entry.amount))}</span>} />
+          <Row label="Vencimento" value={fmtDate(entry.due_date)} />
+          <Row label="Pagamento" value={fmtDate(entry.paid_at)} />
+          <Row label="Status" value={
+            <Badge variant="outline" className={
+              entry.status === "pago" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : entry.status === "atrasado" ? "border-rose-200 bg-rose-50 text-rose-700"
+              : "border-amber-200 bg-amber-50 text-amber-700"
+            }>
+              {entry.status === "pago" ? (isRev ? "Recebido" : "Pago") : entry.status === "atrasado" ? "Atrasado" : "Pendente"}
+            </Badge>
+          } />
+          <Row label="Periodicidade" value={per} />
+          <Row label="Recorrência" value={entry.recurrence === "monthly" ? "Mensal" : "Sem recorrência"} />
+          <Row label="Método" value={entry.payment_method || "—"} />
+          {entry.installment_total && entry.installment_total > 1 && (
+            <Row label="Parcela" value={`${entry.installment_no ?? 1} / ${entry.installment_total}`} />
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+          <Button onClick={() => onEdit(entry)}>Editar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
