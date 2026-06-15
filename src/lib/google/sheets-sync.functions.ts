@@ -206,7 +206,12 @@ export const syncEntityToSheets = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    return performSheetsSync(context.supabase, data.entityType as EntityType, data.recordId);
+    try {
+      return await performSheetsSync(context.supabase, data.entityType as EntityType, data.recordId);
+    } catch (e: any) {
+      console.warn("[sheets-sync] skipped:", e?.message ?? e);
+      return { ok: false as const, reason: "sync_failed", message: String(e?.message ?? e).slice(0, 200) };
+    }
   });
 
 export const deleteEntityRowFromSheets = createServerFn({ method: "POST" })
