@@ -179,17 +179,25 @@ function HubCentral() {
 
   return (
     <div className="relative -m-6 min-h-[calc(100vh-3.5rem)] overflow-hidden">
-      {/* Gradient background */}
+      {/* Light gradient */}
       <div
-        className="pointer-events-none absolute inset-0 -z-10"
+        className="pointer-events-none absolute inset-0 -z-10 dark:hidden"
+        style={{
+          background:
+            "radial-gradient(1200px 600px at 15% -10%, rgba(0,208,132,0.12), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(7,26,61,0.08), transparent 65%), linear-gradient(180deg, #F4F7FB 0%, #E8EEF7 100%)",
+        }}
+      />
+      {/* Dark gradient */}
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 hidden dark:block"
         style={{
           background:
             "radial-gradient(1200px 600px at 15% -10%, rgba(0,208,132,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(7,26,61,0.55), transparent 65%), linear-gradient(180deg, #071A3D 0%, #050f24 100%)",
         }}
       />
-      <div className="pointer-events-none absolute inset-0 -z-10 opacity-[0.04] [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:24px_24px]" />
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-[0.05] [background-image:radial-gradient(currentColor_1px,transparent_1px)] [background-size:24px_24px] text-[#071A3D] dark:text-white" />
 
-      <div className="mx-auto max-w-4xl px-6 py-16 sm:py-24 text-white">
+      <div className="mx-auto max-w-4xl px-6 py-16 sm:py-24 text-[#071A3D] dark:text-white">
         {/* SEÇÃO 1 — Saudação */}
         <motion.section
           initial={{ opacity: 0, y: 16 }}
@@ -200,8 +208,8 @@ function HubCentral() {
           <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight">
             {greeting()}, {me ?? "..."} <span className="inline-block">👋</span>
           </h1>
-          <p className="text-lg text-white/70 italic">"{quote}"</p>
-          <p className="flex items-center gap-2 text-sm text-white/50 capitalize">
+          <p className="text-lg text-[#071A3D]/70 dark:text-white/70 italic">"{quote}"</p>
+          <p className="flex items-center gap-2 text-sm text-[#071A3D]/55 dark:text-white/50 capitalize">
             <Clock className="h-3.5 w-3.5" />
             {dateStr} · {timeStr}
           </p>
@@ -212,7 +220,7 @@ function HubCentral() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="mt-12 flex flex-wrap gap-x-8 gap-y-3 text-sm text-white/80"
+          className="mt-12 flex flex-wrap gap-x-8 gap-y-3 text-sm text-[#071A3D]/85 dark:text-white/80"
         >
           {summary.map((s) => (
             <span key={s.text} className="inline-flex items-center gap-2">
@@ -229,17 +237,17 @@ function HubCentral() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="mt-14"
         >
-          <p className="text-xs uppercase tracking-[0.2em] text-[#00D084]/80 mb-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-[#00A86A] dark:text-[#00D084]/80 mb-4">
             Próxima Ação
           </p>
           {nextAction ? (
-            <div className="group flex flex-col sm:flex-row sm:items-center gap-6 rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm transition-colors hover:border-[#00D084]/40">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#00D084]/15 text-[#00D084]">
+            <div className="group flex flex-col sm:flex-row sm:items-center gap-6 rounded-2xl border border-[#071A3D]/10 dark:border-white/10 bg-white/60 dark:bg-white/[0.03] p-6 backdrop-blur-sm transition-colors hover:border-[#00D084]/40">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#00D084]/15 text-[#00A86A] dark:text-[#00D084]">
                 <nextAction.icon className="h-5 w-5" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-lg font-medium truncate">{nextAction.title}</p>
-                <p className="text-sm text-white/60 truncate">
+                <p className="text-sm text-[#071A3D]/60 dark:text-white/60 truncate">
                   {nextAction.subtitle} · {nextAction.when}
                 </p>
               </div>
@@ -251,7 +259,7 @@ function HubCentral() {
               </Link>
             </div>
           ) : (
-            <p className="text-white/60">Nenhuma pendência crítica encontrada.</p>
+            <p className="text-[#071A3D]/60 dark:text-white/60">Nenhuma pendência crítica encontrada.</p>
           )}
         </motion.section>
 
@@ -262,12 +270,12 @@ function HubCentral() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="mt-14 flex items-start gap-3"
         >
-          <Sparkles className="h-5 w-5 shrink-0 text-[#00D084] mt-0.5" />
+          <Sparkles className="h-5 w-5 shrink-0 text-[#00A86A] dark:text-[#00D084] mt-0.5" />
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-white/50 mb-1">
+            <p className="text-xs uppercase tracking-[0.2em] text-[#071A3D]/55 dark:text-white/50 mb-1">
               Insight Hublynx
             </p>
-            <p className="text-base text-white/85">{insight}</p>
+            <p className="text-base text-[#071A3D]/90 dark:text-white/85">{insight}</p>
           </div>
         </motion.section>
 
@@ -278,7 +286,7 @@ function HubCentral() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="mt-14"
         >
-          <p className="text-xs uppercase tracking-[0.2em] text-white/50 mb-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-[#071A3D]/55 dark:text-white/50 mb-4">
             Acesso rápido
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -288,9 +296,9 @@ function HubCentral() {
                 <Link
                   key={q.to}
                   to={q.to}
-                  className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm font-medium text-white/85 backdrop-blur-sm transition-all hover:border-[#00D084]/40 hover:bg-white/[0.06] hover:text-white"
+                  className="group flex items-center gap-3 rounded-xl border border-[#071A3D]/10 dark:border-white/10 bg-white/60 dark:bg-white/[0.03] px-5 py-4 text-sm font-medium text-[#071A3D]/90 dark:text-white/85 backdrop-blur-sm transition-all hover:border-[#00D084]/40 hover:bg-white dark:hover:bg-white/[0.06]"
                 >
-                  <Icon className="h-4 w-4 text-[#00D084] transition-transform group-hover:scale-110" />
+                  <Icon className="h-4 w-4 text-[#00A86A] dark:text-[#00D084] transition-transform group-hover:scale-110" />
                   {q.label}
                 </Link>
               );
@@ -305,16 +313,16 @@ function HubCentral() {
           transition={{ duration: 0.6, delay: 0.5 }}
           className="mt-14"
         >
-          <p className="text-xs uppercase tracking-[0.2em] text-white/50 mb-5">
+          <p className="text-xs uppercase tracking-[0.2em] text-[#071A3D]/55 dark:text-white/50 mb-5">
             Resumo da semana
           </p>
-          <ul className="relative space-y-4 border-l border-white/10 pl-5">
+          <ul className="relative space-y-4 border-l border-[#071A3D]/10 dark:border-white/10 pl-5">
             {timeline.map((t) => (
               <li key={t.label} className="relative">
                 <span className="absolute -left-[26px] top-1.5 h-2 w-2 rounded-full bg-[#00D084] shadow-[0_0_0_4px_rgba(0,208,132,0.15)]" />
                 <div className="flex items-baseline justify-between gap-4">
-                  <span className="text-sm text-white/75">{t.label}</span>
-                  <span className="text-sm font-semibold tabular-nums text-white">
+                  <span className="text-sm text-[#071A3D]/75 dark:text-white/75">{t.label}</span>
+                  <span className="text-sm font-semibold tabular-nums">
                     {t.value}
                   </span>
                 </div>
@@ -328,13 +336,13 @@ function HubCentral() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.7 }}
-          className="mt-20 border-t border-white/10 pt-8 text-center"
+          className="mt-20 border-t border-[#071A3D]/10 dark:border-white/10 pt-8 text-center"
         >
-          <p className="text-sm text-white/65">
+          <p className="text-sm text-[#071A3D]/70 dark:text-white/65">
             Hoje você avançou mais um passo em direção aos seus objetivos.
           </p>
-          <p className="mt-1 text-sm text-white/65">Continue construindo.</p>
-          <p className="mt-4 text-xs uppercase tracking-[0.3em] text-[#00D084]/80">
+          <p className="mt-1 text-sm text-[#071A3D]/70 dark:text-white/65">Continue construindo.</p>
+          <p className="mt-4 text-xs uppercase tracking-[0.3em] text-[#00A86A] dark:text-[#00D084]/80">
             Hublynx Core Suite
           </p>
         </motion.section>
