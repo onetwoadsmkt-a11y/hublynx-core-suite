@@ -265,65 +265,75 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
             {q.isLoading && (
               <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Carregando…</TableCell></TableRow>
             )}
-            {!q.isLoading && groups.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhum lançamento no mês atual</TableCell></TableRow>
+            {!q.isLoading && monthGroups.length === 0 && (
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhum lançamento encontrado</TableCell></TableRow>
             )}
-            {groups.map((g) => {
-              const onlyRev = g.kinds.size === 1 && g.kinds.has("receber");
-              const onlyExp = g.kinds.size === 1 && g.kinds.has("pagar");
-              const totalColor = onlyRev ? "text-emerald-600" : onlyExp ? "text-rose-600" : "text-foreground";
-              return (
-                <Fragment key={`g-${g.label}`}>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide">
-                      {g.label} <span className="text-muted-foreground font-normal normal-case">· {g.rows.length} {g.rows.length === 1 ? "item" : "itens"}</span>
-                    </TableCell>
-                    <TableCell className={`text-right font-semibold ${totalColor}`}>{brl(g.total)}</TableCell>
-                    <TableCell colSpan={2} />
-                  </TableRow>
-                  {g.rows.map((r) => {
-                    const per = r.recurrence === "monthly" ? "Mensal" : "Diária";
-                    const isRev = r.kind === "receber";
-                    return (
-                      <TableRow key={r.id}>
-                        <TableCell className="whitespace-nowrap pl-6">{fmtDate(r.due_date)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={isRev ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}>
-                            {isRev ? "Receita" : "Despesa"}
-                          </Badge>
+            {monthGroups.map((mg) => (
+              <Fragment key={`m-${mg.key}`}>
+                <TableRow className="bg-primary/10 hover:bg-primary/10">
+                  <TableCell colSpan={7} className="font-bold text-xs uppercase tracking-wider text-primary py-2">
+                    {mg.label}{mg.key === currentMonthKey ? " · Mês atual" : ""}
+                  </TableCell>
+                </TableRow>
+                {mg.descs.map((g) => {
+                  const onlyRev = g.kinds.size === 1 && g.kinds.has("receber");
+                  const onlyExp = g.kinds.size === 1 && g.kinds.has("pagar");
+                  const totalColor = onlyRev ? "text-emerald-600" : onlyExp ? "text-rose-600" : "text-foreground";
+                  return (
+                    <Fragment key={`g-${mg.key}-${g.label}`}>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide pl-4">
+                          {g.label} <span className="text-muted-foreground font-normal normal-case">· {g.rows.length} {g.rows.length === 1 ? "item" : "itens"}</span>
                         </TableCell>
-                        <TableCell className="text-xs">{per}</TableCell>
-                        <TableCell className="max-w-[260px] truncate">{r.description || "—"}</TableCell>
-                        <TableCell className={`text-right font-medium ${isRev ? "text-emerald-600" : "text-rose-600"}`}>
-                          {brl(Number(r.amount))}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={
-                            r.status === "pago" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : r.status === "atrasado" ? "border-rose-200 bg-rose-50 text-rose-700"
-                            : "border-amber-200 bg-amber-50 text-amber-700"
-                          }>
-                            {r.status === "pago" ? (isRev ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setDetailsEntry(r); setDetailsOpen(true); }}>
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(r); setDefaultKind(r.kind); setDialogOpen(true); }}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600"
-                            onClick={() => { if (confirm("Remover lançamento?")) delMut.mutate(r.id); }}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </TableCell>
+                        <TableCell className={`text-right font-semibold ${totalColor}`}>{brl(g.total)}</TableCell>
+                        <TableCell colSpan={2} />
                       </TableRow>
-                    );
-                  })}
-                </Fragment>
-              );
-            })}
+                      {g.rows.map((r) => {
+                        const per = r.recurrence === "monthly" ? "Mensal" : "Diária";
+                        const isRev = r.kind === "receber";
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="whitespace-nowrap pl-8">{fmtDate(r.due_date)}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={isRev ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}>
+                                {isRev ? "Receita" : "Despesa"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">{per}</TableCell>
+                            <TableCell className="max-w-[260px] truncate">{r.description || "—"}</TableCell>
+                            <TableCell className={`text-right font-medium ${isRev ? "text-emerald-600" : "text-rose-600"}`}>
+                              {brl(Number(r.amount))}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={
+                                r.status === "pago" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : r.status === "atrasado" ? "border-rose-200 bg-rose-50 text-rose-700"
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                              }>
+                                {r.status === "pago" ? (isRev ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setDetailsEntry(r); setDetailsOpen(true); }}>
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(r); setDefaultKind(r.kind); setDialogOpen(true); }}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-600"
+                                onClick={() => { if (confirm("Remover lançamento?")) delMut.mutate(r.id); }}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                })}
+              </Fragment>
+            ))}
+
           </TableBody>
         </Table>
       </div>
