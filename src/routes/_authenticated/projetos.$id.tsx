@@ -40,7 +40,8 @@ import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
 import { ProjectCommercialTable } from "@/components/projects/ProjectCommercialTable";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
-import { NewTaskSheet } from "@/components/tasks/NewTaskSheet";
+import { TaskDrawer } from "@/components/tasks/TaskDrawer";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/projetos/$id")({
