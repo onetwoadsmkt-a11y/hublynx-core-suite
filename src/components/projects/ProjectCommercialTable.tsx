@@ -287,6 +287,8 @@ function EntryDialog({
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<Status>("pendente");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [installments, setInstallments] = useState(1);
+  const [installmentMode, setInstallmentMode] = useState<"split" | "fixed">("split");
 
   useEffect(() => {
     if (!open) return;
@@ -298,6 +300,8 @@ function EntryDialog({
       setDueDate(initial.due_date);
       setStatus(initial.status === "pago" ? "pago" : "pendente");
       setPaymentMethod(initial.payment_method ?? "");
+      setInstallments(1);
+      setInstallmentMode("split");
     } else {
       setKind(defaultKind);
       setPeriodicity("diaria");
@@ -306,8 +310,11 @@ function EntryDialog({
       setDueDate(new Date().toISOString().slice(0, 10));
       setStatus("pendente");
       setPaymentMethod("");
+      setInstallments(1);
+      setInstallmentMode("split");
     }
   }, [open, initial, defaultKind]);
+
 
   const mut = useMutation({
     mutationFn: async () => {
