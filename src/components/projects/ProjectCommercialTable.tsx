@@ -331,8 +331,11 @@ function EntryDialog({
           due_date: dueDate,
           status,
           payment_method: paymentMethod || null,
+          installments: !initial ? installments : 1,
+          installment_mode: installmentMode,
         },
       });
+
     },
     onSuccess: () => {
       toast.success(initial ? "Atualizado" : "Lançamento criado");
