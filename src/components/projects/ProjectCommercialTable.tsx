@@ -274,7 +274,7 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
                       </TableRow>
                     );
                   })}
-                </>
+                </FragmentGroup>
               );
             })}
           </TableBody>
