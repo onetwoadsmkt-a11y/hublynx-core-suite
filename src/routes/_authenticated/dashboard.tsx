@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { CheckSquare, FolderKanban, DollarSign, Calendar as CalIcon, Users, Plus } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
+import { CheckSquare, FolderKanban, Calendar as CalIcon, Users, Plus } from "lucide-react";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -154,9 +154,6 @@ function Dashboard() {
       sub: k?.projectsOverdue ? `${k.projectsOverdue} em atraso` : "Em dia",
       subTone: k?.projectsOverdue ? "text-destructive" : "text-muted-foreground",
       icon: FolderKanban, color: "bg-success/10 text-success" },
-    { title: "A receber (7 dias)", value: fmtBRL(k?.receivables ?? 0),
-      sub: `${k?.receivablesCount ?? 0} recebimentos`,
-      subTone: "text-success", icon: DollarSign, color: "bg-[#7C3AED]/10 text-[#7C3AED]" },
     { title: "Reuniões hoje", value: k?.eventsToday ?? 0,
       sub: k?.nextEventTime ? `Próxima: ${k.nextEventTime}` : "Sem reuniões",
       subTone: "text-muted-foreground", icon: CalIcon, color: "bg-warning/15 text-warning-foreground" },
@@ -222,18 +219,6 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Financeiro */}
-        <Card className="shadow-[var(--shadow-soft)]">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Financeiro (próximos 7 dias)</CardTitle>
-            <Button asChild variant="outline" size="sm"><Link to="/financeiro">Ver relatório</Link></Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <FinanceRow label="Receber esta semana" value={fmtBRL(data?.finance.recvWeek ?? 0)} color="#00D084" data={data?.finance.seriesR ?? []} />
-            <FinanceRow label="Pagar esta semana" value={fmtBRL(data?.finance.payWeek ?? 0)} color="#EF4444" data={data?.finance.seriesP ?? []} />
-            <FinanceRow label="Saldo previsto" value={fmtBRL(data?.finance.balance ?? 0)} color="#2563EB" data={data?.finance.seriesS ?? []} />
-          </CardContent>
-        </Card>
 
         {/* Projetos em andamento */}
         <Card className="shadow-[var(--shadow-soft)]">
@@ -309,21 +294,3 @@ function EmptyState({ icon: Icon, text, cta, to }: { icon: any; text: string; ct
   );
 }
 
-function FinanceRow({ label, value, color, data }: { label: string; value: string; color: string; data: { i: number; v: number }[] }) {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="w-44 shrink-0">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-lg font-semibold" style={{ color }}>{value}</p>
-      </div>
-      <div className="flex-1 h-12">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-            <Line type="monotone" dataKey="v" stroke={color} strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
