@@ -165,49 +165,43 @@ function ProjectCommandCenter() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6">
-        {/* MAIN COLUMN */}
-        <div className="space-y-6 min-w-0">
-          <ExecutiveHeader p={p} d={d} />
-          <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
-          <KpiRow d={d} />
-          <ExecutionPanel execution={d.execution} onOpenTask={(tid: string) => navigate({ to: "/tarefas", search: { task: tid } as any })} />
-          <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
-          <RoadmapTimeline milestones={d.milestones} projectId={id} />
-          <FinanceSummary kpis={d.kpis} monthly={d.financeMonthly} />
-          <CommercialPanel commercial={d.commercial} projectId={id} />
+      <div className="space-y-6 min-w-0">
+        <ExecutiveHeader p={p} d={d} />
+        <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
+        <KpiRow d={d} />
+        <ExecutionPanel execution={d.execution} onOpenTask={(tid: string) => navigate({ to: "/tarefas", search: { task: tid } as any })} />
+        <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
+        <RoadmapTimeline milestones={d.milestones} projectId={id} />
+        <FinanceSummary kpis={d.kpis} monthly={d.financeMonthly} />
+        <CommercialPanel commercial={d.commercial} projectId={id} />
 
-          <UpcomingDeliveries upcoming={d.upcomingDeliveries} />
-          <KanbanCompact counts={d.kanbanCounts} />
-          <ActivityFeed activity={d.activity} />
+        <UpcomingDeliveries upcoming={d.upcomingDeliveries} />
+        <KanbanCompact counts={d.kanbanCounts} />
+        <ActivityFeed activity={d.activity} />
 
-          {/* Secondary content as accordion */}
-          <Accordion type="multiple" className="space-y-3">
-            <AccordionItem value="team" className="border rounded-2xl px-4 bg-card">
-              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><UsersIcon className="h-4 w-4" /> Equipe</span></AccordionTrigger>
-              <AccordionContent><TeamSection members={d.members} projectId={id} /></AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="risks" className="border rounded-2xl px-4 bg-card">
-              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" /> Riscos & Bloqueios</span></AccordionTrigger>
-              <AccordionContent><RisksSection risks={d.risks} projectId={id} /></AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="costs" className="border rounded-2xl px-4 bg-card">
-              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><Wallet className="h-4 w-4" /> Custos</span></AccordionTrigger>
-              <AccordionContent><CostsSection costs={d.costs} projectId={id} /></AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="files" className="border rounded-2xl px-4 bg-card">
-              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Arquivos</span></AccordionTrigger>
-              <AccordionContent><FilesSection files={d.files} /></AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="notes" className="border rounded-2xl px-4 bg-card">
-              <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Notas & Decisões</span></AccordionTrigger>
-              <AccordionContent><NotesSection notes={d.notes} projectId={id} /></AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </div>
-
-        {/* CONTEXT SIDEBAR */}
-        <ContextSidebar p={p} d={d} />
+        {/* Secondary content as accordion */}
+        <Accordion type="multiple" className="space-y-3">
+          <AccordionItem value="team" className="border rounded-2xl px-4 bg-card">
+            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><UsersIcon className="h-4 w-4" /> Equipe</span></AccordionTrigger>
+            <AccordionContent><TeamSection members={d.members} projectId={id} /></AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="risks" className="border rounded-2xl px-4 bg-card">
+            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" /> Riscos & Bloqueios</span></AccordionTrigger>
+            <AccordionContent><RisksSection risks={d.risks} projectId={id} /></AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="costs" className="border rounded-2xl px-4 bg-card">
+            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><Wallet className="h-4 w-4" /> Custos</span></AccordionTrigger>
+            <AccordionContent><CostsSection costs={d.costs} projectId={id} /></AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="files" className="border rounded-2xl px-4 bg-card">
+            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Arquivos</span></AccordionTrigger>
+            <AccordionContent><FilesSection files={d.files} /></AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="notes" className="border rounded-2xl px-4 bg-card">
+            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Notas & Decisões</span></AccordionTrigger>
+            <AccordionContent><NotesSection notes={d.notes} projectId={id} /></AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
 
       <ProjectFormDialog open={editOpen} onOpenChange={setEditOpen} project={p} />
