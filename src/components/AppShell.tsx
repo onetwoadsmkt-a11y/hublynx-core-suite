@@ -6,6 +6,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Shield, Sparkles,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
+import { ThemeToggle } from "./ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
 import { HublynxLogo } from "./HublynxLogo";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -197,6 +198,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <ThemeToggle />
             <NotificationsBell />
             <UserMenu />
           </div>
