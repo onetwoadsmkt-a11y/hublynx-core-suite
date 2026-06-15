@@ -7,6 +7,7 @@ import {
   Calendar, CheckSquare, FolderKanban, Users, DollarSign,
   FolderArchive, Sparkles, ArrowRight, Clock,
 } from "lucide-react";
+import hubDarkBg from "@/assets/hub-dark-bg.png.asset.json";
 
 export const Route = createFileRoute("/_authenticated/hub")({
   head: () => ({ meta: [{ title: "Hub Central — Hublynx Core" }] }),
@@ -187,12 +188,14 @@ function HubCentral() {
             "radial-gradient(1200px 600px at 15% -10%, rgba(0,208,132,0.12), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(7,26,61,0.08), transparent 65%), linear-gradient(180deg, #F4F7FB 0%, #E8EEF7 100%)",
         }}
       />
-      {/* Dark gradient */}
+      {/* Dark gradient + circuit background image */}
       <div
         className="pointer-events-none absolute inset-0 -z-10 hidden dark:block"
         style={{
-          background:
-            "radial-gradient(1200px 600px at 15% -10%, rgba(0,208,132,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(7,26,61,0.55), transparent 65%), linear-gradient(180deg, #071A3D 0%, #050f24 100%)",
+          backgroundImage: `linear-gradient(180deg, rgba(7,26,61,0.82) 0%, rgba(5,15,36,0.92) 100%), url(${hubDarkBg.url})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
         }}
       />
       <div className="pointer-events-none absolute inset-0 -z-10 opacity-[0.05] [background-image:radial-gradient(currentColor_1px,transparent_1px)] [background-size:24px_24px] text-[#071A3D] dark:text-white" />
