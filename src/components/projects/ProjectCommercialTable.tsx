@@ -209,6 +209,17 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Select value={monthFilter} onValueChange={setMonthFilter}>
+            <SelectTrigger className="h-8 w-[170px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os meses</SelectItem>
+              {monthOptions.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {monthLabelOf(k)}{k === currentMonthKey ? " (atual)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as any)}>
             <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
             <SelectContent>
