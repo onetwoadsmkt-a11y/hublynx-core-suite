@@ -169,7 +169,12 @@ function ProjectCommandCenter() {
       <div className="space-y-6 min-w-0">
         <ExecutiveHeader p={p} d={d} />
         <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
-        <RoadmapStagesPanel projectId={id} stages={p.roadmap_stages} />
+        <RoadmapStagesPanel
+          projectId={id}
+          stages={p.roadmap_stages}
+          disabled={p.commercial_model === "mensal_recorrente"}
+          disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente."
+        />
         <ExecutionPanel execution={d.execution} onOpenTask={(tid: string) => navigate({ to: "/tarefas", search: { task: tid } as any })} />
         <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
         
