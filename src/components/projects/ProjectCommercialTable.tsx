@@ -226,8 +226,8 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
               const onlyExp = g.kinds.size === 1 && g.kinds.has("pagar");
               const totalColor = onlyRev ? "text-emerald-600" : onlyExp ? "text-rose-600" : "text-foreground";
               return (
-                <>
-                  <TableRow key={`g-${g.label}`} className="bg-muted/40 hover:bg-muted/40">
+                <FragmentGroup key={`g-${g.label}`}>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
                     <TableCell colSpan={4} className="font-semibold text-xs uppercase tracking-wide">
                       {g.label} <span className="text-muted-foreground font-normal normal-case">· {g.rows.length} {g.rows.length === 1 ? "item" : "itens"}</span>
                     </TableCell>
