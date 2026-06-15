@@ -106,42 +106,80 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
 
   const items: Entry[] = (q.data?.items ?? []) as any;
 
-  // Mês atual
-  const monthLabel = useMemo(() => {
+  const currentMonthKey = useMemo(() => {
     const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const [monthFilter, setMonthFilter] = useState<string>(currentMonthKey);
+
+  // Lista de meses disponíveis (a partir dos itens) — sempre inclui o mês atual
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>([currentMonthKey]);
+    for (const it of items) {
+      const d = new Date(it.due_date);
+      if (isNaN(d.getTime())) continue;
+      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
+    return Array.from(set).sort((a, b) => {
+      if (a === currentMonthKey) return -1;
+      if (b === currentMonthKey) return 1;
+      return b.localeCompare(a);
+    });
+  }, [items, currentMonthKey]);
+
+  function monthLabelOf(key: string) {
+    const [y, m] = key.split("-").map(Number);
+    const d = new Date(y, (m ?? 1) - 1, 1);
     const s = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
     return s.charAt(0).toUpperCase() + s.slice(1);
-  }, []);
+  }
 
   const filtered = useMemo(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
     return items.filter((it) => {
       if (kindFilter !== "all" && it.kind !== kindFilter) return false;
       const per: Periodicity = it.recurrence === "monthly" ? "mensal" : "diaria";
       if (periodFilter !== "all" && per !== periodFilter) return false;
-      const d = new Date(it.due_date);
-      if (d.getFullYear() !== y || d.getMonth() !== m) return false;
+      if (monthFilter !== "all") {
+        const d = new Date(it.due_date);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        if (key !== monthFilter) return false;
+      }
       return true;
     });
-  }, [items, kindFilter, periodFilter]);
+  }, [items, kindFilter, periodFilter, monthFilter]);
 
-  // Agrupar por descrição
-  const groups = useMemo(() => {
-    const map = new Map<string, { label: string; rows: Entry[]; total: number; kinds: Set<Kind> }>();
+  // Agrupar por mês (atual primeiro) -> depois por descrição
+  type DescGroup = { label: string; rows: Entry[]; total: number; kinds: Set<Kind> };
+  type MonthGroup = { key: string; label: string; descs: DescGroup[] };
+  const monthGroups: MonthGroup[] = useMemo(() => {
+    const byMonth = new Map<string, Map<string, DescGroup>>();
     for (const r of filtered) {
+      const d = new Date(r.due_date);
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const inner = byMonth.get(mKey) ?? new Map<string, DescGroup>();
       const raw = (r.description ?? "").trim();
-      const key = raw ? raw.toLowerCase() : "__sem__";
+      const dKey = raw ? raw.toLowerCase() : "__sem__";
       const label = raw || "Sem descrição";
-      const g = map.get(key) ?? { label, rows: [], total: 0, kinds: new Set<Kind>() };
+      const g = inner.get(dKey) ?? { label, rows: [], total: 0, kinds: new Set<Kind>() };
       g.rows.push(r);
       g.total += Number(r.amount) || 0;
       g.kinds.add(r.kind);
-      map.set(key, g);
+      inner.set(dKey, g);
+      byMonth.set(mKey, inner);
     }
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
-  }, [filtered]);
+    const keys = Array.from(byMonth.keys()).sort((a, b) => {
+      if (a === currentMonthKey) return -1;
+      if (b === currentMonthKey) return 1;
+      return b.localeCompare(a);
+    });
+    return keys.map((k) => ({
+      key: k,
+      label: monthLabelOf(k),
+      descs: Array.from(byMonth.get(k)!.values()).sort((a, b) =>
+        a.label.localeCompare(b.label, "pt-BR"),
+      ),
+    }));
+  }, [filtered, currentMonthKey]);
 
   const totals = useMemo(() => {
     let rev = 0, exp = 0;
@@ -164,14 +202,12 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
     <div className="border rounded-2xl p-4 bg-card mt-4">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <div>
-          <h4 className="font-semibold text-sm flex items-center gap-2">
-            Lançamentos Comerciais
-            <Badge variant="outline" className="text-[10px] font-normal">{monthLabel}</Badge>
-          </h4>
+          <h4 className="font-semibold text-sm">Lançamentos Comerciais</h4>
           <p className="text-xs text-muted-foreground">
-            Agrupados por descrição · mês atual.
+            Agrupados por mês e descrição. Mês atual sempre em primeiro.
           </p>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as any)}>
             <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
