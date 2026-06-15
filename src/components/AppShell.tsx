@@ -3,7 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users, DollarSign,
   Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
-  PanelLeftClose, PanelLeftOpen, Shield,
+  PanelLeftClose, PanelLeftOpen, Shield, Sparkles,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 
 const NAV = [
+  { to: "/hub", label: "Hub Central", icon: Sparkles },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
   { to: "/projetos", label: "Projetos", icon: FolderKanban },
