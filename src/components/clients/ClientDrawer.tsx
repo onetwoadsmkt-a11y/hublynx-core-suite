@@ -128,6 +128,10 @@ export function ClientDrawer({
                 )}
               </TabsContent>
 
+              <TabsContent value="projetos" className="px-6 py-4 mt-0">
+                <ClientProjectsTab clientId={client.id} />
+              </TabsContent>
+
               <TabsContent value="docs" className="px-6 py-4 mt-0">
                 <ClientDocumentsTab clientId={client.id} />
               </TabsContent>
