@@ -181,12 +181,14 @@ function HubCentral() {
 
   return (
     <div className="relative -m-6 min-h-[calc(100vh-3.5rem)] overflow-hidden">
-      {/* Light gradient */}
+      {/* Light gradient + grid background image */}
       <div
         className="pointer-events-none absolute inset-0 -z-10 dark:hidden"
         style={{
-          background:
-            "radial-gradient(1200px 600px at 15% -10%, rgba(0,208,132,0.12), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(7,26,61,0.08), transparent 65%), linear-gradient(180deg, #F4F7FB 0%, #E8EEF7 100%)",
+          backgroundImage: `linear-gradient(180deg, rgba(244,247,251,0.78) 0%, rgba(232,238,247,0.90) 100%), url(${hubLightBg.url})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
         }}
       />
       {/* Dark gradient + circuit background image */}
