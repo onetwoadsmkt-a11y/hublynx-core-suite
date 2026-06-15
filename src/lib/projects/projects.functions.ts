@@ -703,6 +703,8 @@ const financeEntrySchema = z.object({
   due_date: z.string().min(8),
   status: z.enum(["pendente", "pago"]),
   payment_method: z.string().max(80).optional().nullable(),
+  installments: z.number().int().min(1).max(60).optional(),
+  installment_mode: z.enum(["split", "fixed"]).optional(),
 });
 
 export const upsertProjectFinance = createServerFn({ method: "POST" })
@@ -716,30 +718,67 @@ export const upsertProjectFinance = createServerFn({ method: "POST" })
       .single();
     if (pErr) throw new Error(pErr.message);
 
-    const payload: any = {
+    const basePayload: any = {
       owner_id: context.userId,
       project_id: data.project_id,
       client_id: (proj as any).client_id,
       kind: data.kind,
       description: data.description ?? null,
-      amount: data.amount,
-      due_date: data.due_date,
       status: data.status,
       payment_method: data.payment_method ?? null,
       recurrence: data.periodicity === "mensal" ? "monthly" : "none",
-      paid_at: data.status === "pago" ? new Date().toISOString() : null,
     };
+
     if (data.id) {
       const { error } = await context.supabase
-        .from("finances").update(payload).eq("id", data.id);
+        .from("finances").update({
+          ...basePayload,
+          amount: data.amount,
+          due_date: data.due_date,
+          paid_at: data.status === "pago" ? new Date().toISOString() : null,
+        }).eq("id", data.id);
       if (error) throw new Error(error.message);
       return { ok: true as const, id: data.id };
     }
-    const { data: ins, error } = await context.supabase
-      .from("finances").insert(payload).select("id").single();
+
+    const n = Math.max(1, data.installments ?? 1);
+    if (n === 1) {
+      const { data: ins, error } = await context.supabase
+        .from("finances").insert({
+          ...basePayload,
+          amount: data.amount,
+          due_date: data.due_date,
+          paid_at: data.status === "pago" ? new Date().toISOString() : null,
+        }).select("id").single();
+      if (error) throw new Error(error.message);
+      return { ok: true as const, id: (ins as any).id };
+    }
+
+    const perAmount = data.installment_mode === "fixed"
+      ? data.amount
+      : Math.round((data.amount / n) * 100) / 100;
+    const base = new Date(data.due_date);
+    const rows = Array.from({ length: n }, (_, i) => {
+      const d = new Date(base);
+      d.setMonth(d.getMonth() + i);
+      return {
+        ...basePayload,
+        amount: perAmount,
+        due_date: d.toISOString().slice(0, 10),
+        installment_no: i + 1,
+        installment_total: n,
+        description: data.description
+          ? `${data.description} (${i + 1}/${n})`
+          : `Parcela ${i + 1}/${n}`,
+        paid_at: null,
+        status: "pendente",
+      };
+    });
+    const { error } = await context.supabase.from("finances").insert(rows);
     if (error) throw new Error(error.message);
-    return { ok: true as const, id: (ins as any).id };
+    return { ok: true as const, id: null };
   });
+
 
 export const deleteProjectFinance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

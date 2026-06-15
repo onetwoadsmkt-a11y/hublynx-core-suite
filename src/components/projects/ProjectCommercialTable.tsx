@@ -287,6 +287,8 @@ function EntryDialog({
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<Status>("pendente");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [installments, setInstallments] = useState(1);
+  const [installmentMode, setInstallmentMode] = useState<"split" | "fixed">("split");
 
   useEffect(() => {
     if (!open) return;
@@ -298,6 +300,8 @@ function EntryDialog({
       setDueDate(initial.due_date);
       setStatus(initial.status === "pago" ? "pago" : "pendente");
       setPaymentMethod(initial.payment_method ?? "");
+      setInstallments(1);
+      setInstallmentMode("split");
     } else {
       setKind(defaultKind);
       setPeriodicity("diaria");
@@ -306,8 +310,11 @@ function EntryDialog({
       setDueDate(new Date().toISOString().slice(0, 10));
       setStatus("pendente");
       setPaymentMethod("");
+      setInstallments(1);
+      setInstallmentMode("split");
     }
   }, [open, initial, defaultKind]);
+
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -324,8 +331,11 @@ function EntryDialog({
           due_date: dueDate,
           status,
           payment_method: paymentMethod || null,
+          installments: !initial ? installments : 1,
+          installment_mode: installmentMode,
         },
       });
+
     },
     onSuccess: () => {
       toast.success(initial ? "Atualizado" : "Lançamento criado");
@@ -396,6 +406,39 @@ function EntryDialog({
               <Input value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder="Pix, Boleto…" />
             </div>
           </div>
+          {!initial && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Parcelas</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={installments}
+                  onChange={(e) => setInstallments(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+                />
+              </div>
+              {installments > 1 && (
+                <div>
+                  <Label>Valor informado é</Label>
+                  <Select value={installmentMode} onValueChange={(v) => setInstallmentMode(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="split">Total (dividir)</SelectItem>
+                      <SelectItem value="fixed">Por parcela</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {installments > 1 && (
+                <p className="col-span-2 text-xs text-muted-foreground -mt-1">
+                  {installmentMode === "split"
+                    ? `${installments}x de ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format((Number(amount.replace(",", ".")) || 0) / installments)} (mensal)`
+                    : `${installments}x de ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(amount.replace(",", ".")) || 0)} (mensal)`}
+                </p>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
