@@ -713,6 +713,7 @@ export type Database = {
           next_billing_date: string | null
           owner_id: string
           progress: number
+          roadmap_stages: Json
           service_type: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
@@ -737,6 +738,7 @@ export type Database = {
           next_billing_date?: string | null
           owner_id: string
           progress?: number
+          roadmap_stages?: Json
           service_type?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -761,6 +763,7 @@ export type Database = {
           next_billing_date?: string | null
           owner_id?: string
           progress?: number
+          roadmap_stages?: Json
           service_type?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
