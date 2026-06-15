@@ -135,7 +135,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [collapsed]);
 
   return (
-    <div className="min-h-screen flex w-full bg-muted/30">
+    <div className="h-screen flex w-full bg-muted/30 overflow-hidden">
       {/* Desktop sidebar */}
       <aside
         className={`hidden lg:flex flex-col border-r bg-sidebar shrink-0 transition-[width] duration-200 ${
