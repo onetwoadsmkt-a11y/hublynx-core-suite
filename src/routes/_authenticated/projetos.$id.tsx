@@ -37,6 +37,7 @@ import {
   Tooltip as RTooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
+import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { toast } from "sonner";
 
