@@ -40,7 +40,8 @@ import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
 import { ProjectCommercialTable } from "@/components/projects/ProjectCommercialTable";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
-import { NewTaskSheet } from "@/components/tasks/NewTaskSheet";
+import { TaskDrawer } from "@/components/tasks/TaskDrawer";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/projetos/$id")({
@@ -262,21 +263,52 @@ function ExecutiveHeader({ p, d }: any) {
 }
 
 function QuickCreateTaskButton({
-  projectId, clientId, projectName, clientName,
-}: { projectId: string; clientId: string | null; projectName: string; clientName: string | null }) {
-  const [open, setOpen] = useState(false);
+  projectId, clientId,
+}: { projectId: string; clientId: string | null; projectName?: string; clientName?: string | null }) {
+  const qc = useQueryClient();
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Sem sessão");
+      const { data: inserted, error } = await supabase
+        .from("tasks")
+        .insert({
+          owner_id: u.user.id,
+          title: "Nova tarefa",
+          status: "a_fazer",
+          priority: "media",
+          project_id: projectId,
+          client_id: clientId,
+          position: 0,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      setTaskId(inserted.id as string);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <>
-      <Button onClick={() => setOpen(true)} className="bg-[#00D084] hover:bg-[#00b873] text-white">
-        <Plus className="h-4 w-4 mr-2" /> Criar tarefa
+      <Button onClick={handleCreate} disabled={creating} className="bg-[#00D084] hover:bg-[#00b873] text-white">
+        <Plus className="h-4 w-4 mr-2" /> {creating ? "Criando..." : "Criar tarefa"}
       </Button>
-      <NewTaskSheet
-        open={open}
-        onOpenChange={setOpen}
-        defaultProjectId={projectId}
-        defaultClientId={clientId}
-        projectName={projectName}
-        clientName={clientName}
+      <TaskDrawer
+        taskId={taskId}
+        open={!!taskId}
+        onClose={() => {
+          setTaskId(null);
+          qc.invalidateQueries({ queryKey: ["project-detail"] });
+        }}
       />
     </>
   );
