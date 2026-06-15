@@ -89,6 +89,7 @@ export function ClientDrawer({
           <Tabs defaultValue="dados" className="flex-1 flex flex-col min-h-0">
             <TabsList className="mx-6 mt-2 self-start">
               <TabsTrigger value="dados">Dados</TabsTrigger>
+              <TabsTrigger value="projetos">Projetos</TabsTrigger>
               <TabsTrigger value="docs">Contratos & Documentos</TabsTrigger>
               <TabsTrigger value="historico">Histórico</TabsTrigger>
             </TabsList>
