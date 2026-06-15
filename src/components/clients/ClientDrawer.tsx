@@ -16,6 +16,7 @@ import {
 import { deleteClient, type ClientRow } from "@/lib/clients/clients.functions";
 import { ClientDocumentsTab } from "./ClientDocumentsTab";
 import { ClientHistoryTab } from "./ClientHistoryTab";
+import { ClientProjectsTab } from "./ClientProjectsTab";
 import { ClientFormDialog } from "./ClientFormDialog";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
