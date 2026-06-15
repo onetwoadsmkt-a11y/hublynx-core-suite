@@ -297,21 +297,3 @@ function EmptyState({ icon: Icon, text, cta, to }: { icon: any; text: string; ct
   );
 }
 
-function FinanceRow({ label, value, color, data }: { label: string; value: string; color: string; data: { i: number; v: number }[] }) {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="w-44 shrink-0">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-lg font-semibold" style={{ color }}>{value}</p>
-      </div>
-      <div className="flex-1 h-12">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-            <Line type="monotone" dataKey="v" stroke={color} strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
