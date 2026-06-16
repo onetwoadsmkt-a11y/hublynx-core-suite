@@ -212,10 +212,10 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
           </div>
         </div>
         <div className="flex items-start gap-4">
-          <Input
-            value={task.title}
-            onChange={(e) => update.mutate({ title: e.target.value })}
-            className="flex-1 text-xl font-semibold border-0 px-0 focus-visible:ring-0 shadow-none h-auto"
+          <TitleInput
+            taskId={taskId}
+            initialTitle={task.title}
+            onSave={(title) => update.mutate({ title })}
           />
           {client && (
             <div className="shrink-0 max-w-[220px] text-right">
