@@ -1162,3 +1162,46 @@ function extractMentions(html: string): string[] {
   const m = html.match(/@\[([0-9a-f-]{36})\]/gi) ?? [];
   return m.map((s) => s.slice(2, -1));
 }
+
+function TitleInput({
+  taskId, initialTitle, onSave,
+}: { taskId: string; initialTitle: string; onSave: (title: string) => void }) {
+  const [value, setValue] = useState(initialTitle ?? "");
+  const focusedRef = useRef(false);
+  const lastSavedRef = useRef(initialTitle ?? "");
+
+  // Sync when switching tasks or when external value changes while not focused
+  useEffect(() => {
+    if (!focusedRef.current) {
+      setValue(initialTitle ?? "");
+      lastSavedRef.current = initialTitle ?? "";
+    }
+  }, [taskId, initialTitle]);
+
+  // Debounced save
+  useEffect(() => {
+    if (!focusedRef.current) return;
+    if (value === lastSavedRef.current) return;
+    const t = setTimeout(() => {
+      lastSavedRef.current = value;
+      onSave(value);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [value, onSave]);
+
+  return (
+    <Input
+      value={value}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={() => {
+        focusedRef.current = false;
+        if (value !== lastSavedRef.current) {
+          lastSavedRef.current = value;
+          onSave(value);
+        }
+      }}
+      onChange={(e) => setValue(e.target.value)}
+      className="flex-1 text-xl font-semibold border-0 px-0 focus-visible:ring-0 shadow-none h-auto"
+    />
+  );
+}
