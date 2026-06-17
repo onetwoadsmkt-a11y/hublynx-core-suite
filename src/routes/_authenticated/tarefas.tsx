@@ -216,13 +216,13 @@ function TarefasPage() {
           <Button variant="outline" onClick={() => setOpenEditKanban(true)}>
             <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
           </Button>
-          <Dialog open={openNew} onOpenChange={setOpenNew}>
+          <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setNewTaskStatus(undefined); }}>
             <DialogTrigger asChild>
-              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white">
+              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white" onClick={() => setNewTaskStatus(undefined)}>
                 <Plus className="h-4 w-4 mr-2" /> Nova tarefa
               </Button>
             </DialogTrigger>
-            <NewTaskDialog projects={projects} clients={clients} onClose={() => setOpenNew(false)} />
+            <NewTaskDialog projects={projects} clients={clients} onClose={() => { setOpenNew(false); setNewTaskStatus(undefined); }} defaultStatus={newTaskStatus} />
           </Dialog>
         </div>
       </div>
