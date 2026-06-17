@@ -700,15 +700,15 @@ function stripHtml(s: string) {
 }
 
 function NewTaskDialog({
-  projects, clients, onClose,
-}: { projects: any[]; clients: any[]; onClose: () => void }) {
+  projects, clients, onClose, defaultStatus,
+}: { projects: any[]; clients: any[]; onClose: () => void; defaultStatus?: TaskStatus }) {
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const qc = useQueryClient();
   const syncSheet = useServerFn(syncEntityToSheets);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("media");
-  const [status, setStatus] = useState<TaskStatus>("a_fazer");
+  const [status, setStatus] = useState<TaskStatus>(defaultStatus ?? "a_fazer");
   const [projectId, setProjectId] = useState<string>("none");
   const [clientId, setClientId] = useState<string>("none");
   const [dueDate, setDueDate] = useState<string>("");
