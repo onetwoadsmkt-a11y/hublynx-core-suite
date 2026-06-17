@@ -264,6 +264,9 @@ function TarefasPage() {
             <X className="h-4 w-4 mr-1" /> Limpar
           </Button>
         )}
+        <div className="ml-auto text-sm font-medium text-muted-foreground tabular-nums">
+          {filtered.length} {filtered.length === 1 ? "tarefa" : "tarefas"}
+        </div>
       </div>
 
       <Tabs defaultValue="kanban">
