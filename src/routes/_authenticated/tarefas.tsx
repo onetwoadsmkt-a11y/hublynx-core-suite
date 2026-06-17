@@ -537,123 +537,119 @@ function TaskCard({
     <>
       <div
         onClick={onClick}
-        className={`group relative overflow-hidden bg-card rounded-xl border border-border/60 shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-card)] hover:border-brand-blue/40 hover:-translate-y-0.5 transition-all cursor-pointer ${dragging ? "shadow-lg ring-2 ring-brand-blue/30" : ""}`}
+        className={`group relative bg-card rounded-lg border border-border shadow-sm hover:shadow-md hover:border-brand-blue/40 transition-all cursor-pointer ${dragging ? "shadow-lg ring-2 ring-brand-blue/30" : ""}`}
       >
-        {/* Capa: stripe de prioridade */}
-        <div className={`h-1.5 w-full bg-gradient-to-r ${accent}`} />
-
-        {/* Cabeçalho: etiquetas (esq) + prazo destacado (dir) */}
-        <div className="flex items-start justify-between gap-2 px-3 pt-3">
-          <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-            {labels.map((l) => (
-              <span
-                key={l.id}
-                className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full text-white shadow-sm"
-                style={{ backgroundColor: l.color || "#2563EB" }}
-              >
-                {l.name}
-              </span>
-            ))}
-          </div>
-          {task.due_date && (
-            <span
-              className={`inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-md border ${dueBadgeTone(task.due_date)}`}
+        <div className="px-3 py-3">
+          {/* Linha 1: avatar + título + data */}
+          <div className="flex items-start gap-2">
+            <button
+              {...dragHandle}
+              className="shrink-0 h-7 w-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center cursor-grab"
+              onClick={stop}
+              title="Arrastar"
             >
-              <Clock className="h-3 w-3" />
-              {format(new Date(task.due_date), "dd/MM")}
-            </span>
-          )}
-        </div>
-
-        {/* Corpo: drag handle + título + subtítulo cliente */}
-        <div className="flex items-start gap-2 px-3 pt-2 pb-3">
-          <button
-            {...dragHandle}
-            className="text-muted-foreground/30 group-hover:text-muted-foreground cursor-grab pt-0.5"
-            onClick={stop}
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold leading-snug text-foreground">{task.title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {client ? client.name : <span className="italic">Sem cliente</span>}
-            </p>
-            {project && (
-              <p className="text-[11px] text-brand-blue mt-1 truncate">
-                <Target className="inline h-3 w-3 mr-1" />Roadmap • {project.name}
-              </p>
-            )}
-            {kanbanCols && kanbanCols.length > 0 && (
-              <div className="mt-2" onClick={stop}>
-                <Select value={task.status} onValueChange={(v) => quickStatus.mutate(v)}>
-                  <SelectTrigger className="h-7 text-[11px] px-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kanbanCols.map((c) => (
-                      <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <Badge variant="outline" className={`${PRIORITY_TONE[task.priority]} text-[10px] py-0 border-0`}>
-                {PRIORITY_LABEL[task.priority]}
-              </Badge>
-              <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-                  onClick={(e) => { stop(e); onClick?.(); }}
-                  title="Editar tarefa"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-                  onClick={(e) => { stop(e); setEmailOpen(true); }}
-                  title="Enviar e-mail"
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-                  onClick={(e) => { stop(e); setMeetOpen(true); }}
-                  title="Agendar reunião"
-                >
-                  <CalendarPlus className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-                  disabled={quickMeet.isPending}
-                  onClick={(e) => { stop(e); quickMeet.mutate(); }}
-                  title="Criar link Meet agora"
-                >
-                  <Video className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  onClick={(e) => { stop(e); setConfirmDel(true); }}
-                  title="Excluir tarefa"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              <UserIcon className="h-3.5 w-3.5" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold leading-snug text-foreground truncate">{task.title}</p>
             </div>
+            {task.due_date && (
+              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums mt-0.5">
+                {format(new Date(task.due_date), "dd/MM")}
+              </span>
+            )}
+          </div>
+
+          {/* Contato: email do cliente */}
+          {client?.email && (
+            <div className="mt-2 ml-9 flex items-center gap-1.5 text-xs text-brand-blue truncate">
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate">{client.email}</span>
+            </div>
+          )}
+          {client && !client.email && (
+            <div className="mt-2 ml-9 text-xs text-muted-foreground truncate">{client.name}</div>
+          )}
+          {project && (
+            <div className="mt-1 ml-9 flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+              <Target className="h-3 w-3 shrink-0" />
+              <span className="truncate">{project.name}</span>
+            </div>
+          )}
+
+          {/* Linha de labels + prioridade */}
+          {(labels.length > 0 || true) && (
+            <div className="mt-2 ml-9 flex items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-1 min-w-0">
+                {labels.map((l) => (
+                  <span
+                    key={l.id}
+                    className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded text-white"
+                    style={{ backgroundColor: l.color || "#2563EB" }}
+                  >
+                    {l.name}
+                  </span>
+                ))}
+              </div>
+              <span
+                className={`shrink-0 h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority]}`}
+                title={PRIORITY_LABEL[task.priority]}
+              />
+            </div>
+          )}
+
+          {/* Ações (aparecem no hover) */}
+          <div className="mt-2 ml-9 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+              onClick={(e) => { stop(e); onClick?.(); }}
+              title="Editar tarefa"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+              onClick={(e) => { stop(e); setEmailOpen(true); }}
+              title="Enviar e-mail"
+            >
+              <Mail className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+              onClick={(e) => { stop(e); setMeetOpen(true); }}
+              title="Agendar reunião"
+            >
+              <CalendarPlus className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+              disabled={quickMeet.isPending}
+              onClick={(e) => { stop(e); quickMeet.mutate(); }}
+              title="Criar link Meet agora"
+            >
+              <Video className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto"
+              onClick={(e) => { stop(e); setConfirmDel(true); }}
+              title="Excluir tarefa"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       </div>
+
 
 
       {emailOpen && (
