@@ -18,7 +18,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock, Pencil, Target } from "lucide-react";
+import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock, Pencil, Target, User as UserIcon, Phone } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -71,8 +71,10 @@ function TarefasPage() {
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterClient, setFilterClient] = useState<string>("all");
   const [openNew, setOpenNew] = useState(false);
+  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus | undefined>(undefined);
   const [openEditKanban, setOpenEditKanban] = useState(false);
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
+  const openNewIn = (statusKey?: TaskStatus) => { setNewTaskStatus(statusKey); setOpenNew(true); };
 
   const selectedId = search.task ?? null;
   const setSelectedId = (id: string | null) =>
@@ -214,13 +216,13 @@ function TarefasPage() {
           <Button variant="outline" onClick={() => setOpenEditKanban(true)}>
             <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
           </Button>
-          <Dialog open={openNew} onOpenChange={setOpenNew}>
+          <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setNewTaskStatus(undefined); }}>
             <DialogTrigger asChild>
-              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white">
+              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white" onClick={() => setNewTaskStatus(undefined)}>
                 <Plus className="h-4 w-4 mr-2" /> Nova tarefa
               </Button>
             </DialogTrigger>
-            <NewTaskDialog projects={projects} clients={clients} onClose={() => setOpenNew(false)} />
+            <NewTaskDialog projects={projects} clients={clients} onClose={() => { setOpenNew(false); setNewTaskStatus(undefined); }} defaultStatus={newTaskStatus} />
           </Dialog>
         </div>
       </div>
@@ -262,6 +264,9 @@ function TarefasPage() {
             <X className="h-4 w-4 mr-1" /> Limpar
           </Button>
         )}
+        <div className="ml-auto text-sm font-medium text-muted-foreground tabular-nums">
+          {filtered.length} {filtered.length === 1 ? "tarefa" : "tarefas"}
+        </div>
       </div>
 
       <Tabs defaultValue="kanban">
@@ -283,7 +288,7 @@ function TarefasPage() {
                 {kanbanCols.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
-                    <KanbanColumn key={col.key} col={col} tasks={colTasks} kanbanCols={kanbanCols} labelsIndex={labelsIndex} clientsById={clientsById} projectsById={projectsById} onSelect={setSelectedId} />
+                    <KanbanColumn key={col.key} col={col} tasks={colTasks} kanbanCols={kanbanCols} labelsIndex={labelsIndex} clientsById={clientsById} projectsById={projectsById} onSelect={setSelectedId} onAddInColumn={(k) => openNewIn(k)} />
                   );
                 })}
               </div>
@@ -362,8 +367,30 @@ const PRIORITY_ACCENT: Record<Priority, string> = {
   critica: "from-rose-500 to-red-600",
 };
 
+const PRIORITY_DOT: Record<Priority, string> = {
+  baixa: "bg-slate-400",
+  media: "bg-sky-500",
+  alta: "bg-amber-500",
+  critica: "bg-rose-500",
+};
+
+// Map "bg-XXX-100 text-XXX-700" tone → solid accent for the column top stripe.
+const TONE_TO_ACCENT: Record<string, string> = {
+  "bg-muted text-muted-foreground": "bg-muted-foreground/40",
+  "bg-blue-100 text-blue-700": "bg-blue-500",
+  "bg-amber-100 text-amber-700": "bg-amber-500",
+  "bg-indigo-100 text-indigo-700": "bg-indigo-500",
+  "bg-emerald-100 text-emerald-700": "bg-emerald-500",
+  "bg-rose-100 text-rose-700": "bg-rose-500",
+  "bg-violet-100 text-violet-700": "bg-violet-500",
+  "bg-orange-100 text-orange-700": "bg-orange-500",
+  "bg-teal-100 text-teal-700": "bg-teal-500",
+  "bg-slate-200 text-slate-700": "bg-slate-500",
+};
+const accentForTone = (tone: string) => TONE_TO_ACCENT[tone] ?? "bg-muted-foreground/40";
+
 function KanbanColumn({
-  col, tasks, kanbanCols, labelsIndex, clientsById, projectsById, onSelect,
+  col, tasks, kanbanCols, labelsIndex, clientsById, projectsById, onSelect, onAddInColumn,
 }: {
   col: KanbanColumn;
   tasks: Task[];
@@ -372,26 +399,50 @@ function KanbanColumn({
   clientsById: Map<string, ClientMini>;
   projectsById: Map<string, { id: string; name: string }>;
   onSelect: (id: string) => void;
+  onAddInColumn: (statusKey: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
   return (
-    <div ref={setNodeRef} className={`w-80 shrink-0 rounded-xl bg-muted/40 p-3 transition-colors ${isOver ? "ring-2 ring-primary/40" : ""}`}>
-      <div className="flex items-center justify-between mb-3 px-1">
-        <span className={`text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${col.tone}`}>{col.label}</span>
-        <span className="text-xs text-muted-foreground tabular-nums">{tasks.length}</span>
+    <div
+      ref={setNodeRef}
+      className={`w-80 shrink-0 rounded-xl bg-card border border-border overflow-hidden transition-colors ${isOver ? "ring-2 ring-primary/40" : ""}`}
+    >
+      <div className={`h-1 w-full ${accentForTone(col.tone)}`} />
+      <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground truncate">{col.label}</h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
+            {tasks.length} {tasks.length === 1 ? "tarefa" : "tarefas"}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground -mr-1"
+          onClick={() => onAddInColumn(col.key)}
+          title="Adicionar tarefa nesta coluna"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
-      <div className="space-y-2.5 min-h-[80px]">
-        {tasks.map((t) => (
-          <DraggableCard
-            key={t.id}
-            task={t}
-            labels={labelsIndex[t.id] ?? []}
-            client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
-            project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
-            kanbanCols={kanbanCols}
-            onSelect={onSelect}
-          />
-        ))}
+      <div className="px-3 pb-3 space-y-2.5 min-h-[120px]">
+        {tasks.length === 0 ? (
+          <div className="flex items-center justify-center h-24 rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+            Arraste tarefas aqui
+          </div>
+        ) : (
+          tasks.map((t) => (
+            <DraggableCard
+              key={t.id}
+              task={t}
+              labels={labelsIndex[t.id] ?? []}
+              client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
+              project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
+              kanbanCols={kanbanCols}
+              onSelect={onSelect}
+            />
+          ))
+        )}
       </div>
     </div>
   );
@@ -486,123 +537,119 @@ function TaskCard({
     <>
       <div
         onClick={onClick}
-        className={`group relative overflow-hidden bg-card rounded-xl border border-border/60 shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-card)] hover:border-brand-blue/40 hover:-translate-y-0.5 transition-all cursor-pointer ${dragging ? "shadow-lg ring-2 ring-brand-blue/30" : ""}`}
+        className={`group relative bg-card rounded-lg border border-border shadow-sm hover:shadow-md hover:border-brand-blue/40 transition-all cursor-pointer ${dragging ? "shadow-lg ring-2 ring-brand-blue/30" : ""}`}
       >
-        {/* Capa: stripe de prioridade */}
-        <div className={`h-1.5 w-full bg-gradient-to-r ${accent}`} />
-
-        {/* Cabeçalho: etiquetas (esq) + prazo destacado (dir) */}
-        <div className="flex items-start justify-between gap-2 px-3 pt-3">
-          <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-            {labels.map((l) => (
-              <span
-                key={l.id}
-                className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full text-white shadow-sm"
-                style={{ backgroundColor: l.color || "#2563EB" }}
-              >
-                {l.name}
-              </span>
-            ))}
-          </div>
-          {task.due_date && (
-            <span
-              className={`inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-md border ${dueBadgeTone(task.due_date)}`}
+        <div className="px-3 py-3">
+          {/* Linha 1: avatar + título + data */}
+          <div className="flex items-start gap-2">
+            <button
+              {...dragHandle}
+              className="shrink-0 h-7 w-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center cursor-grab"
+              onClick={stop}
+              title="Arrastar"
             >
-              <Clock className="h-3 w-3" />
-              {format(new Date(task.due_date), "dd/MM")}
-            </span>
-          )}
-        </div>
-
-        {/* Corpo: drag handle + título + subtítulo cliente */}
-        <div className="flex items-start gap-2 px-3 pt-2 pb-3">
-          <button
-            {...dragHandle}
-            className="text-muted-foreground/30 group-hover:text-muted-foreground cursor-grab pt-0.5"
-            onClick={stop}
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold leading-snug text-foreground">{task.title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {client ? client.name : <span className="italic">Sem cliente</span>}
-            </p>
-            {project && (
-              <p className="text-[11px] text-brand-blue mt-1 truncate">
-                <Target className="inline h-3 w-3 mr-1" />Roadmap • {project.name}
-              </p>
-            )}
-            {kanbanCols && kanbanCols.length > 0 && (
-              <div className="mt-2" onClick={stop}>
-                <Select value={task.status} onValueChange={(v) => quickStatus.mutate(v)}>
-                  <SelectTrigger className="h-7 text-[11px] px-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kanbanCols.map((c) => (
-                      <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <Badge variant="outline" className={`${PRIORITY_TONE[task.priority]} text-[10px] py-0 border-0`}>
-                {PRIORITY_LABEL[task.priority]}
-              </Badge>
-              <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-                  onClick={(e) => { stop(e); onClick?.(); }}
-                  title="Editar tarefa"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-                  onClick={(e) => { stop(e); setEmailOpen(true); }}
-                  title="Enviar e-mail"
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-                  onClick={(e) => { stop(e); setMeetOpen(true); }}
-                  title="Agendar reunião"
-                >
-                  <CalendarPlus className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-                  disabled={quickMeet.isPending}
-                  onClick={(e) => { stop(e); quickMeet.mutate(); }}
-                  title="Criar link Meet agora"
-                >
-                  <Video className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  onClick={(e) => { stop(e); setConfirmDel(true); }}
-                  title="Excluir tarefa"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              <UserIcon className="h-3.5 w-3.5" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold leading-snug text-foreground truncate">{task.title}</p>
             </div>
+            {task.due_date && (
+              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums mt-0.5">
+                {format(new Date(task.due_date), "dd/MM")}
+              </span>
+            )}
+          </div>
+
+          {/* Contato: email do cliente */}
+          {client?.email && (
+            <div className="mt-2 ml-9 flex items-center gap-1.5 text-xs text-brand-blue truncate">
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate">{client.email}</span>
+            </div>
+          )}
+          {client && !client.email && (
+            <div className="mt-2 ml-9 text-xs text-muted-foreground truncate">{client.name}</div>
+          )}
+          {project && (
+            <div className="mt-1 ml-9 flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+              <Target className="h-3 w-3 shrink-0" />
+              <span className="truncate">{project.name}</span>
+            </div>
+          )}
+
+          {/* Linha de labels + prioridade */}
+          {(labels.length > 0 || true) && (
+            <div className="mt-2 ml-9 flex items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-1 min-w-0">
+                {labels.map((l) => (
+                  <span
+                    key={l.id}
+                    className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded text-white"
+                    style={{ backgroundColor: l.color || "#2563EB" }}
+                  >
+                    {l.name}
+                  </span>
+                ))}
+              </div>
+              <span
+                className={`shrink-0 h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority]}`}
+                title={PRIORITY_LABEL[task.priority]}
+              />
+            </div>
+          )}
+
+          {/* Ações (aparecem no hover) */}
+          <div className="mt-2 ml-9 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+              onClick={(e) => { stop(e); onClick?.(); }}
+              title="Editar tarefa"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+              onClick={(e) => { stop(e); setEmailOpen(true); }}
+              title="Enviar e-mail"
+            >
+              <Mail className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+              onClick={(e) => { stop(e); setMeetOpen(true); }}
+              title="Agendar reunião"
+            >
+              <CalendarPlus className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
+              disabled={quickMeet.isPending}
+              onClick={(e) => { stop(e); quickMeet.mutate(); }}
+              title="Criar link Meet agora"
+            >
+              <Video className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto"
+              onClick={(e) => { stop(e); setConfirmDel(true); }}
+              title="Excluir tarefa"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
           </div>
         </div>
       </div>
+
 
 
       {emailOpen && (
@@ -653,15 +700,15 @@ function stripHtml(s: string) {
 }
 
 function NewTaskDialog({
-  projects, clients, onClose,
-}: { projects: any[]; clients: any[]; onClose: () => void }) {
+  projects, clients, onClose, defaultStatus,
+}: { projects: any[]; clients: any[]; onClose: () => void; defaultStatus?: TaskStatus }) {
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
   const qc = useQueryClient();
   const syncSheet = useServerFn(syncEntityToSheets);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("media");
-  const [status, setStatus] = useState<TaskStatus>("a_fazer");
+  const [status, setStatus] = useState<TaskStatus>(defaultStatus ?? "a_fazer");
   const [projectId, setProjectId] = useState<string>("none");
   const [clientId, setClientId] = useState<string>("none");
   const [dueDate, setDueDate] = useState<string>("");
