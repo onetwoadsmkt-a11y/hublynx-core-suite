@@ -367,8 +367,30 @@ const PRIORITY_ACCENT: Record<Priority, string> = {
   critica: "from-rose-500 to-red-600",
 };
 
+const PRIORITY_DOT: Record<Priority, string> = {
+  baixa: "bg-slate-400",
+  media: "bg-sky-500",
+  alta: "bg-amber-500",
+  critica: "bg-rose-500",
+};
+
+// Map "bg-XXX-100 text-XXX-700" tone → solid accent for the column top stripe.
+const TONE_TO_ACCENT: Record<string, string> = {
+  "bg-muted text-muted-foreground": "bg-muted-foreground/40",
+  "bg-blue-100 text-blue-700": "bg-blue-500",
+  "bg-amber-100 text-amber-700": "bg-amber-500",
+  "bg-indigo-100 text-indigo-700": "bg-indigo-500",
+  "bg-emerald-100 text-emerald-700": "bg-emerald-500",
+  "bg-rose-100 text-rose-700": "bg-rose-500",
+  "bg-violet-100 text-violet-700": "bg-violet-500",
+  "bg-orange-100 text-orange-700": "bg-orange-500",
+  "bg-teal-100 text-teal-700": "bg-teal-500",
+  "bg-slate-200 text-slate-700": "bg-slate-500",
+};
+const accentForTone = (tone: string) => TONE_TO_ACCENT[tone] ?? "bg-muted-foreground/40";
+
 function KanbanColumn({
-  col, tasks, kanbanCols, labelsIndex, clientsById, projectsById, onSelect,
+  col, tasks, kanbanCols, labelsIndex, clientsById, projectsById, onSelect, onAddInColumn,
 }: {
   col: KanbanColumn;
   tasks: Task[];
@@ -377,26 +399,50 @@ function KanbanColumn({
   clientsById: Map<string, ClientMini>;
   projectsById: Map<string, { id: string; name: string }>;
   onSelect: (id: string) => void;
+  onAddInColumn: (statusKey: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
   return (
-    <div ref={setNodeRef} className={`w-80 shrink-0 rounded-xl bg-muted/40 p-3 transition-colors ${isOver ? "ring-2 ring-primary/40" : ""}`}>
-      <div className="flex items-center justify-between mb-3 px-1">
-        <span className={`text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${col.tone}`}>{col.label}</span>
-        <span className="text-xs text-muted-foreground tabular-nums">{tasks.length}</span>
+    <div
+      ref={setNodeRef}
+      className={`w-80 shrink-0 rounded-xl bg-card border border-border overflow-hidden transition-colors ${isOver ? "ring-2 ring-primary/40" : ""}`}
+    >
+      <div className={`h-1 w-full ${accentForTone(col.tone)}`} />
+      <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground truncate">{col.label}</h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
+            {tasks.length} {tasks.length === 1 ? "tarefa" : "tarefas"}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground -mr-1"
+          onClick={() => onAddInColumn(col.key)}
+          title="Adicionar tarefa nesta coluna"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
-      <div className="space-y-2.5 min-h-[80px]">
-        {tasks.map((t) => (
-          <DraggableCard
-            key={t.id}
-            task={t}
-            labels={labelsIndex[t.id] ?? []}
-            client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
-            project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
-            kanbanCols={kanbanCols}
-            onSelect={onSelect}
-          />
-        ))}
+      <div className="px-3 pb-3 space-y-2.5 min-h-[120px]">
+        {tasks.length === 0 ? (
+          <div className="flex items-center justify-center h-24 rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+            Arraste tarefas aqui
+          </div>
+        ) : (
+          tasks.map((t) => (
+            <DraggableCard
+              key={t.id}
+              task={t}
+              labels={labelsIndex[t.id] ?? []}
+              client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
+              project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
+              kanbanCols={kanbanCols}
+              onSelect={onSelect}
+            />
+          ))
+        )}
       </div>
     </div>
   );
