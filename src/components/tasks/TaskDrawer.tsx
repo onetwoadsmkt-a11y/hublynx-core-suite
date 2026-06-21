@@ -337,7 +337,7 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
       <div className="space-y-2">
         <Label>Descrição</Label>
         <DescriptionEditor
-          taskId={taskId}
+          taskId={task.id}
           initialValue={task.description ?? ""}
           onSave={(html) => update.mutate({ description: html })}
         />
