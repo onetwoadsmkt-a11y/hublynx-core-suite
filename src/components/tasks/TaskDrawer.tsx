@@ -336,11 +336,10 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
       {/* Description */}
       <div className="space-y-2">
         <Label>Descrição</Label>
-        <RichTextEditor
-          value={task.description ?? ""}
-          onChange={(html) => update.mutate({ description: html })}
-          placeholder="Descreva a tarefa..."
-          minHeight={120}
+        <DescriptionEditor
+          taskId={task.id}
+          initialValue={task.description ?? ""}
+          onSave={(html) => update.mutate({ description: html })}
         />
       </div>
 
@@ -1202,6 +1201,52 @@ function TitleInput({
       }}
       onChange={(e) => setValue(e.target.value)}
       className="flex-1 text-xl font-semibold border-0 px-0 focus-visible:ring-0 shadow-none h-auto"
+    />
+  );
+}
+
+function DescriptionEditor({
+  taskId, initialValue, onSave,
+}: { taskId: string; initialValue: string; onSave: (html: string) => void }) {
+  const [value, setValue] = useState(initialValue ?? "");
+  const dirtyRef = useRef(false);
+  const lastSavedRef = useRef(initialValue ?? "");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset only when switching tasks
+  useEffect(() => {
+    setValue(initialValue ?? "");
+    lastSavedRef.current = initialValue ?? "";
+    dirtyRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId]);
+
+  const handleChange = (html: string) => {
+    setValue(html);
+    if (html === lastSavedRef.current) return;
+    dirtyRef.current = true;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      lastSavedRef.current = html;
+      dirtyRef.current = false;
+      onSave(html);
+    }, 600);
+  };
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (dirtyRef.current && value !== lastSavedRef.current) {
+      onSave(value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <RichTextEditor
+      value={value}
+      onChange={handleChange}
+      placeholder="Descreva a tarefa..."
+      minHeight={120}
     />
   );
 }
