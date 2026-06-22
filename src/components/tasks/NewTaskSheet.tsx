@@ -31,6 +31,7 @@ export function NewTaskSheet({
 }: Props) {
   const qc = useQueryClient();
   const syncSheet = useServerFn(syncEntityToSheets);
+  const syncCalendar = useServerFn(syncTaskToCalendar);
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
 
   const [title, setTitle] = useState("");
