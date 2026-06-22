@@ -22,10 +22,11 @@ interface Props {
   defaultClientId?: string | null;
   projectName?: string | null;
   clientName?: string | null;
+  onCreated?: (id: string) => void;
 }
 
 export function NewTaskSheet({
-  open, onOpenChange, defaultProjectId, defaultClientId, projectName, clientName,
+  open, onOpenChange, defaultProjectId, defaultClientId, projectName, clientName, onCreated,
 }: Props) {
   const qc = useQueryClient();
   const syncSheet = useServerFn(syncEntityToSheets);
@@ -66,6 +67,7 @@ export function NewTaskSheet({
       toast.success("Tarefa criada.");
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["project-detail"] });
+      onCreated?.(id);
       onOpenChange(false);
       syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
