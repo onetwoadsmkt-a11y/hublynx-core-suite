@@ -166,3 +166,101 @@ export const createInstantMeet = createServerFn({ method: "POST" })
 
     return { ok: true as const, ...evt, startAt: start.toISOString() };
   });
+
+const syncTaskSchema = z.object({
+  taskId: z.string().uuid(),
+  durationMinutes: z.number().int().min(10).max(480).default(60),
+  withMeet: z.boolean().default(false),
+});
+
+/**
+ * Sincroniza uma tarefa com Google Calendar criando um evento no calendário
+ * primário. Idempotente por tarefa: se já existe um task_communications de
+ * sincronização para a tarefa, atualiza o evento ao invés de criar outro.
+ */
+export const syncTaskToCalendar = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => syncTaskSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: task, error } = await supabase
+      .from("tasks")
+      .select("id, owner_id, title, description, due_date, briefing")
+      .eq("id", data.taskId)
+      .maybeSingle();
+    if (error || !task) throw new Error("Tarefa não encontrada");
+    if (!task.due_date) return { ok: false as const, reason: "no_due_date" };
+
+    const type = (task.briefing as any)?.type ?? "tarefa";
+    const wantsMeet = data.withMeet || type === "reuniao";
+
+    const start = new Date(task.due_date as string);
+    const end = new Date(start.getTime() + data.durationMinutes * 60_000);
+
+    const headers = getGoogleGatewayHeaders("calendar");
+    const body: any = {
+      summary: task.title,
+      description: (task.description as string | null) ?? undefined,
+      start: { dateTime: start.toISOString() },
+      end: { dateTime: end.toISOString() },
+    };
+    if (wantsMeet) {
+      body.conferenceData = {
+        createRequest: {
+          requestId: `task-${task.id}-${Date.now()}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      };
+    }
+
+    // Verifica se já existe evento sincronizado
+    const { data: existing } = await supabase
+      .from("task_communications")
+      .select("id, provider_id")
+      .eq("task_id", task.id)
+      .eq("kind", "meeting")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let res: Response;
+    if (existing?.provider_id) {
+      res = await fetch(
+        `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`,
+        { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      );
+    } else {
+      res = await fetch(
+        `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
+        { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      );
+    }
+    const json = await res.json().catch(() => ({}) as any);
+    if (!res.ok) {
+      throw new Error(`Falha ao sincronizar (${res.status}): ${json?.error?.message || JSON.stringify(json)}`);
+    }
+    const eventId = json?.id as string;
+    const meetLink: string | null =
+      json?.hangoutLink ??
+      json?.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === "video")?.uri ??
+      null;
+
+    if (existing?.id) {
+      await supabase
+        .from("task_communications")
+        .update({ subject: task.title, start_at: start.toISOString(), meet_link: meetLink, provider_id: eventId })
+        .eq("id", existing.id);
+    } else {
+      await recordMeeting(supabase, task.owner_id as string, userId, {
+        taskId: task.id as string,
+        summary: task.title as string,
+        startISO: start.toISOString(),
+        attendees: [],
+        eventId,
+        meetLink,
+      });
+    }
+
+    return { ok: true as const, eventId, meetLink, htmlLink: json?.htmlLink ?? null };
+  });
+
