@@ -14,6 +14,7 @@ import {
 import { useKanbanColumns, DEFAULT_STATUS_COLS } from "@/hooks/useKanbanColumns";
 import { PRIORITY_LABEL, type Priority, type TaskStatus } from "@/components/tasks/TaskDrawer";
 import { syncEntityToSheets } from "@/lib/google/sheets-sync.functions";
+import { syncTaskToCalendar } from "@/lib/google/calendar.functions";
 
 interface Props {
   open: boolean;
