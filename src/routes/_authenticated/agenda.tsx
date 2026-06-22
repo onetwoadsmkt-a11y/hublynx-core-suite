@@ -413,6 +413,38 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
   );
 }
 
+// ───────── Event Row (linha estilo Google Calendar) ─────────
+function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean }) {
+  const meta = SOURCE_META[event.source];
+  const time = event.allDay ? null : fmt(new Date(event.start), { hour: "2-digit", minute: "2-digit" });
+
+  if (event.allDay) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className={`w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${meta.bg} hover:brightness-95`}>
+            {event.title}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={`w-full text-left truncate rounded px-1 ${compact ? "py-0" : "py-0.5"} text-[11px] hover:bg-muted/50 transition flex items-center gap-1.5`}>
+          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+          {time && <span className="tabular-nums text-muted-foreground">{time}</span>}
+          <span className="truncate text-foreground">{event.title}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+    </Popover>
+  );
+}
+
 // ───────── Event Chip + Popover ─────────
 function EventChip({ event, expanded }: { event: AgendaEvent; expanded?: boolean }) {
   const meta = SOURCE_META[event.source];
