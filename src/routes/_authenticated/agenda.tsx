@@ -151,6 +151,7 @@ function AgendaPage() {
   }, [view, anchor]);
 
   const [meetingOpen, setMeetingOpen] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -206,10 +207,8 @@ function AgendaPage() {
             <Button size="sm" className="h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMeetingOpen(true)}>
               <Video className="h-4 w-4 mr-1.5" /> Reunião
             </Button>
-            <Button asChild size="sm" className="h-9 rounded-full">
-              <Link to="/tarefas" search={{ task: undefined }}>
-                <Plus className="h-4 w-4 mr-1" /> Criar
-              </Link>
+            <Button size="sm" className="h-9 rounded-full" onClick={() => setNewTaskOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Criar
             </Button>
           </div>
         </header>
@@ -250,6 +249,11 @@ function AgendaPage() {
       </div>
 
       <ScheduleMeetingStandalone open={meetingOpen} onClose={() => setMeetingOpen(false)} />
+      <NewTaskSheet
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        onCreated={() => qc.invalidateQueries({ queryKey: ["agenda"] })}
+      />
     </div>
   );
 }
