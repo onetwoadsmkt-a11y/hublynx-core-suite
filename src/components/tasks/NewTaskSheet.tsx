@@ -67,6 +67,7 @@ export function NewTaskSheet({
       toast.success("Tarefa criada.");
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["project-detail"] });
+      onCreated?.(id);
       onOpenChange(false);
       syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
