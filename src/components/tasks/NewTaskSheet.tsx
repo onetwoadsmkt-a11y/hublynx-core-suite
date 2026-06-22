@@ -37,11 +37,13 @@ export function NewTaskSheet({
   const [priority, setPriority] = useState<Priority>("media");
   const [status, setStatus] = useState<TaskStatus>("a_fazer");
   const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+  const [taskType, setTaskType] = useState<"tarefa" | "reuniao" | "evento">("tarefa");
 
   useEffect(() => {
     if (open) {
       setTitle(""); setDescription(""); setPriority("media");
-      setStatus("a_fazer"); setDueDate("");
+      setStatus("a_fazer"); setDueDate(""); setDueTime(""); setTaskType("tarefa");
     }
   }, [open]);
 
@@ -49,6 +51,11 @@ export function NewTaskSheet({
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Sem sessão");
+      let dueIso: string | null = null;
+      if (dueDate) {
+        const iso = dueTime ? `${dueDate}T${dueTime}:00` : `${dueDate}T00:00:00`;
+        dueIso = new Date(iso).toISOString();
+      }
       const { data: inserted, error } = await supabase.from("tasks").insert({
         owner_id: u.user.id,
         title,
@@ -57,8 +64,9 @@ export function NewTaskSheet({
         status,
         project_id: defaultProjectId ?? null,
         client_id: defaultClientId ?? null,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        due_date: dueIso,
         position: 0,
+        briefing: { type: taskType } as any,
       }).select("id").single();
       if (error) throw error;
       return inserted.id as string;
@@ -96,6 +104,17 @@ export function NewTaskSheet({
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
           </div>
           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2 col-span-2">
+              <Label>Tipo</Label>
+              <Select value={taskType} onValueChange={(v) => setTaskType(v as typeof taskType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tarefa">Tarefa</SelectItem>
+                  <SelectItem value="reuniao">Reunião</SelectItem>
+                  <SelectItem value="evento">Evento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Prioridade</Label>
               <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
@@ -116,9 +135,13 @@ export function NewTaskSheet({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2 col-span-2">
-              <Label>Prazo</Label>
+            <div className="space-y-2">
+              <Label>Data</Label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Hora</Label>
+              <Input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
             </div>
           </div>
         </div>
