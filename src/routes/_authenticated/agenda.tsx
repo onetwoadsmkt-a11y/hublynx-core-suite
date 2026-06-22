@@ -153,75 +153,94 @@ function AgendaPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1400px] p-6 space-y-4">
-        {/* Header */}
-        <header className="flex flex-wrap items-center gap-3 justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-primary/10 p-2.5">
+      <div className="mx-auto max-w-[1600px] px-4 py-4 space-y-3">
+        {/* Header estilo Google Calendar */}
+        <header className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 mr-1">
+            <div className="rounded-xl bg-primary/10 p-2">
               <CalendarDays className="h-5 w-5 text-primary" />
             </div>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
-              <p className="text-sm text-muted-foreground capitalize">{periodLabel}</p>
-            </div>
+            <h1 className="text-xl font-semibold tracking-tight">Agenda</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={goToday}
+            className="rounded-full px-4 h-9 border-border/70"
+          >
+            Hoje
+          </Button>
+
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={goPrev}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={goNext}>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <h2 className="text-xl font-normal text-foreground capitalize">{periodLabel}</h2>
+
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             </Button>
-            <Button asChild variant="outline" size="sm">
+
+            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-card p-0.5">
+              {(["day","week","month"] as View[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`px-3 h-8 rounded-full text-xs font-medium transition-colors ${
+                    view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {v === "day" ? "Dia" : v === "week" ? "Semana" : "Mês"}
+                </button>
+              ))}
+            </div>
+
+            <Button size="sm" className="h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMeetingOpen(true)}>
+              <Video className="h-4 w-4 mr-1.5" /> Reunião
+            </Button>
+            <Button asChild size="sm" className="h-9 rounded-full">
               <Link to="/tarefas" search={{ task: undefined }}>
-                <Plus className="h-4 w-4 mr-1" /> Tarefa
+                <Plus className="h-4 w-4 mr-1" /> Criar
               </Link>
             </Button>
           </div>
         </header>
 
-        {/* Toolbar */}
-        <Card className="rounded-2xl border-border/60 shadow-sm">
-          <div className="flex flex-wrap items-center gap-3 p-3">
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" onClick={goPrev}><ChevronLeft className="h-4 w-4" /></Button>
-              <Button variant="outline" size="sm" onClick={goToday}>Hoje</Button>
-              <Button variant="ghost" size="icon" onClick={goNext}><ChevronRight className="h-4 w-4" /></Button>
-            </div>
-            <Tabs value={view} onValueChange={(v) => setView(v as View)}>
-              <TabsList>
-                <TabsTrigger value="day">Dia</TabsTrigger>
-                <TabsTrigger value="week">Semana</TabsTrigger>
-                <TabsTrigger value="month">Mês</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="flex items-center gap-1.5">
-              {(Object.keys(SOURCE_META) as AgendaSource[]).map((s) => {
-                const active = activeSources.has(s);
-                const meta = SOURCE_META[s];
-                return (
-                  <button
-                    key={s}
-                    onClick={() => toggleSource(s)}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-all ${active ? "border-foreground/20 bg-background" : "border-border/60 bg-muted/40 text-muted-foreground"}`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-                    {meta.label}
-                  </button>
-                );
-              })}
-            </div>
-            <Select value={search.clientId ?? "all"} onValueChange={setClient}>
-              <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Cliente" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os clientes</SelectItem>
-                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <div className="ml-auto">
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMeetingOpen(true)}>
-                <Video className="h-4 w-4 mr-1.5" /> Agendar reunião
-              </Button>
-            </div>
+        {/* Filtros leves */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {(Object.keys(SOURCE_META) as AgendaSource[]).map((s) => {
+              const active = activeSources.has(s);
+              const meta = SOURCE_META[s];
+              return (
+                <button
+                  key={s}
+                  onClick={() => toggleSource(s)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 h-7 text-xs transition-all ${
+                    active ? "border-border bg-card text-foreground" : "border-transparent bg-muted/40 text-muted-foreground"
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+                  {meta.label}
+                </button>
+              );
+            })}
           </div>
-        </Card>
+          <Select value={search.clientId ?? "all"} onValueChange={setClient}>
+            <SelectTrigger className="h-7 w-[180px] text-xs rounded-full"><SelectValue placeholder="Cliente" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os clientes</SelectItem>
+              {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Grid */}
         {view === "day" && <DayView anchor={anchor} events={events} />}
