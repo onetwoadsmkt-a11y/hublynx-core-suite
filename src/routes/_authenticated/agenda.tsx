@@ -153,75 +153,94 @@ function AgendaPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1400px] p-6 space-y-4">
-        {/* Header */}
-        <header className="flex flex-wrap items-center gap-3 justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-primary/10 p-2.5">
+      <div className="mx-auto max-w-[1600px] px-4 py-4 space-y-3">
+        {/* Header estilo Google Calendar */}
+        <header className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 mr-1">
+            <div className="rounded-xl bg-primary/10 p-2">
               <CalendarDays className="h-5 w-5 text-primary" />
             </div>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
-              <p className="text-sm text-muted-foreground capitalize">{periodLabel}</p>
-            </div>
+            <h1 className="text-xl font-semibold tracking-tight">Agenda</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={goToday}
+            className="rounded-full px-4 h-9 border-border/70"
+          >
+            Hoje
+          </Button>
+
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={goPrev}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={goNext}>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <h2 className="text-xl font-normal text-foreground capitalize">{periodLabel}</h2>
+
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             </Button>
-            <Button asChild variant="outline" size="sm">
+
+            <div className="flex items-center gap-1 rounded-full border border-border/70 bg-card p-0.5">
+              {(["day","week","month"] as View[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`px-3 h-8 rounded-full text-xs font-medium transition-colors ${
+                    view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {v === "day" ? "Dia" : v === "week" ? "Semana" : "Mês"}
+                </button>
+              ))}
+            </div>
+
+            <Button size="sm" className="h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMeetingOpen(true)}>
+              <Video className="h-4 w-4 mr-1.5" /> Reunião
+            </Button>
+            <Button asChild size="sm" className="h-9 rounded-full">
               <Link to="/tarefas" search={{ task: undefined }}>
-                <Plus className="h-4 w-4 mr-1" /> Tarefa
+                <Plus className="h-4 w-4 mr-1" /> Criar
               </Link>
             </Button>
           </div>
         </header>
 
-        {/* Toolbar */}
-        <Card className="rounded-2xl border-border/60 shadow-sm">
-          <div className="flex flex-wrap items-center gap-3 p-3">
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" onClick={goPrev}><ChevronLeft className="h-4 w-4" /></Button>
-              <Button variant="outline" size="sm" onClick={goToday}>Hoje</Button>
-              <Button variant="ghost" size="icon" onClick={goNext}><ChevronRight className="h-4 w-4" /></Button>
-            </div>
-            <Tabs value={view} onValueChange={(v) => setView(v as View)}>
-              <TabsList>
-                <TabsTrigger value="day">Dia</TabsTrigger>
-                <TabsTrigger value="week">Semana</TabsTrigger>
-                <TabsTrigger value="month">Mês</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="flex items-center gap-1.5">
-              {(Object.keys(SOURCE_META) as AgendaSource[]).map((s) => {
-                const active = activeSources.has(s);
-                const meta = SOURCE_META[s];
-                return (
-                  <button
-                    key={s}
-                    onClick={() => toggleSource(s)}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-all ${active ? "border-foreground/20 bg-background" : "border-border/60 bg-muted/40 text-muted-foreground"}`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-                    {meta.label}
-                  </button>
-                );
-              })}
-            </div>
-            <Select value={search.clientId ?? "all"} onValueChange={setClient}>
-              <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue placeholder="Cliente" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os clientes</SelectItem>
-                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <div className="ml-auto">
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMeetingOpen(true)}>
-                <Video className="h-4 w-4 mr-1.5" /> Agendar reunião
-              </Button>
-            </div>
+        {/* Filtros leves */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {(Object.keys(SOURCE_META) as AgendaSource[]).map((s) => {
+              const active = activeSources.has(s);
+              const meta = SOURCE_META[s];
+              return (
+                <button
+                  key={s}
+                  onClick={() => toggleSource(s)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 h-7 text-xs transition-all ${
+                    active ? "border-border bg-card text-foreground" : "border-transparent bg-muted/40 text-muted-foreground"
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+                  {meta.label}
+                </button>
+              );
+            })}
           </div>
-        </Card>
+          <Select value={search.clientId ?? "all"} onValueChange={setClient}>
+            <SelectTrigger className="h-7 w-[180px] text-xs rounded-full"><SelectValue placeholder="Cliente" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os clientes</SelectItem>
+              {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Grid */}
         {view === "day" && <DayView anchor={anchor} events={events} />}
@@ -296,7 +315,8 @@ function DayView({ anchor, events }: { anchor: Date; events: AgendaEvent[] }) {
   );
 }
 
-// ───────── Week View ─────────
+
+// ───────── Week View (estilo Google Calendar) ─────────
 function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaEvent[]; onPickDay: (d: Date) => void }) {
   const ws = startOfWeek(anchor);
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
@@ -304,31 +324,33 @@ function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaE
 
   return (
     <Card className="rounded-2xl border-border/60 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-border/60 bg-muted/30">
-        {days.map((d) => (
-          <button
-            key={d.toISOString()}
-            onClick={() => onPickDay(d)}
-            className="px-2 py-2.5 text-left hover:bg-muted/50 transition-colors"
-          >
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              {fmt(d, { weekday: "short" })}
-            </div>
-            <div className={`text-sm font-medium ${sameDay(d, today) ? "text-primary" : ""}`}>
-              {fmt(d, { day: "2-digit", month: "short" })}
-            </div>
-          </button>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 min-h-[480px]">
+      <div className="grid grid-cols-7 border-b border-border/60">
         {days.map((d) => {
-          const dayEvents = events.filter((e) => sameDay(new Date(e.start), d));
+          const isToday = sameDay(d, today);
           return (
-            <div key={d.toISOString()} className="border-r border-border/40 last:border-r-0 p-2 space-y-1.5">
-              {dayEvents.length === 0 && (
-                <div className="text-[11px] text-muted-foreground/60 px-1 py-2">—</div>
-              )}
-              {dayEvents.map((e) => <EventChip key={e.id} event={e} />)}
+            <button
+              key={d.toISOString()}
+              onClick={() => onPickDay(d)}
+              className="px-3 py-3 text-center border-r border-border/40 last:border-r-0 hover:bg-muted/30 transition-colors"
+            >
+              <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground font-medium">
+                {fmt(d, { weekday: "short" }).replace(".", "")}.
+              </div>
+              <div className={`mt-1 inline-flex items-center justify-center h-8 w-8 rounded-full text-base font-normal ${isToday ? "bg-primary text-primary-foreground font-semibold" : "text-foreground"}`}>
+                {d.getDate()}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-7 min-h-[560px]">
+        {days.map((d) => {
+          const dayEvents = events
+            .filter((e) => sameDay(new Date(e.start), d))
+            .sort((a, b) => a.start.localeCompare(b.start));
+          return (
+            <div key={d.toISOString()} className="border-r border-border/40 last:border-r-0 p-1.5 space-y-1">
+              {dayEvents.map((e) => <EventRow key={e.id} event={e} />)}
             </div>
           );
         })}
@@ -337,7 +359,7 @@ function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaE
   );
 }
 
-// ───────── Month View ─────────
+// ───────── Month View (estilo Google Calendar) ─────────
 function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaEvent[]; onPickDay: (d: Date) => void }) {
   const mStart = startOfMonth(anchor);
   const gridStart = startOfWeek(mStart);
@@ -347,34 +369,40 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
 
   return (
     <Card className="rounded-2xl border-border/60 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-border/60 bg-muted/30">
+      <div className="grid grid-cols-7 border-b border-border/60">
         {weekdays.map((w) => (
-          <div key={w} className="px-2 py-2 text-[10px] uppercase tracking-wider text-muted-foreground text-center">{w}</div>
+          <div key={w} className="px-2 py-2 text-[10px] uppercase tracking-[0.12em] text-muted-foreground text-center font-medium border-r border-border/40 last:border-r-0">
+            {w}.
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-7 grid-rows-6">
         {cells.map((d) => {
           const inMonth = d.getMonth() === anchor.getMonth();
-          const dayEvents = events.filter((e) => sameDay(new Date(e.start), d));
+          const dayEvents = events
+            .filter((e) => sameDay(new Date(e.start), d))
+            .sort((a, b) => a.start.localeCompare(b.start));
           const isToday = sameDay(d, today);
+          const isFirstOfMonth = d.getDate() === 1;
           return (
             <button
               key={d.toISOString()}
               onClick={() => onPickDay(d)}
-              className={`text-left border-r border-b border-border/40 p-1.5 min-h-[96px] hover:bg-muted/30 transition-colors ${inMonth ? "" : "bg-muted/10 text-muted-foreground/60"}`}
+              className={`text-left border-r border-b border-border/40 p-1.5 min-h-[112px] hover:bg-muted/30 transition-colors flex flex-col ${inMonth ? "" : "bg-muted/10"}`}
             >
-              <div className={`text-xs font-medium mb-1 inline-flex items-center justify-center h-5 w-5 rounded-full ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
-                {d.getDate()}
+              <div className="flex items-center justify-center mb-1">
+                <span className={`inline-flex items-center justify-center h-7 min-w-[28px] px-1.5 rounded-full text-xs font-medium ${
+                  isToday
+                    ? "bg-primary text-primary-foreground"
+                    : inMonth ? "text-foreground" : "text-muted-foreground/60"
+                }`}>
+                  {isFirstOfMonth ? `${d.getDate()} ${fmt(d, { month: "short" }).replace(".", "")}.` : d.getDate()}
+                </span>
               </div>
-              <div className="space-y-0.5">
-                {dayEvents.slice(0, 3).map((e) => (
-                  <div key={e.id} className={`flex items-center gap-1 text-[10.5px] truncate rounded px-1 py-0.5 ${SOURCE_META[e.source].bg}`}>
-                    <span className={`h-1 w-1 rounded-full ${SOURCE_META[e.source].dot}`} />
-                    <span className="truncate">{e.title}</span>
-                  </div>
-                ))}
+              <div className="space-y-0.5 flex-1 overflow-hidden">
+                {dayEvents.slice(0, 3).map((e) => <EventRow key={e.id} event={e} compact />)}
                 {dayEvents.length > 3 && (
-                  <div className="text-[10px] text-muted-foreground px-1">+{dayEvents.length - 3} mais</div>
+                  <div className="text-[10px] text-muted-foreground px-1.5">+{dayEvents.length - 3} mais</div>
                 )}
               </div>
             </button>
@@ -382,6 +410,38 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
         })}
       </div>
     </Card>
+  );
+}
+
+// ───────── Event Row (linha estilo Google Calendar) ─────────
+function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean }) {
+  const meta = SOURCE_META[event.source];
+  const time = event.allDay ? null : fmt(new Date(event.start), { hour: "2-digit", minute: "2-digit" });
+
+  if (event.allDay) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className={`w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${meta.bg} hover:brightness-95`}>
+            {event.title}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={`w-full text-left truncate rounded px-1 ${compact ? "py-0" : "py-0.5"} text-[11px] hover:bg-muted/50 transition flex items-center gap-1.5`}>
+          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+          {time && <span className="tabular-nums text-muted-foreground">{time}</span>}
+          <span className="truncate text-foreground">{event.title}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+    </Popover>
   );
 }
 
