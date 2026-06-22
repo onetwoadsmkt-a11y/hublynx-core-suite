@@ -264,3 +264,103 @@ export const syncTaskToCalendar = createServerFn({ method: "POST" })
     return { ok: true as const, eventId, meetLink, htmlLink: json?.htmlLink ?? null };
   });
 
+/**
+ * Backfill: sincroniza com Google Calendar todas as tarefas do usuário
+ * com data definida que ainda não possuem evento espelhado.
+ */
+export const syncAllPendingTasksToCalendar = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: tasks, error } = await supabase
+      .from("tasks")
+      .select("id, owner_id, title, description, due_date, briefing")
+      .eq("owner_id", userId)
+      .not("due_date", "is", null)
+      .limit(500);
+    if (error) throw new Error(error.message);
+
+    const headers = getGoogleGatewayHeaders("calendar");
+    let created = 0, updated = 0, failed = 0;
+    const errors: string[] = [];
+
+    for (const task of tasks ?? []) {
+      try {
+        const type = (task.briefing as any)?.type ?? "tarefa";
+        const wantsMeet = type === "reuniao";
+        const start = new Date(task.due_date as string);
+        const end = new Date(start.getTime() + 60 * 60_000);
+        const body: any = {
+          summary: task.title,
+          description: (task.description as string | null) ?? undefined,
+          start: { dateTime: start.toISOString() },
+          end: { dateTime: end.toISOString() },
+        };
+        if (wantsMeet) {
+          body.conferenceData = {
+            createRequest: {
+              requestId: `task-${task.id}-${Date.now()}`,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          };
+        }
+        const { data: existing } = await supabase
+          .from("task_communications")
+          .select("id, provider_id")
+          .eq("task_id", task.id as string)
+          .eq("kind", "meeting")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let res: Response;
+        if (existing?.provider_id) {
+          res = await fetch(
+            `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`,
+            { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
+          );
+        } else {
+          res = await fetch(
+            `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
+            { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
+          );
+        }
+        const json = await res.json().catch(() => ({}) as any);
+        if (!res.ok) {
+          failed++;
+          errors.push(`${task.title}: ${json?.error?.message || res.status}`);
+          continue;
+        }
+        const eventId = json?.id as string;
+        const meetLink: string | null =
+          json?.hangoutLink ??
+          json?.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === "video")?.uri ??
+          null;
+
+        if (existing?.id) {
+          await supabase
+            .from("task_communications")
+            .update({ subject: task.title, start_at: start.toISOString(), meet_link: meetLink, provider_id: eventId })
+            .eq("id", existing.id);
+          updated++;
+        } else {
+          await recordMeeting(supabase, task.owner_id as string, userId, {
+            taskId: task.id as string,
+            summary: task.title as string,
+            startISO: start.toISOString(),
+            attendees: [],
+            eventId,
+            meetLink,
+          });
+          created++;
+        }
+      } catch (e: any) {
+        failed++;
+        errors.push(`${task.title}: ${e?.message ?? "erro"}`);
+      }
+    }
+
+    return { ok: true as const, created, updated, failed, total: tasks?.length ?? 0, errors: errors.slice(0, 5) };
+  });
+
+
