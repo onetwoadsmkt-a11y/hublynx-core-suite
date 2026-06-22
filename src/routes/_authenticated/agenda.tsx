@@ -21,7 +21,9 @@ import { NewTaskSheet } from "@/components/tasks/NewTaskSheet";
 import {
   getAgendaEvents, rescheduleTask, completeTask,
 } from "@/lib/agenda/agenda.functions";
+import { syncAllPendingTasksToCalendar } from "@/lib/google/calendar.functions";
 import type { AgendaEvent, AgendaSource } from "@/lib/agenda/types";
+
 
 type View = "day" | "week" | "month";
 
