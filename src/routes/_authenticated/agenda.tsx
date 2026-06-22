@@ -227,12 +227,23 @@ function AgendaPage() {
               ))}
             </div>
 
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 rounded-full"
+              onClick={() => backfill.mutate()}
+              disabled={backfill.isPending}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${backfill.isPending ? "animate-spin" : ""}`} />
+              Sincronizar Google
+            </Button>
             <Button size="sm" className="h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMeetingOpen(true)}>
               <Video className="h-4 w-4 mr-1.5" /> Reunião
             </Button>
             <Button size="sm" className="h-9 rounded-full" onClick={() => setNewTaskOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Criar
             </Button>
+
           </div>
         </header>
 
