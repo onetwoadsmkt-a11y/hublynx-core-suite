@@ -155,6 +155,27 @@ function AgendaPage() {
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
 
+  const backfillFn = useServerFn(syncAllPendingTasksToCalendar);
+  const backfill = useMutation({
+    mutationFn: () => backfillFn({ data: undefined as any }),
+    onSuccess: (r: any) => {
+      if (r.failed > 0) {
+        toast.warning(`Sincronizado: ${r.created} novos, ${r.updated} atualizados, ${r.failed} falhas.${r.errors?.length ? " " + r.errors[0] : ""}`);
+      } else if (r.created + r.updated > 0) {
+        toast.success(`Google Agenda sincronizado: ${r.created} novos, ${r.updated} atualizados.`);
+      }
+      qc.invalidateQueries({ queryKey: ["agenda"] });
+    },
+    onError: (e: any) => toast.error(`Falha ao sincronizar: ${e.message}`),
+  });
+
+  // Backfill automático ao abrir a Agenda
+  useEffect(() => {
+    backfill.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-[1600px] px-4 py-4 space-y-3">
