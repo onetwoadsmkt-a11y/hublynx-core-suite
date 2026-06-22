@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ScheduleMeetingDialog } from "@/components/tasks/ScheduleMeetingDialog";
+import { NewTaskSheet } from "@/components/tasks/NewTaskSheet";
 import {
   getAgendaEvents, rescheduleTask, completeTask,
 } from "@/lib/agenda/agenda.functions";
