@@ -321,33 +321,41 @@ function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaE
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
   const today = new Date();
 
+// ───────── Week View (estilo Google Calendar) ─────────
+function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaEvent[]; onPickDay: (d: Date) => void }) {
+  const ws = startOfWeek(anchor);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+  const today = new Date();
+
   return (
     <Card className="rounded-2xl border-border/60 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-border/60 bg-muted/30">
-        {days.map((d) => (
-          <button
-            key={d.toISOString()}
-            onClick={() => onPickDay(d)}
-            className="px-2 py-2.5 text-left hover:bg-muted/50 transition-colors"
-          >
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              {fmt(d, { weekday: "short" })}
-            </div>
-            <div className={`text-sm font-medium ${sameDay(d, today) ? "text-primary" : ""}`}>
-              {fmt(d, { day: "2-digit", month: "short" })}
-            </div>
-          </button>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 min-h-[480px]">
+      <div className="grid grid-cols-7 border-b border-border/60">
         {days.map((d) => {
-          const dayEvents = events.filter((e) => sameDay(new Date(e.start), d));
+          const isToday = sameDay(d, today);
           return (
-            <div key={d.toISOString()} className="border-r border-border/40 last:border-r-0 p-2 space-y-1.5">
-              {dayEvents.length === 0 && (
-                <div className="text-[11px] text-muted-foreground/60 px-1 py-2">—</div>
-              )}
-              {dayEvents.map((e) => <EventChip key={e.id} event={e} />)}
+            <button
+              key={d.toISOString()}
+              onClick={() => onPickDay(d)}
+              className="px-3 py-3 text-center border-r border-border/40 last:border-r-0 hover:bg-muted/30 transition-colors"
+            >
+              <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground font-medium">
+                {fmt(d, { weekday: "short" }).replace(".", "")}.
+              </div>
+              <div className={`mt-1 inline-flex items-center justify-center h-8 w-8 rounded-full text-base font-normal ${isToday ? "bg-primary text-primary-foreground font-semibold" : "text-foreground"}`}>
+                {d.getDate()}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-7 min-h-[560px]">
+        {days.map((d) => {
+          const dayEvents = events
+            .filter((e) => sameDay(new Date(e.start), d))
+            .sort((a, b) => a.start.localeCompare(b.start));
+          return (
+            <div key={d.toISOString()} className="border-r border-border/40 last:border-r-0 p-1.5 space-y-1">
+              {dayEvents.map((e) => <EventRow key={e.id} event={e} />)}
             </div>
           );
         })}
@@ -356,7 +364,7 @@ function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaE
   );
 }
 
-// ───────── Month View ─────────
+// ───────── Month View (estilo Google Calendar) ─────────
 function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaEvent[]; onPickDay: (d: Date) => void }) {
   const mStart = startOfMonth(anchor);
   const gridStart = startOfWeek(mStart);
@@ -366,34 +374,40 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
 
   return (
     <Card className="rounded-2xl border-border/60 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-border/60 bg-muted/30">
+      <div className="grid grid-cols-7 border-b border-border/60">
         {weekdays.map((w) => (
-          <div key={w} className="px-2 py-2 text-[10px] uppercase tracking-wider text-muted-foreground text-center">{w}</div>
+          <div key={w} className="px-2 py-2 text-[10px] uppercase tracking-[0.12em] text-muted-foreground text-center font-medium border-r border-border/40 last:border-r-0">
+            {w}.
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-7 grid-rows-6">
         {cells.map((d) => {
           const inMonth = d.getMonth() === anchor.getMonth();
-          const dayEvents = events.filter((e) => sameDay(new Date(e.start), d));
+          const dayEvents = events
+            .filter((e) => sameDay(new Date(e.start), d))
+            .sort((a, b) => a.start.localeCompare(b.start));
           const isToday = sameDay(d, today);
+          const isFirstOfMonth = d.getDate() === 1;
           return (
             <button
               key={d.toISOString()}
               onClick={() => onPickDay(d)}
-              className={`text-left border-r border-b border-border/40 p-1.5 min-h-[96px] hover:bg-muted/30 transition-colors ${inMonth ? "" : "bg-muted/10 text-muted-foreground/60"}`}
+              className={`text-left border-r border-b border-border/40 p-1.5 min-h-[112px] hover:bg-muted/30 transition-colors flex flex-col ${inMonth ? "" : "bg-muted/10"}`}
             >
-              <div className={`text-xs font-medium mb-1 inline-flex items-center justify-center h-5 w-5 rounded-full ${isToday ? "bg-primary text-primary-foreground" : ""}`}>
-                {d.getDate()}
+              <div className="flex items-center justify-center mb-1">
+                <span className={`inline-flex items-center justify-center h-7 min-w-[28px] px-1.5 rounded-full text-xs font-medium ${
+                  isToday
+                    ? "bg-primary text-primary-foreground"
+                    : inMonth ? "text-foreground" : "text-muted-foreground/60"
+                }`}>
+                  {isFirstOfMonth ? `${d.getDate()} ${fmt(d, { month: "short" }).replace(".", "")}.` : d.getDate()}
+                </span>
               </div>
-              <div className="space-y-0.5">
-                {dayEvents.slice(0, 3).map((e) => (
-                  <div key={e.id} className={`flex items-center gap-1 text-[10.5px] truncate rounded px-1 py-0.5 ${SOURCE_META[e.source].bg}`}>
-                    <span className={`h-1 w-1 rounded-full ${SOURCE_META[e.source].dot}`} />
-                    <span className="truncate">{e.title}</span>
-                  </div>
-                ))}
+              <div className="space-y-0.5 flex-1 overflow-hidden">
+                {dayEvents.slice(0, 3).map((e) => <EventRow key={e.id} event={e} compact />)}
                 {dayEvents.length > 3 && (
-                  <div className="text-[10px] text-muted-foreground px-1">+{dayEvents.length - 3} mais</div>
+                  <div className="text-[10px] text-muted-foreground px-1.5">+{dayEvents.length - 3} mais</div>
                 )}
               </div>
             </button>
