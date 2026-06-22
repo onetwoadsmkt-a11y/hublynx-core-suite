@@ -80,6 +80,14 @@ export function NewTaskSheet({
       onCreated?.(id);
       onOpenChange(false);
       syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
+      if (dueDate) {
+        qc.invalidateQueries({ queryKey: ["agenda"] });
+        syncCalendar({
+          data: { taskId: id, withMeet: taskType === "reuniao" },
+        })
+          .then(() => toast.success("Sincronizado com Google Agenda."))
+          .catch((e: any) => toast.error(`Falha ao sincronizar com Google Agenda: ${e.message}`));
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
