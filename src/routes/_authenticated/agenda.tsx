@@ -315,11 +315,6 @@ function DayView({ anchor, events }: { anchor: Date; events: AgendaEvent[] }) {
   );
 }
 
-// ───────── Week View ─────────
-function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaEvent[]; onPickDay: (d: Date) => void }) {
-  const ws = startOfWeek(anchor);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
-  const today = new Date();
 
 // ───────── Week View (estilo Google Calendar) ─────────
 function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaEvent[]; onPickDay: (d: Date) => void }) {
