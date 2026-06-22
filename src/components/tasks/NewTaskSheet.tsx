@@ -104,6 +104,17 @@ export function NewTaskSheet({
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
           </div>
           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2 col-span-2">
+              <Label>Tipo</Label>
+              <Select value={taskType} onValueChange={(v) => setTaskType(v as typeof taskType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tarefa">Tarefa</SelectItem>
+                  <SelectItem value="reuniao">Reunião</SelectItem>
+                  <SelectItem value="evento">Evento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label>Prioridade</Label>
               <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
@@ -124,9 +135,13 @@ export function NewTaskSheet({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2 col-span-2">
-              <Label>Prazo</Label>
+            <div className="space-y-2">
+              <Label>Data</Label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Hora</Label>
+              <Input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
             </div>
           </div>
         </div>
