@@ -14,6 +14,7 @@ import {
 import { useKanbanColumns, DEFAULT_STATUS_COLS } from "@/hooks/useKanbanColumns";
 import { PRIORITY_LABEL, type Priority, type TaskStatus } from "@/components/tasks/TaskDrawer";
 import { syncEntityToSheets } from "@/lib/google/sheets-sync.functions";
+import { syncTaskToCalendar } from "@/lib/google/calendar.functions";
 
 interface Props {
   open: boolean;
@@ -30,6 +31,7 @@ export function NewTaskSheet({
 }: Props) {
   const qc = useQueryClient();
   const syncSheet = useServerFn(syncEntityToSheets);
+  const syncCalendar = useServerFn(syncTaskToCalendar);
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
 
   const [title, setTitle] = useState("");
@@ -78,6 +80,14 @@ export function NewTaskSheet({
       onCreated?.(id);
       onOpenChange(false);
       syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
+      if (dueDate) {
+        qc.invalidateQueries({ queryKey: ["agenda"] });
+        syncCalendar({
+          data: { taskId: id, withMeet: taskType === "reuniao" },
+        })
+          .then(() => toast.success("Sincronizado com Google Agenda."))
+          .catch((e: any) => toast.error(`Falha ao sincronizar com Google Agenda: ${e.message}`));
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
