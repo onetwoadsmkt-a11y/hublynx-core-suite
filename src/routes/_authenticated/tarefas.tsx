@@ -213,6 +213,9 @@ function TarefasPage() {
           <p className="text-muted-foreground mt-1">Organize sua operação em Kanban ou Lista.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <a href="/app/hoje">📱 Abrir Central PWA</a>
+          </Button>
           <Button variant="outline" onClick={() => setOpenEditKanban(true)}>
             <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
           </Button>
