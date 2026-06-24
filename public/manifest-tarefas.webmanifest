@@ -1,0 +1,14 @@
+{
+  "name": "Hublynx Tarefas",
+  "short_name": "Tarefas",
+  "description": "Central de Tarefas Hublynx — crie, organize e receba lembretes das suas entregas no celular.",
+  "start_url": "/app/hoje",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#00D084",
+  "icons": [
+    { "src": "/icon-tarefas-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

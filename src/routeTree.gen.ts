@@ -21,10 +21,12 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedArquivosRouteImport } from './routes/_authenticated/arquivos'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated/agenda'
 import { Route as AuthenticatedProjetosIndexRouteImport } from './routes/_authenticated/projetos.index'
 import { Route as AuthenticatedFinanceiroIndexRouteImport } from './routes/_authenticated/financeiro.index'
 import { Route as AuthenticatedConfiguracoesIndexRouteImport } from './routes/_authenticated/configuracoes.index'
+import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
 import { Route as AuthenticatedFinanceiroRecorrenciasRouteImport } from './routes/_authenticated/financeiro.recorrencias'
 import { Route as AuthenticatedFinanceiroReceberRouteImport } from './routes/_authenticated/financeiro.receber'
@@ -33,7 +35,13 @@ import { Route as AuthenticatedFinanceiroPagarRouteImport } from './routes/_auth
 import { Route as AuthenticatedFinanceiroDreRouteImport } from './routes/_authenticated/financeiro.dre'
 import { Route as AuthenticatedFinanceiroCategoriasRouteImport } from './routes/_authenticated/financeiro.categorias'
 import { Route as AuthenticatedConfiguracoesIntegracoesRouteImport } from './routes/_authenticated/configuracoes.integracoes'
+import { Route as AuthenticatedAppTarefasRouteImport } from './routes/_authenticated/app.tarefas'
+import { Route as AuthenticatedAppProjetosRouteImport } from './routes/_authenticated/app.projetos'
+import { Route as AuthenticatedAppMaisRouteImport } from './routes/_authenticated/app.mais'
+import { Route as AuthenticatedAppLembretesRouteImport } from './routes/_authenticated/app.lembretes'
+import { Route as AuthenticatedAppHojeRouteImport } from './routes/_authenticated/app.hoje'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
+import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authenticated/app.tarefas.$id'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -95,6 +103,11 @@ const AuthenticatedArquivosRoute = AuthenticatedArquivosRouteImport.update({
   path: '/arquivos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAgendaRoute = AuthenticatedAgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
@@ -118,6 +131,11 @@ const AuthenticatedConfiguracoesIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
+const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedProjetosIdRoute = AuthenticatedProjetosIdRouteImport.update({
   id: '/projetos/$id',
   path: '/projetos/$id',
@@ -165,11 +183,44 @@ const AuthenticatedConfiguracoesIntegracoesRoute =
     path: '/integracoes',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
+const AuthenticatedAppTarefasRoute = AuthenticatedAppTarefasRouteImport.update({
+  id: '/tarefas',
+  path: '/tarefas',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppProjetosRoute =
+  AuthenticatedAppProjetosRouteImport.update({
+    id: '/projetos',
+    path: '/projetos',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppMaisRoute = AuthenticatedAppMaisRouteImport.update({
+  id: '/mais',
+  path: '/mais',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppLembretesRoute =
+  AuthenticatedAppLembretesRouteImport.update({
+    id: '/lembretes',
+    path: '/lembretes',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppHojeRoute = AuthenticatedAppHojeRouteImport.update({
+  id: '/hoje',
+  path: '/hoje',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAdminUsuariosRoute =
   AuthenticatedAdminUsuariosRouteImport.update({
     id: '/admin/usuarios',
     path: '/admin/usuarios',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAppTarefasIdRoute =
+  AuthenticatedAppTarefasIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedAppTarefasRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -177,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/agenda': typeof AuthenticatedAgendaRoute
+  '/app': typeof AuthenticatedAppRouteWithChildren
   '/arquivos': typeof AuthenticatedArquivosRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
@@ -186,6 +238,11 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/app/hoje': typeof AuthenticatedAppHojeRoute
+  '/app/lembretes': typeof AuthenticatedAppLembretesRoute
+  '/app/mais': typeof AuthenticatedAppMaisRoute
+  '/app/projetos': typeof AuthenticatedAppProjetosRoute
+  '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
@@ -194,9 +251,11 @@ export interface FileRoutesByFullPath {
   '/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
   '/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/app/': typeof AuthenticatedAppIndexRoute
   '/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
   '/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
   '/projetos/': typeof AuthenticatedProjetosIndexRoute
+  '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -210,6 +269,11 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/app/hoje': typeof AuthenticatedAppHojeRoute
+  '/app/lembretes': typeof AuthenticatedAppLembretesRoute
+  '/app/mais': typeof AuthenticatedAppMaisRoute
+  '/app/projetos': typeof AuthenticatedAppProjetosRoute
+  '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
@@ -218,9 +282,11 @@ export interface FileRoutesByTo {
   '/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
   '/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/app': typeof AuthenticatedAppIndexRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesIndexRoute
   '/financeiro': typeof AuthenticatedFinanceiroIndexRoute
   '/projetos': typeof AuthenticatedProjetosIndexRoute
+  '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -229,6 +295,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
+  '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/arquivos': typeof AuthenticatedArquivosRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
@@ -238,6 +305,11 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
+  '/_authenticated/app/hoje': typeof AuthenticatedAppHojeRoute
+  '/_authenticated/app/lembretes': typeof AuthenticatedAppLembretesRoute
+  '/_authenticated/app/mais': typeof AuthenticatedAppMaisRoute
+  '/_authenticated/app/projetos': typeof AuthenticatedAppProjetosRoute
+  '/_authenticated/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/_authenticated/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
   '/_authenticated/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/_authenticated/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
@@ -246,9 +318,11 @@ export interface FileRoutesById {
   '/_authenticated/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
   '/_authenticated/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
   '/_authenticated/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
   '/_authenticated/projetos/': typeof AuthenticatedProjetosIndexRoute
+  '/_authenticated/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -257,6 +331,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/agenda'
+    | '/app'
     | '/arquivos'
     | '/clientes'
     | '/configuracoes'
@@ -266,6 +341,11 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/tarefas'
     | '/admin/usuarios'
+    | '/app/hoje'
+    | '/app/lembretes'
+    | '/app/mais'
+    | '/app/projetos'
+    | '/app/tarefas'
     | '/configuracoes/integracoes'
     | '/financeiro/categorias'
     | '/financeiro/dre'
@@ -274,9 +354,11 @@ export interface FileRouteTypes {
     | '/financeiro/receber'
     | '/financeiro/recorrencias'
     | '/projetos/$id'
+    | '/app/'
     | '/configuracoes/'
     | '/financeiro/'
     | '/projetos/'
+    | '/app/tarefas/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -290,6 +372,11 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/tarefas'
     | '/admin/usuarios'
+    | '/app/hoje'
+    | '/app/lembretes'
+    | '/app/mais'
+    | '/app/projetos'
+    | '/app/tarefas'
     | '/configuracoes/integracoes'
     | '/financeiro/categorias'
     | '/financeiro/dre'
@@ -298,9 +385,11 @@ export interface FileRouteTypes {
     | '/financeiro/receber'
     | '/financeiro/recorrencias'
     | '/projetos/$id'
+    | '/app'
     | '/configuracoes'
     | '/financeiro'
     | '/projetos'
+    | '/app/tarefas/$id'
   id:
     | '__root__'
     | '/'
@@ -308,6 +397,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/_authenticated/agenda'
+    | '/_authenticated/app'
     | '/_authenticated/arquivos'
     | '/_authenticated/clientes'
     | '/_authenticated/configuracoes'
@@ -317,6 +407,11 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
     | '/_authenticated/admin/usuarios'
+    | '/_authenticated/app/hoje'
+    | '/_authenticated/app/lembretes'
+    | '/_authenticated/app/mais'
+    | '/_authenticated/app/projetos'
+    | '/_authenticated/app/tarefas'
     | '/_authenticated/configuracoes/integracoes'
     | '/_authenticated/financeiro/categorias'
     | '/_authenticated/financeiro/dre'
@@ -325,9 +420,11 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro/receber'
     | '/_authenticated/financeiro/recorrencias'
     | '/_authenticated/projetos/$id'
+    | '/_authenticated/app/'
     | '/_authenticated/configuracoes/'
     | '/_authenticated/financeiro/'
     | '/_authenticated/projetos/'
+    | '/_authenticated/app/tarefas/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -423,6 +520,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedArquivosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/app': {
+      id: '/_authenticated/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/agenda': {
       id: '/_authenticated/agenda'
       path: '/agenda'
@@ -450,6 +554,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/configuracoes/'
       preLoaderRoute: typeof AuthenticatedConfiguracoesIndexRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
+    }
+    '/_authenticated/app/': {
+      id: '/_authenticated/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/projetos/$id': {
       id: '/_authenticated/projetos/$id'
@@ -507,6 +618,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesIntegracoesRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
     }
+    '/_authenticated/app/tarefas': {
+      id: '/_authenticated/app/tarefas'
+      path: '/tarefas'
+      fullPath: '/app/tarefas'
+      preLoaderRoute: typeof AuthenticatedAppTarefasRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/projetos': {
+      id: '/_authenticated/app/projetos'
+      path: '/projetos'
+      fullPath: '/app/projetos'
+      preLoaderRoute: typeof AuthenticatedAppProjetosRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/mais': {
+      id: '/_authenticated/app/mais'
+      path: '/mais'
+      fullPath: '/app/mais'
+      preLoaderRoute: typeof AuthenticatedAppMaisRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/lembretes': {
+      id: '/_authenticated/app/lembretes'
+      path: '/lembretes'
+      fullPath: '/app/lembretes'
+      preLoaderRoute: typeof AuthenticatedAppLembretesRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/hoje': {
+      id: '/_authenticated/app/hoje'
+      path: '/hoje'
+      fullPath: '/app/hoje'
+      preLoaderRoute: typeof AuthenticatedAppHojeRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/admin/usuarios': {
       id: '/_authenticated/admin/usuarios'
       path: '/admin/usuarios'
@@ -514,8 +660,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/app/tarefas/$id': {
+      id: '/_authenticated/app/tarefas/$id'
+      path: '/$id'
+      fullPath: '/app/tarefas/$id'
+      preLoaderRoute: typeof AuthenticatedAppTarefasIdRouteImport
+      parentRoute: typeof AuthenticatedAppTarefasRoute
+    }
   }
 }
+
+interface AuthenticatedAppTarefasRouteChildren {
+  AuthenticatedAppTarefasIdRoute: typeof AuthenticatedAppTarefasIdRoute
+}
+
+const AuthenticatedAppTarefasRouteChildren: AuthenticatedAppTarefasRouteChildren =
+  {
+    AuthenticatedAppTarefasIdRoute: AuthenticatedAppTarefasIdRoute,
+  }
+
+const AuthenticatedAppTarefasRouteWithChildren =
+  AuthenticatedAppTarefasRoute._addFileChildren(
+    AuthenticatedAppTarefasRouteChildren,
+  )
+
+interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppHojeRoute: typeof AuthenticatedAppHojeRoute
+  AuthenticatedAppLembretesRoute: typeof AuthenticatedAppLembretesRoute
+  AuthenticatedAppMaisRoute: typeof AuthenticatedAppMaisRoute
+  AuthenticatedAppProjetosRoute: typeof AuthenticatedAppProjetosRoute
+  AuthenticatedAppTarefasRoute: typeof AuthenticatedAppTarefasRouteWithChildren
+  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
+}
+
+const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppHojeRoute: AuthenticatedAppHojeRoute,
+  AuthenticatedAppLembretesRoute: AuthenticatedAppLembretesRoute,
+  AuthenticatedAppMaisRoute: AuthenticatedAppMaisRoute,
+  AuthenticatedAppProjetosRoute: AuthenticatedAppProjetosRoute,
+  AuthenticatedAppTarefasRoute: AuthenticatedAppTarefasRouteWithChildren,
+  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
+}
+
+const AuthenticatedAppRouteWithChildren =
+  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
 
 interface AuthenticatedConfiguracoesRouteChildren {
   AuthenticatedConfiguracoesIntegracoesRoute: typeof AuthenticatedConfiguracoesIntegracoesRoute
@@ -564,6 +752,7 @@ const AuthenticatedFinanceiroRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAgendaRoute: typeof AuthenticatedAgendaRoute
+  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
   AuthenticatedArquivosRoute: typeof AuthenticatedArquivosRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRouteWithChildren
@@ -579,6 +768,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAgendaRoute: AuthenticatedAgendaRoute,
+  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
   AuthenticatedArquivosRoute: AuthenticatedArquivosRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRouteWithChildren,
@@ -604,13 +794,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
