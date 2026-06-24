@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_config: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           address: string | null
@@ -1189,6 +1207,38 @@ export type Database = {
           owner_id?: string
         }
         Relationships: []
+      }
+      task_push_log: {
+        Row: {
+          id: string
+          kind: string
+          sent_at: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          kind: string
+          sent_at?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          kind?: string
+          sent_at?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_push_log_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_related: {
         Row: {
