@@ -1,62 +1,113 @@
-## Objetivo
 
-Redesenhar a aba **Kanban** em `/tarefas` para seguir o layout do pipeline anexado, **sem alterar identidade visual** (cores semânticas, fonte, tokens, botão verde `#00D084`, badges de tons existentes) nem regras de negócio. Apenas UI/layout do Kanban.
+# Central de Tarefas — Redesign + PWA dedicado
 
-## Escopo
+Ajusta a etapa **Tarefas** do sistema com o layout mobile-first descrito e cria um **PWA instalável separado** apontando só para essa área, mantendo a identidade visual do Hublynx Core.
 
-Arquivo único: `src/routes/_authenticated/tarefas.tsx` (componentes `KanbanColumn`, `TaskCard`/`DraggableCard`). Aba "Lista" e o `TaskDrawer` ficam intactos.
+## 1. Nova rota base `/app` (shell mobile)
 
-## Mudanças de layout
+Cria um layout próprio em `src/routes/_authenticated/app.tsx` (sem sidebar do Core), com:
+- Header compacto (saudação + data + sino).
+- `<Outlet />` central com padding bottom para a bottom bar.
+- **Bottom bar fixa** com 5 itens: Hoje · Tarefas · **Novo (+)** central destacado · Projetos · Mais.
+- Botão **Novo** abre bottom-sheet com 4 ações: Nova tarefa · Novo projeto · Novo cliente · Novo lembrete.
 
-### 1. Cabeçalho da página (linha do "Pipeline - Tarefas")
+Rotas filhas:
+- `/app/hoje` — saudação, card da próxima tarefa, contadores (pendentes / atrasadas / concluídas), lista do dia com botões "Ver" e "Concluir".
+- `/app/tarefas` — busca + filtros chips (Hoje, Atrasadas, Pendentes, Concluídas) + cards.
+- `/app/tarefas/$id` — detalhe (status, prazo, responsável, projeto, descrição, checklist, anexos, comentários, botão Concluir).
+- `/app/projetos` — cards com contadores de tarefas (abertas / concluídas / atrasadas).
+- `/app/projetos/$id` — tarefas relacionadas.
+- `/app/lembretes` — lista + criação (No horário, 1h antes, 1 dia antes, semanal, mensal).
+- `/app/mais` — Clientes, Equipe, Etiquetas, Modelos, Configurações, status offline.
 
-- Manter título ("Editar Kanban", "Nova tarefa").
-- Mover a busca e os filtros para a **mesma linha** do título (compactos, à direita), igual à barra do pipeline. Em telas estreitas, quebram para baixo.
-- Adicionar à direita um contador resumo: `N tarefas` (similar a "6 leads: R$3.000"), usando apenas a contagem (sem valor monetário).
+Reaproveita os componentes existentes (`NewTaskSheet`, `TaskDrawer`, `useKanbanColumns`, mutations Supabase) — só envolvendo em layouts mobile novos. Sem refazer business logic.
 
-### 2. Coluna do Kanban
+## 2. Ajuste da etapa Tarefas atual no sistema
 
-Cada coluna passa a ter:
+`/tarefas` (desktop, dentro do AppShell) ganha o mesmo visual de cards arredondados, chips de filtro e header de resumo do dia, mantendo o Kanban existente como uma das views (toggle Lista / Kanban). Identidade visual: tokens já definidos em `src/styles.css` (verde `#00D084`, dark Hublynx) — sem cores hardcoded.
 
-- **Borda superior colorida** (faixa 3px) usando a cor atual do `col.tone` (extrair a cor do tom — ex.: `bg-blue-100 text-blue-700` → faixa `bg-blue-500`). Mapa simples de tom→accent dentro do arquivo.
-- Cabeçalho com:
-  - Título da coluna em **maiúsculas, peso semibold, cor neutra** (sem o "pill" colorido atual).
-  - Botão `+` à direita (ghost icon) que abre o `NewTaskDialog` já com `status` pré-selecionado da coluna.
-  - Sublinha com `{count} tarefas` em `text-muted-foreground`.
-- Fundo da coluna mais sutil: `bg-card` com `border` em vez de `bg-muted/40`.
-- Largura mantém `w-80`, scroll horizontal mantém.
-- **Placeholder quando vazia**: caixa tracejada centralizada com texto "Arraste tarefas aqui" (substitui o vazio atual).
+Nova tarefa rápida: campo único "O que precisa ser feito?", chips de prazo (Hoje / Amanhã / Esta semana / Sem prazo), prioridade (Normal / Importante / Urgente), projeto/cliente, responsável. Reusa a mutation atual do `NewTaskSheet`.
 
-### 3. Card de tarefa
+## 3. PWA instalável só da Central de Tarefas
 
-Reformatar para o visual do print:
+- Novo manifest `public/manifest-tarefas.webmanifest`:
+  - `name`: "Hublynx Tarefas", `short_name`: "Tarefas"
+  - `start_url`: `/app/hoje`
+  - `scope`: `/app/`
+  - `display`: `standalone`, theme/background com tokens Hublynx
+  - Ícones próprios (gerar `public/icon-tarefas-192.png` / `512.png`).
+- `<link rel="manifest" href="/manifest-tarefas.webmanifest">` injetado **apenas** quando a rota começa com `/app` (via `head()` no layout `app.tsx`), para não conflitar com o manifest do Core.
+- Botão "Instalar app" no `/app/mais` usando o evento `beforeinstallprompt`.
+- O manifest `/app/` mantém o usuário dentro da Central; ao abrir links externos do Core, sai do escopo normalmente.
 
-- Linha 1: **círculo avatar** (ícone `User` em cinza dentro de um círculo `bg-muted`) + **título** em bold + **data** (`dd/MM`) no canto superior direito.
-- Linha 2 (se houver cliente): ícone `Mail` + email do cliente, em `text-sm text-brand-blue`.
-- Linha 3 (se houver cliente com telefone): ícone `Phone` + telefone — só renderiza se existir; (manter como hoje se não tivermos telefone na query, neste caso omitir).
-- Linha 4: **chips de labels** (mantém cores das labels atuais) + ponto de prioridade (bolinha pequena com cor de `PRIORITY_ACCENT`) alinhado à direita.
-- Remover a barra-accent vertical à esquerda atual; o destaque visual vem do topo da coluna.
-- Borda do card: `border bg-card rounded-lg shadow-sm hover:shadow-md`.
+## 4. Push notifications nativas (PWA)
 
-### 4. Não alterar
+- Tabela nova `push_subscriptions` (user_id, endpoint, p256dh, auth, created_at) com RLS por `auth.uid()` + GRANTs.
+- Service worker `public/sw-push.js` apenas para push (não cacheia app shell — respeita guideline PWA do Lovable preview).
+- Server fns:
+  - `subscribeToPush` — salva subscription do navegador.
+  - `sendPushToUser` — envia via `web-push` com chaves VAPID.
+- Secrets via `generate_secret`: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (gerados automaticamente).
+- Cron `pg_cron` a cada minuto chama `/api/public/hooks/run-reminders` que varre `tasks` com `due_date` próximo conforme regra do lembrete (no horário, 1h antes, 1 dia antes) e dispara push + atualiza last_sent.
+- Lembretes recorrentes (semanal/mensal) tratados pelo mesmo cron olhando regra em `briefing.reminder`.
 
-- Schema do banco, queries, mutations, drag-and-drop (dnd-kit), filtros, `TaskDrawer`, aba Lista, `EditKanbanDialog`, `NewTaskDialog`.
-- Tokens de cor e classes semânticas. Nenhum `text-white`/`bg-black` hardcoded novo.
-- Cores das colunas continuam vindo de `kanban_columns.tone`.
+## 5. Sincronização automática com Google Calendar
 
-## Detalhes técnicos
+Já existe `syncTaskToCalendar` e `syncAllPendingTasksToCalendar`. Reforço:
+- Chamar `syncTaskToCalendar` em **toda** criação/edição de tarefa com `due_date` (não só pela tela de agenda).
+- Em concluir tarefa: atualiza o evento Google (marca `[Concluída]` no título e status).
+- Garantir idempotência (já implementado via `task_communications`).
 
-- Mapa `TONE_TO_ACCENT` local em `tarefas.tsx`:
-  ```
-  "bg-blue-100 text-blue-700" → "bg-blue-500"
-  "bg-amber-100 text-amber-700" → "bg-amber-500"
-  ... (cobrir os 10 tons de KANBAN_TONES)
-  default → "bg-muted-foreground/40"
-  ```
-- `KanbanColumn` recebe nova prop `onAddInColumn(statusKey)` para abrir o `NewTaskDialog` pré-preenchido. Implementar lift state mínimo no `TarefasPage` (`newTaskStatus`) e passar para `NewTaskDialog` como prop opcional `defaultStatus`.
-- `TaskCard` ganha sub-componentes `CardHeader` (avatar+título+data) e `CardContact` (email).
+## Arquivos novos
 
-## Fora do escopo
+- `src/routes/_authenticated/app.tsx` (layout mobile)
+- `src/routes/_authenticated/app.hoje.tsx`
+- `src/routes/_authenticated/app.tarefas.tsx`
+- `src/routes/_authenticated/app.tarefas.$id.tsx`
+- `src/routes/_authenticated/app.projetos.tsx`
+- `src/routes/_authenticated/app.projetos.$id.tsx`
+- `src/routes/_authenticated/app.lembretes.tsx`
+- `src/routes/_authenticated/app.mais.tsx`
+- `src/components/app-mobile/BottomBar.tsx`
+- `src/components/app-mobile/NewActionSheet.tsx`
+- `src/components/app-mobile/TaskCardMobile.tsx`
+- `src/components/app-mobile/InstallPWAButton.tsx`
+- `src/lib/push/push.functions.ts`
+- `src/routes/api/public/hooks/run-reminders.ts`
+- `public/manifest-tarefas.webmanifest`
+- `public/sw-push.js`
+- `public/icon-tarefas-192.png`, `public/icon-tarefas-512.png`
 
-- Toolbar flutuante inferior do print (ícones de seleção/texto/anexar/comentar) — não corresponde a nenhuma feature atual; será ignorada.
-- Webhook/Testar do print — não existem em Tarefas.
+## Arquivos editados
+
+- `src/routes/_authenticated/tarefas.tsx` — novo visual + filtros chips + view toggle.
+- `src/components/tasks/NewTaskSheet.tsx` — chips rápidos de prazo + simplificação mobile.
+- `src/routes/__root.tsx` — registrar `sw-push.js` (não app-shell SW).
+
+## Migrations
+
+```sql
+create table public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+grant select, insert, update, delete on public.push_subscriptions to authenticated;
+grant all on public.push_subscriptions to service_role;
+alter table public.push_subscriptions enable row level security;
+create policy "own_push" on public.push_subscriptions
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+```
+
+Coluna opcional em `tasks.briefing` (JSONB já existe) guarda `reminder: { rule, last_sent_at }`.
+
+## Pontos confirmados pelo usuário
+
+- Sem onboarding — usa sessão já existente.
+- Sem seed de dados — usa os clientes/projetos/tarefas já cadastrados.
+- Lembretes via Web Push nativo do PWA (pedirá permissão no celular).
+- Manter sistema desktop intacto, apenas modernizar /tarefas e adicionar PWA dedicado em /app.
