@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { BellRing, BellOff, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { saveSubscription } from "@/lib/push/push.functions";
+import { saveSubscription, getVapidPublicKey, sendTestPush } from "@/lib/push/push.functions";
 
 export const Route = createFileRoute("/_authenticated/app/lembretes")({
   component: LembretesMobile,
