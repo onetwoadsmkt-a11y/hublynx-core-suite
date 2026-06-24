@@ -5,13 +5,11 @@ import { Button } from "@/components/ui/button";
 import { BellRing, BellOff, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { saveSubscription } from "@/lib/push/push.functions";
+import { saveSubscription, getVapidPublicKey, sendTestPush } from "@/lib/push/push.functions";
 
 export const Route = createFileRoute("/_authenticated/app/lembretes")({
   component: LembretesMobile,
 });
-
-const VAPID_PUBLIC_KEY = ""; // configurar depois — necessário para Web Push
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -26,6 +24,8 @@ function LembretesMobile() {
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [subscribed, setSubscribed] = useState(false);
   const save = useServerFn(saveSubscription);
+  const getKey = useServerFn(getVapidPublicKey);
+  const sendTest = useServerFn(sendTestPush);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -38,8 +38,8 @@ function LembretesMobile() {
 
   const enable = async () => {
     try {
-      if (!("Notification" in window)) {
-        toast.error("Este dispositivo não suporta notificações.");
+      if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+        toast.error("Este dispositivo não suporta notificações push.");
         return;
       }
       const perm = await Notification.requestPermission();
@@ -48,22 +48,16 @@ function LembretesMobile() {
         toast.error("Permissão negada.");
         return;
       }
-      const reg = await navigator.serviceWorker.ready;
+      let reg = await navigator.serviceWorker.getRegistration("/sw-push.js");
+      if (!reg) reg = await navigator.serviceWorker.register("/sw-push.js");
+      await navigator.serviceWorker.ready;
+
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
-        if (!VAPID_PUBLIC_KEY) {
-          // Sem VAPID configurado, só mostra notificação local de teste
-          await reg.showNotification("Notificações ativadas! 🎉", {
-            body: "Você receberá lembretes das suas tarefas aqui.",
-            icon: "/icon-tarefas-512.png",
-          });
-          setSubscribed(true);
-          toast.success("Notificações locais ativadas.");
-          return;
-        }
+        const { publicKey } = await getKey();
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
         });
       }
       const json = sub.toJSON() as any;
@@ -77,6 +71,9 @@ function LembretesMobile() {
       });
       setSubscribed(true);
       toast.success("Lembretes ativados!");
+      try {
+        await sendTest();
+      } catch {}
     } catch (e: any) {
       toast.error(e.message ?? "Falha ao ativar.");
     }

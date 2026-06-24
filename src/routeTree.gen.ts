@@ -41,6 +41,7 @@ import { Route as AuthenticatedAppMaisRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAppLembretesRouteImport } from './routes/_authenticated/app.lembretes'
 import { Route as AuthenticatedAppHojeRouteImport } from './routes/_authenticated/app.hoje'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
+import { Route as ApiPublicHooksRunRemindersRouteImport } from './routes/api/public/hooks/run-reminders'
 import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authenticated/app.tarefas.$id'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -216,6 +217,12 @@ const AuthenticatedAdminUsuariosRoute =
     path: '/admin/usuarios',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicHooksRunRemindersRoute =
+  ApiPublicHooksRunRemindersRouteImport.update({
+    id: '/api/public/hooks/run-reminders',
+    path: '/api/public/hooks/run-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAppTarefasIdRoute =
   AuthenticatedAppTarefasIdRouteImport.update({
     id: '/$id',
@@ -256,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
   '/projetos/': typeof AuthenticatedProjetosIndexRoute
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
+  '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -287,6 +295,7 @@ export interface FileRoutesByTo {
   '/financeiro': typeof AuthenticatedFinanceiroIndexRoute
   '/projetos': typeof AuthenticatedProjetosIndexRoute
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
+  '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -323,6 +332,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
   '/_authenticated/projetos/': typeof AuthenticatedProjetosIndexRoute
   '/_authenticated/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
+  '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -359,6 +369,7 @@ export interface FileRouteTypes {
     | '/financeiro/'
     | '/projetos/'
     | '/app/tarefas/$id'
+    | '/api/public/hooks/run-reminders'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -390,6 +401,7 @@ export interface FileRouteTypes {
     | '/financeiro'
     | '/projetos'
     | '/app/tarefas/$id'
+    | '/api/public/hooks/run-reminders'
   id:
     | '__root__'
     | '/'
@@ -425,6 +437,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro/'
     | '/_authenticated/projetos/'
     | '/_authenticated/app/tarefas/$id'
+    | '/api/public/hooks/run-reminders'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -432,6 +445,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -660,6 +674,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/hooks/run-reminders': {
+      id: '/api/public/hooks/run-reminders'
+      path: '/api/public/hooks/run-reminders'
+      fullPath: '/api/public/hooks/run-reminders'
+      preLoaderRoute: typeof ApiPublicHooksRunRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/tarefas/$id': {
       id: '/_authenticated/app/tarefas/$id'
       path: '/$id'
@@ -790,6 +811,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
