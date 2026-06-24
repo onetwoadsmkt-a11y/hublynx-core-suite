@@ -26,6 +26,7 @@ import { Route as AuthenticatedAgendaRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedProjetosIndexRouteImport } from './routes/_authenticated/projetos.index'
 import { Route as AuthenticatedFinanceiroIndexRouteImport } from './routes/_authenticated/financeiro.index'
 import { Route as AuthenticatedConfiguracoesIndexRouteImport } from './routes/_authenticated/configuracoes.index'
+import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
 import { Route as AuthenticatedFinanceiroRecorrenciasRouteImport } from './routes/_authenticated/financeiro.recorrencias'
 import { Route as AuthenticatedFinanceiroReceberRouteImport } from './routes/_authenticated/financeiro.receber'
@@ -130,6 +131,11 @@ const AuthenticatedConfiguracoesIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
+const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedProjetosIdRoute = AuthenticatedProjetosIdRouteImport.update({
   id: '/projetos/$id',
   path: '/projetos/$id',
@@ -245,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
   '/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/app/': typeof AuthenticatedAppIndexRoute
   '/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
   '/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
   '/projetos/': typeof AuthenticatedProjetosIndexRoute
@@ -255,7 +262,6 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/agenda': typeof AuthenticatedAgendaRoute
-  '/app': typeof AuthenticatedAppRouteWithChildren
   '/arquivos': typeof AuthenticatedArquivosRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -276,6 +282,7 @@ export interface FileRoutesByTo {
   '/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
   '/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/app': typeof AuthenticatedAppIndexRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesIndexRoute
   '/financeiro': typeof AuthenticatedFinanceiroIndexRoute
   '/projetos': typeof AuthenticatedProjetosIndexRoute
@@ -311,6 +318,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
   '/_authenticated/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
   '/_authenticated/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
   '/_authenticated/projetos/': typeof AuthenticatedProjetosIndexRoute
@@ -346,6 +354,7 @@ export interface FileRouteTypes {
     | '/financeiro/receber'
     | '/financeiro/recorrencias'
     | '/projetos/$id'
+    | '/app/'
     | '/configuracoes/'
     | '/financeiro/'
     | '/projetos/'
@@ -356,7 +365,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/agenda'
-    | '/app'
     | '/arquivos'
     | '/clientes'
     | '/dashboard'
@@ -377,6 +385,7 @@ export interface FileRouteTypes {
     | '/financeiro/receber'
     | '/financeiro/recorrencias'
     | '/projetos/$id'
+    | '/app'
     | '/configuracoes'
     | '/financeiro'
     | '/projetos'
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro/receber'
     | '/_authenticated/financeiro/recorrencias'
     | '/_authenticated/projetos/$id'
+    | '/_authenticated/app/'
     | '/_authenticated/configuracoes/'
     | '/_authenticated/financeiro/'
     | '/_authenticated/projetos/'
@@ -545,6 +555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesIndexRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
     }
+    '/_authenticated/app/': {
+      id: '/_authenticated/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/projetos/$id': {
       id: '/_authenticated/projetos/$id'
       path: '/projetos/$id'
@@ -673,6 +690,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppMaisRoute: typeof AuthenticatedAppMaisRoute
   AuthenticatedAppProjetosRoute: typeof AuthenticatedAppProjetosRoute
   AuthenticatedAppTarefasRoute: typeof AuthenticatedAppTarefasRouteWithChildren
+  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
@@ -681,6 +699,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppMaisRoute: AuthenticatedAppMaisRoute,
   AuthenticatedAppProjetosRoute: AuthenticatedAppProjetosRoute,
   AuthenticatedAppTarefasRoute: AuthenticatedAppTarefasRouteWithChildren,
+  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
 }
 
 const AuthenticatedAppRouteWithChildren =
