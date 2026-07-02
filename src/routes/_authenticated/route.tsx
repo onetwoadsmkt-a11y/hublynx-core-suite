@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
+import { ModuleManifest } from "@/components/modules/ModuleManifest";
+import { ModuleGate } from "@/components/modules/ModuleGate";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -16,11 +18,19 @@ function AuthenticatedLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // Rotas do PWA mobile (/app/*) rodam fora do AppShell desktop.
   if (pathname.startsWith("/app")) {
-    return <Outlet />;
+    return (
+      <>
+        <ModuleManifest />
+        <Outlet />
+      </>
+    );
   }
   return (
     <AppShell>
-      <Outlet />
+      <ModuleManifest />
+      <ModuleGate>
+        <Outlet />
+      </ModuleGate>
     </AppShell>
   );
 }
