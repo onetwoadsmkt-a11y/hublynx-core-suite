@@ -217,6 +217,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <HeaderInstallModule />
             <ThemeToggle />
             <NotificationsBell />
             <UserMenu />
