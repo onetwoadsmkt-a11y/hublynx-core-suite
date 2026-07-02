@@ -41,6 +41,12 @@ const NAV = [
 function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isAdmin } = useIsAdmin();
+  const listMods = useServerFn(listUserModules);
+  const { data: modules } = useQuery({
+    queryKey: ["user-modules"],
+    queryFn: () => listMods(),
+    staleTime: 60_000,
+  });
   const items = isAdmin
     ? [...NAV, { to: "/admin/usuarios" as const, label: "Usuários (Admin)", icon: Shield }]
     : NAV;
@@ -50,6 +56,9 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
         {items.map((item) => {
           const active = pathname === item.to || pathname.startsWith(item.to + "/");
           const Icon = item.icon;
+          const slug = (item as { moduleSlug?: ModuleSlug }).moduleSlug;
+          const row = slug ? modules?.find((r) => r.module_slug === slug) : undefined;
+          const disabled = slug && row ? !row.enabled : false;
           const link = (
             <Link
               key={item.to}
@@ -58,17 +67,24 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
               className={`flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium transition-colors ${
                 active
                   ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  : disabled
+                    ? "text-muted-foreground/60 hover:bg-muted"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && item.label}
+              {!collapsed && (
+                <span className="flex-1 flex items-center justify-between">
+                  {item.label}
+                  {disabled && <Lock className="h-3 w-3 opacity-60" />}
+                </span>
+              )}
             </Link>
           );
           return collapsed ? (
             <Tooltip key={item.to}>
               <TooltipTrigger asChild>{link}</TooltipTrigger>
-              <TooltipContent side="right">{item.label}</TooltipContent>
+              <TooltipContent side="right">{item.label}{disabled ? " (inativo)" : ""}</TooltipContent>
             </Tooltip>
           ) : (
             link
