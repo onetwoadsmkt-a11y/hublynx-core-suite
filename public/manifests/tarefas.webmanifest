@@ -1,0 +1,16 @@
+{
+  "name": "Hublynx Tarefas",
+  "short_name": "Tarefas",
+  "id": "hublynx-tarefas",
+  "description": "Gerencie suas tarefas — crie, organize e receba lembretes.",
+  "start_url": "/tarefas",
+  "scope": "/tarefas/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#00D084",
+  "icons": [
+    { "src": "/icons/tarefas-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/tarefas-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

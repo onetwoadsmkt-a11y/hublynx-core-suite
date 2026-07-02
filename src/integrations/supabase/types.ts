@@ -1371,6 +1371,36 @@ export type Database = {
           },
         ]
       }
+      user_modules: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          installed_at: string | null
+          module_slug: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          installed_at?: string | null
+          module_slug: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          installed_at?: string | null
+          module_slug?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

@@ -1,113 +1,116 @@
 
-# Central de Tarefas — Redesign + PWA dedicado
+# Modularização — cada módulo como PWA instalável
 
-Ajusta a etapa **Tarefas** do sistema com o layout mobile-first descrito e cria um **PWA instalável separado** apontando só para essa área, mantendo a identidade visual do Hublynx Core.
+## Ideia geral
 
-## 1. Nova rota base `/app` (shell mobile)
+Hoje o sistema é um único PWA (`/`) mais o mobile de Tarefas (`/app`). Vamos padronizar: **cada módulo vira um PWA próprio**, com URL dedicada, manifest, ícone, cor de tema e nome próprios. Quem instalar só "Hublynx Financeiro" abre direto no financeiro; quem instalar "Hublynx Core" continua com o pacote integrado. Nada de módulo desaparece do sistema — todos coexistem e continuam integrados no banco.
 
-Cria um layout próprio em `src/routes/_authenticated/app.tsx` (sem sidebar do Core), com:
-- Header compacto (saudação + data + sino).
-- `<Outlet />` central com padding bottom para a bottom bar.
-- **Bottom bar fixa** com 5 itens: Hoje · Tarefas · **Novo (+)** central destacado · Projetos · Mais.
-- Botão **Novo** abre bottom-sheet com 4 ações: Nova tarefa · Novo projeto · Novo cliente · Novo lembrete.
+## Módulos e URLs
 
-Rotas filhas:
-- `/app/hoje` — saudação, card da próxima tarefa, contadores (pendentes / atrasadas / concluídas), lista do dia com botões "Ver" e "Concluir".
-- `/app/tarefas` — busca + filtros chips (Hoje, Atrasadas, Pendentes, Concluídas) + cards.
-- `/app/tarefas/$id` — detalhe (status, prazo, responsável, projeto, descrição, checklist, anexos, comentários, botão Concluir).
-- `/app/projetos` — cards com contadores de tarefas (abertas / concluídas / atrasadas).
-- `/app/projetos/$id` — tarefas relacionadas.
-- `/app/lembretes` — lista + criação (No horário, 1h antes, 1 dia antes, semanal, mensal).
-- `/app/mais` — Clientes, Equipe, Etiquetas, Modelos, Configurações, status offline.
+| Módulo         | Rota base (scope PWA) | Nome instalado       | Cor tema  |
+| -------------- | --------------------- | -------------------- | --------- |
+| Core (pacote)  | `/`                   | Hublynx Core         | `#071A3D` |
+| Tarefas        | `/m/tarefas/`         | Hublynx Tarefas      | `#00D084` |
+| Projetos       | `/m/projetos/`        | Hublynx Projetos     | `#6366F1` |
+| Financeiro     | `/m/financeiro/`      | Hublynx Financeiro   | `#0EA5E9` |
+| Clientes       | `/m/clientes/`        | Hublynx Clientes     | `#F59E0B` |
+| Agenda         | `/m/agenda/`          | Hublynx Agenda       | `#EF4444` |
+| Hub Central    | `/m/hub/`             | Hublynx Hub          | `#071A3D` |
 
-Reaproveita os componentes existentes (`NewTaskSheet`, `TaskDrawer`, `useKanbanColumns`, mutations Supabase) — só envolvendo em layouts mobile novos. Sem refazer business logic.
+O `/app` (Central de Tarefas mobile atual) é mantido como shell mobile-first do módulo Tarefas — o novo `/m/tarefas/` redireciona para `/app` em mobile e serve a versão desktop em telas grandes.
 
-## 2. Ajuste da etapa Tarefas atual no sistema
+## Como funciona o "individualizar"
 
-`/tarefas` (desktop, dentro do AppShell) ganha o mesmo visual de cards arredondados, chips de filtro e header de resumo do dia, mantendo o Kanban existente como uma das views (toggle Lista / Kanban). Identidade visual: tokens já definidos em `src/styles.css` (verde `#00D084`, dark Hublynx) — sem cores hardcoded.
+1. **Manifest por módulo** em `public/manifests/{modulo}.webmanifest`, cada um com `scope` e `start_url` próprios (`/m/tarefas/`, `/m/financeiro/`, …), nome, short_name, cor, ícones. O browser trata cada scope como um app instalável distinto — instalar um não instala o outro.
+2. **Layout `_module.tsx`** monta o `<link rel="manifest">`, `theme-color` e `apple-touch-icon` correto conforme a rota atual (`/m/{slug}/*`). O manifest do Core só é injetado quando fora de `/m/*`.
+3. **Menu lateral** ganha um seletor "Módulo" no topo. Dentro de um módulo, o menu mostra só as sub-páginas dele + botão "Voltar ao Core".
+4. **CTA "Instalar este módulo"** aparece no header/mais de cada módulo usando `beforeinstallprompt` — cada scope dispara seu próprio evento.
+5. **Módulos bloqueados**: mantemos todos ativos por padrão (conforme você decidiu). O menu do Core mostra todos os módulos, mas se o usuário desativar algum em Configurações → Módulos, o item aparece com cadeado e CTA "Ativar módulo" que só liga a flag local (sem billing por enquanto).
+6. **Integração preservada**: como todos os módulos batem no mesmo Supabase, tarefa criada no PWA de Tarefas continua aparecendo em Projetos, Agenda e Financeiro no PWA do Core. Nada é duplicado.
 
-Nova tarefa rápida: campo único "O que precisa ser feito?", chips de prazo (Hoje / Amanhã / Esta semana / Sem prazo), prioridade (Normal / Importante / Urgente), projeto/cliente, responsável. Reusa a mutation atual do `NewTaskSheet`.
+## Estrutura de rotas
 
-## 3. PWA instalável só da Central de Tarefas
+```text
+src/routes/_authenticated/
+  m.tsx                        # layout de módulo (injeta manifest correto)
+  m.tarefas.tsx                # redireciona conforme viewport (mobile→/app, desktop→shell)
+  m.tarefas.$.tsx              # espelha sub-rotas de /tarefas
+  m.projetos.tsx / .$.tsx
+  m.financeiro.tsx / .$.tsx
+  m.clientes.tsx / .$.tsx
+  m.agenda.tsx / .$.tsx
+  m.hub.tsx
+```
 
-- Novo manifest `public/manifest-tarefas.webmanifest`:
-  - `name`: "Hublynx Tarefas", `short_name`: "Tarefas"
-  - `start_url`: `/app/hoje`
-  - `scope`: `/app/`
-  - `display`: `standalone`, theme/background com tokens Hublynx
-  - Ícones próprios (gerar `public/icon-tarefas-192.png` / `512.png`).
-- `<link rel="manifest" href="/manifest-tarefas.webmanifest">` injetado **apenas** quando a rota começa com `/app` (via `head()` no layout `app.tsx`), para não conflitar com o manifest do Core.
-- Botão "Instalar app" no `/app/mais` usando o evento `beforeinstallprompt`.
-- O manifest `/app/` mantém o usuário dentro da Central; ao abrir links externos do Core, sai do escopo normalmente.
+Em vez de duplicar telas, cada `m.{modulo}.tsx` renderiza o mesmo componente da rota atual dentro do shell de módulo. As rotas antigas (`/tarefas`, `/financeiro`, …) continuam funcionando no Core.
 
-## 4. Push notifications nativas (PWA)
+## Configuração por usuário
 
-- Tabela nova `push_subscriptions` (user_id, endpoint, p256dh, auth, created_at) com RLS por `auth.uid()` + GRANTs.
-- Service worker `public/sw-push.js` apenas para push (não cacheia app shell — respeita guideline PWA do Lovable preview).
-- Server fns:
-  - `subscribeToPush` — salva subscription do navegador.
-  - `sendPushToUser` — envia via `web-push` com chaves VAPID.
-- Secrets via `generate_secret`: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (gerados automaticamente).
-- Cron `pg_cron` a cada minuto chama `/api/public/hooks/run-reminders` que varre `tasks` com `due_date` próximo conforme regra do lembrete (no horário, 1h antes, 1 dia antes) e dispara push + atualiza last_sent.
-- Lembretes recorrentes (semanal/mensal) tratados pelo mesmo cron olhando regra em `briefing.reminder`.
+Nova tabela `user_modules` (Supabase):
 
-## 5. Sincronização automática com Google Calendar
+- `user_id uuid` (FK auth.users)
+- `module_slug text` (`tarefas`, `projetos`, `financeiro`, `clientes`, `agenda`, `hub`)
+- `enabled boolean default true`
+- `installed_at timestamptz` (nulo até o usuário instalar)
+- RLS: `user_id = auth.uid()` + GRANTs `authenticated`/`service_role`.
 
-Já existe `syncTaskToCalendar` e `syncAllPendingTasksToCalendar`. Reforço:
-- Chamar `syncTaskToCalendar` em **toda** criação/edição de tarefa com `due_date` (não só pela tela de agenda).
-- Em concluir tarefa: atualiza o evento Google (marca `[Concluída]` no título e status).
-- Garantir idempotência (já implementado via `task_communications`).
+Página `Configurações → Módulos`: lista todos com toggle "Ativo no menu" e botão "Instalar como app" (dispara o prompt no scope certo).
+
+## Comportamento quando desativado
+
+- Item do menu aparece com ícone de cadeado + tooltip "Módulo desativado".
+- Ao clicar, abre modal com CTA "Ativar módulo" → grava `enabled=true`.
+- Rota direta `/m/{modulo}/*` mostra uma tela de "Módulo desativado — Ativar agora" em vez de 404 (para não quebrar link salvo).
 
 ## Arquivos novos
 
-- `src/routes/_authenticated/app.tsx` (layout mobile)
-- `src/routes/_authenticated/app.hoje.tsx`
-- `src/routes/_authenticated/app.tarefas.tsx`
-- `src/routes/_authenticated/app.tarefas.$id.tsx`
-- `src/routes/_authenticated/app.projetos.tsx`
-- `src/routes/_authenticated/app.projetos.$id.tsx`
-- `src/routes/_authenticated/app.lembretes.tsx`
-- `src/routes/_authenticated/app.mais.tsx`
-- `src/components/app-mobile/BottomBar.tsx`
-- `src/components/app-mobile/NewActionSheet.tsx`
-- `src/components/app-mobile/TaskCardMobile.tsx`
-- `src/components/app-mobile/InstallPWAButton.tsx`
-- `src/lib/push/push.functions.ts`
-- `src/routes/api/public/hooks/run-reminders.ts`
-- `public/manifest-tarefas.webmanifest`
-- `public/sw-push.js`
-- `public/icon-tarefas-192.png`, `public/icon-tarefas-512.png`
+- `public/manifests/tarefas.webmanifest` (renomeia `manifest-tarefas.webmanifest`)
+- `public/manifests/{projetos,financeiro,clientes,agenda,hub}.webmanifest`
+- `public/icons/{modulo}-192.png` + `{modulo}-512.png` (gerados na paleta do módulo)
+- `src/routes/_authenticated/m.tsx` (layout)
+- `src/routes/_authenticated/m.{modulo}.tsx` + `m.{modulo}.$.tsx`
+- `src/routes/_authenticated/configuracoes.modulos.tsx`
+- `src/components/modules/ModuleGate.tsx` (bloqueio + CTA ativar)
+- `src/components/modules/InstallModuleButton.tsx`
+- `src/lib/modules/modules.ts` (registry central com slug, nome, cor, ícone, rotas)
+- `src/lib/modules/modules.functions.ts` (server fns: listar/toggle/marcar instalado)
 
 ## Arquivos editados
 
-- `src/routes/_authenticated/tarefas.tsx` — novo visual + filtros chips + view toggle.
-- `src/components/tasks/NewTaskSheet.tsx` — chips rápidos de prazo + simplificação mobile.
-- `src/routes/__root.tsx` — registrar `sw-push.js` (não app-shell SW).
+- `src/routes/__root.tsx` — remove manifest fixo; passa a decidir manifest via layout de módulo.
+- `src/routes/_authenticated/app.tsx` — usa o manifest de `tarefas` em vez do próprio.
+- `src/components/AppShell.tsx` — seletor de módulo + itens com cadeado + "Instalar como app".
+- `public/manifest.webmanifest` — vira só o manifest do Core (pacote completo).
 
-## Migrations
+## Migração DB
 
 ```sql
-create table public.push_subscriptions (
+create table public.user_modules (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  endpoint text not null unique,
-  p256dh text not null,
-  auth text not null,
-  created_at timestamptz not null default now()
+  module_slug text not null,
+  enabled boolean not null default true,
+  installed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, module_slug)
 );
-grant select, insert, update, delete on public.push_subscriptions to authenticated;
-grant all on public.push_subscriptions to service_role;
-alter table public.push_subscriptions enable row level security;
-create policy "own_push" on public.push_subscriptions
+grant select, insert, update, delete on public.user_modules to authenticated;
+grant all on public.user_modules to service_role;
+alter table public.user_modules enable row level security;
+create policy own_user_modules on public.user_modules
   for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 ```
 
-Coluna opcional em `tasks.briefing` (JSONB já existe) guarda `reminder: { rule, last_sent_at }`.
+## Fora do escopo (agora)
 
-## Pontos confirmados pelo usuário
+- Billing/planos pagos por módulo (só flag local por enquanto).
+- Modo offline dedicado por módulo (mantém a política atual sem service worker de app-shell; push worker existente segue igual).
+- Reescrever telas — só empacotamos as existentes em cada shell de módulo.
 
-- Sem onboarding — usa sessão já existente.
-- Sem seed de dados — usa os clientes/projetos/tarefas já cadastrados.
-- Lembretes via Web Push nativo do PWA (pedirá permissão no celular).
-- Manter sistema desktop intacto, apenas modernizar /tarefas e adicionar PWA dedicado em /app.
+## O que você vai perceber
+
+- No `/configuracoes/modulos`, ligar/desligar cada módulo e clicar "Instalar como app" para cada um separadamente.
+- No celular, instalar "Hublynx Financeiro" abre um app com ícone azul e vai direto pro dashboard financeiro; instalar "Hublynx Core" abre o pacote completo.
+- Nada se perde: quem usa tudo continua com o sistema integrado no `/`.

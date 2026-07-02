@@ -1,0 +1,16 @@
+{
+  "name": "Hublynx Clientes",
+  "short_name": "Clientes",
+  "id": "hublynx-clientes",
+  "description": "CRM e base de clientes.",
+  "start_url": "/clientes",
+  "scope": "/clientes/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#F59E0B",
+  "icons": [
+    { "src": "/icons/clientes-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/clientes-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

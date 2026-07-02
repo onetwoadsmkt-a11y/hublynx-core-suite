@@ -34,6 +34,7 @@ import { Route as AuthenticatedFinanceiroPrevisaoRouteImport } from './routes/_a
 import { Route as AuthenticatedFinanceiroPagarRouteImport } from './routes/_authenticated/financeiro.pagar'
 import { Route as AuthenticatedFinanceiroDreRouteImport } from './routes/_authenticated/financeiro.dre'
 import { Route as AuthenticatedFinanceiroCategoriasRouteImport } from './routes/_authenticated/financeiro.categorias'
+import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
 import { Route as AuthenticatedConfiguracoesIntegracoesRouteImport } from './routes/_authenticated/configuracoes.integracoes'
 import { Route as AuthenticatedAppTarefasRouteImport } from './routes/_authenticated/app.tarefas'
 import { Route as AuthenticatedAppProjetosRouteImport } from './routes/_authenticated/app.projetos'
@@ -178,6 +179,12 @@ const AuthenticatedFinanceiroCategoriasRoute =
     path: '/categorias',
     getParentRoute: () => AuthenticatedFinanceiroRoute,
   } as any)
+const AuthenticatedConfiguracoesModulosRoute =
+  AuthenticatedConfiguracoesModulosRouteImport.update({
+    id: '/modulos',
+    path: '/modulos',
+    getParentRoute: () => AuthenticatedConfiguracoesRoute,
+  } as any)
 const AuthenticatedConfiguracoesIntegracoesRoute =
   AuthenticatedConfiguracoesIntegracoesRouteImport.update({
     id: '/integracoes',
@@ -251,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
+  '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
@@ -283,6 +291,7 @@ export interface FileRoutesByTo {
   '/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
+  '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
@@ -320,6 +329,7 @@ export interface FileRoutesById {
   '/_authenticated/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/_authenticated/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/_authenticated/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
+  '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/_authenticated/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/_authenticated/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/_authenticated/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
@@ -357,6 +367,7 @@ export interface FileRouteTypes {
     | '/app/projetos'
     | '/app/tarefas'
     | '/configuracoes/integracoes'
+    | '/configuracoes/modulos'
     | '/financeiro/categorias'
     | '/financeiro/dre'
     | '/financeiro/pagar'
@@ -389,6 +400,7 @@ export interface FileRouteTypes {
     | '/app/projetos'
     | '/app/tarefas'
     | '/configuracoes/integracoes'
+    | '/configuracoes/modulos'
     | '/financeiro/categorias'
     | '/financeiro/dre'
     | '/financeiro/pagar'
@@ -425,6 +437,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/projetos'
     | '/_authenticated/app/tarefas'
     | '/_authenticated/configuracoes/integracoes'
+    | '/_authenticated/configuracoes/modulos'
     | '/_authenticated/financeiro/categorias'
     | '/_authenticated/financeiro/dre'
     | '/_authenticated/financeiro/pagar'
@@ -625,6 +638,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinanceiroCategoriasRouteImport
       parentRoute: typeof AuthenticatedFinanceiroRoute
     }
+    '/_authenticated/configuracoes/modulos': {
+      id: '/_authenticated/configuracoes/modulos'
+      path: '/modulos'
+      fullPath: '/configuracoes/modulos'
+      preLoaderRoute: typeof AuthenticatedConfiguracoesModulosRouteImport
+      parentRoute: typeof AuthenticatedConfiguracoesRoute
+    }
     '/_authenticated/configuracoes/integracoes': {
       id: '/_authenticated/configuracoes/integracoes'
       path: '/integracoes'
@@ -728,6 +748,7 @@ const AuthenticatedAppRouteWithChildren =
 
 interface AuthenticatedConfiguracoesRouteChildren {
   AuthenticatedConfiguracoesIntegracoesRoute: typeof AuthenticatedConfiguracoesIntegracoesRoute
+  AuthenticatedConfiguracoesModulosRoute: typeof AuthenticatedConfiguracoesModulosRoute
   AuthenticatedConfiguracoesIndexRoute: typeof AuthenticatedConfiguracoesIndexRoute
 }
 
@@ -735,6 +756,8 @@ const AuthenticatedConfiguracoesRouteChildren: AuthenticatedConfiguracoesRouteCh
   {
     AuthenticatedConfiguracoesIntegracoesRoute:
       AuthenticatedConfiguracoesIntegracoesRoute,
+    AuthenticatedConfiguracoesModulosRoute:
+      AuthenticatedConfiguracoesModulosRoute,
     AuthenticatedConfiguracoesIndexRoute: AuthenticatedConfiguracoesIndexRoute,
   }
 
@@ -816,13 +839,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
