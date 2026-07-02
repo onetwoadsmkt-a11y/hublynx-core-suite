@@ -23,7 +23,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { listUserModules } from "@/lib/modules/modules.functions";
-import type { ModuleSlug } from "@/lib/modules/registry";
+import { moduleForPath, type ModuleSlug } from "@/lib/modules/registry";
+import { InstallModuleButton } from "@/components/modules/InstallModuleButton";
+
+function HeaderInstallModule() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const mod = moduleForPath(pathname);
+  if (!mod) return null;
+  return <div className="hidden md:block"><InstallModuleButton module={mod} /></div>;
+}
 
 const NAV = [
   { to: "/hub", label: "Hub Central", icon: Sparkles, moduleSlug: "hub" as ModuleSlug },
