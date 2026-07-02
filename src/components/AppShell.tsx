@@ -3,7 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users, DollarSign,
   Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
-  PanelLeftClose, PanelLeftOpen, Shield, Sparkles,
+  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -19,17 +19,20 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
+import { listUserModules } from "@/lib/modules/modules.functions";
+import type { ModuleSlug } from "@/lib/modules/registry";
 
 const NAV = [
-  { to: "/hub", label: "Hub Central", icon: Sparkles },
+  { to: "/hub", label: "Hub Central", icon: Sparkles, moduleSlug: "hub" as ModuleSlug },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
-  { to: "/projetos", label: "Projetos", icon: FolderKanban },
-  { to: "/clientes", label: "Clientes", icon: Users },
-  { to: "/financeiro", label: "Financeiro", icon: DollarSign },
-  { to: "/agenda", label: "Agenda", icon: Calendar },
+  { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" as ModuleSlug },
+  { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" as ModuleSlug },
+  { to: "/clientes", label: "Clientes", icon: Users, moduleSlug: "clientes" as ModuleSlug },
+  { to: "/financeiro", label: "Financeiro", icon: DollarSign, moduleSlug: "financeiro" as ModuleSlug },
+  { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" as ModuleSlug },
   { to: "/arquivos", label: "Arquivos", icon: FolderArchive },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
