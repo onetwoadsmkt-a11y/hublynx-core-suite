@@ -8,6 +8,7 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
 const TABS = [
   { to: "/configuracoes", label: "Geral" },
   { to: "/configuracoes/integracoes", label: "Integrações" },
+  { to: "/configuracoes/modulos", label: "Módulos" },
 ];
 
 function ConfigLayout() {
