@@ -4,21 +4,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Trash2, GripVertical, X, Mail, Video, CalendarPlus, Clock, Pencil, Target, User as UserIcon, Phone } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Search, Trash2, X, Mail, Video, CalendarPlus, Pencil, Target, User as UserIcon, MoreVertical, SlidersHorizontal, Settings2, LayoutGrid, List as ListIcon, Calendar as CalendarIcon, CalendarCheck, ListTodo } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -29,7 +27,7 @@ import {
   type DragEndEvent, type DragStartEvent, closestCorners,
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { format, differenceInCalendarDays } from "date-fns";
+import { format, differenceInCalendarDays, parseISO } from "date-fns";
 import {
   TaskDrawer, PRIORITY_LABEL, PRIORITY_TONE,
   type TaskStatus, type Priority,
@@ -41,11 +39,21 @@ import { ScheduleMeetingDialog } from "@/components/tasks/ScheduleMeetingDialog"
 import { useServerFn } from "@tanstack/react-start";
 import { createInstantMeet } from "@/lib/google/calendar.functions";
 import { syncEntityToSheets } from "@/lib/google/sheets-sync.functions";
-import { Settings2 } from "lucide-react";
+import { TaskQuickForm, type TaskQuickFormDefaults } from "@/components/tasks/TaskQuickForm";
+import { TaskCalendarView } from "@/components/tasks/TaskCalendarView";
+import { TaskListMobile } from "@/components/tasks/TaskListMobile";
+import { TaskFiltersSheet } from "@/components/tasks/TaskFiltersSheet";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+
+type ViewMode = "kanban" | "lista" | "calendario";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
   head: () => ({ meta: [{ title: "Tarefas — Hublynx Core" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({ task: typeof s.task === "string" ? s.task : undefined }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    task: typeof s.task === "string" ? s.task : undefined,
+    view: (["kanban", "lista", "calendario"].includes(String(s.view)) ? s.view : undefined) as ViewMode | undefined,
+  }),
   component: TarefasPage,
 });
 
@@ -60,31 +68,41 @@ type Task = {
   due_date: string | null;
   position: number;
   created_at: string;
+  briefing?: any;
 };
 
 function TarefasPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const search = useSearch({ from: "/_authenticated/tarefas" });
+  const view: ViewMode = (search.view as ViewMode) ?? "kanban";
+  const setView = (v: ViewMode) =>
+    navigate({ to: "/tarefas", search: { task: search.task, view: v }, replace: true });
+
   const [searchText, setSearchText] = useState("");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterClient, setFilterClient] = useState<string>("all");
+  const [openFilters, setOpenFilters] = useState(false);
   const [openNew, setOpenNew] = useState(false);
-  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus | undefined>(undefined);
+  const [newDefaults, setNewDefaults] = useState<TaskQuickFormDefaults | undefined>(undefined);
   const [openEditKanban, setOpenEditKanban] = useState(false);
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
-  const openNewIn = (statusKey?: TaskStatus) => { setNewTaskStatus(statusKey); setOpenNew(true); };
+
+  const openNewIn = (defaults?: TaskQuickFormDefaults) => {
+    setNewDefaults(defaults);
+    setOpenNew(true);
+  };
 
   const selectedId = search.task ?? null;
   const setSelectedId = (id: string | null) =>
-    navigate({ to: "/tarefas", search: { task: id ?? undefined }, replace: true });
+    navigate({ to: "/tarefas", search: { task: id ?? undefined, view }, replace: true });
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks").select("*").order("position");
+      const { data, error } = await supabase.from("tasks").select("*").order("position");
       if (error) throw error;
       return data as Task[];
     },
@@ -110,17 +128,11 @@ function TarefasPage() {
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-mini"],
-    queryFn: async () => {
-      const { data } = await supabase.from("projects").select("id,name").order("name");
-      return data ?? [];
-    },
+    queryFn: async () => (await supabase.from("projects").select("id,name").order("name")).data ?? [],
   });
   const { data: clients = [] } = useQuery({
     queryKey: ["clients-mini"],
-    queryFn: async () => {
-      const { data } = await supabase.from("clients").select("id,name,email").order("name");
-      return data ?? [];
-    },
+    queryFn: async () => (await supabase.from("clients").select("id,name,email").order("name")).data ?? [],
   });
   const clientsById = useMemo(() => {
     const m = new Map<string, { id: string; name: string; email: string | null }>();
@@ -142,6 +154,14 @@ function TarefasPage() {
       return true;
     });
   }, [tasks, searchText, filterPriority, filterProject, filterClient]);
+
+  const activeFiltersCount =
+    (filterPriority !== "all" ? 1 : 0) +
+    (filterProject !== "all" ? 1 : 0) +
+    (filterClient !== "all" ? 1 : 0);
+  const clearFilters = () => {
+    setFilterPriority("all"); setFilterProject("all"); setFilterClient("all");
+  };
 
   const syncSheet = useServerFn(syncEntityToSheets);
   const updateStatus = useMutation({
@@ -175,15 +195,12 @@ function TarefasPage() {
   const onKanbanPanStart = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = kanbanScrollRef.current;
     if (!el) return;
-    // Só inicia o pan se o clique foi em área vazia (não em um card/coluna interativa)
     const target = e.target as HTMLElement;
     if (target.closest("[data-task-card], button, a, input, textarea, select, [role='button']")) return;
     e.preventDefault();
     const startX = e.pageX;
     const startScroll = el.scrollLeft;
-    const onMove = (ev: MouseEvent) => {
-      el.scrollLeft = startScroll - (ev.pageX - startX);
-    };
+    const onMove = (ev: MouseEvent) => { el.scrollLeft = startScroll - (ev.pageX - startX); };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
@@ -206,76 +223,114 @@ function TarefasPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Tarefas</h1>
-          <p className="text-muted-foreground mt-1">Organize sua operação em Kanban ou Lista.</p>
+    <div className="space-y-4 md:space-y-6 pb-24 md:pb-6">
+      {/* Header responsivo */}
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 md:flex md:items-center md:justify-between md:flex-wrap">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl md:text-3xl font-semibold tracking-tight">Tarefas</h1>
+          <p className="hidden md:block text-muted-foreground mt-1 text-sm">
+            Agende tarefas ou reuniões e visualize em Kanban, Lista ou Calendário.
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <a href="/app/hoje">📱 Abrir Central PWA</a>
-          </Button>
-          <Button variant="outline" onClick={() => setOpenEditKanban(true)}>
-            <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
-          </Button>
-          <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) setNewTaskStatus(undefined); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white" onClick={() => setNewTaskStatus(undefined)}>
+          {!isMobile && (
+            <>
+              <Button variant="outline" onClick={() => setOpenEditKanban(true)}>
+                <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
+              </Button>
+              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white" onClick={() => openNewIn()}>
                 <Plus className="h-4 w-4 mr-2" /> Nova tarefa
               </Button>
-            </DialogTrigger>
-            <NewTaskDialog projects={projects} clients={clients} onClose={() => { setOpenNew(false); setNewTaskStatus(undefined); }} defaultStatus={newTaskStatus} />
-          </Dialog>
+            </>
+          )}
+          {isMobile && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setOpenEditKanban(true)}>
+                  <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href="/app/hoje">📱 Abrir Central PWA</a>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-      </div>
+      </header>
 
-
-      {/* Filters */}
+      {/* Filtros: inline no desktop, botão + sheet no mobile */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
+        <div className="relative flex-1 min-w-[180px] md:max-w-md">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Buscar tarefa..." className="pl-9" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+          <Input
+            placeholder="Buscar tarefa..."
+            className="pl-9"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
         </div>
-        <Select value={filterPriority} onValueChange={setFilterPriority}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas prioridades</SelectItem>
-            {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => (
-              <SelectItem key={p} value={p}>{PRIORITY_LABEL[p]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterProject} onValueChange={setFilterProject}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Projeto" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos projetos</SelectItem>
-            {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterClient} onValueChange={setFilterClient}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Cliente" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos clientes</SelectItem>
-            {clients.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {(searchText || filterPriority !== "all" || filterProject !== "all" || filterClient !== "all") && (
-          <Button variant="ghost" size="sm" onClick={() => {
-            setSearchText(""); setFilterPriority("all"); setFilterProject("all"); setFilterClient("all");
-          }}>
-            <X className="h-4 w-4 mr-1" /> Limpar
+        {isMobile ? (
+          <Button variant="outline" onClick={() => setOpenFilters(true)} className="relative">
+            <SlidersHorizontal className="h-4 w-4" />
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-[#00D084] text-white text-[10px] font-bold flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
           </Button>
+        ) : (
+          <>
+            <Select value={filterPriority} onValueChange={setFilterPriority}>
+              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas prioridades</SelectItem>
+                {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => (
+                  <SelectItem key={p} value={p}>{PRIORITY_LABEL[p]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterProject} onValueChange={setFilterProject}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Projeto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos projetos</SelectItem>
+                {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterClient} onValueChange={setFilterClient}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Cliente" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos clientes</SelectItem>
+                {clients.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {(searchText || activeFiltersCount > 0) && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearchText(""); clearFilters(); }}>
+                <X className="h-4 w-4 mr-1" /> Limpar
+              </Button>
+            )}
+          </>
         )}
-        <div className="ml-auto text-sm font-medium text-muted-foreground tabular-nums">
+        <div className="ml-auto text-xs md:text-sm font-medium text-muted-foreground tabular-nums">
           {filtered.length} {filtered.length === 1 ? "tarefa" : "tarefas"}
         </div>
       </div>
 
-      <Tabs defaultValue="kanban">
-        <TabsList>
-          <TabsTrigger value="kanban">Kanban</TabsTrigger>
-          <TabsTrigger value="lista">Lista</TabsTrigger>
+      <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
+        <TabsList className="grid grid-cols-3 md:inline-flex md:w-auto w-full">
+          <TabsTrigger value="kanban" className="gap-1.5">
+            <LayoutGrid className="h-4 w-4" /> <span className="hidden sm:inline">Kanban</span>
+          </TabsTrigger>
+          <TabsTrigger value="lista" className="gap-1.5">
+            <ListIcon className="h-4 w-4" /> <span className="hidden sm:inline">Lista</span>
+          </TabsTrigger>
+          <TabsTrigger value="calendario" className="gap-1.5">
+            <CalendarIcon className="h-4 w-4" /> <span className="hidden sm:inline">Calendário</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="kanban" className="mt-4">
@@ -286,16 +341,25 @@ function TarefasPage() {
               <div
                 ref={kanbanScrollRef}
                 onMouseDown={onKanbanPanStart}
-                className="flex gap-4 overflow-x-auto pb-4 cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                className="flex gap-3 md:gap-4 overflow-x-auto pb-4 cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
                 {kanbanCols.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
                   return (
-                    <KanbanColumn key={col.key} col={col} tasks={colTasks} kanbanCols={kanbanCols} labelsIndex={labelsIndex} clientsById={clientsById} projectsById={projectsById} onSelect={setSelectedId} onAddInColumn={(k) => openNewIn(k)} />
+                    <KanbanColumn
+                      key={col.key}
+                      col={col}
+                      tasks={colTasks}
+                      kanbanCols={kanbanCols}
+                      labelsIndex={labelsIndex}
+                      clientsById={clientsById}
+                      projectsById={projectsById}
+                      onSelect={setSelectedId}
+                      onAddInColumn={(k) => openNewIn({ status: k })}
+                    />
                   );
                 })}
               </div>
-
               <DragOverlay>
                 {activeTask ? (
                   <TaskCard
@@ -313,49 +377,104 @@ function TarefasPage() {
         </TabsContent>
 
         <TabsContent value="lista" className="mt-4">
-          <Card className="shadow-[var(--shadow-soft)]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tarefa</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Prioridade</TableHead>
-                  <TableHead>Prazo</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Nenhuma tarefa.</TableCell></TableRow>
-                )}
-                {filtered.map((t) => {
-                  const col = kanbanCols.find((c) => c.key === t.status);
-                  return (
-                    <TableRow key={t.id} className="cursor-pointer" onClick={() => setSelectedId(t.id)}>
-                      <TableCell className="font-medium">{t.title}</TableCell>
-                      <TableCell>{col && <Badge variant="secondary" className={col.tone}>{col.label}</Badge>}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={PRIORITY_TONE[t.priority]}>
-                          {PRIORITY_LABEL[t.priority]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {t.due_date ? format(new Date(t.due_date), "dd/MM/yyyy") : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DeleteTaskBtn id={t.id} />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </Card>
+          {isMobile ? (
+            <TaskListMobile tasks={filtered as any} kanbanCols={kanbanCols} onSelect={setSelectedId} />
+          ) : (
+            <Card className="shadow-[var(--shadow-soft)]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tarefa</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Prioridade</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Prazo</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.length === 0 && (
+                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">Nenhuma tarefa.</TableCell></TableRow>
+                  )}
+                  {filtered.map((t) => {
+                    const col = kanbanCols.find((c) => c.key === t.status);
+                    const meeting = (t.briefing as any)?.type === "reuniao";
+                    const deadline = (t.briefing as any)?.deadline as string | null | undefined;
+                    return (
+                      <TableRow key={t.id} className="cursor-pointer" onClick={() => setSelectedId(t.id)}>
+                        <TableCell className="font-medium">{t.title}</TableCell>
+                        <TableCell>
+                          {meeting ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-indigo-600">
+                              <CalendarCheck className="h-3.5 w-3.5" /> Reunião
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                              <ListTodo className="h-3.5 w-3.5" /> Tarefa
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>{col && <Badge variant="secondary" className={col.tone}>{col.label}</Badge>}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={PRIORITY_TONE[t.priority]}>
+                            {PRIORITY_LABEL[t.priority]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {t.due_date ? format(parseISO(t.due_date), "dd/MM/yyyy HH:mm") : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {deadline ? format(parseISO(deadline), "dd/MM/yyyy") : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DeleteTaskBtn id={t.id} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="calendario" className="mt-4">
+          <TaskCalendarView
+            tasks={filtered as any}
+            onSelectTask={setSelectedId}
+            onCreateAt={(dateISO) => openNewIn({ date: dateISO })}
+          />
         </TabsContent>
       </Tabs>
 
+      {/* FAB mobile */}
+      {isMobile && (
+        <button
+          onClick={() => openNewIn()}
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-[#00D084] hover:bg-[#00b873] text-white shadow-lg flex items-center justify-center z-40 active:scale-95 transition"
+          aria-label="Nova tarefa"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      )}
+
       <TaskDrawer taskId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} />
       <EditKanbanDialog open={openEditKanban} onOpenChange={setOpenEditKanban} />
+      <TaskQuickForm
+        open={openNew}
+        onOpenChange={(o) => { setOpenNew(o); if (!o) setNewDefaults(undefined); }}
+        defaults={newDefaults}
+      />
+      <TaskFiltersSheet
+        open={openFilters}
+        onOpenChange={setOpenFilters}
+        filterPriority={filterPriority} setFilterPriority={setFilterPriority}
+        filterProject={filterProject} setFilterProject={setFilterProject}
+        filterClient={filterClient} setFilterClient={setFilterClient}
+        projects={projects as any[]} clients={clients as any[]}
+        onClear={clearFilters}
+      />
     </div>
   );
 }
@@ -377,7 +496,6 @@ const PRIORITY_DOT: Record<Priority, string> = {
   critica: "bg-rose-500",
 };
 
-// Map "bg-XXX-100 text-XXX-700" tone → solid accent for the column top stripe.
 const TONE_TO_ACCENT: Record<string, string> = {
   "bg-muted text-muted-foreground": "bg-muted-foreground/40",
   "bg-blue-100 text-blue-700": "bg-blue-500",
@@ -408,7 +526,7 @@ function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`w-80 shrink-0 rounded-xl bg-card border border-border overflow-hidden transition-colors ${isOver ? "ring-2 ring-primary/40" : ""}`}
+      className={`w-[280px] md:w-80 shrink-0 rounded-xl bg-card border border-border overflow-hidden transition-colors ${isOver ? "ring-2 ring-primary/40" : ""}`}
     >
       <div className={`h-1 w-full ${accentForTone(col.tone)}`} />
       <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
@@ -465,14 +583,6 @@ function DraggableCard({
   );
 }
 
-function dueBadgeTone(due: string | null) {
-  if (!due) return "bg-muted text-muted-foreground border-transparent";
-  const days = differenceInCalendarDays(new Date(due), new Date());
-  if (days < 0) return "bg-rose-100 text-rose-700 border-rose-200";
-  if (days <= 2) return "bg-amber-100 text-amber-700 border-amber-200";
-  return "bg-slate-100 text-slate-700 border-slate-200";
-}
-
 function TaskCard({
   task, labels = [], client, project, kanbanCols, onClick, dragging, dragHandle,
 }: {
@@ -485,12 +595,12 @@ function TaskCard({
   dragging?: boolean;
   dragHandle?: any;
 }) {
-  const accent = PRIORITY_ACCENT[task.priority];
   const [emailOpen, setEmailOpen] = useState(false);
   const [meetOpen, setMeetOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const instantMeet = useServerFn(createInstantMeet);
   const qc = useQueryClient();
+  const meeting = (task.briefing as any)?.type === "reuniao";
 
   const del = useMutation({
     mutationFn: async () => {
@@ -505,23 +615,10 @@ function TaskCard({
     onError: (e: any) => toast.error(e?.message ?? "Erro ao excluir tarefa."),
   });
 
-  const quickStatus = useMutation({
-    mutationFn: async (status: string) => {
-      const { error } = await supabase.from("tasks").update({ status }).eq("id", task.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-      if (task.project_id) qc.invalidateQueries({ queryKey: ["project-dashboard", task.project_id] });
-      toast.success("Status atualizado.");
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Erro ao atualizar status."),
-  });
-
   const quickMeet = useMutation({
     mutationFn: async () =>
       instantMeet({ data: { taskId: task.id, summary: task.title, durationMinutes: 30 } }),
-    onSuccess: (res) => {
+    onSuccess: (res: any) => {
       if (res.meetLink) {
         navigator.clipboard?.writeText(res.meetLink).catch(() => {});
         window.open(res.meetLink, "_blank");
@@ -539,11 +636,11 @@ function TaskCard({
   return (
     <>
       <div
+        data-task-card
         onClick={onClick}
         className={`group relative bg-card rounded-lg border border-border shadow-sm hover:shadow-md hover:border-brand-blue/40 transition-all cursor-pointer ${dragging ? "shadow-lg ring-2 ring-brand-blue/30" : ""}`}
       >
         <div className="px-3 py-3">
-          {/* Linha 1: avatar + título + data */}
           <div className="flex items-start gap-2">
             <button
               {...dragHandle}
@@ -551,7 +648,7 @@ function TaskCard({
               onClick={stop}
               title="Arrastar"
             >
-              <UserIcon className="h-3.5 w-3.5" />
+              {meeting ? <CalendarCheck className="h-3.5 w-3.5" /> : <UserIcon className="h-3.5 w-3.5" />}
             </button>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold leading-snug text-foreground truncate">{task.title}</p>
@@ -563,7 +660,6 @@ function TaskCard({
             )}
           </div>
 
-          {/* Contato: email do cliente */}
           {client?.email && (
             <div className="mt-2 ml-9 flex items-center gap-1.5 text-xs text-brand-blue truncate">
               <Mail className="h-3 w-3 shrink-0" />
@@ -580,80 +676,43 @@ function TaskCard({
             </div>
           )}
 
-          {/* Linha de labels + prioridade */}
-          {(labels.length > 0 || true) && (
-            <div className="mt-2 ml-9 flex items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-1 min-w-0">
-                {labels.map((l) => (
-                  <span
-                    key={l.id}
-                    className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded text-white"
-                    style={{ backgroundColor: l.color || "#2563EB" }}
-                  >
-                    {l.name}
-                  </span>
-                ))}
-              </div>
-              <span
-                className={`shrink-0 h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority]}`}
-                title={PRIORITY_LABEL[task.priority]}
-              />
+          <div className="mt-2 ml-9 flex items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1 min-w-0">
+              {labels.map((l) => (
+                <span
+                  key={l.id}
+                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded text-white"
+                  style={{ backgroundColor: l.color || "#2563EB" }}
+                >
+                  {l.name}
+                </span>
+              ))}
             </div>
-          )}
+            <span
+              className={`shrink-0 h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority]}`}
+              title={PRIORITY_LABEL[task.priority]}
+            />
+          </div>
 
-          {/* Ações (aparecem no hover) */}
           <div className="mt-2 ml-9 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-              onClick={(e) => { stop(e); onClick?.(); }}
-              title="Editar tarefa"
-            >
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { stop(e); onClick?.(); }} title="Editar">
               <Pencil className="h-3 w-3" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-              onClick={(e) => { stop(e); setEmailOpen(true); }}
-              title="Enviar e-mail"
-            >
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { stop(e); setEmailOpen(true); }} title="E-mail">
               <Mail className="h-3 w-3" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-              onClick={(e) => { stop(e); setMeetOpen(true); }}
-              title="Agendar reunião"
-            >
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { stop(e); setMeetOpen(true); }} title="Agendar reunião">
               <CalendarPlus className="h-3 w-3" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-brand-blue hover:bg-brand-blue/10"
-              disabled={quickMeet.isPending}
-              onClick={(e) => { stop(e); quickMeet.mutate(); }}
-              title="Criar link Meet agora"
-            >
+            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={quickMeet.isPending} onClick={(e) => { stop(e); quickMeet.mutate(); }} title="Link Meet">
               <Video className="h-3 w-3" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto"
-              onClick={(e) => { stop(e); setConfirmDel(true); }}
-              title="Excluir tarefa"
-            >
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive ml-auto" onClick={(e) => { stop(e); setConfirmDel(true); }} title="Excluir">
               <Trash2 className="h-3 w-3" />
             </Button>
           </div>
         </div>
       </div>
-
-
 
       {emailOpen && (
         <SendEmailDialog
@@ -679,7 +738,7 @@ function TaskCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
             <AlertDialogDescription>
-              A tarefa "{task.title}" será removida permanentemente. Esta ação não pode ser desfeita.
+              A tarefa "{task.title}" será removida permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -695,125 +754,6 @@ function TaskCard({
         </AlertDialogContent>
       </AlertDialog>
     </>
-  );
-}
-
-function stripHtml(s: string) {
-  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function NewTaskDialog({
-  projects, clients, onClose, defaultStatus,
-}: { projects: any[]; clients: any[]; onClose: () => void; defaultStatus?: TaskStatus }) {
-  const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
-  const qc = useQueryClient();
-  const syncSheet = useServerFn(syncEntityToSheets);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<Priority>("media");
-  const [status, setStatus] = useState<TaskStatus>(defaultStatus ?? "a_fazer");
-  const [projectId, setProjectId] = useState<string>("none");
-  const [clientId, setClientId] = useState<string>("none");
-  const [dueDate, setDueDate] = useState<string>("");
-
-  const create = useMutation({
-    mutationFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Sem sessão");
-      const { data: inserted, error } = await supabase.from("tasks").insert({
-        owner_id: u.user.id,
-        title,
-        description: description || null,
-        priority,
-        status,
-        project_id: projectId === "none" ? null : projectId,
-        client_id: clientId === "none" ? null : clientId,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        position: 0,
-      }).select("id").single();
-      if (error) throw error;
-      return inserted.id as string;
-    },
-    onSuccess: (id) => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Tarefa criada.");
-      setTitle(""); setDescription(""); setDueDate("");
-      onClose();
-      syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  return (
-    <DialogContent className="sm:max-w-lg">
-      <DialogHeader><DialogTitle>Nova tarefa</DialogTitle></DialogHeader>
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>Título</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Revisar campanha de junho" />
-        </div>
-        <div className="space-y-2">
-          <Label>Descrição</Label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>Prioridade</Label>
-            <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => (
-                  <SelectItem key={p} value={p}>{PRIORITY_LABEL[p]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Status</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {kanbanCols.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Projeto</Label>
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum</SelectItem>
-                {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Cliente</Label>
-            <Select value={clientId} onValueChange={setClientId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum</SelectItem>
-                {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 col-span-2">
-            <Label>Prazo</Label>
-            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose}>Cancelar</Button>
-        <Button
-          className="bg-[#00D084] hover:bg-[#00b873] text-white"
-          disabled={!title || create.isPending}
-          onClick={() => create.mutate()}
-        >
-          {create.isPending ? "Criando..." : "Criar tarefa"}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
   );
 }
 
