@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { BottomBar } from "@/components/app-mobile/BottomBar";
 import { NewActionSheet } from "@/components/app-mobile/NewActionSheet";
-import { NewTaskSheet } from "@/components/tasks/NewTaskSheet";
+import { TaskQuickForm } from "@/components/tasks/TaskQuickForm";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -61,7 +61,7 @@ function AppMobileLayout() {
       </div>
       <BottomBar onNewClick={() => setOpenNew(true)} />
       <NewActionSheet open={openNew} onOpenChange={setOpenNew} onPick={handlePick} />
-      <NewTaskSheet open={openTask} onOpenChange={setOpenTask} />
+      <TaskQuickForm open={openTask} onOpenChange={setOpenTask} />
     </div>
   );
 }
