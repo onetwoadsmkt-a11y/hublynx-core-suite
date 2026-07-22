@@ -1,15 +1,21 @@
 import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import {
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays,
+  format, isSameMonth, isSameDay,
+} from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Plus, CheckCircle2, Pencil, Trash2, List, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { listFinances, markFinanceStatus, deleteFinance } from "@/lib/finance/finance.functions";
 import { MonthYearPicker } from "@/components/finance/MonthYearPicker";
 import { FinanceFormDialog } from "@/components/finance/FinanceFormDialog";
