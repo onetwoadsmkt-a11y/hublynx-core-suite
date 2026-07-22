@@ -18,6 +18,7 @@ const TABS = [
   { to: "/financeiro", label: "Dashboard" },
   { to: "/financeiro/receber", label: "Receber" },
   { to: "/financeiro/pagar", label: "Pagar" },
+  { to: "/financeiro/calendario", label: "Calendário" },
   { to: "/financeiro/recorrencias", label: "Recorrências" },
   { to: "/financeiro/dre", label: "DRE + Lucratividade" },
   { to: "/financeiro/previsao", label: "Previsão" },

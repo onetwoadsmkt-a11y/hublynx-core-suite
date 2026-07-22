@@ -34,6 +34,7 @@ import { Route as AuthenticatedFinanceiroPrevisaoRouteImport } from './routes/_a
 import { Route as AuthenticatedFinanceiroPagarRouteImport } from './routes/_authenticated/financeiro.pagar'
 import { Route as AuthenticatedFinanceiroDreRouteImport } from './routes/_authenticated/financeiro.dre'
 import { Route as AuthenticatedFinanceiroCategoriasRouteImport } from './routes/_authenticated/financeiro.categorias'
+import { Route as AuthenticatedFinanceiroCalendarioRouteImport } from './routes/_authenticated/financeiro.calendario'
 import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
 import { Route as AuthenticatedConfiguracoesIntegracoesRouteImport } from './routes/_authenticated/configuracoes.integracoes'
 import { Route as AuthenticatedAppTarefasRouteImport } from './routes/_authenticated/app.tarefas'
@@ -179,6 +180,12 @@ const AuthenticatedFinanceiroCategoriasRoute =
     path: '/categorias',
     getParentRoute: () => AuthenticatedFinanceiroRoute,
   } as any)
+const AuthenticatedFinanceiroCalendarioRoute =
+  AuthenticatedFinanceiroCalendarioRouteImport.update({
+    id: '/calendario',
+    path: '/calendario',
+    getParentRoute: () => AuthenticatedFinanceiroRoute,
+  } as any)
 const AuthenticatedConfiguracoesModulosRoute =
   AuthenticatedConfiguracoesModulosRouteImport.update({
     id: '/modulos',
@@ -259,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
+  '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
@@ -292,6 +300,7 @@ export interface FileRoutesByTo {
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
+  '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
@@ -330,6 +339,7 @@ export interface FileRoutesById {
   '/_authenticated/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/_authenticated/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRoute
   '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
+  '/_authenticated/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/_authenticated/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
   '/_authenticated/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/_authenticated/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
     | '/app/tarefas'
     | '/configuracoes/integracoes'
     | '/configuracoes/modulos'
+    | '/financeiro/calendario'
     | '/financeiro/categorias'
     | '/financeiro/dre'
     | '/financeiro/pagar'
@@ -401,6 +412,7 @@ export interface FileRouteTypes {
     | '/app/tarefas'
     | '/configuracoes/integracoes'
     | '/configuracoes/modulos'
+    | '/financeiro/calendario'
     | '/financeiro/categorias'
     | '/financeiro/dre'
     | '/financeiro/pagar'
@@ -438,6 +450,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/tarefas'
     | '/_authenticated/configuracoes/integracoes'
     | '/_authenticated/configuracoes/modulos'
+    | '/_authenticated/financeiro/calendario'
     | '/_authenticated/financeiro/categorias'
     | '/_authenticated/financeiro/dre'
     | '/_authenticated/financeiro/pagar'
@@ -638,6 +651,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinanceiroCategoriasRouteImport
       parentRoute: typeof AuthenticatedFinanceiroRoute
     }
+    '/_authenticated/financeiro/calendario': {
+      id: '/_authenticated/financeiro/calendario'
+      path: '/calendario'
+      fullPath: '/financeiro/calendario'
+      preLoaderRoute: typeof AuthenticatedFinanceiroCalendarioRouteImport
+      parentRoute: typeof AuthenticatedFinanceiroRoute
+    }
     '/_authenticated/configuracoes/modulos': {
       id: '/_authenticated/configuracoes/modulos'
       path: '/modulos'
@@ -767,6 +787,7 @@ const AuthenticatedConfiguracoesRouteWithChildren =
   )
 
 interface AuthenticatedFinanceiroRouteChildren {
+  AuthenticatedFinanceiroCalendarioRoute: typeof AuthenticatedFinanceiroCalendarioRoute
   AuthenticatedFinanceiroCategoriasRoute: typeof AuthenticatedFinanceiroCategoriasRoute
   AuthenticatedFinanceiroDreRoute: typeof AuthenticatedFinanceiroDreRoute
   AuthenticatedFinanceiroPagarRoute: typeof AuthenticatedFinanceiroPagarRoute
@@ -778,6 +799,8 @@ interface AuthenticatedFinanceiroRouteChildren {
 
 const AuthenticatedFinanceiroRouteChildren: AuthenticatedFinanceiroRouteChildren =
   {
+    AuthenticatedFinanceiroCalendarioRoute:
+      AuthenticatedFinanceiroCalendarioRoute,
     AuthenticatedFinanceiroCategoriasRoute:
       AuthenticatedFinanceiroCategoriasRoute,
     AuthenticatedFinanceiroDreRoute: AuthenticatedFinanceiroDreRoute,
