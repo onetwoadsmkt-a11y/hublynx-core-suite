@@ -1,15 +1,21 @@
 import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import {
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays,
+  format, isSameMonth, isSameDay,
+} from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Plus, CheckCircle2, Pencil, Trash2, List, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { listFinances, markFinanceStatus, deleteFinance } from "@/lib/finance/finance.functions";
 import { MonthYearPicker } from "@/components/finance/MonthYearPicker";
 import { FinanceFormDialog } from "@/components/finance/FinanceFormDialog";
@@ -25,6 +31,7 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
   const search = { month, year };
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [q, setQ] = useState("");
+  const [view, setView] = useState<"list" | "calendar">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FinanceRow | null>(null);
 
@@ -58,6 +65,29 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
   const total = (rows ?? []).reduce((s, r) => s + r.amount, 0);
   const realizado = (rows ?? []).filter((r) => r.status === "pago").reduce((s, r) => s + r.amount, 0);
 
+  const byDay = useMemo(() => {
+    const map = new Map<string, FinanceRow[]>();
+    for (const r of rows ?? []) {
+      if (!r.due_date) continue;
+      const arr = map.get(r.due_date) ?? [];
+      arr.push(r);
+      map.set(r.due_date, arr);
+    }
+    return map;
+  }, [rows]);
+
+  const cursor = new Date(year, month - 1, 1);
+  const gridStart = startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 });
+  const gridEnd = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
+  const days: Date[] = [];
+  for (let d = gridStart; d <= gridEnd; d = addDays(d, 1)) days.push(d);
+  const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  const isReceber = kind === "receber";
+  const colorChipBg = isReceber ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800";
+  const colorText = isReceber ? "text-emerald-600" : "text-red-600";
+  const sign = isReceber ? "+" : "−";
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -69,80 +99,148 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
           }
         />
         <div className="flex items-center gap-2">
-          <Input placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} className="w-48" />
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="pendente">Pendente</SelectItem>
-              <SelectItem value="pago">{kind === "receber" ? "Recebido" : "Pago"}</SelectItem>
-              <SelectItem value="atrasado">Atrasado</SelectItem>
-            </SelectContent>
-          </Select>
+          <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v as "list" | "calendar")}>
+            <ToggleGroupItem value="list" aria-label="Lista"><List className="h-4 w-4" /></ToggleGroupItem>
+            <ToggleGroupItem value="calendar" aria-label="Calendário"><CalendarDays className="h-4 w-4" /></ToggleGroupItem>
+          </ToggleGroup>
+          {view === "list" && (
+            <>
+              <Input placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} className="w-48" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="pago">{kind === "receber" ? "Recebido" : "Pago"}</SelectItem>
+                  <SelectItem value="atrasado">Atrasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
           <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Novo
           </Button>
         </div>
       </div>
 
-      <Card className="p-0 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Descrição</TableHead>
-              <TableHead>{kind === "receber" ? "Cliente" : "Fornecedor"}</TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Vencimento</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(rows ?? []).length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum lançamento neste mês.</TableCell></TableRow>
-            )}
-            {(rows ?? []).map((r) => (
-              <TableRow key={r.id}>
-                <TableCell>
-                  <div className="font-medium">{r.description || "—"}</div>
-                  {r.installment_total ? (
-                    <div className="text-xs text-muted-foreground">Parcela {r.installment_no}/{r.installment_total}</div>
-                  ) : null}
-                </TableCell>
-                <TableCell>{kind === "receber" ? r.client_name : r.supplier ?? "—"}</TableCell>
-                <TableCell>{r.category_name ?? "—"}</TableCell>
-                <TableCell>{new Date(r.due_date + "T00:00:00").toLocaleDateString("pt-BR")}</TableCell>
-                <TableCell className="text-right tabular-nums">{brl(r.amount)}</TableCell>
-                <TableCell>
-                  <Badge variant={r.status === "pago" ? "default" : r.status === "atrasado" ? "destructive" : "secondary"}>
-                    {r.status === "pago" ? (kind === "receber" ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1 justify-end">
-                    {r.status !== "pago" && (
-                      <Button size="icon" variant="ghost" title="Marcar como pago" onClick={() => mark.mutate(r.id)}>
-                        <CheckCircle2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setDialogOpen(true); }}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+      {view === "list" ? (
+        <Card className="p-0 overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Descrição</TableHead>
+                <TableHead>{kind === "receber" ? "Cliente" : "Fornecedor"}</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Vencimento</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead></TableHead>
               </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(rows ?? []).length === 0 && (
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum lançamento neste mês.</TableCell></TableRow>
+              )}
+              {(rows ?? []).map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    <div className="font-medium">{r.description || "—"}</div>
+                    {r.installment_total ? (
+                      <div className="text-xs text-muted-foreground">Parcela {r.installment_no}/{r.installment_total}</div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>{kind === "receber" ? r.client_name : r.supplier ?? "—"}</TableCell>
+                  <TableCell>{r.category_name ?? "—"}</TableCell>
+                  <TableCell>{new Date(r.due_date + "T00:00:00").toLocaleDateString("pt-BR")}</TableCell>
+                  <TableCell className="text-right tabular-nums">{brl(r.amount)}</TableCell>
+                  <TableCell>
+                    <Badge variant={r.status === "pago" ? "default" : r.status === "atrasado" ? "destructive" : "secondary"}>
+                      {r.status === "pago" ? (kind === "receber" ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1 justify-end">
+                      {r.status !== "pago" && (
+                        <Button size="icon" variant="ghost" title="Marcar como pago" onClick={() => mark.mutate(r.id)}>
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setDialogOpen(true); }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : (
+        <Card className="p-0 overflow-hidden">
+          <div className="grid grid-cols-7 gap-px bg-border">
+            {weekLabels.map((l) => (
+              <div key={l} className="bg-muted text-[11px] font-medium uppercase text-muted-foreground px-2 py-1.5 text-center">
+                {l}
+              </div>
             ))}
-          </TableBody>
-        </Table>
-      </Card>
+            {days.map((d) => {
+              const key = format(d, "yyyy-MM-dd");
+              const items = byDay.get(key) ?? [];
+              const inMonth = isSameMonth(d, cursor);
+              const isToday = isSameDay(d, new Date());
+              const sum = items.reduce((s, r) => s + r.amount, 0);
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "bg-card min-h-[110px] p-1.5 flex flex-col gap-1",
+                    !inMonth && "bg-muted/30 text-muted-foreground",
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={cn(
+                      "text-xs font-semibold tabular-nums h-5 w-5 flex items-center justify-center rounded-full",
+                      isToday && "bg-primary text-primary-foreground",
+                    )}>
+                      {format(d, "d")}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {sum > 0 && (
+                      <div
+                        className={cn("text-[11px] font-semibold rounded px-1.5 py-0.5 tabular-nums truncate", colorChipBg)}
+                        title={`${brl(sum)} (${items.length} lançamento${items.length > 1 ? "s" : ""})`}
+                      >
+                        {sign} {brl(sum)}
+                      </div>
+                    )}
+                    {items.slice(0, 2).map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => { setEditing(r); setDialogOpen(true); }}
+                        className="w-full text-left text-[10px] truncate text-muted-foreground hover:text-foreground"
+                        title={r.description || ""}
+                      >
+                        {r.description || (kind === "receber" ? r.client_name : r.supplier) || "—"}
+                      </button>
+                    ))}
+                    {items.length > 2 && (
+                      <div className="text-[10px] text-muted-foreground">+{items.length - 2} mais</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <div className="flex justify-end gap-6 text-sm">
         <div>Realizado: <span className="font-semibold tabular-nums">{brl(realizado)}</span></div>
-        <div>Total: <span className="font-semibold tabular-nums">{brl(total)}</span></div>
+        <div>Total: <span className={cn("font-semibold tabular-nums", colorText)}>{brl(total)}</span></div>
       </div>
 
       <FinanceFormDialog open={dialogOpen} onOpenChange={setDialogOpen} kind={kind} initial={editing} />
