@@ -31,6 +31,7 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
   const search = { month, year };
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [q, setQ] = useState("");
+  const [view, setView] = useState<"list" | "calendar">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FinanceRow | null>(null);
 
