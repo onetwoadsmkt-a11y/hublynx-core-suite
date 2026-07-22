@@ -160,5 +160,3 @@ function FinanceCalendarPage() {
     </div>
   );
 }
-
-export { FinanceCalendarPage };
