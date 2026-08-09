@@ -134,7 +134,7 @@ function ClientesPage() {
               className="pl-8"
             />
           </div>
-          <Select value={search.status ?? "todos"} onValueChange={(v) => setParam("status", v as typeof search.status)}>
+          <Select value={search.status ?? "todos"} onValueChange={(v) => setParam("status", v as NonNullable<ClientesSearch["status"]>)}>
             <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os status</SelectItem>
@@ -144,7 +144,7 @@ function ClientesPage() {
               <SelectItem value="inativo">Inativo</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={search.sort ?? "recent"} onValueChange={(v) => setParam("sort", v as typeof search.sort)}>
+          <Select value={search.sort ?? "recent"} onValueChange={(v) => setParam("sort", v as NonNullable<ClientesSearch["sort"]>)}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="recent">Mais recentes</SelectItem>
