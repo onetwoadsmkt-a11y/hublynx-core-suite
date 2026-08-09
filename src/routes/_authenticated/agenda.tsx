@@ -128,16 +128,16 @@ function AgendaPage() {
   }), [allEvents, activeSources, search.clientId]);
 
   const setView = (v: View) =>
-    navigate({ to: "/agenda", search: (p) => ({ ...p, view: v }), replace: true });
+    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, view: v }), replace: true });
   const setAnchor = (d: Date) =>
-    navigate({ to: "/agenda", search: (p) => ({ ...p, date: d.toISOString() }), replace: true });
+    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, date: d.toISOString() }), replace: true });
   const toggleSource = (s: AgendaSource) => {
     const next = new Set(activeSources);
     if (next.has(s)) next.delete(s); else next.add(s);
-    navigate({ to: "/agenda", search: (p) => ({ ...p, sources: Array.from(next).join(",") || "task" }), replace: true });
+    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, sources: Array.from(next).join(",") || "task" }), replace: true });
   };
   const setClient = (id: string) =>
-    navigate({ to: "/agenda", search: (p) => ({ ...p, clientId: id === "all" ? undefined : id }), replace: true });
+    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, clientId: id === "all" ? undefined : id }), replace: true });
 
   const goPrev = () => setAnchor(view === "day" ? addDays(anchor, -1) : view === "week" ? addDays(anchor, -7) : new Date(anchor.getFullYear(), anchor.getMonth()-1, 1));
   const goNext = () => setAnchor(view === "day" ? addDays(anchor, 1) : view === "week" ? addDays(anchor, 7) : new Date(anchor.getFullYear(), anchor.getMonth()+1, 1));
