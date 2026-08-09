@@ -29,7 +29,7 @@ type View = "day" | "week" | "month";
 
 export const Route = createFileRoute("/_authenticated/agenda")({
   head: () => ({ meta: [{ title: "Agenda — Hublynx Core" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (s: Record<string, unknown>): { view?: View; date?: string; sources?: string; clientId?: string } => ({
     view: (s.view === "day" || s.view === "week" || s.view === "month" ? s.view : "week") as View,
     date: typeof s.date === "string" ? s.date : undefined,
     sources: typeof s.sources === "string" ? s.sources : "task,meeting,gcal",
@@ -73,13 +73,13 @@ function getRange(view: View, anchor: Date): { from: Date; to: Date } {
 }
 
 function AgendaPage() {
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: "/agenda" });
   const qc = useQueryClient();
   const search = Route.useSearch();
-  const view = search.view;
+  const view: View = search.view ?? "week";
   const anchor = useMemo(() => parseDate(search.date), [search.date]);
   const activeSources = useMemo(
-    () => new Set(search.sources.split(",").filter(Boolean) as AgendaSource[]),
+    () => new Set((search.sources ?? "task,meeting,gcal").split(",").filter(Boolean) as AgendaSource[]),
     [search.sources]
   );
 
@@ -128,16 +128,16 @@ function AgendaPage() {
   }), [allEvents, activeSources, search.clientId]);
 
   const setView = (v: View) =>
-    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, view: v }), replace: true });
+    navigate({ to: "/agenda", search: (p) => ({ ...p, view: v }), replace: true });
   const setAnchor = (d: Date) =>
-    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, date: d.toISOString() }), replace: true });
+    navigate({ to: "/agenda", search: (p) => ({ ...p, date: d.toISOString() }), replace: true });
   const toggleSource = (s: AgendaSource) => {
     const next = new Set(activeSources);
     if (next.has(s)) next.delete(s); else next.add(s);
-    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, sources: Array.from(next).join(",") || "task" }), replace: true });
+    navigate({ to: "/agenda", search: (p) => ({ ...p, sources: Array.from(next).join(",") || "task" }), replace: true });
   };
   const setClient = (id: string) =>
-    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, clientId: id === "all" ? undefined : id }), replace: true });
+    navigate({ to: "/agenda", search: (p) => ({ ...p, clientId: id === "all" ? undefined : id }), replace: true });
 
   const goPrev = () => setAnchor(view === "day" ? addDays(anchor, -1) : view === "week" ? addDays(anchor, -7) : new Date(anchor.getFullYear(), anchor.getMonth()-1, 1));
   const goNext = () => setAnchor(view === "day" ? addDays(anchor, 1) : view === "week" ? addDays(anchor, 7) : new Date(anchor.getFullYear(), anchor.getMonth()+1, 1));
