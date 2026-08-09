@@ -54,7 +54,7 @@ type ClientesSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   head: () => ({ meta: [{ title: "Clientes — Hublynx Core" }] }),
-  validateSearch: (s: Record<string, unknown>) => searchSchema.parse(s),
+  validateSearch: (s: Record<string, unknown>): Partial<ClientesSearch> => searchSchema.parse(s),
   component: ClientesPage,
 });
 
@@ -85,9 +85,9 @@ function ClientesPage() {
   }, [projectsData]);
 
   const filtered = useMemo(() => {
-    const q = search.q.trim().toLowerCase();
+    const q = (search.q ?? "").trim().toLowerCase();
     let rows = all.filter((c) => {
-      if (search.status !== "todos" && c.status !== search.status) return false;
+      if (search.status && search.status !== "todos" && c.status !== search.status) return false;
       if (q) {
         const hay = `${c.name} ${c.company ?? ""} ${c.email ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -104,7 +104,7 @@ function ClientesPage() {
   );
 
   function setParam<K extends keyof ClientesSearch>(key: K, value: ClientesSearch[K]) {
-    navigate({ search: (prev: ClientesSearch) => ({ ...prev, [key]: value }) });
+    navigate({ to: "/clientes", search: (prev: Partial<ClientesSearch>) => ({ ...prev, [key]: value }) });
   }
 
   return (
@@ -128,13 +128,13 @@ function ClientesPage() {
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              value={search.q}
+              value={search.q ?? ""}
               onChange={(e) => setParam("q", e.target.value)}
               placeholder="Buscar nome, empresa, e-mail…"
               className="pl-8"
             />
           </div>
-          <Select value={search.status} onValueChange={(v) => setParam("status", v as typeof search.status)}>
+          <Select value={search.status ?? "todos"} onValueChange={(v) => setParam("status", v as NonNullable<ClientesSearch["status"]>)}>
             <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os status</SelectItem>
@@ -144,7 +144,7 @@ function ClientesPage() {
               <SelectItem value="inativo">Inativo</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={search.sort} onValueChange={(v) => setParam("sort", v as typeof search.sort)}>
+          <Select value={search.sort ?? "recent"} onValueChange={(v) => setParam("sort", v as NonNullable<ClientesSearch["sort"]>)}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="recent">Mais recentes</SelectItem>

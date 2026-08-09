@@ -29,7 +29,7 @@ type View = "day" | "week" | "month";
 
 export const Route = createFileRoute("/_authenticated/agenda")({
   head: () => ({ meta: [{ title: "Agenda — Hublynx Core" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (s: Record<string, unknown>): { view?: View; date?: string; sources?: string; clientId?: string } => ({
     view: (s.view === "day" || s.view === "week" || s.view === "month" ? s.view : "week") as View,
     date: typeof s.date === "string" ? s.date : undefined,
     sources: typeof s.sources === "string" ? s.sources : "task,meeting,gcal",
@@ -73,13 +73,13 @@ function getRange(view: View, anchor: Date): { from: Date; to: Date } {
 }
 
 function AgendaPage() {
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: "/agenda" });
   const qc = useQueryClient();
   const search = Route.useSearch();
-  const view = search.view;
+  const view: View = search.view ?? "week";
   const anchor = useMemo(() => parseDate(search.date), [search.date]);
   const activeSources = useMemo(
-    () => new Set(search.sources.split(",").filter(Boolean) as AgendaSource[]),
+    () => new Set((search.sources ?? "task,meeting,gcal").split(",").filter(Boolean) as AgendaSource[]),
     [search.sources]
   );
 

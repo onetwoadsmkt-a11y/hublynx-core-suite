@@ -50,7 +50,7 @@ type ViewMode = "kanban" | "lista" | "calendario";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
   head: () => ({ meta: [{ title: "Tarefas — Hublynx Core" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (s: Record<string, unknown>): { task?: string; view?: ViewMode } => ({
     task: typeof s.task === "string" ? s.task : undefined,
     view: (["kanban", "lista", "calendario"].includes(String(s.view)) ? s.view : undefined) as ViewMode | undefined,
   }),

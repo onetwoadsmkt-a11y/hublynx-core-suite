@@ -7,7 +7,7 @@ import { ensureDefaultCategories, runRecurringRollover } from "@/lib/finance/fin
 
 export const Route = createFileRoute("/_authenticated/financeiro")({
   head: () => ({ meta: [{ title: "Financeiro — Hublynx Core" }] }),
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (s: Record<string, unknown>): { month?: number; year?: number } => ({
     month: Number(s.month) || new Date().getMonth() + 1,
     year: Number(s.year) || new Date().getFullYear(),
   }),

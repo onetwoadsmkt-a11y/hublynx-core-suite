@@ -3,7 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users, DollarSign,
   Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
-  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock,
+  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -38,6 +38,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" as ModuleSlug },
   { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" as ModuleSlug },
+  { to: "/pipeline", label: "Pipeline", icon: Filter },
   { to: "/clientes", label: "Clientes", icon: Users, moduleSlug: "clientes" as ModuleSlug },
   { to: "/financeiro", label: "Financeiro", icon: DollarSign, moduleSlug: "financeiro" as ModuleSlug },
   { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" as ModuleSlug },

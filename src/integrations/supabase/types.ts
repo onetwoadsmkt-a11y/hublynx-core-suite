@@ -394,6 +394,252 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          kind: string
+          lead_id: string
+          meta: Json
+          owner_id: string
+          title: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind: string
+          lead_id: string
+          meta?: Json
+          owner_id: string
+          title: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          lead_id?: string
+          meta?: Json
+          owner_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_notes: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          lead_id: string
+          owner_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          owner_id: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_notes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_webhooks: {
+        Row: {
+          active: boolean
+          call_count: number
+          created_at: string
+          default_stage_id: string | null
+          direction: string
+          id: string
+          last_called_at: string | null
+          name: string
+          owner_id: string
+          secret: string
+          target_url: string | null
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          call_count?: number
+          created_at?: string
+          default_stage_id?: string | null
+          direction?: string
+          id?: string
+          last_called_at?: string | null
+          name: string
+          owner_id: string
+          secret?: string
+          target_url?: string | null
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          call_count?: number
+          created_at?: string
+          default_stage_id?: string | null
+          direction?: string
+          id?: string
+          last_called_at?: string | null
+          name?: string
+          owner_id?: string
+          secret?: string
+          target_url?: string | null
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_webhooks_default_stage_id_fkey"
+            columns: ["default_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assignee_id: string | null
+          city: string | null
+          client_id: string | null
+          company: string | null
+          created_at: string
+          email: string | null
+          fbclid: string | null
+          gclid: string | null
+          id: string
+          landing_url: string | null
+          last_contact_at: string | null
+          metadata: Json
+          name: string
+          owner_id: string
+          phone: string | null
+          position: number
+          referrer: string | null
+          source: string | null
+          stage_id: string | null
+          state: string | null
+          status: string
+          tags: string[]
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          value: number | null
+        }
+        Insert: {
+          assignee_id?: string | null
+          city?: string | null
+          client_id?: string | null
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          last_contact_at?: string | null
+          metadata?: Json
+          name: string
+          owner_id: string
+          phone?: string | null
+          position?: number
+          referrer?: string | null
+          source?: string | null
+          stage_id?: string | null
+          state?: string | null
+          status?: string
+          tags?: string[]
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          value?: number | null
+        }
+        Update: {
+          assignee_id?: string | null
+          city?: string | null
+          client_id?: string | null
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          last_contact_at?: string | null
+          metadata?: Json
+          name?: string
+          owner_id?: string
+          phone?: string | null
+          position?: number
+          referrer?: string | null
+          source?: string | null
+          stage_id?: string | null
+          state?: string | null
+          status?: string
+          tags?: string[]
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -421,6 +667,42 @@ export type Database = {
           read?: boolean
           title?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      pipeline_stages: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_lost: boolean
+          is_won: boolean
+          name: string
+          owner_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_lost?: boolean
+          is_won?: boolean
+          name: string
+          owner_id: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_lost?: boolean
+          is_won?: boolean
+          name?: string
+          owner_id?: string
+          position?: number
+          updated_at?: string
         }
         Relationships: []
       }
