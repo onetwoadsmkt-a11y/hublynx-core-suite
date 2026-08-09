@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedHubRouteImport } from './routes/_authenticated/hub'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -43,6 +44,7 @@ import { Route as AuthenticatedAppMaisRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAppLembretesRouteImport } from './routes/_authenticated/app.lembretes'
 import { Route as AuthenticatedAppHojeRouteImport } from './routes/_authenticated/app.hoje'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
+import { Route as ApiPublicLeadsTokenRouteImport } from './routes/api/public/leads/$token'
 import { Route as ApiPublicHooksRunRemindersRouteImport } from './routes/api/public/hooks/run-reminders'
 import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authenticated/app.tarefas.$id'
 
@@ -73,6 +75,11 @@ const AuthenticatedTarefasRoute = AuthenticatedTarefasRouteImport.update({
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedHubRoute = AuthenticatedHubRouteImport.update({
@@ -231,6 +238,11 @@ const AuthenticatedAdminUsuariosRoute =
     path: '/admin/usuarios',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicLeadsTokenRoute = ApiPublicLeadsTokenRouteImport.update({
+  id: '/api/public/leads/$token',
+  path: '/api/public/leads/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksRunRemindersRoute =
   ApiPublicHooksRunRemindersRouteImport.update({
     id: '/api/public/hooks/run-reminders',
@@ -256,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
   '/hub': typeof AuthenticatedHubRoute
+  '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -280,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/projetos/': typeof AuthenticatedProjetosIndexRoute
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
+  '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -290,6 +304,7 @@ export interface FileRoutesByTo {
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/hub': typeof AuthenticatedHubRoute
+  '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -314,6 +329,7 @@ export interface FileRoutesByTo {
   '/projetos': typeof AuthenticatedProjetosIndexRoute
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
+  '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -329,6 +345,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
   '/_authenticated/hub': typeof AuthenticatedHubRoute
+  '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
@@ -353,6 +370,7 @@ export interface FileRoutesById {
   '/_authenticated/projetos/': typeof AuthenticatedProjetosIndexRoute
   '/_authenticated/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
+  '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -368,6 +386,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/financeiro'
     | '/hub'
+    | '/pipeline'
     | '/relatorios'
     | '/tarefas'
     | '/admin/usuarios'
@@ -392,6 +411,7 @@ export interface FileRouteTypes {
     | '/projetos/'
     | '/app/tarefas/$id'
     | '/api/public/hooks/run-reminders'
+    | '/api/public/leads/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -402,6 +422,7 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/dashboard'
     | '/hub'
+    | '/pipeline'
     | '/relatorios'
     | '/tarefas'
     | '/admin/usuarios'
@@ -426,6 +447,7 @@ export interface FileRouteTypes {
     | '/projetos'
     | '/app/tarefas/$id'
     | '/api/public/hooks/run-reminders'
+    | '/api/public/leads/$token'
   id:
     | '__root__'
     | '/'
@@ -440,6 +462,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/financeiro'
     | '/_authenticated/hub'
+    | '/_authenticated/pipeline'
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
     | '/_authenticated/admin/usuarios'
@@ -464,6 +487,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projetos/'
     | '/_authenticated/app/tarefas/$id'
     | '/api/public/hooks/run-reminders'
+    | '/api/public/leads/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -472,6 +496,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
+  ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -516,6 +541,13 @@ declare module '@tanstack/react-router' {
       path: '/relatorios'
       fullPath: '/relatorios'
       preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pipeline': {
+      id: '/_authenticated/pipeline'
+      path: '/pipeline'
+      fullPath: '/pipeline'
+      preLoaderRoute: typeof AuthenticatedPipelineRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/hub': {
@@ -714,6 +746,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/leads/$token': {
+      id: '/api/public/leads/$token'
+      path: '/api/public/leads/$token'
+      fullPath: '/api/public/leads/$token'
+      preLoaderRoute: typeof ApiPublicLeadsTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/run-reminders': {
       id: '/api/public/hooks/run-reminders'
       path: '/api/public/hooks/run-reminders'
@@ -826,6 +865,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRouteWithChildren
   AuthenticatedHubRoute: typeof AuthenticatedHubRoute
+  AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
@@ -842,6 +882,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRouteWithChildren,
   AuthenticatedHubRoute: AuthenticatedHubRoute,
+  AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
@@ -858,6 +899,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
+  ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

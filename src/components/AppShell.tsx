@@ -1,4 +1,5 @@
-import { type ReactNode, useState, useEffect } from "react";
+import {
+  Filter, type ReactNode, useState, useEffect } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users, DollarSign,
@@ -38,6 +39,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" as ModuleSlug },
   { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" as ModuleSlug },
+  { to: "/pipeline", label: "Pipeline", icon: Filter },
   { to: "/clientes", label: "Clientes", icon: Users, moduleSlug: "clientes" as ModuleSlug },
   { to: "/financeiro", label: "Financeiro", icon: DollarSign, moduleSlug: "financeiro" as ModuleSlug },
   { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" as ModuleSlug },
