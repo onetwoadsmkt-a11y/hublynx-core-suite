@@ -444,6 +444,15 @@ export function LeadDrawer({
                 </div>
               </DialogContent>
             </Dialog>
+
+            <SendLeadEmailDialog
+              open={emailOpen}
+              onOpenChange={setEmailOpen}
+              leadId={lead.id}
+              leadName={lead.name}
+              defaultTo={lead.email}
+              onSent={() => qc.invalidateQueries({ queryKey: ["lead-detail", lead.id] })}
+            />
           </>
         )}
       </DialogContent>
