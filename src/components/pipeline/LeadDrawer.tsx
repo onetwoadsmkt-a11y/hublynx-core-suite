@@ -199,21 +199,21 @@ export function LeadDrawer({
               {/* Coluna principal */}
               <div className="flex min-h-0 flex-col">
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
-                  <div className="grid gap-2 rounded-xl border bg-[var(--brand-dark)]/10 p-3 text-sm text-foreground sm:grid-cols-2">
-                    {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-muted-foreground" />{lead.company}</p>}
-                    {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" />{lead.phone}</p>}
-                    {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" />{lead.email}</p>}
+                  <div className="grid gap-2 rounded-xl border border-white/10 bg-white/10 p-3 text-sm text-white sm:grid-cols-2">
+                    {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-white/70" />{lead.company}</p>}
+                    {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-white/70" />{lead.phone}</p>}
+                    {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-white/70" />{lead.email}</p>}
                     {(lead.city || lead.state) && (
-                      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
+                      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-white/70" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
                     )}
-                    {lead.source && <p className="flex items-center gap-2"><Tag className="h-4 w-4 text-muted-foreground" />{lead.source}</p>}
+                    {lead.source && <p className="flex items-center gap-2"><Tag className="h-4 w-4 text-white/70" />{lead.source}</p>}
                   </div>
 
                   <Tabs defaultValue="tarefas" className="mt-4">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
-                      <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
-                      <TabsTrigger value="utm">UTM</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-3 border border-white/10 bg-white/10 p-1">
+                      <TabsTrigger value="tarefas" className="text-white/70 data-[state=active]:bg-white/20 data-[state=active]:text-white">Tarefas</TabsTrigger>
+                      <TabsTrigger value="arquivos" className="text-white/70 data-[state=active]:bg-white/20 data-[state=active]:text-white">Arquivos</TabsTrigger>
+                      <TabsTrigger value="utm" className="text-white/70 data-[state=active]:bg-white/20 data-[state=active]:text-white">UTM</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="tarefas" className="mt-4 space-y-3">
