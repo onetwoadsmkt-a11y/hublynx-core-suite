@@ -7,7 +7,7 @@ import {
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, Search, Settings2, Webhook } from "lucide-react";
+import { LayoutTemplate, Plus, Search, Settings2, Webhook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ import { LeadCard, currency } from "@/components/pipeline/LeadCard";
 import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
 import { StagesDialog } from "@/components/pipeline/StagesDialog";
+import { CardLayoutDialog } from "@/components/pipeline/CardLayoutDialog";
 import { WebhooksDialog } from "@/components/pipeline/WebhooksDialog";
 import type { Lead, PipelineStage } from "@/components/pipeline/types";
 import { listPipeline, moveLead } from "@/lib/pipeline/pipeline.functions";
