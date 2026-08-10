@@ -169,7 +169,6 @@ export function LeadDrawer({
   return (
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
       <DialogContent
-        showCloseButton={false}
         className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 rounded-none border-0 p-0 sm:max-w-none"
       >
         {lead && (
@@ -191,7 +190,7 @@ export function LeadDrawer({
                 </SelectContent>
               </Select>
               <Button size="sm" variant="outline" onClick={() => onEdit(lead)}>Editar</Button>
-              <Button size="icon" variant="ghost" onClick={() => onOpenChange(false)}>
+              <Button size="icon" variant="ghost" className="hidden" onClick={() => onOpenChange(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </header>
