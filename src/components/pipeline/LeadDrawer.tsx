@@ -371,34 +371,34 @@ export function LeadDrawer({
               </div>
 
               {/* Coluna direita: jornada */}
-              <aside className="min-h-0 border-t lg:border-l lg:border-t-0">
+              <aside className="min-h-0 border-t border-white/10 lg:border-l lg:border-t-0">
                 <div className="flex h-full min-h-0 flex-col">
-                  <div className="border-b px-4 py-3">
-                    <p className="flex items-center gap-2 text-sm font-semibold">
-                      <Activity className="h-4 w-4 text-primary" /> Histórico da jornada
+                  <div className="border-b border-white/10 px-4 py-3">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <Activity className="h-4 w-4 text-white" /> Histórico da jornada
                     </p>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-                    <ol className="relative space-y-4 border-l pl-5">
+                    <ol className="relative space-y-4 border-l border-white/20 pl-5">
                       {(data?.events ?? []).map((ev) => {
                         const Icon = EVENT_ICON[ev.kind] ?? Activity;
                         return (
                           <li key={ev.id} className="relative">
-                            <span className="absolute -left-[27px] flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <span className="absolute -left-[27px] flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-white">
                               <Icon className="h-3 w-3" />
                             </span>
-                            <p className="text-sm font-medium">{ev.title}</p>
-                            {ev.description && <p className="text-xs text-muted-foreground">{ev.description}</p>}
-                            <p className="text-[11px] text-muted-foreground">{fmt(ev.created_at)}</p>
+                            <p className="text-sm font-medium text-white">{ev.title}</p>
+                            {ev.description && <p className="text-xs text-white/70">{ev.description}</p>}
+                            <p className="text-[11px] text-white/70">{fmt(ev.created_at)}</p>
                           </li>
                         );
                       })}
                       {(data?.events ?? []).length === 0 && (
-                        <li className="text-sm text-muted-foreground">Sem eventos ainda.</li>
+                        <li className="text-sm text-white/70">Sem eventos ainda.</li>
                       )}
                     </ol>
                   </div>
-                  <Separator />
+                  <Separator className="bg-white/20" />
                 </div>
               </aside>
             </div>
