@@ -312,23 +312,23 @@ export function LeadDrawer({
                     </TabsContent>
 
                     <TabsContent value="utm" className="mt-4 space-y-2">
-                      {utms.length === 0 && <p className="text-sm text-muted-foreground">Sem dados de campanha.</p>}
+                      {utms.length === 0 && <p className="text-sm text-white/70">Sem dados de campanha.</p>}
                       {utms.map(([k, v]) => (
-                        <div key={k} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                          <span className="font-mono text-xs text-muted-foreground">{k}</span>
-                          <span className="max-w-[60%] truncate font-medium">{v}</span>
+                        <div key={k} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2 text-sm text-white">
+                          <span className="font-mono text-xs text-white/70">{k}</span>
+                          <span className="max-w-[60%] truncate font-medium text-white">{v}</span>
                         </div>
                       ))}
                       {lead.landing_url && (
-                        <div className="rounded-lg border px-3 py-2 text-xs">
-                          <p className="text-muted-foreground">landing_url</p>
-                          <p className="break-all">{lead.landing_url}</p>
+                        <div className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white">
+                          <p className="text-white/70">landing_url</p>
+                          <p className="break-all text-white">{lead.landing_url}</p>
                         </div>
                       )}
                       {lead.referrer && (
-                        <div className="rounded-lg border px-3 py-2 text-xs">
-                          <p className="text-muted-foreground">referrer</p>
-                          <p className="break-all">{lead.referrer}</p>
+                        <div className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white">
+                          <p className="text-white/70">referrer</p>
+                          <p className="break-all text-white">{lead.referrer}</p>
                         </div>
                       )}
                     </TabsContent>
