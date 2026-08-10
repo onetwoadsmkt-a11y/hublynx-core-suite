@@ -248,30 +248,30 @@ export function LeadDrawer({
 
                       <div className="space-y-2">
                         {tasks.map((t) => (
-                          <div key={t.id} className="flex items-start gap-3 rounded-lg border bg-[var(--brand-dark)]/5 p-3">
+                          <div key={t.id} className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/10 p-3">
                             <Checkbox
                               checked={t.done}
                               onCheckedChange={(v) => toggleTask.mutate({ id: t.id, done: !!v })}
                               className="mt-0.5"
                             />
                             <div className="min-w-0 flex-1">
-                              <p className={t.done ? "text-sm line-through text-muted-foreground" : "text-sm font-medium"}>
+                              <p className={t.done ? "text-sm line-through text-white/60" : "text-sm font-medium text-white"}>
                                 {t.title}
                               </p>
-                              <p className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                                <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
+                              <p className="mt-0.5 flex items-center gap-2 text-[11px] text-white/70">
+                                <Badge variant="outline" className="h-4 border-white/10 px-1.5 text-[10px] text-white/80">
                                   {TASK_KINDS.find((k) => k.value === t.kind)?.label ?? t.kind}
                                 </Badge>
                                 {t.due_at && <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" />{fmt(t.due_at)}</span>}
                               </p>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeTask.mutate(t.id)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/10" onClick={() => removeTask.mutate(t.id)}>
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </div>
                         ))}
                         {tasks.length === 0 && (
-                          <p className="text-sm text-muted-foreground">Nenhum agendamento para este lead.</p>
+                          <p className="text-sm text-white/70">Nenhum agendamento para este lead.</p>
                         )}
                       </div>
                     </TabsContent>
