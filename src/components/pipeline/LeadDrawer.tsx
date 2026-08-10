@@ -210,7 +210,7 @@ export function LeadDrawer({
                   </div>
 
                   <Tabs defaultValue="tarefas" className="mt-4">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="lead-gradient-card grid w-full grid-cols-3">
                       <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
                       <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
                       <TabsTrigger value="utm">UTM</TabsTrigger>
