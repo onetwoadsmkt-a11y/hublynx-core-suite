@@ -114,6 +114,11 @@ export function LeadDrawer({
     onSuccess: () => { setTaskTitle(""); setTaskDue(""); refresh(); },
   });
 
+  const addNote = useMutation({
+    mutationFn: () => noteFn({ data: { leadId: lead!.id, body: noteText.trim() } }),
+    onSuccess: () => { setNoteText(""); refresh(); },
+  });
+
   const toggleTask = useMutation({
     mutationFn: (v: { id: string; done: boolean }) => toggleFn({ data: v }),
     onSuccess: refresh,
