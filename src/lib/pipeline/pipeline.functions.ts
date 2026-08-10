@@ -5,42 +5,151 @@ import { DEFAULT_STAGES } from "./defaults";
 
 const uuid = z.string().uuid();
 
+/* ---------------- Pipelines ---------------- */
+
+export const listPipelines = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    let { data } = await supabase.from("pipelines").select("*").order("position");
+    if (!data || data.length === 0) {
+      const { data: created, error } = await supabase
+        .from("pipelines")
+        .insert({ owner_id: userId, name: "Pipeline principal", position: 0 })
+        .select("*");
+      if (error) throw new Error(error.message);
+      data = created ?? [];
+    }
+    return data;
+  });
+
+export const createPipeline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ name: z.string().min(1).max(80), seedStages: z.boolean().optional() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { count } = await supabase
+      .from("pipelines")
+      .select("id", { count: "exact", head: true });
+    const { data: row, error } = await supabase
+      .from("pipelines")
+      .insert({ owner_id: userId, name: data.name, position: count ?? 0 })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+
+    if (data.seedStages !== false) {
+      await supabase.from("pipeline_stages").insert(
+        DEFAULT_STAGES.map((s, i) => ({
+          owner_id: userId,
+          pipeline_id: row.id,
+          name: s.name,
+          color: s.color,
+          position: i,
+          is_won: s.is_won ?? false,
+          is_lost: s.is_lost ?? false,
+        })),
+      );
+    }
+    return row;
+  });
+
+export const renamePipeline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: uuid, name: z.string().min(1).max(80) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("pipelines")
+      .update({ name: data.name })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export const deletePipeline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("pipelines").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
 /* ---------------- Stages ---------------- */
 
 export const listPipeline = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: unknown) =>
+    z.object({ pipelineId: uuid.optional() }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+
+    let { data: pipelines } = await supabase.from("pipelines").select("*").order("position");
+    if (!pipelines || pipelines.length === 0) {
+      const { data: created, error } = await supabase
+        .from("pipelines")
+        .insert({ owner_id: userId, name: "Pipeline principal", position: 0 })
+        .select("*");
+      if (error) throw new Error(error.message);
+      pipelines = created ?? [];
+    }
+
+    const current =
+      pipelines.find((p) => p.id === data.pipelineId) ?? pipelines[0]!;
+    const isFirst = current.id === pipelines[0]!.id;
 
     let { data: stages } = await supabase
       .from("pipeline_stages")
       .select("*")
+      .eq("pipeline_id", current.id)
       .order("position");
 
     if (!stages || stages.length === 0) {
-      const rows = DEFAULT_STAGES.map((s, i) => ({
-        owner_id: userId,
-        name: s.name,
-        color: s.color,
-        position: i,
-        is_won: s.is_won ?? false,
-        is_lost: s.is_lost ?? false,
-      }));
-      const { data: created, error } = await supabase
-        .from("pipeline_stages")
-        .insert(rows)
-        .select("*");
-      if (error) throw new Error(error.message);
-      stages = created ?? [];
+      // adota etapas antigas sem pipeline no funil principal
+      if (isFirst) {
+        await supabase
+          .from("pipeline_stages")
+          .update({ pipeline_id: current.id })
+          .is("pipeline_id", null);
+        const { data: adopted } = await supabase
+          .from("pipeline_stages")
+          .select("*")
+          .eq("pipeline_id", current.id)
+          .order("position");
+        stages = adopted ?? [];
+      }
+      if (!stages || stages.length === 0) {
+        const rows = DEFAULT_STAGES.map((s, i) => ({
+          owner_id: userId,
+          pipeline_id: current.id,
+          name: s.name,
+          color: s.color,
+          position: i,
+          is_won: s.is_won ?? false,
+          is_lost: s.is_lost ?? false,
+        }));
+        const { data: created, error } = await supabase
+          .from("pipeline_stages")
+          .insert(rows)
+          .select("*");
+        if (error) throw new Error(error.message);
+        stages = created ?? [];
+      }
     }
 
-    const { data: leads, error: lerr } = await supabase
-      .from("leads")
-      .select("*")
-      .order("position");
+    const stageIds = (stages ?? []).map((s) => s.id);
+    const query = supabase.from("leads").select("*").order("position");
+    const { data: leads, error: lerr } = await (isFirst
+      ? query.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
+      : query.in("stage_id", stageIds));
     if (lerr) throw new Error(lerr.message);
 
-    return { stages: stages ?? [], leads: leads ?? [] };
+    return { pipelines, pipeline: current, stages: stages ?? [], leads: leads ?? [] };
   });
 
 export const upsertStage = createServerFn({ method: "POST" })
@@ -49,6 +158,7 @@ export const upsertStage = createServerFn({ method: "POST" })
     z
       .object({
         id: uuid.optional(),
+        pipeline_id: uuid.optional(),
         name: z.string().min(1).max(60),
         color: z.string().min(3).max(30),
         position: z.number().int().min(0).optional(),

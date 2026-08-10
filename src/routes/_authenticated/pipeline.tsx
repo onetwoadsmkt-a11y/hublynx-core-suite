@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -7,10 +7,24 @@ import {
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
-import { LayoutTemplate, Plus, Search, Settings2, Webhook } from "lucide-react";
+import {
+  CalendarDays, HardDrive, LayoutTemplate, Mail, Pencil, Plus, Search, Settings, Settings2, Trash2, Webhook,
+} from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { LeadCard, currency } from "@/components/pipeline/LeadCard";
 import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
@@ -18,7 +32,9 @@ import { StagesDialog } from "@/components/pipeline/StagesDialog";
 import { CardLayoutDialog } from "@/components/pipeline/CardLayoutDialog";
 import { WebhooksDialog } from "@/components/pipeline/WebhooksDialog";
 import type { Lead, PipelineStage } from "@/components/pipeline/types";
-import { listPipeline, moveLead } from "@/lib/pipeline/pipeline.functions";
+import {
+  createPipeline, deletePipeline, listPipeline, moveLead, renamePipeline,
+} from "@/lib/pipeline/pipeline.functions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
@@ -35,11 +51,17 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
   component: PipelinePage,
 });
 
+type PipelineRow = { id: string; name: string };
+
 function PipelinePage() {
   const qc = useQueryClient();
   const listFn = useServerFn(listPipeline);
   const moveFn = useServerFn(moveLead);
+  const createPipelineFn = useServerFn(createPipeline);
+  const renamePipelineFn = useServerFn(renamePipeline);
+  const deletePipelineFn = useServerFn(deletePipeline);
 
+  const [pipelineId, setPipelineId] = useState<string | undefined>();
   const [q, setQ] = useState("");
   const [dragging, setDragging] = useState<Lead | null>(null);
   const [openLead, setOpenLead] = useState<Lead | null>(null);
@@ -49,15 +71,51 @@ function PipelinePage() {
   const [hooksOpen, setHooksOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [targetStage, setTargetStage] = useState<string | undefined>();
+  const [pipeDialog, setPipeDialog] = useState<"new" | "rename" | null>(null);
+  const [pipeName, setPipeName] = useState("");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline"],
-    queryFn: () => listFn(),
+    queryKey: ["pipeline", pipelineId ?? "default"],
+    queryFn: () => listFn({ data: pipelineId ? { pipelineId } : {} }),
     staleTime: 30_000,
   });
 
+  const pipelines = (data?.pipelines ?? []) as PipelineRow[];
+  const current = (data?.pipeline ?? null) as PipelineRow | null;
   const stages = (data?.stages ?? []) as PipelineStage[];
   const leads = (data?.leads ?? []) as Lead[];
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ["pipeline"] });
+
+  const savePipeline = useMutation({
+    mutationFn: async () => {
+      const name = pipeName.trim();
+      if (!name) throw new Error("Informe um nome.");
+      if (pipeDialog === "rename" && current) {
+        await renamePipelineFn({ data: { id: current.id, name } });
+        return current.id;
+      }
+      const row = await createPipelineFn({ data: { name } });
+      return row.id as string;
+    },
+    onSuccess: (id) => {
+      setPipelineId(id);
+      setPipeDialog(null);
+      refresh();
+      toast.success("Pipeline salvo");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removePipeline = useMutation({
+    mutationFn: (id: string) => deletePipelineFn({ data: { id } }),
+    onSuccess: () => {
+      setPipelineId(undefined);
+      refresh();
+      toast.success("Pipeline removido");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -73,7 +131,7 @@ function PipelinePage() {
 
   const move = useMutation({
     mutationFn: (v: { id: string; stage_id: string }) => moveFn({ data: v }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
+    onSuccess: refresh,
   });
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -98,8 +156,31 @@ function PipelinePage() {
   return (
     <div className="flex h-full flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
+            <Select
+              value={current?.id ?? ""}
+              onValueChange={(v) => {
+                if (v === "__new__") {
+                  setPipeName("");
+                  setPipeDialog("new");
+                  return;
+                }
+                setPipelineId(v);
+              }}
+            >
+              <SelectTrigger className="h-8 w-[220px]">
+                <SelectValue placeholder="Selecionar pipeline" />
+              </SelectTrigger>
+              <SelectContent>
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+                <SelectItem value="__new__">+ Novo pipeline</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <p className="text-sm text-muted-foreground">
             {filtered.length} leads · {currency(total)} em negociação
           </p>
@@ -114,15 +195,64 @@ function PipelinePage() {
               className="w-56 pl-9"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={() => setStagesOpen(true)}>
-            <Settings2 className="mr-1.5 h-4 w-4" /> Etapas
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setLayoutOpen(true)}>
-            <LayoutTemplate className="mr-1.5 h-4 w-4" /> Layout do card
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setHooksOpen(true)}>
-            <Webhook className="mr-1.5 h-4 w-4" /> Webhooks
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings className="mr-1.5 h-4 w-4" /> Configurações
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel>Pipeline</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => { setPipeName(""); setPipeDialog("new"); }}>
+                <Plus className="mr-2 h-4 w-4" /> Novo pipeline
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!current}
+                onSelect={() => { setPipeName(current?.name ?? ""); setPipeDialog("rename"); }}
+              >
+                <Pencil className="mr-2 h-4 w-4" /> Renomear pipeline
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                disabled={!current || pipelines.length < 2}
+                onSelect={() => current && removePipeline.mutate(current.id)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Excluir pipeline
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Configurar funil</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setStagesOpen(true)}>
+                <Settings2 className="mr-2 h-4 w-4" /> Etapas
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLayoutOpen(true)}>
+                <LayoutTemplate className="mr-2 h-4 w-4" /> Layout do card
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setHooksOpen(true)}>
+                <Webhook className="mr-2 h-4 w-4" /> Webhooks
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Integrações</DropdownMenuLabel>
+              <DropdownMenuItem asChild>
+                <Link to="/configuracoes/integracoes">
+                  <Mail className="mr-2 h-4 w-4" /> Gmail
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/configuracoes/integracoes">
+                  <CalendarDays className="mr-2 h-4 w-4" /> Google Calendar
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/configuracoes/integracoes">
+                  <HardDrive className="mr-2 h-4 w-4" /> Google Drive
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button size="sm" onClick={() => openNew(stages[0]?.id)}>
             <Plus className="mr-1.5 h-4 w-4" /> Novo lead
           </Button>
@@ -162,6 +292,29 @@ function PipelinePage() {
         </DndContext>
       )}
 
+      <Dialog open={pipeDialog !== null} onOpenChange={(v) => !v && setPipeDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{pipeDialog === "rename" ? "Renomear pipeline" : "Novo pipeline"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label>Nome</Label>
+            <Input
+              value={pipeName}
+              onChange={(e) => setPipeName(e.target.value)}
+              placeholder="Ex.: Tráfego pago"
+              onKeyDown={(e) => e.key === "Enter" && savePipeline.mutate()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPipeDialog(null)}>Cancelar</Button>
+            <Button disabled={savePipeline.isPending} onClick={() => savePipeline.mutate()}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <LeadFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
@@ -169,7 +322,12 @@ function PipelinePage() {
         lead={editing}
         defaultStageId={targetStage}
       />
-      <StagesDialog open={stagesOpen} onOpenChange={setStagesOpen} stages={stages} />
+      <StagesDialog
+        open={stagesOpen}
+        onOpenChange={setStagesOpen}
+        stages={stages}
+        pipelineId={current?.id}
+      />
       <CardLayoutDialog open={layoutOpen} onOpenChange={setLayoutOpen} />
       <WebhooksDialog open={hooksOpen} onOpenChange={setHooksOpen} stages={stages} />
       <LeadDrawer

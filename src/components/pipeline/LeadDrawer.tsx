@@ -20,6 +20,7 @@ import {
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
 import { currency } from "./LeadCard";
+import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 
 const EVENT_ICON: Record<string, typeof Activity> = {
@@ -30,6 +31,7 @@ const EVENT_ICON: Record<string, typeof Activity> = {
   task_created: CalendarClock,
   task_done: CheckCircle2,
   file_added: Paperclip,
+  email_sent: Mail,
 };
 
 const TASK_KINDS = [
@@ -80,6 +82,7 @@ export function LeadDrawer({
 
   const noteFn = useServerFn(addLeadNote);
 
+  const [emailOpen, setEmailOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [noteText, setNoteText] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
@@ -206,6 +209,14 @@ export function LeadDrawer({
                     {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                  onClick={() => setEmailOpen(true)}
+                >
+                  <Mail className="mr-1.5 h-4 w-4" /> E-mail
+                </Button>
                 <Button size="sm" className="bg-primary font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => onEdit(lead)}>
                   Editar
                 </Button>
@@ -434,6 +445,15 @@ export function LeadDrawer({
                 </div>
               </DialogContent>
             </Dialog>
+
+            <SendLeadEmailDialog
+              open={emailOpen}
+              onOpenChange={setEmailOpen}
+              leadId={lead.id}
+              leadName={lead.name}
+              defaultTo={lead.email}
+              onSent={() => qc.invalidateQueries({ queryKey: ["lead-detail", lead.id] })}
+            />
           </>
         )}
       </DialogContent>
