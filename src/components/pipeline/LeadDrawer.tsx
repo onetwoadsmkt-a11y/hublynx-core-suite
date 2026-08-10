@@ -336,8 +336,8 @@ export function LeadDrawer({
                 </div>
 
                 {/* Rodapé: notas */}
-                <div className="border-t bg-[var(--brand-dark)]/10 px-4 py-3 md:px-6">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="border-t border-white/10 bg-white/10 px-4 py-3 md:px-6">
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/70">
                     <MessageSquare className="h-3.5 w-3.5" /> Notas
                   </p>
                   <div className="flex flex-col gap-2 lg:flex-row">
@@ -346,7 +346,7 @@ export function LeadDrawer({
                       onChange={(e) => setNote(e.target.value)}
                       rows={2}
                       placeholder="Registre o resumo da conversa com o lead..."
-                      className="flex-1"
+                      className="flex-1 border-white/10 bg-white/10 text-white placeholder:text-white/50"
                     />
                     <Button
                       className="lg:self-end"
@@ -358,13 +358,13 @@ export function LeadDrawer({
                   </div>
                   <div className="mt-3 flex max-h-32 gap-2 overflow-x-auto overflow-y-auto pb-1">
                     {(data?.notes ?? []).map((n) => (
-                      <div key={n.id} className="min-w-[240px] max-w-[320px] shrink-0 rounded-lg border bg-[var(--brand-dark)]/5 p-2.5">
-                        <p className="whitespace-pre-wrap text-xs">{n.body}</p>
-                        <p className="mt-1 text-[10px] text-muted-foreground">{fmt(n.created_at)}</p>
+                      <div key={n.id} className="min-w-[240px] max-w-[320px] shrink-0 rounded-lg border border-white/10 bg-white/10 p-2.5">
+                        <p className="whitespace-pre-wrap text-xs text-white">{n.body}</p>
+                        <p className="mt-1 text-[10px] text-white/60">{fmt(n.created_at)}</p>
                       </div>
                     ))}
                     {(data?.notes ?? []).length === 0 && (
-                      <p className="text-xs text-muted-foreground">Nenhuma nota registrada.</p>
+                      <p className="text-xs text-white/70">Nenhuma nota registrada.</p>
                     )}
                   </div>
                 </div>
