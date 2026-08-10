@@ -12,10 +12,11 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
+  addLeadNote, deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
 import { currency } from "./LeadCard";
@@ -77,7 +78,10 @@ export function LeadDrawer({
   const fileFn = useServerFn(registerLeadFile);
   const delFileFn = useServerFn(deleteLeadFile);
 
+  const noteFn = useServerFn(addLeadNote);
+
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
+  const [noteText, setNoteText] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
   const [taskDue, setTaskDue] = useState("");
@@ -108,6 +112,11 @@ export function LeadDrawer({
         },
       }),
     onSuccess: () => { setTaskTitle(""); setTaskDue(""); refresh(); },
+  });
+
+  const addNote = useMutation({
+    mutationFn: () => noteFn({ data: { leadId: lead!.id, body: noteText.trim() } }),
+    onSuccess: () => { setNoteText(""); refresh(); },
   });
 
   const toggleTask = useMutation({
@@ -335,6 +344,28 @@ export function LeadDrawer({
                       )}
                     </TabsContent>
                   </Tabs>
+                </div>
+
+                {/* Anotações */}
+                <div className="border-t bg-muted/40 px-4 py-3 md:px-6">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <MessageSquare className="h-4 w-4 text-primary" /> Anotações
+                  </p>
+                  <div className="flex items-start gap-2">
+                    <Textarea
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      placeholder="Registre conversas, detalhes ou próximos passos..."
+                      className="min-h-[72px] flex-1 resize-none bg-white text-foreground"
+                    />
+                    <Button
+                      className="h-10"
+                      disabled={!noteText.trim() || addNote.isPending}
+                      onClick={() => addNote.mutate()}
+                    >
+                      <Plus className="mr-1.5 h-4 w-4" /> Adicionar
+                    </Button>
+                  </div>
                 </div>
               </div>
 
