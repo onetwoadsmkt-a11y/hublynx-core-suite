@@ -222,13 +222,13 @@ export function LeadDrawer({
                           value={taskTitle}
                           onChange={(e) => setTaskTitle(e.target.value)}
                           placeholder="Ex.: Reunião de apresentação"
-                          className="min-w-[200px] flex-1"
+                          className="min-w-[200px] flex-1 border-white/10 bg-white/10 text-white placeholder:text-white/50"
                         />
                         <Select value={taskKind} onValueChange={setTaskKind}>
-                          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
+                          <SelectTrigger className="w-[140px] border-white/10 bg-white/10 text-white data-[placeholder]:text-white/70"><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-[#0F4C5C] border-white/10 text-white">
                             {TASK_KINDS.map((k) => (
-                              <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>
+                              <SelectItem key={k.value} value={k.value} className="text-white focus:bg-white/20 focus:text-white">{k.label}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -236,7 +236,7 @@ export function LeadDrawer({
                           type="datetime-local"
                           value={taskDue}
                           onChange={(e) => setTaskDue(e.target.value)}
-                          className="w-[210px]"
+                          className="w-[210px] border-white/10 bg-white/10 text-white"
                         />
                         <Button
                           disabled={!taskTitle.trim() || addTask.isPending}
