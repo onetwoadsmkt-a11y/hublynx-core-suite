@@ -86,3 +86,69 @@ export function utmFromUrl(url?: string): Record<string, string> {
     return {};
   }
 }
+
+const ALIASES: Record<string, string[]> = {
+  name: ["name", "nome", "full_name", "fullname", "nome_completo", "first_name", "primeiro_nome"],
+  email: ["email", "e-mail", "e_mail", "mail", "emailaddress"],
+  phone: ["phone", "telefone", "celular", "whatsapp", "fone", "tel"],
+  company: ["company", "empresa", "organizacao"],
+  city: ["city", "cidade"],
+  state: ["state", "estado", "uf"],
+  source: ["source", "origem", "canal"],
+  value: ["value", "valor", "orcamento"],
+  utm_source: ["utm_source"],
+  utm_medium: ["utm_medium"],
+  utm_campaign: ["utm_campaign", "campanha"],
+  utm_term: ["utm_term"],
+  utm_content: ["utm_content"],
+  gclid: ["gclid"],
+  fbclid: ["fbclid"],
+  landing_url: ["landing_url", "page_url", "url", "pagina"],
+  referrer: ["referrer", "referer"],
+};
+
+const norm = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+/** Converte o payload cru em campos de lead usando field_map + fallback por nomes. */
+export function buildLeadFromPayload(raw: unknown, fieldMap: FieldMap) {
+  const flat = flattenPayload(raw);
+  const out: Record<string, string | undefined> = {};
+
+  for (const [field, src] of Object.entries(fieldMap ?? {})) {
+    if (!src) continue;
+    if (typeof src === "object" && "const" in src) {
+      out[field] = String(src.const);
+    } else if (typeof src === "string" && flat[src] !== undefined) {
+      out[field] = flat[src];
+    }
+  }
+
+  for (const [field, aliases] of Object.entries(ALIASES)) {
+    if (out[field]) continue;
+    for (const [path, value] of Object.entries(flat)) {
+      const leaf = norm(path.split(".").pop() ?? "");
+      if (aliases.some((a) => norm(a) === leaf)) {
+        out[field] = value;
+        break;
+      }
+    }
+  }
+
+  if (out.name && (out.name.includes("\n") || out.name.length > 120)) {
+    const parts = splitBlob(out.name);
+    out.email = out.email ?? parts.email;
+    out.phone = out.phone ?? parts.phone;
+    out.name = parts.name ?? out.name.slice(0, 120);
+  }
+  if (out.name) out.name = out.name.split(/[\n\r]/)[0]!.trim().slice(0, 200);
+
+  const fromUrl = utmFromUrl(out.landing_url);
+  for (const [k, v] of Object.entries(fromUrl)) if (!out[k]) out[k] = v;
+
+  return out;
+}
