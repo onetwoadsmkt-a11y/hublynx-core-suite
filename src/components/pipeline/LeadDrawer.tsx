@@ -356,15 +356,15 @@ export function LeadDrawer({
                       Adicionar nota
                     </Button>
                   </div>
-                  <div className="mt-3 flex max-h-32 gap-2 overflow-x-auto overflow-y-auto pb-1">
+                  <div className="mt-3 max-h-32 space-y-2 overflow-y-auto pb-1">
                     {(data?.notes ?? []).map((n) => (
-                      <div key={n.id} className="min-w-[240px] max-w-[320px] shrink-0 rounded-lg border bg-card p-2.5">
-                        <p className="whitespace-pre-wrap text-xs">{n.body}</p>
-                        <p className="mt-1 text-[10px] text-muted-foreground">{fmt(n.created_at)}</p>
+                      <div key={n.id} className="rounded-lg border border-white/10 bg-white/10 p-2.5">
+                        <p className="whitespace-pre-wrap text-xs text-white">{n.body}</p>
+                        <p className="mt-1 text-[10px] text-white/70">{fmt(n.created_at)}</p>
                       </div>
                     ))}
                     {(data?.notes ?? []).length === 0 && (
-                      <p className="text-xs text-muted-foreground">Nenhuma nota registrada.</p>
+                      <p className="text-xs text-white/70">Nenhuma nota registrada.</p>
                     )}
                   </div>
                 </div>
