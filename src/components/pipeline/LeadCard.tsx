@@ -71,7 +71,7 @@ export function LeadCard({
       onClick={() => onOpen(lead)}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="line-clamp-2 text-sm font-semibold leading-tight">{lead.name}</p>
+        <p className="line-clamp-2 text-sm font-semibold leading-tight text-white">{lead.name}</p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
