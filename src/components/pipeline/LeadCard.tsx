@@ -65,7 +65,7 @@ export function LeadCard({
       ref={setNodeRef}
       {...(draggable ? { ...listeners, ...attributes } : {})}
       className={cn(
-        "group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md",
+        "group cursor-pointer rounded-xl border border-white/10 bg-white/10 p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md",
         isDragging && "opacity-40",
       )}
       onClick={() => onOpen(lead)}
