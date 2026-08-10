@@ -173,24 +173,24 @@ export function LeadDrawer({
       >
         {lead && (
           <>
-            <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3 md:px-6">
+            <header className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3 md:px-6">
               <div className="min-w-0 flex-1">
-                <DialogTitle className="truncate text-xl">{lead.name}</DialogTitle>
-                <p className="text-xs text-muted-foreground">
+                <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
+                <p className="text-xs text-white/70">
                   Criado em {fmt(lead.created_at)}
                 </p>
               </div>
               {lead.value != null && (
-                <Badge className="font-semibold">{currency(Number(lead.value))}</Badge>
+                <Badge className="border-transparent bg-white/20 font-semibold text-white hover:bg-white/30">{currency(Number(lead.value))}</Badge>
               )}
               <Select value={lead.stage_id ?? ""} onValueChange={(v) => move.mutate(v)}>
-                <SelectTrigger className="h-8 w-[190px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                <SelectTrigger className="h-8 w-[190px] bg-white/10 border-white/10 text-white data-[placeholder]:text-white/70"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-[#0F4C5C] border-white/10 text-white">
+                  {stages.map((s) => <SelectItem key={s.id} value={s.id} className="text-white focus:bg-white/20 focus:text-white">{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button size="sm" variant="outline" onClick={() => onEdit(lead)}>Editar</Button>
-              <Button size="icon" variant="ghost" className="hidden" onClick={() => onOpenChange(false)}>
+              <Button size="sm" variant="outline" className="border-white/10 bg-white/10 text-white hover:bg-white/20" onClick={() => onEdit(lead)}>Editar</Button>
+              <Button size="icon" variant="ghost" className="hidden text-white hover:bg-white/10" onClick={() => onOpenChange(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </header>
