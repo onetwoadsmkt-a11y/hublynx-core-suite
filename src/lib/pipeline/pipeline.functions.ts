@@ -216,6 +216,7 @@ export const createWebhook = createServerFn({ method: "POST" })
         direction: z.enum(["inbound", "outbound"]).default("inbound"),
         target_url: z.string().url().max(600).nullable().optional(),
         default_stage_id: uuid.nullable().optional(),
+        default_source: z.string().max(120).nullable().optional(),
       })
       .parse(d),
   )
@@ -229,6 +230,28 @@ export const createWebhook = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return row;
   });
+
+export const updateWebhook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: uuid,
+        default_stage_id: uuid.nullable().optional(),
+        default_source: z.string().max(120).nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { id, ...patch } = data;
+    const { error } = await context.supabase
+      .from("lead_webhooks")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
 
 export const toggleWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

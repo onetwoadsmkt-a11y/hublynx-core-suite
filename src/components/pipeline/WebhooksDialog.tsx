@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  createWebhook, deleteWebhook, listWebhooks, toggleWebhook,
+  createWebhook, deleteWebhook, listWebhooks, toggleWebhook, updateWebhook,
 } from "@/lib/pipeline/pipeline.functions";
 import type { PipelineStage } from "./types";
 
@@ -54,16 +54,28 @@ export function WebhooksDialog({
   const createFn = useServerFn(createWebhook);
   const toggleFn = useServerFn(toggleWebhook);
   const delFn = useServerFn(deleteWebhook);
+  const updateFn = useServerFn(updateWebhook);
 
   const [tab, setTab] = useState<"inbound" | "outbound">("inbound");
   const [name, setName] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [stageId, setStageId] = useState<string>(stages[0]?.id ?? "");
+  const [source, setSource] = useState("");
 
   const { data: hooks } = useQuery({
     queryKey: ["lead-webhooks"],
     queryFn: () => listFn(),
     enabled: open,
+  });
+
+  const patch = useMutation({
+    mutationFn: (v: { id: string; default_stage_id?: string | null; default_source?: string | null }) =>
+      updateFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead-webhooks"] });
+      toast.success("Webhook atualizado");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const create = useMutation({
@@ -74,10 +86,11 @@ export function WebhooksDialog({
           direction,
           target_url: direction === "outbound" ? targetUrl.trim() : null,
           default_stage_id: direction === "inbound" ? stageId || null : null,
+          default_source: direction === "inbound" ? source.trim() || null : null,
         },
       }),
     onSuccess: () => {
-      setName(""); setTargetUrl("");
+      setName(""); setTargetUrl(""); setSource("");
       qc.invalidateQueries({ queryKey: ["lead-webhooks"] });
       toast.success("Webhook criado");
     },
@@ -125,6 +138,23 @@ export function WebhooksDialog({
                       {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Fonte do lead (origem)</Label>
+                  <Input
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                    placeholder="Site, Meta Ads, Google Ads, Indicação..."
+                    list="lead-source-suggestions"
+                  />
+                  <datalist id="lead-source-suggestions">
+                    {["Site", "Meta Ads", "Google Ads", "Instagram", "WhatsApp", "Indicação", "Landing Page"].map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Aplicada quando o envio não trouxer o campo <code>source</code>.
+                  </p>
                 </div>
               </div>
               <Button
@@ -213,6 +243,35 @@ export function WebhooksDialog({
                 <div className="mt-2">
                   <CopyField value={url} />
                 </div>
+                {h.direction === "inbound" && (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-[11px]">Etapa de destino</Label>
+                      <Select
+                        value={h.default_stage_id ?? ""}
+                        onValueChange={(v) => patch.mutate({ id: h.id, default_stage_id: v })}
+                      >
+                        <SelectTrigger className="h-8"><SelectValue placeholder="Primeira etapa" /></SelectTrigger>
+                        <SelectContent>
+                          {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-[11px]">Fonte do lead</Label>
+                      <Input
+                        className="h-8"
+                        defaultValue={h.default_source ?? ""}
+                        list="lead-source-suggestions"
+                        placeholder="Site, Meta Ads..."
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v !== (h.default_source ?? "")) patch.mutate({ id: h.id, default_source: v || null });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {h.direction === "inbound"
                     ? "POST JSON: { name, email, phone, company, value, utm_source, utm_medium, utm_campaign, utm_term, utm_content, source, landing_url }"
