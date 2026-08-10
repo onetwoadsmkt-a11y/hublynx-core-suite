@@ -12,19 +12,19 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  addLeadNote, deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
+  deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
 import { currency } from "./LeadCard";
-import type { Lead, LeadNote, PipelineStage } from "./types";
+import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 
 const EVENT_ICON: Record<string, typeof Activity> = {
   created: Plus,
   stage_changed: ArrowRightLeft,
+  note: MessageSquare,
   note_added: MessageSquare,
   task_created: CalendarClock,
   task_done: CheckCircle2,
