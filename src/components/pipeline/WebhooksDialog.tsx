@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  createWebhook, deleteWebhook, listWebhooks, toggleWebhook,
+  createWebhook, deleteWebhook, listWebhooks, toggleWebhook, updateWebhook,
 } from "@/lib/pipeline/pipeline.functions";
 import type { PipelineStage } from "./types";
 

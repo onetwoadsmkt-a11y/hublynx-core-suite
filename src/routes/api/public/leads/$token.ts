@@ -71,7 +71,7 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           company: pick("company", "empresa"),
           city: pick("city", "cidade"),
           state: pick("state", "estado", "uf"),
-          source: pick("source", "origem") ?? "webhook",
+          source: pick("source", "origem") ?? hook.default_source ?? "webhook",
           value: pick("value", "valor"),
           utm_source: pick("utm_source"),
           utm_medium: pick("utm_medium"),
