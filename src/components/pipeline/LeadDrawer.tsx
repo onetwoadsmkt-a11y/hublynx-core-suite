@@ -20,7 +20,7 @@ import {
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
 import { currency } from "./LeadCard";
-import type { Lead, PipelineStage } from "./types";
+import type { Lead, LeadNote, PipelineStage } from "./types";
 
 const EVENT_ICON: Record<string, typeof Activity> = {
   created: Plus,
@@ -71,6 +71,7 @@ export function LeadDrawer({
   const delFileFn = useServerFn(deleteLeadFile);
 
   const [note, setNote] = useState("");
+  const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
   const [taskDue, setTaskDue] = useState("");
@@ -358,15 +359,33 @@ export function LeadDrawer({
                   </div>
                   <div className="mt-3 max-h-32 space-y-2 overflow-y-auto pb-1">
                     {(data?.notes ?? []).map((n) => (
-                      <div key={n.id} className="rounded-lg border border-white/10 bg-white/10 p-2.5">
-                        <p className="whitespace-pre-wrap text-xs text-white">{n.body}</p>
+                      <button
+                        key={n.id}
+                        type="button"
+                        onClick={() => setSelectedNote(n)}
+                        className="w-full rounded-lg border border-white/10 bg-white/10 p-2.5 text-left transition hover:bg-white/20"
+                      >
+                        <p className="line-clamp-2 whitespace-pre-wrap text-xs text-white">{n.body}</p>
                         <p className="mt-1 text-[10px] text-white/70">{fmt(n.created_at)}</p>
-                      </div>
+                      </button>
                     ))}
                     {(data?.notes ?? []).length === 0 && (
                       <p className="text-xs text-white/70">Nenhuma nota registrada.</p>
                     )}
                   </div>
+
+                  <Dialog open={!!selectedNote} onOpenChange={(v) => !v && setSelectedNote(null)}>
+                    <DialogContent className="max-w-md">
+                      <DialogTitle>Nota</DialogTitle>
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">{selectedNote ? fmt(selectedNote.created_at) : ""}</p>
+                        <p className="whitespace-pre-wrap text-sm">{selectedNote?.body}</p>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button variant="outline" onClick={() => setSelectedNote(null)}>Fechar</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
 
