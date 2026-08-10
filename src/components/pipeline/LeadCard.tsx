@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Mail, Phone, Tag, MoreVertical, Trash2, Pencil } from "lucide-react";
+import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { deleteLead } from "@/lib/pipeline/pipeline.functions";
 import { cn } from "@/lib/utils";
+import { useLeadCardLayout } from "./card-layout";
 import type { Lead } from "./types";
+
 
 export function relativeTime(iso: string | null) {
   if (!iso) return "";
