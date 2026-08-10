@@ -1,68 +1,59 @@
+# Pipeline — mapeamento configurável dos campos do lead
 
-# Etapa 1 — Tarefas
+## O que está acontecendo hoje
 
-Escopo desta etapa: apenas o módulo **Tarefas**. Financeiro, Clientes e Projetos ficam para etapas seguintes (mesma abordagem, um por vez).
+Consultei os leads recebidos: nos três últimos registros o **payload inteiro chegou dentro do campo `name`** (nome + telefone + e-mail + cidade + estado + data em uma única string), e `email`, `phone`, `company` e todos os `utm_*` ficaram vazios. Um lead chegou até com o nome literal `name, email, phone, company, value, utm_source, ...` — ou seja, o Make enviou a *lista de rótulos*, não os valores.
 
-## 1. Novo formulário "Nova Tarefa / Reunião"
+Causa: o endpoint atual só reconhece um conjunto fixo de nomes de chave (`name/nome`, `email`, `phone/telefone`…) e só no nível raiz do JSON. Quando o Make manda o formulário como texto colado num único campo, ou com chaves próprias (`Nome completo`, `field_1`, `data.contact.email`), nada bate e tudo cai no primeiro campo encontrado. Os UTMs não têm rastreio porque o formulário/Make não envia essas chaves com esses nomes exatos.
 
-Substituir o `NewTaskDialog` (desktop) e o `NewTaskSheet` (mobile) por um único componente compartilhado `TaskQuickForm` — sempre em `Sheet` bottom no mobile, `Dialog` no desktop — com os campos mínimos:
+## Solução: configurar o recebimento por webhook
 
-- **Tipo** (toggle no topo): `Tarefa` | `Reunião`
-- **Título** (obrigatório)
-- **Data da tarefa** (data + hora opcional) — quando `Reunião`, hora é obrigatória
-- **Prazo** (data, opcional) — só aparece para `Tarefa`
-- **Checklist** — lista editável inline (add/remove/reorder), gravada em `task_checklists` após criar
-- **Cliente / Projeto** (opcionais, colapsados em "Mais opções")
-- **Prioridade** (default: Média, dentro de "Mais opções")
-- **Descrição** (dentro de "Mais opções")
+### 1. Capturar o último payload recebido
+Cada webhook de entrada passa a guardar o **último JSON recebido** (bruto). No diálogo de Webhooks aparece um bloco "Último recebimento" com o horário e o JSON, e um botão "Aguardar teste" — o usuário dispara um envio no Make e o payload aparece na tela.
 
-Comportamento:
-- `Reunião` → cria a tarefa com `briefing.type = "reuniao"` e dispara automaticamente `syncTaskToCalendar({ withMeet: true })` (mesma função já usada hoje) para criar evento + link Meet no Google Calendar.
-- `Tarefa` com data preenchida → sincroniza com Calendar sem Meet.
-- Checklist: após inserir a tarefa, faz insert em lote em `task_checklists` respeitando `position`.
+### 2. Mapeador visual de campos
+Com o payload capturado, o sistema lista as chaves detectadas (incluindo caminhos aninhados como `body.contact.email`) e o usuário associa cada campo do lead à chave de origem, via select:
 
-Campos removidos do form rápido (continuam disponíveis no `TaskDrawer` já existente): status inicial, horas estimadas, tempo gasto, custos, briefing longo, anexos.
+```text
+Nome        →  [ nome_completo        ▾ ]   "Rafael Santos"
+E-mail      →  [ email                ▾ ]   "hublynx.dev@gmail.com"
+Telefone    →  [ whatsapp             ▾ ]   "12981268685"
+Empresa     →  [ (não usar)           ▾ ]
+Valor       →  [ (não usar)           ▾ ]
+Cidade      →  [ cidade               ▾ ]   "Taubaté"
+Estado      →  [ uf                   ▾ ]
+Origem      →  [ fixo: "Formulário"       ]
+utm_source  →  [ utm_source           ▾ ]
+utm_medium  →  [ utm_medium           ▾ ]
+utm_campaign→  [ utm_campaign         ▾ ]
+utm_term / utm_content / gclid / fbclid / landing_url / referrer
+```
 
-## 2. Visualizações: Kanban, Lista, Calendário
+Cada linha mostra um **preview do valor real** do último payload, então dá para conferir antes de salvar. Campos sem mapeamento continuam usando a detecção automática atual (fallback por nomes comuns em PT/EN).
 
-Na rota `/tarefas` (`src/routes/_authenticated/tarefas.tsx`), transformar as `Tabs` atuais em três abas persistidas na URL via `validateSearch` (`?view=kanban|lista|calendario`):
+### 3. Extração de UTM do link
+Quando o formulário não envia UTMs separados mas manda a URL da página (`landing_url`/`page_url`), o endpoint passa a **ler os parâmetros `utm_*`, `gclid` e `fbclid` da query string** dessa URL automaticamente. Isso resolve o rastreio na maioria dos formulários.
 
-- **Kanban** — mantém a implementação atual (dnd-kit, colunas customizáveis).
-- **Lista** — mantém tabela atual; adicionar coluna "Data" (data da tarefa) além do "Prazo" existente e ícone diferenciando Tarefa/Reunião.
-- **Calendário** (novo) — grade mensal simples reutilizando a lógica de `src/lib/agenda/agenda.functions.ts` (`getAgendaEvents`), filtrada para `source ∈ {task, meeting}`. Clique num dia abre `TaskQuickForm` pré-preenchido; clique num evento abre `TaskDrawer`.
+### 4. Higienização do que já entrou
+- Normalização no recebimento: `name` limitado a uma linha (se vier texto multi-linha, tenta separar e-mail/telefone por regex e joga o resto em observação do lead).
+- Botão "Reprocessar último payload" para testar o mapeamento sem precisar reenviar do Make.
+- Os leads bagunçados já criados podem ser excluídos manualmente no board (não vou apagar nada automaticamente).
 
-Não vamos criar dependência nova de calendário — implementar grade mensal com date-fns (já instalado) num componente `TaskCalendarView`.
+### 5. Card do lead padronizado
+O card já exibe nome, empresa, telefone, e-mail, valor, origem e campanha — o problema é só o dado chegar vazio. Com o mapeamento correto, os cards ficam iguais ao do "OnteTwo Ads & Content". Ajuste visual pequeno: limitar o nome a 2 linhas e mostrar badge de UTM medium quando houver.
 
-## 3. Ajustes mobile
+## Detalhes técnicos
 
-- Header da página `/tarefas`: virar `grid-cols-[minmax(0,1fr)_auto]` (padrão responsive-layout) com título encurtado e menu "⋯" agrupando "Editar Kanban" e "Abrir Central PWA" no mobile.
-- Filtros: colapsar em um `Sheet` "Filtros" acionado por botão no mobile; no desktop mantém a barra inline.
-- Kanban no mobile: manter scroll horizontal atual, mas reduzir largura da coluna para 280px e habilitar swipe (já funciona com o pan).
-- Lista no mobile: converter cada linha em card empilhado (título + badges + data) quando `useIsMobile()`.
-- Calendário no mobile: modo "agenda" (lista de dias com eventos) em vez de grade quando `useIsMobile()`.
-- FAB "+" fixado no canto inferior direito no mobile abrindo `TaskQuickForm`.
+**Migração** — em `lead_webhooks`: `field_map jsonb not null default '{}'`, `last_payload jsonb`, `last_payload_at timestamptz`.
 
-## 4. Google Calendar
+**`src/routes/api/public/leads/$token.ts`** — achatar o payload em caminhos (`a.b.c`), gravar `last_payload`, aplicar `field_map` (com suporte a valor fixo `{"const":"..."}`), depois o fallback de nomes atual, e por fim extrair UTMs da `landing_url`. Validação Zod mantida.
 
-Sem mudanças de contrato: continua usando `syncTaskToCalendar` e `createInstantMeet` que já existem em `src/lib/google/calendar.functions.ts`. O novo form apenas chama `syncTaskToCalendar` automaticamente quando há data preenchida (hoje isso já acontece no `NewTaskSheet`, vamos padronizar em ambos os fluxos).
+**`src/lib/pipeline/pipeline.functions.ts`** — `updateWebhookMapping` (salva `field_map`), `getWebhookPayload` (lê último payload), `reprocessLastPayload`.
 
-## 5. Arquivos afetados
+**`src/components/pipeline/WebhooksDialog.tsx`** — nova seção "Mapear campos" por webhook de entrada, com selects por campo do lead, preview de valores e botão de reprocessar.
 
-Criar:
-- `src/components/tasks/TaskQuickForm.tsx` — form unificado com abas Tarefa/Reunião + checklist inline.
-- `src/components/tasks/TaskCalendarView.tsx` — grade mensal / lista agenda no mobile.
-- `src/components/tasks/TaskListMobile.tsx` — cards empilhados para mobile.
-- `src/components/tasks/TaskFiltersSheet.tsx` — sheet de filtros mobile.
+**`src/components/pipeline/LeadCard.tsx`** — clamp de 2 linhas no nome, badge de utm_medium.
 
-Editar:
-- `src/routes/_authenticated/tarefas.tsx` — trocar Tabs para 3 abas, integrar novo form, filtros em sheet no mobile, header responsivo, FAB.
-- `src/components/app-mobile/NewActionSheet.tsx` e `src/routes/_authenticated/app.tarefas.tsx` — usar `TaskQuickForm` no lugar de `NewTaskSheet`.
-- Remover `src/components/tasks/NewTaskSheet.tsx` (substituído).
-
-Sem migração de banco: `task_checklists` já existe e suporta o fluxo.
-
-## 6. Fora de escopo desta etapa
-
-- Reestruturação de Financeiro, Clientes e Projetos (próximas etapas).
-- Novas colunas em `tasks`.
-- Recorrência de tarefas/reuniões.
+## Fora de escopo
+- Reprocessar retroativamente os leads antigos já gravados errados.
+- Deduplicação de leads por e-mail/telefone.
