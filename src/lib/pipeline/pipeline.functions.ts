@@ -161,7 +161,7 @@ export const getLeadDetail = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ leadId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const [notes, events] = await Promise.all([
+    const [notes, events, tasks, files] = await Promise.all([
       supabase
         .from("lead_notes")
         .select("*")
@@ -173,8 +173,24 @@ export const getLeadDetail = createServerFn({ method: "GET" })
         .eq("lead_id", data.leadId)
         .order("created_at", { ascending: false })
         .limit(200),
+      supabase
+        .from("lead_tasks")
+        .select("*")
+        .eq("lead_id", data.leadId)
+        .order("due_at", { ascending: true, nullsFirst: false }),
+      supabase
+        .from("lead_files")
+        .select("*")
+        .eq("lead_id", data.leadId)
+        .order("created_at", { ascending: false }),
     ]);
-    return { notes: notes.data ?? [], events: events.data ?? [] };
+    return {
+      notes: notes.data ?? [],
+      events: events.data ?? [],
+      tasks: tasks.data ?? [],
+      files: files.data ?? [],
+    };
+
   });
 
 export const addLeadNote = createServerFn({ method: "POST" })
