@@ -13,10 +13,12 @@ export function StagesDialog({
   open,
   onOpenChange,
   stages,
+  pipelineId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   stages: PipelineStage[];
+  pipelineId?: string;
 }) {
   const qc = useQueryClient();
   const saveFn = useServerFn(upsertStage);
@@ -30,7 +32,7 @@ export function StagesDialog({
 
   const save = useMutation({
     mutationFn: (s: { id?: string; name: string; color: string; position?: number }) =>
-      saveFn({ data: s }),
+      saveFn({ data: { ...s, ...(s.id ? {} : { pipeline_id: pipelineId }) } }),
     onSuccess: refresh,
   });
 
