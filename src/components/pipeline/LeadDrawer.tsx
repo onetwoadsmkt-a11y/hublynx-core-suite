@@ -169,7 +169,7 @@ export function LeadDrawer({
   return (
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 rounded-none border-0 p-0 sm:max-w-none"
+        className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 rounded-none border-0 bg-gradient-to-b from-[#071A3D] to-[#0F4C5C] p-0 text-white sm:max-w-none"
       >
         {lead && (
           <>
