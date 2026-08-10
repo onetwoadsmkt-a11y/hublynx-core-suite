@@ -346,7 +346,7 @@ export function LeadDrawer({
                       onChange={(e) => setNote(e.target.value)}
                       rows={2}
                       placeholder="Registre o resumo da conversa com o lead..."
-                      className="flex-1"
+                      className="flex-1 bg-white text-foreground placeholder:text-muted-foreground"
                     />
                     <Button
                       className="lg:self-end"
