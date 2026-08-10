@@ -208,6 +208,14 @@ export function LeadDrawer({
                     {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                  onClick={() => setEmailOpen(true)}
+                >
+                  <Mail className="mr-1.5 h-4 w-4" /> E-mail
+                </Button>
                 <Button size="sm" className="bg-primary font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => onEdit(lead)}>
                   Editar
                 </Button>
