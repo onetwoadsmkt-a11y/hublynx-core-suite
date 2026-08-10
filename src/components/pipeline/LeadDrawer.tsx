@@ -345,6 +345,28 @@ export function LeadDrawer({
                     </TabsContent>
                   </Tabs>
                 </div>
+
+                {/* Anotações */}
+                <div className="border-t bg-muted/40 px-4 py-3 md:px-6">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <MessageSquare className="h-4 w-4 text-primary" /> Anotações
+                  </p>
+                  <div className="flex items-start gap-2">
+                    <Textarea
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      placeholder="Registre conversas, detalhes ou próximos passos..."
+                      className="min-h-[72px] flex-1 resize-none bg-white text-foreground"
+                    />
+                    <Button
+                      className="h-10"
+                      disabled={!noteText.trim() || addNote.isPending}
+                      onClick={() => addNote.mutate()}
+                    >
+                      <Plus className="mr-1.5 h-4 w-4" /> Adicionar
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/* Coluna direita: jornada */}
