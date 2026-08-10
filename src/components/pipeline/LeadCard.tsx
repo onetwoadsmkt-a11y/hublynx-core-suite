@@ -65,13 +65,13 @@ export function LeadCard({
       ref={setNodeRef}
       {...(draggable ? { ...listeners, ...attributes } : {})}
       className={cn(
-        "group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md",
+        "group cursor-pointer rounded-xl border border-white/10 bg-white/10 p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md",
         isDragging && "opacity-40",
       )}
       onClick={() => onOpen(lead)}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="line-clamp-2 text-sm font-semibold leading-tight">{lead.name}</p>
+        <p className="line-clamp-2 text-sm font-semibold leading-tight text-white">{lead.name}</p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
@@ -90,52 +90,52 @@ export function LeadCard({
       </div>
 
       {layout.company && lead.company && (
-        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+        <p className="mt-1 flex items-center gap-1 text-xs text-white/70">
           <Building2 className="h-3 w-3" /> {lead.company}
         </p>
       )}
       {layout.location && location && (
-        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-white/70">
           <MapPin className="h-3 w-3 shrink-0" /> <span className="truncate">{location}</span>
         </p>
       )}
       {layout.phone && lead.phone && (
-        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-white/70">
           <Phone className="h-3 w-3" /> {lead.phone}
         </p>
       )}
       {layout.email && lead.email && (
-        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-white/70">
           <Mail className="h-3 w-3 shrink-0" /> <span className="truncate">{lead.email}</span>
         </p>
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {layout.value && value && (
-          <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
+          <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold bg-white/20 text-white hover:bg-white/30">
             {value}
           </Badge>
         )}
         {layout.source && (lead.utm_source || lead.source) && (
-          <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
+          <Badge variant="outline" className="h-5 gap-1 border-white/20 px-1.5 text-[10px] text-white/80 hover:bg-white/10">
             <Tag className="h-2.5 w-2.5" />
             {lead.utm_source ?? lead.source}
           </Badge>
         )}
         {layout.utm && lead.utm_medium && (
-          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+          <Badge variant="outline" className="h-5 border-white/20 px-1.5 text-[10px] text-white/80 hover:bg-white/10">
             {lead.utm_medium}
           </Badge>
         )}
         {layout.utm && lead.utm_campaign && (
-          <Badge variant="outline" className="h-5 max-w-[120px] truncate px-1.5 text-[10px]">
+          <Badge variant="outline" className="h-5 max-w-[120px] truncate border-white/20 px-1.5 text-[10px] text-white/80 hover:bg-white/10">
             {lead.utm_campaign}
           </Badge>
         )}
       </div>
 
       {layout.time && (
-        <p className="mt-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+        <p className="mt-2 text-[10px] uppercase tracking-wide text-white/60">
           {relativeTime(lead.created_at)}
         </p>
       )}

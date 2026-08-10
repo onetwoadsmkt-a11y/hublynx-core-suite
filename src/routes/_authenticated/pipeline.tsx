@@ -96,31 +96,31 @@ function PipelinePage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full flex-col gap-4 bg-gradient-to-b from-[#071A3D] to-[#0F4C5C] p-4 text-white">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight text-white">Pipeline</h1>
+          <p className="text-sm text-white/70">
             {filtered.length} leads · {currency(total)} em negociação
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar lead, campanha..."
-              className="w-56 pl-9"
+              className="w-56 border-white/10 bg-white/10 pl-9 text-white placeholder:text-white/50"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={() => setStagesOpen(true)}>
+          <Button variant="outline" size="sm" className="border-white/10 bg-white/10 text-white hover:bg-white/20 hover:text-white" onClick={() => setStagesOpen(true)}>
             <Settings2 className="mr-1.5 h-4 w-4" /> Etapas
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setLayoutOpen(true)}>
+          <Button variant="outline" size="sm" className="border-white/10 bg-white/10 text-white hover:bg-white/20 hover:text-white" onClick={() => setLayoutOpen(true)}>
             <LayoutTemplate className="mr-1.5 h-4 w-4" /> Layout do card
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setHooksOpen(true)}>
+          <Button variant="outline" size="sm" className="border-white/10 bg-white/10 text-white hover:bg-white/20 hover:text-white" onClick={() => setHooksOpen(true)}>
             <Webhook className="mr-1.5 h-4 w-4" /> Webhooks
           </Button>
           <Button size="sm" onClick={() => openNew(stages[0]?.id)}>
@@ -202,19 +202,19 @@ function StageColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 transition",
-        isOver && "border-primary/60 bg-primary/5",
+        "flex w-72 shrink-0 flex-col rounded-xl border border-white/10 bg-white/10 transition",
+        isOver && "border-primary/60 bg-primary/10",
       )}
     >
       <div className="h-1.5 rounded-t-xl" style={{ backgroundColor: stage.color }} />
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{stage.name}</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="truncate text-sm font-semibold text-white">{stage.name}</p>
+          <p className="text-[11px] text-white/70">
             {leads.length} leads {total > 0 && `· ${currency(total)}`}
           </p>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onAdd}>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/10 hover:text-white" onClick={onAdd}>
           <Plus className="h-4 w-4" />
         </Button>
       </div>
@@ -223,7 +223,7 @@ function StageColumn({
           <LeadCard key={l.id} lead={l} onOpen={onOpen} onEdit={onEdit} />
         ))}
         {leads.length === 0 && (
-          <p className="px-2 py-6 text-center text-xs text-muted-foreground">Arraste leads para cá</p>
+          <p className="px-2 py-6 text-center text-xs text-white/60">Arraste leads para cá</p>
         )}
       </div>
     </div>
