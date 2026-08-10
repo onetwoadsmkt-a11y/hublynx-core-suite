@@ -161,7 +161,7 @@ export const getLeadDetail = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ leadId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const [notes, events] = await Promise.all([
+    const [notes, events, tasks, files] = await Promise.all([
       supabase
         .from("lead_notes")
         .select("*")
@@ -173,8 +173,24 @@ export const getLeadDetail = createServerFn({ method: "GET" })
         .eq("lead_id", data.leadId)
         .order("created_at", { ascending: false })
         .limit(200),
+      supabase
+        .from("lead_tasks")
+        .select("*")
+        .eq("lead_id", data.leadId)
+        .order("due_at", { ascending: true, nullsFirst: false }),
+      supabase
+        .from("lead_files")
+        .select("*")
+        .eq("lead_id", data.leadId)
+        .order("created_at", { ascending: false }),
     ]);
-    return { notes: notes.data ?? [], events: events.data ?? [] };
+    return {
+      notes: notes.data ?? [],
+      events: events.data ?? [],
+      tasks: tasks.data ?? [],
+      files: files.data ?? [],
+    };
+
   });
 
 export const addLeadNote = createServerFn({ method: "POST" })
@@ -325,6 +341,98 @@ export const deleteWebhook = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("lead_webhooks").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+/* ---------------- Lead tasks (agendamentos) ---------------- */
+
+export const upsertLeadTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: uuid.optional(),
+        leadId: uuid,
+        title: z.string().min(1).max(200),
+        kind: z.enum(["tarefa", "reuniao", "call", "follow_up"]).default("tarefa"),
+        notes: z.string().max(2000).nullable().optional(),
+        due_at: z.string().nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const row = {
+      lead_id: data.leadId,
+      owner_id: userId,
+      title: data.title,
+      kind: data.kind,
+      notes: data.notes ?? null,
+      due_at: data.due_at || null,
+    };
+    const { error } = data.id
+      ? await supabase.from("lead_tasks").update(row).eq("id", data.id)
+      : await supabase.from("lead_tasks").insert(row);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export const toggleLeadTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid, done: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("lead_tasks")
+      .update({ done: data.done, completed_at: data.done ? new Date().toISOString() : null })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export const deleteLeadTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("lead_tasks").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+/* ---------------- Lead files ---------------- */
+
+export const registerLeadFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        leadId: uuid,
+        name: z.string().min(1).max(300),
+        storage_path: z.string().min(1).max(600),
+        mime_type: z.string().max(200).nullable().optional(),
+        size_bytes: z.number().int().nonnegative().nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase.from("lead_files").insert({
+      lead_id: data.leadId,
+      owner_id: userId,
+      name: data.name,
+      storage_path: data.storage_path,
+      mime_type: data.mime_type ?? null,
+      size_bytes: data.size_bytes ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export const deleteLeadFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("lead_files").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });

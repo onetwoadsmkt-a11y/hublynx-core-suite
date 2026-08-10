@@ -438,6 +438,47 @@ export type Database = {
           },
         ]
       }
+      lead_files: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          mime_type: string | null
+          name: string
+          owner_id: string
+          size_bytes: number | null
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          mime_type?: string | null
+          name: string
+          owner_id: string
+          size_bytes?: number | null
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          mime_type?: string | null
+          name?: string
+          owner_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_files_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_notes: {
         Row: {
           author_id: string | null
@@ -466,6 +507,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "lead_notes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_tasks: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          done: boolean
+          due_at: string | null
+          id: string
+          kind: string
+          lead_id: string
+          notes: string | null
+          owner_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          done?: boolean
+          due_at?: string | null
+          id?: string
+          kind?: string
+          lead_id: string
+          notes?: string | null
+          owner_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          done?: boolean
+          due_at?: string | null
+          id?: string
+          kind?: string
+          lead_id?: string
+          notes?: string | null
+          owner_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tasks_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
