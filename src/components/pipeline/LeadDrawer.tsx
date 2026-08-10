@@ -12,19 +12,19 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  addLeadNote, deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
+  deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
 import { currency } from "./LeadCard";
-import type { Lead, LeadNote, PipelineStage } from "./types";
+import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 
 const EVENT_ICON: Record<string, typeof Activity> = {
   created: Plus,
   stage_changed: ArrowRightLeft,
+  note: MessageSquare,
   note_added: MessageSquare,
   task_created: CalendarClock,
   task_done: CheckCircle2,
@@ -49,6 +49,14 @@ function bytes(n: number | null) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function findNoteFromEvent(ev: LeadEvent, notes: LeadNote[]): LeadNote | undefined {
+  if (ev.kind !== "note" && ev.kind !== "note_added") return undefined;
+  const noteId = (ev.meta as { note_id?: string } | null)?.note_id;
+  if (noteId) return notes.find((n) => n.id === noteId);
+  const body = ev.description ?? "";
+  return notes.find((n) => n.body.startsWith(body) || body.startsWith(n.body));
+}
+
 export function LeadDrawer({
   lead,
   stages,
@@ -62,7 +70,6 @@ export function LeadDrawer({
 }) {
   const qc = useQueryClient();
   const detailFn = useServerFn(getLeadDetail);
-  const noteFn = useServerFn(addLeadNote);
   const moveFn = useServerFn(moveLead);
   const taskFn = useServerFn(upsertLeadTask);
   const toggleFn = useServerFn(toggleLeadTask);
@@ -70,7 +77,6 @@ export function LeadDrawer({
   const fileFn = useServerFn(registerLeadFile);
   const delFileFn = useServerFn(deleteLeadFile);
 
-  const [note, setNote] = useState("");
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
@@ -85,11 +91,6 @@ export function LeadDrawer({
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["lead-detail", lead?.id] });
-
-  const addNote = useMutation({
-    mutationFn: () => noteFn({ data: { leadId: lead!.id, body: note.trim() } }),
-    onSuccess: () => { setNote(""); refresh(); },
-  });
 
   const move = useMutation({
     mutationFn: (stageId: string) => moveFn({ data: { id: lead!.id, stage_id: stageId } }),
@@ -335,58 +336,6 @@ export function LeadDrawer({
                     </TabsContent>
                   </Tabs>
                 </div>
-
-                {/* Rodapé: notas */}
-                <div className="lead-gradient-card border-t px-4 py-3 md:px-6">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/90">
-                    <MessageSquare className="h-3.5 w-3.5" /> Notas
-                  </p>
-                  <div className="flex flex-col gap-2 lg:flex-row">
-                    <Textarea
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      rows={2}
-                      placeholder="Registre o resumo da conversa com o lead..."
-                      className="flex-1 bg-white text-foreground placeholder:text-muted-foreground"
-                    />
-                    <Button
-                      className="lg:self-end"
-                      disabled={!note.trim() || addNote.isPending}
-                      onClick={() => addNote.mutate()}
-                    >
-                      Adicionar nota
-                    </Button>
-                  </div>
-                  <div className="mt-3 max-h-32 space-y-2 overflow-y-auto pb-1">
-                    {(data?.notes ?? []).map((n) => (
-                      <button
-                        key={n.id}
-                        type="button"
-                        onClick={() => setSelectedNote(n)}
-                        className="w-full rounded-lg border border-white/10 bg-white/10 p-2.5 text-left transition hover:bg-white/20"
-                      >
-                        <p className="line-clamp-2 whitespace-pre-wrap text-xs text-white">{n.body}</p>
-                        <p className="mt-1 text-[10px] text-white/70">{fmt(n.created_at)}</p>
-                      </button>
-                    ))}
-                    {(data?.notes ?? []).length === 0 && (
-                      <p className="text-xs text-white/70">Nenhuma nota registrada.</p>
-                    )}
-                  </div>
-
-                  <Dialog open={!!selectedNote} onOpenChange={(v) => !v && setSelectedNote(null)}>
-                    <DialogContent className="max-w-md">
-                      <DialogTitle>Nota</DialogTitle>
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">{selectedNote ? fmt(selectedNote.created_at) : ""}</p>
-                        <p className="whitespace-pre-wrap text-sm">{selectedNote?.body}</p>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button variant="outline" onClick={() => setSelectedNote(null)}>Fechar</Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
               </div>
 
               {/* Coluna direita: jornada */}
@@ -401,6 +350,7 @@ export function LeadDrawer({
                     <ol className="relative space-y-4 border-l pl-5">
                       {(data?.events ?? []).map((ev) => {
                         const Icon = EVENT_ICON[ev.kind] ?? Activity;
+                        const note = findNoteFromEvent(ev, data?.notes ?? []);
                         return (
                           <li key={ev.id} className="relative">
                             <span className="absolute -left-[27px] flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -409,6 +359,16 @@ export function LeadDrawer({
                             <p className="text-sm font-medium">{ev.title}</p>
                             {ev.description && <p className="text-xs text-muted-foreground">{ev.description}</p>}
                             <p className="text-[11px] text-muted-foreground">{fmt(ev.created_at)}</p>
+                            {note && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-2 h-7 text-xs"
+                                onClick={() => setSelectedNote(note)}
+                              >
+                                <MessageSquare className="mr-1.5 h-3 w-3" /> Ver nota
+                              </Button>
+                            )}
                           </li>
                         );
                       })}
@@ -421,6 +381,19 @@ export function LeadDrawer({
                 </div>
               </aside>
             </div>
+
+            <Dialog open={!!selectedNote} onOpenChange={(v) => !v && setSelectedNote(null)}>
+              <DialogContent className="max-w-md">
+                <DialogTitle>Nota</DialogTitle>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">{selectedNote ? fmt(selectedNote.created_at) : ""}</p>
+                  <p className="whitespace-pre-wrap text-sm">{selectedNote?.body}</p>
+                </div>
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => setSelectedNote(null)}>Fechar</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </>
         )}
       </DialogContent>
