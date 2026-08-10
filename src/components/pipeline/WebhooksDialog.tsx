@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   createWebhook, deleteWebhook, listWebhooks, toggleWebhook, updateWebhook,
 } from "@/lib/pipeline/pipeline.functions";
+import { WebhookFieldMapper } from "./WebhookFieldMapper";
 import type { PipelineStage } from "./types";
 
 function CopyField({ value }: { value: string }) {
