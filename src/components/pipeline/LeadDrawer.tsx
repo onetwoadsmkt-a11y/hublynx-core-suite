@@ -169,28 +169,28 @@ export function LeadDrawer({
   return (
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 rounded-none border-0 bg-gradient-to-b from-[#071A3D] to-[#0F4C5C] p-0 text-white sm:max-w-none"
+        className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 rounded-none border-0 p-0 sm:max-w-none"
       >
         {lead && (
           <>
-            <header className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3 md:px-6">
+            <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3 md:px-6">
               <div className="min-w-0 flex-1">
-                <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
-                <p className="text-xs text-white/70">
+                <DialogTitle className="truncate text-xl">{lead.name}</DialogTitle>
+                <p className="text-xs text-muted-foreground">
                   Criado em {fmt(lead.created_at)}
                 </p>
               </div>
               {lead.value != null && (
-                <Badge className="border-transparent bg-white/20 font-semibold text-white hover:bg-white/30">{currency(Number(lead.value))}</Badge>
+                <Badge className="font-semibold">{currency(Number(lead.value))}</Badge>
               )}
               <Select value={lead.stage_id ?? ""} onValueChange={(v) => move.mutate(v)}>
-                <SelectTrigger className="h-8 w-[190px] bg-white/10 border-white/10 text-white data-[placeholder]:text-white/70"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-[#0F4C5C] border-white/10 text-white">
-                  {stages.map((s) => <SelectItem key={s.id} value={s.id} className="text-white focus:bg-white/20 focus:text-white">{s.name}</SelectItem>)}
+                <SelectTrigger className="h-8 w-[190px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button size="sm" variant="outline" className="border-white/10 bg-white/10 text-white hover:bg-white/20" onClick={() => onEdit(lead)}>Editar</Button>
-              <Button size="icon" variant="ghost" className="hidden text-white hover:bg-white/10" onClick={() => onOpenChange(false)}>
+              <Button size="sm" variant="outline" onClick={() => onEdit(lead)}>Editar</Button>
+              <Button size="icon" variant="ghost" className="hidden" onClick={() => onOpenChange(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </header>
@@ -199,21 +199,21 @@ export function LeadDrawer({
               {/* Coluna principal */}
               <div className="flex min-h-0 flex-col">
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
-                  <div className="grid gap-2 rounded-xl border border-white/10 bg-white/10 p-3 text-sm text-white sm:grid-cols-2">
-                    {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-white/70" />{lead.company}</p>}
-                    {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-white/70" />{lead.phone}</p>}
-                    {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-white/70" />{lead.email}</p>}
+                  <div className="grid gap-2 rounded-xl border bg-[var(--brand-dark)]/10 p-3 text-sm text-foreground sm:grid-cols-2">
+                    {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-muted-foreground" />{lead.company}</p>}
+                    {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" />{lead.phone}</p>}
+                    {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" />{lead.email}</p>}
                     {(lead.city || lead.state) && (
-                      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-white/70" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
+                      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
                     )}
-                    {lead.source && <p className="flex items-center gap-2"><Tag className="h-4 w-4 text-white/70" />{lead.source}</p>}
+                    {lead.source && <p className="flex items-center gap-2"><Tag className="h-4 w-4 text-muted-foreground" />{lead.source}</p>}
                   </div>
 
                   <Tabs defaultValue="tarefas" className="mt-4">
-                    <TabsList className="grid w-full grid-cols-3 border border-white/10 bg-white/10 p-1">
-                      <TabsTrigger value="tarefas" className="text-white/70 data-[state=active]:bg-white/20 data-[state=active]:text-white">Tarefas</TabsTrigger>
-                      <TabsTrigger value="arquivos" className="text-white/70 data-[state=active]:bg-white/20 data-[state=active]:text-white">Arquivos</TabsTrigger>
-                      <TabsTrigger value="utm" className="text-white/70 data-[state=active]:bg-white/20 data-[state=active]:text-white">UTM</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
+                      <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
+                      <TabsTrigger value="utm">UTM</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="tarefas" className="mt-4 space-y-3">
@@ -222,13 +222,13 @@ export function LeadDrawer({
                           value={taskTitle}
                           onChange={(e) => setTaskTitle(e.target.value)}
                           placeholder="Ex.: Reunião de apresentação"
-                          className="min-w-[200px] flex-1 border-white/10 bg-white/10 text-white placeholder:text-white/50"
+                          className="min-w-[200px] flex-1"
                         />
                         <Select value={taskKind} onValueChange={setTaskKind}>
-                          <SelectTrigger className="w-[140px] border-white/10 bg-white/10 text-white data-[placeholder]:text-white/70"><SelectValue /></SelectTrigger>
-                          <SelectContent className="bg-[#0F4C5C] border-white/10 text-white">
+                          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
                             {TASK_KINDS.map((k) => (
-                              <SelectItem key={k.value} value={k.value} className="text-white focus:bg-white/20 focus:text-white">{k.label}</SelectItem>
+                              <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -236,7 +236,7 @@ export function LeadDrawer({
                           type="datetime-local"
                           value={taskDue}
                           onChange={(e) => setTaskDue(e.target.value)}
-                          className="w-[210px] border-white/10 bg-white/10 text-white"
+                          className="w-[210px]"
                         />
                         <Button
                           disabled={!taskTitle.trim() || addTask.isPending}
@@ -248,30 +248,30 @@ export function LeadDrawer({
 
                       <div className="space-y-2">
                         {tasks.map((t) => (
-                          <div key={t.id} className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/10 p-3">
+                          <div key={t.id} className="flex items-start gap-3 rounded-lg border bg-[var(--brand-dark)]/5 p-3">
                             <Checkbox
                               checked={t.done}
                               onCheckedChange={(v) => toggleTask.mutate({ id: t.id, done: !!v })}
                               className="mt-0.5"
                             />
                             <div className="min-w-0 flex-1">
-                              <p className={t.done ? "text-sm line-through text-white/60" : "text-sm font-medium text-white"}>
+                              <p className={t.done ? "text-sm line-through text-muted-foreground" : "text-sm font-medium"}>
                                 {t.title}
                               </p>
-                              <p className="mt-0.5 flex items-center gap-2 text-[11px] text-white/70">
-                                <Badge variant="outline" className="h-4 border-white/10 px-1.5 text-[10px] text-white/80">
+                              <p className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                                <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                                   {TASK_KINDS.find((k) => k.value === t.kind)?.label ?? t.kind}
                                 </Badge>
                                 {t.due_at && <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" />{fmt(t.due_at)}</span>}
                               </p>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/10" onClick={() => removeTask.mutate(t.id)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeTask.mutate(t.id)}>
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </div>
                         ))}
                         {tasks.length === 0 && (
-                          <p className="text-sm text-white/70">Nenhum agendamento para este lead.</p>
+                          <p className="text-sm text-muted-foreground">Nenhum agendamento para este lead.</p>
                         )}
                       </div>
                     </TabsContent>
@@ -283,52 +283,52 @@ export function LeadDrawer({
                         className="hidden"
                         onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
                       />
-                      <Button variant="outline" className="border-white/10 bg-white/10 text-white hover:bg-white/20" disabled={uploading} onClick={() => fileInput.current?.click()}>
+                      <Button variant="outline" disabled={uploading} onClick={() => fileInput.current?.click()}>
                         <FileUp className="mr-1.5 h-4 w-4" />
                         {uploading ? "Enviando..." : "Anexar arquivo"}
                       </Button>
                       <div className="space-y-2">
                         {files.map((f) => (
-                          <div key={f.id} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/10 p-3">
-                            <Paperclip className="h-4 w-4 text-white/70" />
+                          <div key={f.id} className="flex items-center gap-3 rounded-lg border bg-[var(--brand-dark)]/5 p-3">
+                            <Paperclip className="h-4 w-4 text-muted-foreground" />
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-white">{f.name}</p>
-                              <p className="text-[11px] text-white/70">
+                              <p className="truncate text-sm font-medium">{f.name}</p>
+                              <p className="text-[11px] text-muted-foreground">
                                 {bytes(f.size_bytes)} · {fmt(f.created_at)}
                               </p>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/10" onClick={() => download(f.storage_path, f.name)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => download(f.storage_path, f.name)}>
                               <Download className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/10" onClick={() => removeFile.mutate(f.id)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeFile.mutate(f.id)}>
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </div>
                         ))}
                         {files.length === 0 && (
-                          <p className="text-sm text-white/70">Nenhum arquivo anexado.</p>
+                          <p className="text-sm text-muted-foreground">Nenhum arquivo anexado.</p>
                         )}
                       </div>
                     </TabsContent>
 
                     <TabsContent value="utm" className="mt-4 space-y-2">
-                      {utms.length === 0 && <p className="text-sm text-white/70">Sem dados de campanha.</p>}
+                      {utms.length === 0 && <p className="text-sm text-muted-foreground">Sem dados de campanha.</p>}
                       {utms.map(([k, v]) => (
-                        <div key={k} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2 text-sm text-white">
-                          <span className="font-mono text-xs text-white/70">{k}</span>
-                          <span className="max-w-[60%] truncate font-medium text-white">{v}</span>
+                        <div key={k} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                          <span className="font-mono text-xs text-muted-foreground">{k}</span>
+                          <span className="max-w-[60%] truncate font-medium">{v}</span>
                         </div>
                       ))}
                       {lead.landing_url && (
-                        <div className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white">
-                          <p className="text-white/70">landing_url</p>
-                          <p className="break-all text-white">{lead.landing_url}</p>
+                        <div className="rounded-lg border px-3 py-2 text-xs">
+                          <p className="text-muted-foreground">landing_url</p>
+                          <p className="break-all">{lead.landing_url}</p>
                         </div>
                       )}
                       {lead.referrer && (
-                        <div className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white">
-                          <p className="text-white/70">referrer</p>
-                          <p className="break-all text-white">{lead.referrer}</p>
+                        <div className="rounded-lg border px-3 py-2 text-xs">
+                          <p className="text-muted-foreground">referrer</p>
+                          <p className="break-all">{lead.referrer}</p>
                         </div>
                       )}
                     </TabsContent>
@@ -336,8 +336,8 @@ export function LeadDrawer({
                 </div>
 
                 {/* Rodapé: notas */}
-                <div className="border-t border-white/10 bg-white/10 px-4 py-3 md:px-6">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/70">
+                <div className="border-t bg-[var(--brand-dark)]/10 px-4 py-3 md:px-6">
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <MessageSquare className="h-3.5 w-3.5" /> Notas
                   </p>
                   <div className="flex flex-col gap-2 lg:flex-row">
@@ -346,7 +346,7 @@ export function LeadDrawer({
                       onChange={(e) => setNote(e.target.value)}
                       rows={2}
                       placeholder="Registre o resumo da conversa com o lead..."
-                      className="flex-1 border-white/10 bg-white/10 text-white placeholder:text-white/50"
+                      className="flex-1"
                     />
                     <Button
                       className="lg:self-end"
@@ -358,47 +358,47 @@ export function LeadDrawer({
                   </div>
                   <div className="mt-3 flex max-h-32 gap-2 overflow-x-auto overflow-y-auto pb-1">
                     {(data?.notes ?? []).map((n) => (
-                      <div key={n.id} className="min-w-[240px] max-w-[320px] shrink-0 rounded-lg border border-white/10 bg-white/10 p-2.5">
-                        <p className="whitespace-pre-wrap text-xs text-white">{n.body}</p>
-                        <p className="mt-1 text-[10px] text-white/60">{fmt(n.created_at)}</p>
+                      <div key={n.id} className="min-w-[240px] max-w-[320px] shrink-0 rounded-lg border bg-[var(--brand-dark)]/5 p-2.5">
+                        <p className="whitespace-pre-wrap text-xs">{n.body}</p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">{fmt(n.created_at)}</p>
                       </div>
                     ))}
                     {(data?.notes ?? []).length === 0 && (
-                      <p className="text-xs text-white/70">Nenhuma nota registrada.</p>
+                      <p className="text-xs text-muted-foreground">Nenhuma nota registrada.</p>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Coluna direita: jornada */}
-              <aside className="min-h-0 border-t border-white/10 lg:border-l lg:border-t-0">
+              <aside className="min-h-0 border-t lg:border-l lg:border-t-0">
                 <div className="flex h-full min-h-0 flex-col">
-                  <div className="border-b border-white/10 px-4 py-3">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-white">
-                      <Activity className="h-4 w-4 text-white" /> Histórico da jornada
+                  <div className="border-b px-4 py-3">
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <Activity className="h-4 w-4 text-primary" /> Histórico da jornada
                     </p>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-                    <ol className="relative space-y-4 border-l border-white/20 pl-5">
+                    <ol className="relative space-y-4 border-l pl-5">
                       {(data?.events ?? []).map((ev) => {
                         const Icon = EVENT_ICON[ev.kind] ?? Activity;
                         return (
                           <li key={ev.id} className="relative">
-                            <span className="absolute -left-[27px] flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-white">
+                            <span className="absolute -left-[27px] flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary">
                               <Icon className="h-3 w-3" />
                             </span>
-                            <p className="text-sm font-medium text-white">{ev.title}</p>
-                            {ev.description && <p className="text-xs text-white/70">{ev.description}</p>}
-                            <p className="text-[11px] text-white/70">{fmt(ev.created_at)}</p>
+                            <p className="text-sm font-medium">{ev.title}</p>
+                            {ev.description && <p className="text-xs text-muted-foreground">{ev.description}</p>}
+                            <p className="text-[11px] text-muted-foreground">{fmt(ev.created_at)}</p>
                           </li>
                         );
                       })}
                       {(data?.events ?? []).length === 0 && (
-                        <li className="text-sm text-white/70">Sem eventos ainda.</li>
+                        <li className="text-sm text-muted-foreground">Sem eventos ainda.</li>
                       )}
                     </ol>
                   </div>
-                  <Separator className="bg-white/20" />
+                  <Separator />
                 </div>
               </aside>
             </div>
