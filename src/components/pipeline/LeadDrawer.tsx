@@ -283,30 +283,30 @@ export function LeadDrawer({
                         className="hidden"
                         onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
                       />
-                      <Button variant="outline" disabled={uploading} onClick={() => fileInput.current?.click()}>
+                      <Button variant="outline" className="border-white/10 bg-white/10 text-white hover:bg-white/20" disabled={uploading} onClick={() => fileInput.current?.click()}>
                         <FileUp className="mr-1.5 h-4 w-4" />
                         {uploading ? "Enviando..." : "Anexar arquivo"}
                       </Button>
                       <div className="space-y-2">
                         {files.map((f) => (
-                          <div key={f.id} className="flex items-center gap-3 rounded-lg border bg-[var(--brand-dark)]/5 p-3">
-                            <Paperclip className="h-4 w-4 text-muted-foreground" />
+                          <div key={f.id} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/10 p-3">
+                            <Paperclip className="h-4 w-4 text-white/70" />
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{f.name}</p>
-                              <p className="text-[11px] text-muted-foreground">
+                              <p className="truncate text-sm font-medium text-white">{f.name}</p>
+                              <p className="text-[11px] text-white/70">
                                 {bytes(f.size_bytes)} · {fmt(f.created_at)}
                               </p>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => download(f.storage_path, f.name)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/10" onClick={() => download(f.storage_path, f.name)}>
                               <Download className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeFile.mutate(f.id)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/10" onClick={() => removeFile.mutate(f.id)}>
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </div>
                         ))}
                         {files.length === 0 && (
-                          <p className="text-sm text-muted-foreground">Nenhum arquivo anexado.</p>
+                          <p className="text-sm text-white/70">Nenhum arquivo anexado.</p>
                         )}
                       </div>
                     </TabsContent>
