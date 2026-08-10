@@ -180,6 +180,7 @@ export function LeadDrawer({
   return (
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
       <DialogContent
+        hideClose
         className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 rounded-none border-0 p-0 sm:max-w-none"
       >
         {lead && (
