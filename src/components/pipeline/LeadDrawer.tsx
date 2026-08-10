@@ -199,7 +199,7 @@ export function LeadDrawer({
               {/* Coluna principal */}
               <div className="flex min-h-0 flex-col">
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
-                  <div className="grid gap-2 rounded-xl border bg-[var(--brand-dark)]/10 p-3 text-sm text-foreground sm:grid-cols-2">
+                  <div className="grid gap-2 rounded-xl border bg-muted/30 p-3 text-sm sm:grid-cols-2">
                     {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-muted-foreground" />{lead.company}</p>}
                     {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" />{lead.phone}</p>}
                     {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" />{lead.email}</p>}
@@ -248,7 +248,7 @@ export function LeadDrawer({
 
                       <div className="space-y-2">
                         {tasks.map((t) => (
-                          <div key={t.id} className="flex items-start gap-3 rounded-lg border bg-[var(--brand-dark)]/5 p-3">
+                          <div key={t.id} className="flex items-start gap-3 rounded-lg border bg-card p-3">
                             <Checkbox
                               checked={t.done}
                               onCheckedChange={(v) => toggleTask.mutate({ id: t.id, done: !!v })}
@@ -289,7 +289,7 @@ export function LeadDrawer({
                       </Button>
                       <div className="space-y-2">
                         {files.map((f) => (
-                          <div key={f.id} className="flex items-center gap-3 rounded-lg border bg-[var(--brand-dark)]/5 p-3">
+                          <div key={f.id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
                             <Paperclip className="h-4 w-4 text-muted-foreground" />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium">{f.name}</p>
@@ -336,7 +336,7 @@ export function LeadDrawer({
                 </div>
 
                 {/* Rodapé: notas */}
-                <div className="border-t bg-[var(--brand-dark)]/10 px-4 py-3 md:px-6">
+                <div className="border-t bg-muted/20 px-4 py-3 md:px-6">
                   <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <MessageSquare className="h-3.5 w-3.5" /> Notas
                   </p>
@@ -358,7 +358,7 @@ export function LeadDrawer({
                   </div>
                   <div className="mt-3 flex max-h-32 gap-2 overflow-x-auto overflow-y-auto pb-1">
                     {(data?.notes ?? []).map((n) => (
-                      <div key={n.id} className="min-w-[240px] max-w-[320px] shrink-0 rounded-lg border bg-[var(--brand-dark)]/5 p-2.5">
+                      <div key={n.id} className="min-w-[240px] max-w-[320px] shrink-0 rounded-lg border bg-card p-2.5">
                         <p className="whitespace-pre-wrap text-xs">{n.body}</p>
                         <p className="mt-1 text-[10px] text-muted-foreground">{fmt(n.created_at)}</p>
                       </div>
