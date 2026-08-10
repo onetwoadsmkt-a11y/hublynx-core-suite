@@ -47,6 +47,7 @@ function PipelinePage() {
   const [formOpen, setFormOpen] = useState(false);
   const [stagesOpen, setStagesOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
+  const [layoutOpen, setLayoutOpen] = useState(false);
   const [targetStage, setTargetStage] = useState<string | undefined>();
 
   const { data, isLoading } = useQuery({
@@ -116,6 +117,9 @@ function PipelinePage() {
           <Button variant="outline" size="sm" onClick={() => setStagesOpen(true)}>
             <Settings2 className="mr-1.5 h-4 w-4" /> Etapas
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setLayoutOpen(true)}>
+            <LayoutTemplate className="mr-1.5 h-4 w-4" /> Layout do card
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setHooksOpen(true)}>
             <Webhook className="mr-1.5 h-4 w-4" /> Webhooks
           </Button>
@@ -166,6 +170,7 @@ function PipelinePage() {
         defaultStageId={targetStage}
       />
       <StagesDialog open={stagesOpen} onOpenChange={setStagesOpen} stages={stages} />
+      <CardLayoutDialog open={layoutOpen} onOpenChange={setLayoutOpen} />
       <WebhooksDialog open={hooksOpen} onOpenChange={setHooksOpen} stages={stages} />
       <LeadDrawer
         lead={openLead}
