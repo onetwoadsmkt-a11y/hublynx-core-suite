@@ -49,6 +49,14 @@ function bytes(n: number | null) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function findNoteFromEvent(ev: LeadEvent, notes: LeadNote[]): LeadNote | undefined {
+  if (ev.kind !== "note" && ev.kind !== "note_added") return undefined;
+  const noteId = (ev.meta as { note_id?: string } | null)?.note_id;
+  if (noteId) return notes.find((n) => n.id === noteId);
+  const body = ev.description ?? "";
+  return notes.find((n) => n.body.startsWith(body) || body.startsWith(n.body));
+}
+
 export function LeadDrawer({
   lead,
   stages,
