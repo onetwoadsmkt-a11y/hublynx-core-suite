@@ -243,6 +243,35 @@ export function WebhooksDialog({
                 <div className="mt-2">
                   <CopyField value={url} />
                 </div>
+                {h.direction === "inbound" && (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-[11px]">Etapa de destino</Label>
+                      <Select
+                        value={h.default_stage_id ?? ""}
+                        onValueChange={(v) => patch.mutate({ id: h.id, default_stage_id: v })}
+                      >
+                        <SelectTrigger className="h-8"><SelectValue placeholder="Primeira etapa" /></SelectTrigger>
+                        <SelectContent>
+                          {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-[11px]">Fonte do lead</Label>
+                      <Input
+                        className="h-8"
+                        defaultValue={h.default_source ?? ""}
+                        list="lead-source-suggestions"
+                        placeholder="Site, Meta Ads..."
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v !== (h.default_source ?? "")) patch.mutate({ id: h.id, default_source: v || null });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {h.direction === "inbound"
                     ? "POST JSON: { name, email, phone, company, value, utm_source, utm_medium, utm_campaign, utm_term, utm_content, source, landing_url }"
