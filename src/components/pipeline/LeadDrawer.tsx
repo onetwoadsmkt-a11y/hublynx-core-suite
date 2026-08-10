@@ -62,7 +62,6 @@ export function LeadDrawer({
 }) {
   const qc = useQueryClient();
   const detailFn = useServerFn(getLeadDetail);
-  const noteFn = useServerFn(addLeadNote);
   const moveFn = useServerFn(moveLead);
   const taskFn = useServerFn(upsertLeadTask);
   const toggleFn = useServerFn(toggleLeadTask);
@@ -70,7 +69,6 @@ export function LeadDrawer({
   const fileFn = useServerFn(registerLeadFile);
   const delFileFn = useServerFn(deleteLeadFile);
 
-  const [note, setNote] = useState("");
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
@@ -85,11 +83,6 @@ export function LeadDrawer({
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["lead-detail", lead?.id] });
-
-  const addNote = useMutation({
-    mutationFn: () => noteFn({ data: { leadId: lead!.id, body: note.trim() } }),
-    onSuccess: () => { setNote(""); refresh(); },
-  });
 
   const move = useMutation({
     mutationFn: (stageId: string) => moveFn({ data: { id: lead!.id, stage_id: stageId } }),
