@@ -7,7 +7,7 @@ import {
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, Search, Settings2, Webhook } from "lucide-react";
+import { LayoutTemplate, Plus, Search, Settings2, Webhook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,7 @@ import { LeadCard, currency } from "@/components/pipeline/LeadCard";
 import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
 import { StagesDialog } from "@/components/pipeline/StagesDialog";
+import { CardLayoutDialog } from "@/components/pipeline/CardLayoutDialog";
 import { WebhooksDialog } from "@/components/pipeline/WebhooksDialog";
 import type { Lead, PipelineStage } from "@/components/pipeline/types";
 import { listPipeline, moveLead } from "@/lib/pipeline/pipeline.functions";
@@ -46,6 +47,7 @@ function PipelinePage() {
   const [formOpen, setFormOpen] = useState(false);
   const [stagesOpen, setStagesOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
+  const [layoutOpen, setLayoutOpen] = useState(false);
   const [targetStage, setTargetStage] = useState<string | undefined>();
 
   const { data, isLoading } = useQuery({
@@ -115,6 +117,9 @@ function PipelinePage() {
           <Button variant="outline" size="sm" onClick={() => setStagesOpen(true)}>
             <Settings2 className="mr-1.5 h-4 w-4" /> Etapas
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setLayoutOpen(true)}>
+            <LayoutTemplate className="mr-1.5 h-4 w-4" /> Layout do card
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setHooksOpen(true)}>
             <Webhook className="mr-1.5 h-4 w-4" /> Webhooks
           </Button>
@@ -165,6 +170,7 @@ function PipelinePage() {
         defaultStageId={targetStage}
       />
       <StagesDialog open={stagesOpen} onOpenChange={setStagesOpen} stages={stages} />
+      <CardLayoutDialog open={layoutOpen} onOpenChange={setLayoutOpen} />
       <WebhooksDialog open={hooksOpen} onOpenChange={setHooksOpen} stages={stages} />
       <LeadDrawer
         lead={openLead}
