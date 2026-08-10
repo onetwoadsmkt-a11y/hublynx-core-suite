@@ -16,7 +16,10 @@ export const Route = createFileRoute("/_authenticated/financeiro/")({
 
 function DashboardPage() {
   const navigate = useNavigate();
-  const { month, year } = Route.useSearch();
+  const search = Route.useSearch();
+  const now = new Date();
+  const month = search.month ?? now.getMonth() + 1;
+  const year = search.year ?? now.getFullYear();
   const fn = useServerFn(getFinanceDashboard);
   const { data } = useQuery({
     queryKey: ["finance", "dashboard", month, year],
