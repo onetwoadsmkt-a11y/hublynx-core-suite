@@ -56,7 +56,9 @@ export function LeadCard({
     disabled: !draggable,
   });
 
+  const { layout } = useLeadCardLayout();
   const value = currency(lead.value != null ? Number(lead.value) : null);
+  const location = [lead.city, lead.state].filter(Boolean).join(" / ");
 
   return (
     <div
@@ -87,49 +89,57 @@ export function LeadCard({
         </DropdownMenu>
       </div>
 
-      {lead.company && (
+      {layout.company && lead.company && (
         <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
           <Building2 className="h-3 w-3" /> {lead.company}
         </p>
       )}
-      {lead.phone && (
+      {layout.location && location && (
+        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+          <MapPin className="h-3 w-3 shrink-0" /> <span className="truncate">{location}</span>
+        </p>
+      )}
+      {layout.phone && lead.phone && (
         <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
           <Phone className="h-3 w-3" /> {lead.phone}
         </p>
       )}
-      {lead.email && (
+      {layout.email && lead.email && (
         <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
           <Mail className="h-3 w-3 shrink-0" /> <span className="truncate">{lead.email}</span>
         </p>
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {value && (
+        {layout.value && value && (
           <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
             {value}
           </Badge>
         )}
-        {(lead.utm_source || lead.source) && (
+        {layout.source && (lead.utm_source || lead.source) && (
           <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
             <Tag className="h-2.5 w-2.5" />
             {lead.utm_source ?? lead.source}
           </Badge>
         )}
-        {lead.utm_medium && (
+        {layout.utm && lead.utm_medium && (
           <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
             {lead.utm_medium}
           </Badge>
         )}
-        {lead.utm_campaign && (
+        {layout.utm && lead.utm_campaign && (
           <Badge variant="outline" className="h-5 max-w-[120px] truncate px-1.5 text-[10px]">
             {lead.utm_campaign}
           </Badge>
         )}
       </div>
 
-      <p className="mt-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-        {relativeTime(lead.created_at)}
-      </p>
+      {layout.time && (
+        <p className="mt-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+          {relativeTime(lead.created_at)}
+        </p>
+      )}
     </div>
   );
+
 }
