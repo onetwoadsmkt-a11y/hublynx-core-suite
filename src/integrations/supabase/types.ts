@@ -782,6 +782,7 @@ export type Database = {
           is_won: boolean
           name: string
           owner_id: string
+          pipeline_id: string | null
           position: number
           updated_at: string
         }
@@ -793,6 +794,7 @@ export type Database = {
           is_won?: boolean
           name: string
           owner_id: string
+          pipeline_id?: string | null
           position?: number
           updated_at?: string
         }
@@ -802,6 +804,45 @@ export type Database = {
           id?: string
           is_lost?: boolean
           is_won?: boolean
+          name?: string
+          owner_id?: string
+          pipeline_id?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stages_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipelines: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
           name?: string
           owner_id?: string
           position?: number
