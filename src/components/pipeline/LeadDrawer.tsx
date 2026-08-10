@@ -199,18 +199,18 @@ export function LeadDrawer({
               {/* Coluna principal */}
               <div className="flex min-h-0 flex-col">
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
-                  <div className="grid gap-2 rounded-xl border bg-muted/30 p-3 text-sm sm:grid-cols-2">
-                    {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-muted-foreground" />{lead.company}</p>}
-                    {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" />{lead.phone}</p>}
-                    {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" />{lead.email}</p>}
+                  <div className="lead-gradient-card grid gap-2 rounded-xl border p-3 text-sm sm:grid-cols-2">
+                    {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-white/80" />{lead.company}</p>}
+                    {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-white/80" />{lead.phone}</p>}
+                    {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-white/80" />{lead.email}</p>}
                     {(lead.city || lead.state) && (
-                      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
+                      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-white/80" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
                     )}
-                    {lead.source && <p className="flex items-center gap-2"><Tag className="h-4 w-4 text-muted-foreground" />{lead.source}</p>}
+                    {lead.source && <p className="flex items-center gap-2"><Tag className="h-4 w-4 text-white/80" />{lead.source}</p>}
                   </div>
 
                   <Tabs defaultValue="tarefas" className="mt-4">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="lead-gradient-card grid w-full grid-cols-3">
                       <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
                       <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
                       <TabsTrigger value="utm">UTM</TabsTrigger>
@@ -336,8 +336,8 @@ export function LeadDrawer({
                 </div>
 
                 {/* Rodapé: notas */}
-                <div className="border-t bg-muted/20 px-4 py-3 md:px-6">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="lead-gradient-card border-t px-4 py-3 md:px-6">
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/90">
                     <MessageSquare className="h-3.5 w-3.5" /> Notas
                   </p>
                   <div className="flex flex-col gap-2 lg:flex-row">
