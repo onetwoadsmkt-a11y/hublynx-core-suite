@@ -289,14 +289,17 @@ export const reprocessLastPayload = createServerFn({ method: "POST" })
 
     const { buildLeadFromPayload } = await import("./lead-mapping");
     const mapped = buildLeadFromPayload(hook.last_payload, (hook.field_map ?? {}) as never);
-    const preview = { ...mapped, source: mapped.source ?? hook.default_source ?? "webhook" };
+    const preview: Record<string, string | undefined> = {
+      ...mapped,
+      source: mapped["source"] ?? hook.default_source ?? "webhook",
+    };
 
-    if (data.create && preview.name) {
+    if (data.create && preview["name"]) {
       await supabase.from("leads").insert({
         owner_id: userId,
         stage_id: hook.default_stage_id,
         ...preview,
-        value: preview.value ? Number(preview.value) : null,
+        value: preview["value"] ? Number(preview["value"]) : null,
         metadata: hook.last_payload as never,
       } as never);
       return { preview, created: true as const };
