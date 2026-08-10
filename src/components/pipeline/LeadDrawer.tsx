@@ -328,58 +328,6 @@ export function LeadDrawer({
                     </TabsContent>
                   </Tabs>
                 </div>
-
-                {/* Rodapé: notas */}
-                <div className="lead-gradient-card border-t px-4 py-3 md:px-6">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/90">
-                    <MessageSquare className="h-3.5 w-3.5" /> Notas
-                  </p>
-                  <div className="flex flex-col gap-2 lg:flex-row">
-                    <Textarea
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      rows={2}
-                      placeholder="Registre o resumo da conversa com o lead..."
-                      className="flex-1 bg-white text-foreground placeholder:text-muted-foreground"
-                    />
-                    <Button
-                      className="lg:self-end"
-                      disabled={!note.trim() || addNote.isPending}
-                      onClick={() => addNote.mutate()}
-                    >
-                      Adicionar nota
-                    </Button>
-                  </div>
-                  <div className="mt-3 max-h-32 space-y-2 overflow-y-auto pb-1">
-                    {(data?.notes ?? []).map((n) => (
-                      <button
-                        key={n.id}
-                        type="button"
-                        onClick={() => setSelectedNote(n)}
-                        className="w-full rounded-lg border border-white/10 bg-white/10 p-2.5 text-left transition hover:bg-white/20"
-                      >
-                        <p className="line-clamp-2 whitespace-pre-wrap text-xs text-white">{n.body}</p>
-                        <p className="mt-1 text-[10px] text-white/70">{fmt(n.created_at)}</p>
-                      </button>
-                    ))}
-                    {(data?.notes ?? []).length === 0 && (
-                      <p className="text-xs text-white/70">Nenhuma nota registrada.</p>
-                    )}
-                  </div>
-
-                  <Dialog open={!!selectedNote} onOpenChange={(v) => !v && setSelectedNote(null)}>
-                    <DialogContent className="max-w-md">
-                      <DialogTitle>Nota</DialogTitle>
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">{selectedNote ? fmt(selectedNote.created_at) : ""}</p>
-                        <p className="whitespace-pre-wrap text-sm">{selectedNote?.body}</p>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button variant="outline" onClick={() => setSelectedNote(null)}>Fechar</Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
               </div>
 
               {/* Coluna direita: jornada */}
@@ -394,6 +342,7 @@ export function LeadDrawer({
                     <ol className="relative space-y-4 border-l pl-5">
                       {(data?.events ?? []).map((ev) => {
                         const Icon = EVENT_ICON[ev.kind] ?? Activity;
+                        const note = findNoteFromEvent(ev, data?.notes ?? []);
                         return (
                           <li key={ev.id} className="relative">
                             <span className="absolute -left-[27px] flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -402,6 +351,16 @@ export function LeadDrawer({
                             <p className="text-sm font-medium">{ev.title}</p>
                             {ev.description && <p className="text-xs text-muted-foreground">{ev.description}</p>}
                             <p className="text-[11px] text-muted-foreground">{fmt(ev.created_at)}</p>
+                            {note && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-2 h-7 text-xs"
+                                onClick={() => setSelectedNote(note)}
+                              >
+                                <MessageSquare className="mr-1.5 h-3 w-3" /> Ver nota
+                              </Button>
+                            )}
                           </li>
                         );
                       })}
@@ -414,6 +373,21 @@ export function LeadDrawer({
                 </div>
               </aside>
             </div>
+
+            <Dialog open={!!selectedNote} onOpenChange={(v) => !v && setSelectedNote(null)}>
+              <DialogContent className="max-w-md">
+                <DialogTitle>Nota</DialogTitle>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">{selectedNote ? fmt(selectedNote.created_at) : ""}</p>
+                  <p className="whitespace-pre-wrap text-sm">{selectedNote?.body}</p>
+                </div>
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => setSelectedNote(null)}>Fechar</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
           </>
         )}
       </DialogContent>
