@@ -71,6 +71,7 @@ export function LeadDrawer({
   const delFileFn = useServerFn(deleteLeadFile);
 
   const [note, setNote] = useState("");
+  const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
   const [taskDue, setTaskDue] = useState("");
