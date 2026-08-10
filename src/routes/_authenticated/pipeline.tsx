@@ -202,19 +202,19 @@ function StageColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 transition",
-        isOver && "border-primary/60 bg-primary/5",
+        "flex w-72 shrink-0 flex-col rounded-xl border border-white/10 bg-white/10 transition",
+        isOver && "border-primary/60 bg-primary/10",
       )}
     >
       <div className="h-1.5 rounded-t-xl" style={{ backgroundColor: stage.color }} />
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{stage.name}</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="truncate text-sm font-semibold text-white">{stage.name}</p>
+          <p className="text-[11px] text-white/70">
             {leads.length} leads {total > 0 && `· ${currency(total)}`}
           </p>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onAdd}>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/10 hover:text-white" onClick={onAdd}>
           <Plus className="h-4 w-4" />
         </Button>
       </div>
@@ -223,7 +223,7 @@ function StageColumn({
           <LeadCard key={l.id} lead={l} onOpen={onOpen} onEdit={onEdit} />
         ))}
         {leads.length === 0 && (
-          <p className="px-2 py-6 text-center text-xs text-muted-foreground">Arraste leads para cá</p>
+          <p className="px-2 py-6 text-center text-xs text-white/60">Arraste leads para cá</p>
         )}
       </div>
     </div>
