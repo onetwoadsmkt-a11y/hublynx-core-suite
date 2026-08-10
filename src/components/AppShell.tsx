@@ -1,9 +1,9 @@
 import { type ReactNode, useState, useEffect } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
-  LayoutDashboard, CheckSquare, FolderKanban, Users, DollarSign,
+  LayoutDashboard, CheckSquare, FolderKanban, Users,
   Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
-  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter,
+  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter, MessageSquare,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -142,51 +142,6 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
             })}
           </div>
         ))}
-      </nav>
-    </TooltipProvider>
-  );
-}
-
-  return (
-    <TooltipProvider delayDuration={0}>
-      <nav className={`flex flex-col gap-1 ${collapsed ? "px-2" : "px-3"} py-2`}>
-        {items.map((item) => {
-          const active = pathname === item.to || pathname.startsWith(item.to + "/");
-          const Icon = item.icon;
-          const slug = (item as { moduleSlug?: ModuleSlug }).moduleSlug;
-          const row = slug ? modules?.find((r) => r.module_slug === slug) : undefined;
-          const disabled = slug && row ? !row.enabled : false;
-          const link = (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={onNavigate}
-              className={`flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-primary/10 text-primary"
-                  : disabled
-                    ? "text-muted-foreground/60 hover:bg-muted"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && (
-                <span className="flex-1 flex items-center justify-between">
-                  {item.label}
-                  {disabled && <Lock className="h-3 w-3 opacity-60" />}
-                </span>
-              )}
-            </Link>
-          );
-          return collapsed ? (
-            <Tooltip key={item.to}>
-              <TooltipTrigger asChild>{link}</TooltipTrigger>
-              <TooltipContent side="right">{item.label}{disabled ? " (inativo)" : ""}</TooltipContent>
-            </Tooltip>
-          ) : (
-            link
-          );
-        })}
       </nav>
     </TooltipProvider>
   );
