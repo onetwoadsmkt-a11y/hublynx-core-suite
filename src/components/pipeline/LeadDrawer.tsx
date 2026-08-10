@@ -336,8 +336,8 @@ export function LeadDrawer({
                 </div>
 
                 {/* Rodapé: notas */}
-                <div className="border-t bg-muted/20 px-4 py-3 md:px-6">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="lead-gradient-card border-t px-4 py-3 md:px-6">
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/90">
                     <MessageSquare className="h-3.5 w-3.5" /> Notas
                   </p>
                   <div className="flex flex-col gap-2 lg:flex-row">
