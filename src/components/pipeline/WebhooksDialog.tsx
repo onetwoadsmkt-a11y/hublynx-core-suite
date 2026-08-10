@@ -54,16 +54,28 @@ export function WebhooksDialog({
   const createFn = useServerFn(createWebhook);
   const toggleFn = useServerFn(toggleWebhook);
   const delFn = useServerFn(deleteWebhook);
+  const updateFn = useServerFn(updateWebhook);
 
   const [tab, setTab] = useState<"inbound" | "outbound">("inbound");
   const [name, setName] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [stageId, setStageId] = useState<string>(stages[0]?.id ?? "");
+  const [source, setSource] = useState("");
 
   const { data: hooks } = useQuery({
     queryKey: ["lead-webhooks"],
     queryFn: () => listFn(),
     enabled: open,
+  });
+
+  const patch = useMutation({
+    mutationFn: (v: { id: string; default_stage_id?: string | null; default_source?: string | null }) =>
+      updateFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead-webhooks"] });
+      toast.success("Webhook atualizado");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const create = useMutation({
@@ -74,10 +86,11 @@ export function WebhooksDialog({
           direction,
           target_url: direction === "outbound" ? targetUrl.trim() : null,
           default_stage_id: direction === "inbound" ? stageId || null : null,
+          default_source: direction === "inbound" ? source.trim() || null : null,
         },
       }),
     onSuccess: () => {
-      setName(""); setTargetUrl("");
+      setName(""); setTargetUrl(""); setSource("");
       qc.invalidateQueries({ queryKey: ["lead-webhooks"] });
       toast.success("Webhook criado");
     },
