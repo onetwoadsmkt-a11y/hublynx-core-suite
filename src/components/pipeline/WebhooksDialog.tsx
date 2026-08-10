@@ -139,6 +139,23 @@ export function WebhooksDialog({
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="sm:col-span-2">
+                  <Label>Fonte do lead (origem)</Label>
+                  <Input
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                    placeholder="Site, Meta Ads, Google Ads, Indicação..."
+                    list="lead-source-suggestions"
+                  />
+                  <datalist id="lead-source-suggestions">
+                    {["Site", "Meta Ads", "Google Ads", "Instagram", "WhatsApp", "Indicação", "Landing Page"].map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Aplicada quando o envio não trouxer o campo <code>source</code>.
+                  </p>
+                </div>
               </div>
               <Button
                 className="mt-3"
