@@ -192,23 +192,27 @@ export function LeadDrawer({
                   Criado em {fmt(lead.created_at)}
                 </p>
               </div>
-              {lead.value != null && (
-                <Badge className="border-white/20 bg-white/10 font-semibold text-white hover:bg-white/20">
-                  {currency(Number(lead.value))}
-                </Badge>
-              )}
-              <Select value={lead.stage_id ?? ""} onValueChange={(v) => move.mutate(v)}>
-                <SelectTrigger className="h-8 w-[190px] border-white/20 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => onEdit(lead)}>Editar</Button>
-              <Button size="icon" variant="ghost" className="hidden text-white hover:bg-white/10" onClick={() => onOpenChange(false)}>
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                {lead.value != null && (
+                  <Badge className="border-white/20 bg-white/10 font-semibold text-white hover:bg-white/20">
+                    {currency(Number(lead.value))}
+                  </Badge>
+                )}
+                <Select value={lead.stage_id ?? ""} onValueChange={(v) => move.mutate(v)}>
+                  <SelectTrigger className="h-8 w-[190px] border-white/20 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" className="bg-primary font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => onEdit(lead)}>
+                  Editar
+                </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/10" onClick={() => onOpenChange(false)}>
+                  <X className="h-5 w-5 stroke-[3]" />
+                </Button>
+              </div>
             </header>
 
             <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
