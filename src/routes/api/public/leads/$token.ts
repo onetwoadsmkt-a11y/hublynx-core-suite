@@ -34,7 +34,7 @@ export const Route = createFileRoute("/api/public/leads/$token")({
 
         const { data: hook } = await supabaseAdmin
           .from("lead_webhooks")
-          .select("id, owner_id, active, direction, default_stage_id, call_count")
+          .select("id, owner_id, active, direction, default_stage_id, default_source, call_count")
           .eq("token", token)
           .maybeSingle();
 
