@@ -388,8 +388,6 @@ export function LeadDrawer({
             </Dialog>
           </>
         )}
-          </>
-        )}
       </DialogContent>
     </Dialog>
   );
