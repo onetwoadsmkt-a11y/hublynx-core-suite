@@ -114,6 +114,11 @@ export function LeadCard({
             {lead.utm_source ?? lead.source}
           </Badge>
         )}
+        {lead.utm_medium && (
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+            {lead.utm_medium}
+          </Badge>
+        )}
         {lead.utm_campaign && (
           <Badge variant="outline" className="h-5 max-w-[120px] truncate px-1.5 text-[10px]">
             {lead.utm_campaign}
