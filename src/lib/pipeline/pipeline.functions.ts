@@ -252,6 +252,61 @@ export const updateWebhook = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const updateWebhookMapping = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: uuid,
+        field_map: z.record(
+          z.string().max(60),
+          z.union([z.string().max(200), z.object({ const: z.string().max(200) })]).nullable(),
+        ),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("lead_webhooks")
+      .update({ field_map: data.field_map })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export const reprocessLastPayload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid, create: z.boolean().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: hook, error } = await supabase
+      .from("lead_webhooks")
+      .select("id, field_map, last_payload, default_stage_id, default_source")
+      .eq("id", data.id)
+      .single();
+    if (error) throw new Error(error.message);
+    if (!hook.last_payload) return { preview: null, created: false as const };
+
+    const { buildLeadFromPayload } = await import("./lead-mapping");
+    const mapped = buildLeadFromPayload(hook.last_payload, (hook.field_map ?? {}) as never);
+    const preview: Record<string, string | undefined> = {
+      ...mapped,
+      source: mapped["source"] ?? hook.default_source ?? "webhook",
+    };
+
+    if (data.create && preview["name"]) {
+      await supabase.from("leads").insert({
+        owner_id: userId,
+        stage_id: hook.default_stage_id,
+        ...preview,
+        value: preview["value"] ? Number(preview["value"]) : null,
+        metadata: hook.last_payload as never,
+      } as never);
+      return { preview, created: true as const };
+    }
+    return { preview, created: false as const };
+  });
+
 
 export const toggleWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

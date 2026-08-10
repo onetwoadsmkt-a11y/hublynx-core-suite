@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { buildLeadFromPayload, type FieldMap } from "@/lib/pipeline/lead-mapping";
 
 const payloadSchema = z.object({
   name: z.string().min(1).max(200),
@@ -34,7 +35,9 @@ export const Route = createFileRoute("/api/public/leads/$token")({
 
         const { data: hook } = await supabaseAdmin
           .from("lead_webhooks")
-          .select("id, owner_id, active, direction, default_stage_id, default_source, call_count")
+          .select(
+            "id, owner_id, active, direction, default_stage_id, default_source, call_count, field_map",
+          )
           .eq("token", token)
           .maybeSingle();
 
@@ -56,39 +59,22 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           return new Response("Invalid body", { status: 400 });
         }
 
-        // normaliza nomes de campos comuns de formulários
-        const pick = (...keys: string[]) => {
-          for (const k of keys) {
-            const v = raw[k];
-            if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
-          }
-          return undefined;
-        };
-        const body = {
-          name: pick("name", "nome", "full_name", "fullname", "nome_completo", "Nome"),
-          email: pick("email", "e-mail", "e_mail", "mail", "Email"),
-          phone: pick("phone", "telefone", "celular", "whatsapp", "Telefone"),
-          company: pick("company", "empresa"),
-          city: pick("city", "cidade"),
-          state: pick("state", "estado", "uf"),
-          source: pick("source", "origem") ?? hook.default_source ?? "webhook",
-          value: pick("value", "valor"),
-          utm_source: pick("utm_source"),
-          utm_medium: pick("utm_medium"),
-          utm_campaign: pick("utm_campaign"),
-          utm_term: pick("utm_term"),
-          utm_content: pick("utm_content"),
-          gclid: pick("gclid"),
-          fbclid: pick("fbclid"),
-          landing_url: pick("landing_url", "page_url", "url"),
-          referrer: pick("referrer", "referer"),
-        };
+        // guarda o último payload para o mapeador visual
+        await supabaseAdmin
+          .from("lead_webhooks")
+          .update({ last_payload: raw as never, last_payload_at: new Date().toISOString() })
+          .eq("id", hook.id);
+
+        const mapped = buildLeadFromPayload(raw, (hook.field_map ?? {}) as FieldMap);
+        const body = { ...mapped, source: mapped.source ?? hook.default_source ?? "webhook" };
 
         const parsed = payloadSchema.safeParse(body);
         if (!parsed.success) {
-          return Response.json({ error: "Invalid payload", issues: parsed.error.issues }, { status: 422 });
+          return Response.json(
+            { error: "Invalid payload", issues: parsed.error.issues, detected: mapped },
+            { status: 422 },
+          );
         }
-
 
         let stageId = hook.default_stage_id;
         if (!stageId) {
@@ -104,7 +90,12 @@ export const Route = createFileRoute("/api/public/leads/$token")({
 
         const { data: lead, error } = await supabaseAdmin
           .from("leads")
-          .insert({ ...parsed.data, owner_id: hook.owner_id, stage_id: stageId })
+          .insert({
+            ...parsed.data,
+            owner_id: hook.owner_id,
+            stage_id: stageId,
+            metadata: raw as never,
+          })
           .select("id")
           .single();
 

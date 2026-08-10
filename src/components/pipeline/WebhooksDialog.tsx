@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   createWebhook, deleteWebhook, listWebhooks, toggleWebhook, updateWebhook,
 } from "@/lib/pipeline/pipeline.functions";
+import { WebhookFieldMapper } from "./WebhookFieldMapper";
 import type { PipelineStage } from "./types";
 
 function CopyField({ value }: { value: string }) {
@@ -271,6 +272,14 @@ export function WebhooksDialog({
                       />
                     </div>
                   </div>
+                )}
+                {h.direction === "inbound" && (
+                  <WebhookFieldMapper
+                    webhookId={h.id}
+                    fieldMap={(h.field_map ?? {}) as never}
+                    lastPayload={h.last_payload ?? null}
+                    lastPayloadAt={h.last_payload_at ?? null}
+                  />
                 )}
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {h.direction === "inbound"

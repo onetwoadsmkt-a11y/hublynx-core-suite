@@ -481,8 +481,11 @@ export type Database = {
           default_source: string | null
           default_stage_id: string | null
           direction: string
+          field_map: Json
           id: string
           last_called_at: string | null
+          last_payload: Json | null
+          last_payload_at: string | null
           name: string
           owner_id: string
           secret: string
@@ -497,8 +500,11 @@ export type Database = {
           default_source?: string | null
           default_stage_id?: string | null
           direction?: string
+          field_map?: Json
           id?: string
           last_called_at?: string | null
+          last_payload?: Json | null
+          last_payload_at?: string | null
           name: string
           owner_id: string
           secret?: string
@@ -513,8 +519,11 @@ export type Database = {
           default_source?: string | null
           default_stage_id?: string | null
           direction?: string
+          field_map?: Json
           id?: string
           last_called_at?: string | null
+          last_payload?: Json | null
+          last_payload_at?: string | null
           name?: string
           owner_id?: string
           secret?: string

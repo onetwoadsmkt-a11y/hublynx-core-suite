@@ -14,7 +14,10 @@ export const Route = createFileRoute("/_authenticated/financeiro/dre")({
 
 function DREPage() {
   const navigate = useNavigate();
-  const { month, year } = Route.useSearch();
+  const search = Route.useSearch();
+  const now = new Date();
+  const month = search.month ?? now.getMonth() + 1;
+  const year = search.year ?? now.getFullYear();
   const dreFn = useServerFn(getDRE);
   const profitClientFn = useServerFn(getProfitabilityByClient);
   const profitProjectFn = useServerFn(getProfitabilityByProject);

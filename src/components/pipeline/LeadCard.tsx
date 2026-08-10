@@ -68,7 +68,7 @@ export function LeadCard({
       onClick={() => onOpen(lead)}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-semibold leading-tight">{lead.name}</p>
+        <p className="line-clamp-2 text-sm font-semibold leading-tight">{lead.name}</p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
@@ -112,6 +112,11 @@ export function LeadCard({
           <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
             <Tag className="h-2.5 w-2.5" />
             {lead.utm_source ?? lead.source}
+          </Badge>
+        )}
+        {lead.utm_medium && (
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+            {lead.utm_medium}
           </Badge>
         )}
         {lead.utm_campaign && (
