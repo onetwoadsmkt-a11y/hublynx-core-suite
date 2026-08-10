@@ -31,6 +31,7 @@ const EVENT_ICON: Record<string, typeof Activity> = {
   task_created: CalendarClock,
   task_done: CheckCircle2,
   file_added: Paperclip,
+  email_sent: Mail,
 };
 
 const TASK_KINDS = [
