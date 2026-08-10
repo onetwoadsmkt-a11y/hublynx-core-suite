@@ -20,7 +20,7 @@ import {
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
 import { currency } from "./LeadCard";
-import type { Lead, PipelineStage } from "./types";
+import type { Lead, LeadNote, PipelineStage } from "./types";
 
 const EVENT_ICON: Record<string, typeof Activity> = {
   created: Plus,
