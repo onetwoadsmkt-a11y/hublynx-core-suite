@@ -33,19 +33,48 @@ function HeaderInstallModule() {
   return <div className="hidden md:block"><InstallModuleButton module={mod} /></div>;
 }
 
-const NAV = [
-  { to: "/hub", label: "Hub Central", icon: Sparkles, moduleSlug: "hub" as ModuleSlug },
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" as ModuleSlug },
-  { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" as ModuleSlug },
-  { to: "/pipeline", label: "Pipeline", icon: Filter },
-  { to: "/clientes", label: "Clientes", icon: Users, moduleSlug: "clientes" as ModuleSlug },
-  { to: "/financeiro", label: "Financeiro", icon: DollarSign, moduleSlug: "financeiro" as ModuleSlug },
-  { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" as ModuleSlug },
-  { to: "/arquivos", label: "Arquivos", icon: FolderArchive },
-  { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
-  { to: "/configuracoes", label: "Configurações", icon: Settings },
-] as const;
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  moduleSlug?: ModuleSlug;
+};
+type NavGroup = { section?: string; items: NavItem[] };
+
+// Financeiro segue existindo (rotas /financeiro/*), apenas oculto do menu.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    items: [
+      { to: "/hub", label: "Hub Central", icon: Sparkles, moduleSlug: "hub" },
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    section: "Comercial",
+    items: [
+      { to: "/pipeline", label: "Pipeline", icon: Filter },
+      { to: "/clientes", label: "Clientes", icon: Users, moduleSlug: "clientes" },
+      { to: "/atendimento", label: "Atendimento", icon: MessageSquare },
+    ],
+  },
+  {
+    section: "Operações",
+    items: [
+      { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" },
+      { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" },
+      { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" },
+      { to: "/arquivos", label: "Arquivos", icon: FolderArchive },
+    ],
+  },
+  {
+    section: "Gestão",
+    items: [{ to: "/relatorios", label: "Relatórios", icon: BarChart3 }],
+  },
+  {
+    section: "Administração",
+    items: [{ to: "/configuracoes", label: "Configurações", icon: Settings }],
+  },
+];
 
 function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -56,9 +85,68 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
     queryFn: () => listMods(),
     staleTime: 60_000,
   });
-  const items = isAdmin
-    ? [...NAV, { to: "/admin/usuarios" as const, label: "Usuários (Admin)", icon: Shield }]
-    : NAV;
+  const groups: NavGroup[] = NAV_GROUPS.map((g) =>
+    g.section === "Administração" && isAdmin
+      ? { ...g, items: [...g.items, { to: "/admin/usuarios", label: "Usuários (Admin)", icon: Shield }] }
+      : g,
+  );
+  return (
+    <TooltipProvider delayDuration={0}>
+      <nav className={`flex flex-col gap-1 ${collapsed ? "px-2" : "px-3"} py-2`}>
+        {groups.map((group, gi) => (
+          <div key={group.section ?? `g-${gi}`} className="flex flex-col gap-1">
+            {group.section &&
+              (collapsed ? (
+                <div className="mx-2 my-2 border-t" />
+              ) : (
+                <span className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {group.section}
+                </span>
+              ))}
+            {group.items.map((item) => {
+              const active = pathname === item.to || pathname.startsWith(item.to + "/");
+              const Icon = item.icon;
+              const slug = item.moduleSlug;
+              const row = slug ? modules?.find((r) => r.module_slug === slug) : undefined;
+              const disabled = slug && row ? !row.enabled : false;
+              const link = (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={`flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : disabled
+                        ? "text-muted-foreground/60 hover:bg-muted"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && (
+                    <span className="flex-1 flex items-center justify-between">
+                      {item.label}
+                      {disabled && <Lock className="h-3 w-3 opacity-60" />}
+                    </span>
+                  )}
+                </Link>
+              );
+              return collapsed ? (
+                <Tooltip key={item.to}>
+                  <TooltipTrigger asChild>{link}</TooltipTrigger>
+                  <TooltipContent side="right">{item.label}{disabled ? " (inativo)" : ""}</TooltipContent>
+                </Tooltip>
+              ) : (
+                link
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+    </TooltipProvider>
+  );
+}
+
   return (
     <TooltipProvider delayDuration={0}>
       <nav className={`flex flex-col gap-1 ${collapsed ? "px-2" : "px-3"} py-2`}>
