@@ -478,6 +478,7 @@ export type Database = {
           active: boolean
           call_count: number
           created_at: string
+          default_source: string | null
           default_stage_id: string | null
           direction: string
           id: string
@@ -493,6 +494,7 @@ export type Database = {
           active?: boolean
           call_count?: number
           created_at?: string
+          default_source?: string | null
           default_stage_id?: string | null
           direction?: string
           id?: string
@@ -508,6 +510,7 @@ export type Database = {
           active?: boolean
           call_count?: number
           created_at?: string
+          default_source?: string | null
           default_stage_id?: string | null
           direction?: string
           id?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.lead_webhooks ADD COLUMN IF NOT EXISTS default_source text;
