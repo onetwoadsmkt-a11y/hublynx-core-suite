@@ -81,6 +81,7 @@ export function LeadDrawer({
 
   const noteFn = useServerFn(addLeadNote);
 
+  const [emailOpen, setEmailOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [noteText, setNoteText] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
