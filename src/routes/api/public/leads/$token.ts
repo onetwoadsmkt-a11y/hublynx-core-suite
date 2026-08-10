@@ -42,17 +42,53 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           return new Response("Webhook not found", { status: 404 });
         }
 
-        let body: unknown;
+        // aceita JSON, form-urlencoded e multipart (formulários)
+        let raw: Record<string, unknown>;
         try {
-          body = await request.json();
+          const ct = request.headers.get("content-type") ?? "";
+          if (ct.includes("application/json")) {
+            raw = (await request.json()) as Record<string, unknown>;
+          } else {
+            const fd = await request.formData();
+            raw = Object.fromEntries(fd.entries());
+          }
         } catch {
-          return new Response("Invalid JSON", { status: 400 });
+          return new Response("Invalid body", { status: 400 });
         }
+
+        // normaliza nomes de campos comuns de formulários
+        const pick = (...keys: string[]) => {
+          for (const k of keys) {
+            const v = raw[k];
+            if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+          }
+          return undefined;
+        };
+        const body = {
+          name: pick("name", "nome", "full_name", "fullname", "nome_completo", "Nome"),
+          email: pick("email", "e-mail", "e_mail", "mail", "Email"),
+          phone: pick("phone", "telefone", "celular", "whatsapp", "Telefone"),
+          company: pick("company", "empresa"),
+          city: pick("city", "cidade"),
+          state: pick("state", "estado", "uf"),
+          source: pick("source", "origem") ?? "webhook",
+          value: pick("value", "valor"),
+          utm_source: pick("utm_source"),
+          utm_medium: pick("utm_medium"),
+          utm_campaign: pick("utm_campaign"),
+          utm_term: pick("utm_term"),
+          utm_content: pick("utm_content"),
+          gclid: pick("gclid"),
+          fbclid: pick("fbclid"),
+          landing_url: pick("landing_url", "page_url", "url"),
+          referrer: pick("referrer", "referer"),
+        };
 
         const parsed = payloadSchema.safeParse(body);
         if (!parsed.success) {
           return Response.json({ error: "Invalid payload", issues: parsed.error.issues }, { status: 422 });
         }
+
 
         let stageId = hook.default_stage_id;
         if (!stageId) {
