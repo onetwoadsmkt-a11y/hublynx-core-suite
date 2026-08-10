@@ -340,38 +340,33 @@ export function LeadDrawer({
                   <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <MessageSquare className="h-3.5 w-3.5" /> Notas
                   </p>
-                  <div className="mb-3 max-h-48 space-y-2 overflow-y-auto pr-1">
-                    {[...(data?.notes ?? [])].reverse().map((n) => (
-                      <div key={n.id} className="flex justify-end">
-                        <div className="max-w-[85%] rounded-2xl rounded-br-sm border bg-card px-3 py-2 shadow-sm">
-                          <p className="whitespace-pre-wrap text-sm">{n.body}</p>
-                          <p className="mt-1 text-right text-[10px] text-muted-foreground">{fmt(n.created_at)}</p>
-                        </div>
+                  <div className="flex flex-col gap-2 lg:flex-row">
+                    <Textarea
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      rows={2}
+                      placeholder="Registre o resumo da conversa com o lead..."
+                      className="flex-1"
+                    />
+                    <Button
+                      className="lg:self-end"
+                      disabled={!note.trim() || addNote.isPending}
+                      onClick={() => addNote.mutate()}
+                    >
+                      Adicionar nota
+                    </Button>
+                  </div>
+                  <div className="mt-3 flex max-h-32 gap-2 overflow-x-auto overflow-y-auto pb-1">
+                    {(data?.notes ?? []).map((n) => (
+                      <div key={n.id} className="min-w-[240px] max-w-[320px] shrink-0 rounded-lg border bg-card p-2.5">
+                        <p className="whitespace-pre-wrap text-xs">{n.body}</p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">{fmt(n.created_at)}</p>
                       </div>
                     ))}
                     {(data?.notes ?? []).length === 0 && (
                       <p className="text-xs text-muted-foreground">Nenhuma nota registrada.</p>
                     )}
                   </div>
-                  <div className="flex items-end gap-2">
-                    <Textarea
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      rows={1}
-                      placeholder="Escreva uma nota..."
-                      className="min-h-[42px] flex-1 resize-none"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey && note.trim()) {
-                          e.preventDefault();
-                          addNote.mutate();
-                        }
-                      }}
-                    />
-                    <Button disabled={!note.trim() || addNote.isPending} onClick={() => addNote.mutate()}>
-                      Enviar
-                    </Button>
-                  </div>
-
                 </div>
               </div>
 
