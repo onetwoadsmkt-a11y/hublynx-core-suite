@@ -1,4 +1,4 @@
-export type AgendaSource = "task" | "meeting" | "gcal";
+export type AgendaSource = "task" | "meeting" | "gcal" | "lead";
 
 export type AgendaEvent = {
   id: string;
@@ -8,6 +8,7 @@ export type AgendaEvent = {
   end: string | null; // ISO
   allDay: boolean;
   taskId?: string | null;
+  leadId?: string | null;
   clientId?: string | null;
   clientName?: string | null;
   projectId?: string | null;

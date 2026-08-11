@@ -468,11 +468,53 @@ export const upsertLeadTask = createServerFn({ method: "POST" })
         kind: z.enum(["tarefa", "reuniao", "call", "follow_up"]).default("tarefa"),
         notes: z.string().max(2000).nullable().optional(),
         due_at: z.string().nullable().optional(),
+        duration_minutes: z.number().int().min(10).max(480).default(30),
+        invite_lead: z.boolean().default(false),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("id, name, email")
+      .eq("id", data.leadId)
+      .maybeSingle();
+
+    let existingEventId: string | null = null;
+    if (data.id) {
+      const { data: prev } = await supabase
+        .from("lead_tasks")
+        .select("gcal_event_id")
+        .eq("id", data.id)
+        .maybeSingle();
+      existingEventId = (prev?.gcal_event_id as string | null) ?? null;
+    }
+
+    let gcalEventId: string | null = existingEventId;
+    let meetLink: string | null = null;
+    let syncError: string | null = null;
+
+    if (data.due_at) {
+      const { upsertLeadCalendarEvent } = await import("@/lib/google/lead-calendar.server");
+      const res = await upsertLeadCalendarEvent({
+        title: `[${lead?.name ?? "Lead"}] ${data.title}`,
+        kind: data.kind,
+        description: data.notes ?? null,
+        startISO: data.due_at,
+        durationMinutes: data.duration_minutes,
+        attendees: data.invite_lead && lead?.email ? [lead.email as string] : [],
+        withMeet: data.kind === "reuniao",
+        eventId: existingEventId,
+      });
+      if (res.error) syncError = res.error;
+      else {
+        gcalEventId = res.eventId ?? existingEventId;
+        meetLink = res.meetLink;
+      }
+    }
+
     const row = {
       lead_id: data.leadId,
       owner_id: userId,
@@ -480,12 +522,15 @@ export const upsertLeadTask = createServerFn({ method: "POST" })
       kind: data.kind,
       notes: data.notes ?? null,
       due_at: data.due_at || null,
+      duration_minutes: data.duration_minutes,
+      gcal_event_id: gcalEventId,
+      meet_link: meetLink,
     };
     const { error } = data.id
       ? await supabase.from("lead_tasks").update(row).eq("id", data.id)
       : await supabase.from("lead_tasks").insert(row);
     if (error) throw new Error(error.message);
-    return { ok: true as const };
+    return { ok: true as const, synced: !!gcalEventId, meetLink, syncError };
   });
 
 export const toggleLeadTask = createServerFn({ method: "POST" })
@@ -504,10 +549,20 @@ export const deleteLeadTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
+    const { data: prev } = await context.supabase
+      .from("lead_tasks")
+      .select("gcal_event_id")
+      .eq("id", data.id)
+      .maybeSingle();
     const { error } = await context.supabase.from("lead_tasks").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    if (prev?.gcal_event_id) {
+      const { deleteLeadCalendarEvent } = await import("@/lib/google/lead-calendar.server");
+      await deleteLeadCalendarEvent(prev.gcal_event_id as string);
+    }
     return { ok: true as const };
   });
+
 
 /* ---------------- Lead files ---------------- */
 
