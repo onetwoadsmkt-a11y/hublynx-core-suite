@@ -149,10 +149,10 @@ export function ClientDrawer({
       <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir lead?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação não pode ser desfeita. Projetos, tarefas e finanças vinculados
-              perderão a referência ao cliente.
+              perderão a referência ao lead.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

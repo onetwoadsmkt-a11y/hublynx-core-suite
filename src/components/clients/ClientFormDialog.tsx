@@ -142,7 +142,7 @@ export function ClientFormDialog({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="md:col-span-2">
                   <Label>Nome *</Label>
-                  <Input {...form.register("name")} placeholder="Nome do cliente" />
+                  <Input {...form.register("name")} placeholder="Nome do lead" />
                   {form.formState.errors.name && (
                     <p className="text-xs text-destructive mt-1">
                       {form.formState.errors.name.message}
