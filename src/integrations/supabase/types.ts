@@ -520,9 +520,12 @@ export type Database = {
           created_at: string
           done: boolean
           due_at: string | null
+          duration_minutes: number
+          gcal_event_id: string | null
           id: string
           kind: string
           lead_id: string
+          meet_link: string | null
           notes: string | null
           owner_id: string
           title: string
@@ -533,9 +536,12 @@ export type Database = {
           created_at?: string
           done?: boolean
           due_at?: string | null
+          duration_minutes?: number
+          gcal_event_id?: string | null
           id?: string
           kind?: string
           lead_id: string
+          meet_link?: string | null
           notes?: string | null
           owner_id: string
           title: string
@@ -546,9 +552,12 @@ export type Database = {
           created_at?: string
           done?: boolean
           due_at?: string | null
+          duration_minutes?: number
+          gcal_event_id?: string | null
           id?: string
           kind?: string
           lead_id?: string
+          meet_link?: string | null
           notes?: string | null
           owner_id?: string
           title?: string
