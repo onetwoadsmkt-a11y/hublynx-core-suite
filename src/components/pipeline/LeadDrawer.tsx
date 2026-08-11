@@ -112,10 +112,21 @@ export function LeadDrawer({
           title: taskTitle.trim(),
           kind: taskKind as "tarefa",
           due_at: taskDue ? new Date(taskDue).toISOString() : null,
+          duration_minutes: Number(taskDuration),
+          invite_lead: inviteLead,
         },
       }),
-    onSuccess: () => { setTaskTitle(""); setTaskDue(""); refresh(); },
+    onSuccess: (res: any) => {
+      setTaskTitle(""); setTaskDue("");
+      if (taskDue) {
+        if (res?.syncError) toast.error(`Salvo, mas o Google Agenda falhou: ${res.syncError}`);
+        else if (res?.synced) toast.success("Agendado e sincronizado com o Google Agenda.");
+      }
+      refresh();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao agendar"),
   });
+
 
   const addNote = useMutation({
     mutationFn: () => noteFn({ data: { leadId: lead!.id, body: noteText.trim() } }),
