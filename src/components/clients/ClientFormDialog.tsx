@@ -114,7 +114,7 @@ export function ClientFormDialog({
       return upsert({ data: payload });
     },
     onSuccess: () => {
-      toast.success(client ? "Cliente atualizado" : "Cliente cadastrado");
+      toast.success(client ? "Lead atualizado" : "Lead cadastrado");
       qc.invalidateQueries({ queryKey: ["clients"] });
       onOpenChange(false);
     },
@@ -127,7 +127,7 @@ export function ClientFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] p-0">
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle>{client ? "Editar cliente" : "Novo cliente"}</DialogTitle>
+          <DialogTitle>{client ? "Editar lead" : "Novo lead"}</DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[70vh] px-6">
           <form
@@ -142,7 +142,7 @@ export function ClientFormDialog({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="md:col-span-2">
                   <Label>Nome *</Label>
-                  <Input {...form.register("name")} placeholder="Nome do cliente" />
+                  <Input {...form.register("name")} placeholder="Nome do lead" />
                   {form.formState.errors.name && (
                     <p className="text-xs text-destructive mt-1">
                       {form.formState.errors.name.message}
@@ -220,11 +220,11 @@ export function ClientFormDialog({
             {client?.id && (
               <section className="space-y-3">
                 <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Projetos deste cliente
+                  Projetos deste lead
                 </h4>
                 {clientProjects.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Nenhum projeto vinculado a este cliente.
+                    Nenhum projeto vinculado a este lead.
                   </p>
                 ) : (
                   <div className="space-y-4">

@@ -53,7 +53,7 @@ const searchSchema = z.object({
 type ClientesSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_authenticated/clientes")({
-  head: () => ({ meta: [{ title: "Clientes — Hublynx Core" }] }),
+  head: () => ({ meta: [{ title: "LEADS — Hublynx Core" }] }),
   validateSearch: (s: Record<string, unknown>): Partial<ClientesSearch> => searchSchema.parse(s),
   component: ClientesPage,
 });
@@ -113,14 +113,14 @@ function ClientesPage() {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Users className="h-6 w-6" /> Clientes
+              <Users className="h-6 w-6" /> LEADS
             </h1>
             <p className="text-sm text-muted-foreground">
-              Cadastro e histórico de cada cliente.
+              Cadastro e histórico de cada lead.
             </p>
           </div>
           <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Novo cliente
+            <Plus className="h-4 w-4 mr-1" /> Novo lead
           </Button>
         </div>
 
@@ -154,18 +154,18 @@ function ClientesPage() {
         </div>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando clientes…</p>
+          <p className="text-sm text-muted-foreground">Carregando leads…</p>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 border-2 border-dashed rounded-lg">
             <Users className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
               {all.length === 0
-                ? "Nenhum cliente cadastrado ainda."
-                : "Nenhum cliente corresponde aos filtros."}
+                ? "Nenhum lead cadastrado ainda."
+                : "Nenhum lead corresponde aos filtros."}
             </p>
             {all.length === 0 && (
               <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Cadastrar primeiro cliente
+                <Plus className="h-4 w-4 mr-1" /> Cadastrar primeiro lead
               </Button>
             )}
           </div>
@@ -174,7 +174,7 @@ function ClientesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cliente</TableHead>
+                  <TableHead>Lead</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden md:table-cell">Contato</TableHead>
                   <TableHead className="text-right">Projetos</TableHead>

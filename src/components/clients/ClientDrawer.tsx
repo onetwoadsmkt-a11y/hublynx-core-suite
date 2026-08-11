@@ -45,7 +45,7 @@ export function ClientDrawer({
   const del = useMutation({
     mutationFn: (id: string) => delFn({ data: { id } }),
     onSuccess: () => {
-      toast.success("Cliente removido");
+      toast.success("Lead removido");
       qc.invalidateQueries({ queryKey: ["clients"] });
       onOpenChange(false);
       setConfirmDel(false);
@@ -149,10 +149,10 @@ export function ClientDrawer({
       <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir lead?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação não pode ser desfeita. Projetos, tarefas e finanças vinculados
-              perderão a referência ao cliente.
+              perderão a referência ao lead.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

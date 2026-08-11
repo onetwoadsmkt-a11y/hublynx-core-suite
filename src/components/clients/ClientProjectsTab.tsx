@@ -21,7 +21,7 @@ export function ClientProjectsTab({ clientId }: { clientId: string }) {
     return (
       <div className="text-center py-12 border-2 border-dashed rounded-lg">
         <FolderKanban className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-        <p className="text-sm text-muted-foreground">Nenhum projeto vinculado a este cliente.</p>
+        <p className="text-sm text-muted-foreground">Nenhum projeto vinculado a este lead.</p>
       </div>
     );
   }
