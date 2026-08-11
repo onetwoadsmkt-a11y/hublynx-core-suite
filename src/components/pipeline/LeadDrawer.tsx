@@ -283,13 +283,27 @@ export function LeadDrawer({
                           onChange={(e) => setTaskDue(e.target.value)}
                           className="w-[210px]"
                         />
+                        <Select value={taskDuration} onValueChange={setTaskDuration}>
+                          <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {["15", "30", "45", "60", "90", "120"].map((m) => (
+                              <SelectItem key={m} value={m}>{m} min</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <Button
                           disabled={!taskTitle.trim() || addTask.isPending}
                           onClick={() => addTask.mutate()}
                         >
-                          <Plus className="mr-1.5 h-4 w-4" /> Agendar
+                          <Plus className="mr-1.5 h-4 w-4" />
+                          {addTask.isPending ? "Agendando..." : "Agendar"}
                         </Button>
                       </div>
+
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox checked={inviteLead} onCheckedChange={(v) => setInviteLead(!!v)} />
+                        Convidar o lead por e-mail{lead.email ? ` (${lead.email})` : " (sem e-mail cadastrado)"} · sincroniza no Google Agenda
+                      </label>
 
                       <div className="space-y-2">
                         {tasks.map((t) => (
@@ -303,13 +317,28 @@ export function LeadDrawer({
                               <p className={t.done ? "text-sm line-through text-muted-foreground" : "text-sm font-medium"}>
                                 {t.title}
                               </p>
-                              <p className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                                 <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                                   {TASK_KINDS.find((k) => k.value === t.kind)?.label ?? t.kind}
                                 </Badge>
                                 {t.due_at && <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" />{fmt(t.due_at)}</span>}
+                                {(t as any).duration_minutes && <span>{(t as any).duration_minutes} min</span>}
+                                {(t as any).gcal_event_id && (
+                                  <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">Google Agenda</Badge>
+                                )}
+                                {(t as any).meet_link && (
+                                  <a
+                                    href={(t as any).meet_link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary underline"
+                                  >
+                                    Entrar no Meet
+                                  </a>
+                                )}
                               </p>
                             </div>
+
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeTask.mutate(t.id)}>
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
