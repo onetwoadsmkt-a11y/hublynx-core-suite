@@ -1,4 +1,4 @@
-export type AgendaSource = "task" | "meeting" | "gcal";
+export type AgendaSource = "task" | "meeting" | "gcal" | "lead";
 
 export type AgendaEvent = {
   id: string;
