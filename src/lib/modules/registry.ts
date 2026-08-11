@@ -68,9 +68,9 @@ export const MODULES: ModuleDef[] = [
   },
   {
     slug: "clientes",
-    name: "Hublynx Clientes",
-    shortName: "Clientes",
-    description: "Base de clientes e CRM.",
+    name: "Hublynx LEADS",
+    shortName: "LEADS",
+    description: "Base de leads e CRM.",
     route: "/clientes",
     scope: "/clientes/",
     manifest: "/manifests/clientes.webmanifest",

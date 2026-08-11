@@ -45,7 +45,7 @@ export function ClientDrawer({
   const del = useMutation({
     mutationFn: (id: string) => delFn({ data: { id } }),
     onSuccess: () => {
-      toast.success("Cliente removido");
+      toast.success("Lead removido");
       qc.invalidateQueries({ queryKey: ["clients"] });
       onOpenChange(false);
       setConfirmDel(false);

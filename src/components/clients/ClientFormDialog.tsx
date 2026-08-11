@@ -114,7 +114,7 @@ export function ClientFormDialog({
       return upsert({ data: payload });
     },
     onSuccess: () => {
-      toast.success(client ? "Cliente atualizado" : "Cliente cadastrado");
+      toast.success(client ? "Lead atualizado" : "Lead cadastrado");
       qc.invalidateQueries({ queryKey: ["clients"] });
       onOpenChange(false);
     },
@@ -127,7 +127,7 @@ export function ClientFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] p-0">
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle>{client ? "Editar cliente" : "Novo cliente"}</DialogTitle>
+          <DialogTitle>{client ? "Editar lead" : "Novo lead"}</DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[70vh] px-6">
           <form

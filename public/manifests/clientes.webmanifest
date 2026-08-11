@@ -1,8 +1,8 @@
 {
-  "name": "Hublynx Clientes",
-  "short_name": "Clientes",
+  "name": "Hublynx LEADS",
+  "short_name": "LEADS",
   "id": "hublynx-clientes",
-  "description": "CRM e base de clientes.",
+  "description": "CRM e base de leads.",
   "start_url": "/clientes",
   "scope": "/clientes/",
   "display": "standalone",
