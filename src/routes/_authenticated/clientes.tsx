@@ -113,14 +113,14 @@ function ClientesPage() {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Users className="h-6 w-6" /> Clientes
+              <Users className="h-6 w-6" /> LEADS
             </h1>
             <p className="text-sm text-muted-foreground">
-              Cadastro e histórico de cada cliente.
+              Cadastro e histórico de cada lead.
             </p>
           </div>
           <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Novo cliente
+            <Plus className="h-4 w-4 mr-1" /> Novo lead
           </Button>
         </div>
 
