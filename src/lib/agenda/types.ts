@@ -8,6 +8,7 @@ export type AgendaEvent = {
   end: string | null; // ISO
   allDay: boolean;
   taskId?: string | null;
+  leadId?: string | null;
   clientId?: string | null;
   clientName?: string | null;
   projectId?: string | null;
