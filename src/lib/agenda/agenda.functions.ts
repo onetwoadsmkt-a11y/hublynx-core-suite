@@ -82,7 +82,33 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
       });
     }
 
-    // Google Calendar (best-effort)
+    // Agendamentos de leads (pipeline)
+    const { data: leadTasks } = await supabase
+      .from("lead_tasks")
+      .select("id, title, kind, due_at, duration_minutes, meet_link, notes, lead_id, leads(name)")
+      .eq("owner_id", userId)
+      .not("due_at", "is", null)
+      .gte("due_at", fromISO)
+      .lte("due_at", toISO)
+      .limit(500);
+
+    for (const lt of leadTasks ?? []) {
+      const start = lt.due_at as string;
+      const mins = (lt.duration_minutes as number | null) ?? 30;
+      events.push({
+        id: `lead-${lt.id}`,
+        source: "lead",
+        title: `${(lt as any).leads?.name ? `${(lt as any).leads.name} — ` : ""}${lt.title as string}`,
+        start,
+        end: new Date(new Date(start).getTime() + mins * 60_000).toISOString(),
+        allDay: false,
+        leadId: (lt.lead_id as string) ?? null,
+        meetLink: (lt.meet_link as string | null) ?? null,
+        description: (lt.notes as string | null) ?? null,
+      });
+    }
+
+
     const lovableKey = process.env.LOVABLE_API_KEY;
     const calKey = process.env.GOOGLE_CALENDAR_API_KEY;
     if (lovableKey && calKey) {
