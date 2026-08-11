@@ -88,6 +88,8 @@ export function LeadDrawer({
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
   const [taskDue, setTaskDue] = useState("");
+  const [taskDuration, setTaskDuration] = useState("30");
+  const [inviteLead, setInviteLead] = useState(true);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
