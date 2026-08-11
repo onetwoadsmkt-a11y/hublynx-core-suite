@@ -53,7 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
     section: "Comercial",
     items: [
       { to: "/pipeline", label: "Pipeline", icon: Filter },
-      { to: "/clientes", label: "Clientes", icon: Users, moduleSlug: "clientes" },
+      { to: "/clientes", label: "LEADS", icon: Users, moduleSlug: "clientes" },
       { to: "/atendimento", label: "Atendimento", icon: MessageSquare },
     ],
   },
