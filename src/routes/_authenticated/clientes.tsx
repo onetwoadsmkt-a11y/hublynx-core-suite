@@ -154,18 +154,18 @@ function ClientesPage() {
         </div>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando clientes…</p>
+          <p className="text-sm text-muted-foreground">Carregando leads…</p>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 border-2 border-dashed rounded-lg">
             <Users className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
               {all.length === 0
-                ? "Nenhum cliente cadastrado ainda."
-                : "Nenhum cliente corresponde aos filtros."}
+                ? "Nenhum lead cadastrado ainda."
+                : "Nenhum lead corresponde aos filtros."}
             </p>
             {all.length === 0 && (
               <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Cadastrar primeiro cliente
+                <Plus className="h-4 w-4 mr-1" /> Cadastrar primeiro lead
               </Button>
             )}
           </div>
