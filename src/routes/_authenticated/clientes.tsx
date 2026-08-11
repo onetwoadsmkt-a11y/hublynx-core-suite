@@ -174,7 +174,7 @@ function ClientesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cliente</TableHead>
+                  <TableHead>Lead</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden md:table-cell">Contato</TableHead>
                   <TableHead className="text-right">Projetos</TableHead>
