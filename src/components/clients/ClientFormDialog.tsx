@@ -220,11 +220,11 @@ export function ClientFormDialog({
             {client?.id && (
               <section className="space-y-3">
                 <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Projetos deste cliente
+                  Projetos deste lead
                 </h4>
                 {clientProjects.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Nenhum projeto vinculado a este cliente.
+                    Nenhum projeto vinculado a este lead.
                   </p>
                 ) : (
                   <div className="space-y-4">
