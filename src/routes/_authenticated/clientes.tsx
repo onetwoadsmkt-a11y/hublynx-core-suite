@@ -53,7 +53,7 @@ const searchSchema = z.object({
 type ClientesSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_authenticated/clientes")({
-  head: () => ({ meta: [{ title: "Clientes — Hublynx Core" }] }),
+  head: () => ({ meta: [{ title: "LEADS — Hublynx Core" }] }),
   validateSearch: (s: Record<string, unknown>): Partial<ClientesSearch> => searchSchema.parse(s),
   component: ClientesPage,
 });
