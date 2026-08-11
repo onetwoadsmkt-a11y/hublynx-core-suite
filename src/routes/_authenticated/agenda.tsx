@@ -42,6 +42,7 @@ const SOURCE_META: Record<AgendaSource, { label: string; dot: string; bg: string
   task: { label: "Tarefa", dot: "bg-primary", bg: "bg-primary/10 text-primary", ring: "ring-primary/20" },
   meeting: { label: "Reunião", dot: "bg-emerald-500", bg: "bg-emerald-500/10 text-emerald-700", ring: "ring-emerald-500/20" },
   gcal: { label: "Google", dot: "bg-blue-500", bg: "bg-blue-500/10 text-blue-700", ring: "ring-blue-500/20" },
+  lead: { label: "Lead", dot: "bg-amber-500", bg: "bg-amber-500/10 text-amber-700", ring: "ring-amber-500/20" },
 };
 
 // ───────── helpers de data ─────────
