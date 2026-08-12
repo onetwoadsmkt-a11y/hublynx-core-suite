@@ -253,6 +253,13 @@ export function WebhooksDialog({
                 </div>
                 <div className="mt-2">
                   <CopyField value={url} />
+                  {h.direction === "inbound" && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      No Make use <strong>HTTP → Make a request</strong>: método <strong>POST</strong>, Body type{" "}
+                      <strong>Raw</strong>, Content type <strong>JSON</strong>. Esta é a URL pública de produção —
+                      funciona mesmo com o editor aberto no preview.
+                    </p>
+                  )}
                 </div>
                 {h.direction === "inbound" && (
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
