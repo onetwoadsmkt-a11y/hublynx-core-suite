@@ -19,6 +19,16 @@ import {
 import { WebhookFieldMapper } from "./WebhookFieldMapper";
 import type { PipelineStage } from "./types";
 
+/** URL pública acessível por serviços externos (o preview do editor bloqueia POSTs externos). */
+const PRODUCTION_BASE = "https://core.hublynx.com.br";
+
+function publicBaseUrl() {
+  if (typeof window === "undefined") return PRODUCTION_BASE;
+  const host = window.location.hostname;
+  const isPreview = host.includes("id-preview--") || host.endsWith(".lovableproject.com") || host === "localhost";
+  return isPreview ? PRODUCTION_BASE : window.location.origin;
+}
+
 function CopyField({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
