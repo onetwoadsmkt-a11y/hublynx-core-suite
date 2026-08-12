@@ -333,6 +333,26 @@ export const listWebhooks = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
+/** Todas as etapas de todos os pipelines (para escolher o destino de um webhook). */
+export const listAllStages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data: pipes } = await supabase.from("pipelines").select("id, name, position").order("position");
+    const { data: stages, error } = await supabase
+      .from("pipeline_stages")
+      .select("id, name, pipeline_id, position")
+      .order("position");
+    if (error) throw new Error(error.message);
+    const byId = new Map((pipes ?? []).map((p) => [p.id, p.name]));
+    return (stages ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      pipeline_id: s.pipeline_id,
+      pipeline_name: s.pipeline_id ? byId.get(s.pipeline_id) ?? "Sem pipeline" : "Sem pipeline",
+    }));
+  });
+
 export const createWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
