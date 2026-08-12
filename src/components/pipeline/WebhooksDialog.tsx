@@ -98,7 +98,7 @@ export function WebhooksDialog({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const origin = publicBaseUrl();
   const list = (hooks ?? []).filter((h) => h.direction === tab);
 
   const isValidMakeUrl = /^https?:\/\/.+/i.test(targetUrl.trim());
