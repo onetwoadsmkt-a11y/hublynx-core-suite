@@ -77,14 +77,34 @@ export const Route = createFileRoute("/api/public/leads/$token")({
         }
 
         let stageId = hook.default_stage_id;
-        if (!stageId) {
-          const { data: firstStage } = await supabaseAdmin
+        if (stageId) {
+          // garante que a etapa configurada ainda existe e pertence ao dono do webhook
+          const { data: target } = await supabaseAdmin
             .from("pipeline_stages")
+            .select("id")
+            .eq("id", stageId)
+            .eq("owner_id", hook.owner_id)
+            .maybeSingle();
+          if (!target) stageId = null;
+        }
+        if (!stageId) {
+          const { data: firstPipeline } = await supabaseAdmin
+            .from("pipelines")
             .select("id")
             .eq("owner_id", hook.owner_id)
             .order("position")
             .limit(1)
             .maybeSingle();
+          const query = supabaseAdmin
+            .from("pipeline_stages")
+            .select("id")
+            .eq("owner_id", hook.owner_id)
+            .order("position")
+            .limit(1);
+          const { data: firstStage } = await (firstPipeline
+            ? query.eq("pipeline_id", firstPipeline.id)
+            : query
+          ).maybeSingle();
           stageId = firstStage?.id ?? null;
         }
 

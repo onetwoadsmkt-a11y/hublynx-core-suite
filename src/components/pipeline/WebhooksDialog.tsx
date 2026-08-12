@@ -197,7 +197,7 @@ export function WebhooksDialog({
               <Button
                 className="mt-3"
                 size="sm"
-                disabled={!name.trim() || create.isPending}
+                disabled={!name.trim() || !stageId || create.isPending}
                 onClick={() => create.mutate("inbound")}
               >
                 <Plus className="mr-1.5 h-4 w-4" /> Gerar URL de recebimento
