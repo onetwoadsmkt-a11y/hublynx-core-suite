@@ -19,6 +19,16 @@ import {
 import { WebhookFieldMapper } from "./WebhookFieldMapper";
 import type { PipelineStage } from "./types";
 
+/** URL pública acessível por serviços externos (o preview do editor bloqueia POSTs externos). */
+const PRODUCTION_BASE = "https://core.hublynx.com.br";
+
+function publicBaseUrl() {
+  if (typeof window === "undefined") return PRODUCTION_BASE;
+  const host = window.location.hostname;
+  const isPreview = host.includes("id-preview--") || host.endsWith(".lovableproject.com") || host === "localhost";
+  return isPreview ? PRODUCTION_BASE : window.location.origin;
+}
+
 function CopyField({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -98,7 +108,7 @@ export function WebhooksDialog({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const origin = publicBaseUrl();
   const list = (hooks ?? []).filter((h) => h.direction === tab);
 
   const isValidMakeUrl = /^https?:\/\/.+/i.test(targetUrl.trim());
@@ -243,6 +253,13 @@ export function WebhooksDialog({
                 </div>
                 <div className="mt-2">
                   <CopyField value={url} />
+                  {h.direction === "inbound" && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      No Make use <strong>HTTP → Make a request</strong>: método <strong>POST</strong>, Body type{" "}
+                      <strong>Raw</strong>, Content type <strong>JSON</strong>. Esta é a URL pública de produção —
+                      funciona mesmo com o editor aberto no preview.
+                    </p>
+                  )}
                 </div>
                 {h.direction === "inbound" && (
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -287,6 +304,9 @@ export function WebhooksDialog({
                     : "Recebe eventos de criação e mudança de etapa dos leads."}
                   {" · "}
                   {h.call_count} chamadas
+                  {h.last_called_at
+                    ? ` · último: ${new Date(h.last_called_at).toLocaleString("pt-BR")}`
+                    : " · nenhuma recebida ainda"}
                 </p>
               </div>
             );

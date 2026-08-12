@@ -1,0 +1,1 @@
+delete from public.leads where id in ('cb316508-fee0-493e-b0c7-af0b2fbf12d9','292bf8c2-5bc9-4a16-84f4-cec99d740de3','cec4ced6-18f4-484a-b09d-fd0fd3582842');
