@@ -12,9 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  createWebhook, deleteWebhook, listWebhooks, toggleWebhook, updateWebhook,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  createWebhook, deleteWebhook, listAllStages, listWebhooks, toggleWebhook, updateWebhook,
 } from "@/lib/pipeline/pipeline.functions";
 import { WebhookFieldMapper } from "./WebhookFieldMapper";
 import type { PipelineStage } from "./types";
@@ -66,11 +68,30 @@ export function WebhooksDialog({
   const toggleFn = useServerFn(toggleWebhook);
   const delFn = useServerFn(deleteWebhook);
   const updateFn = useServerFn(updateWebhook);
+  const allStagesFn = useServerFn(listAllStages);
+
+  const { data: allStages } = useQuery({
+    queryKey: ["pipeline-all-stages"],
+    queryFn: () => allStagesFn(),
+    enabled: open,
+  });
+
+  const stageOptions = (allStages ?? []).length
+    ? (allStages ?? [])
+    : stages.map((s) => ({ id: s.id, name: s.name, pipeline_id: null as string | null, pipeline_name: "Pipeline" }));
+
+  const stageGroups = Array.from(
+    stageOptions.reduce((m, s) => {
+      const k = s.pipeline_name;
+      m.set(k, [...(m.get(k) ?? []), s]);
+      return m;
+    }, new Map<string, typeof stageOptions>()),
+  );
 
   const [tab, setTab] = useState<"inbound" | "outbound">("inbound");
   const [name, setName] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
-  const [stageId, setStageId] = useState<string>(stages[0]?.id ?? "");
+  const [stageId, setStageId] = useState<string>("");
   const [source, setSource] = useState("");
 
   const { data: hooks } = useQuery({
@@ -146,7 +167,12 @@ export function WebhooksDialog({
                   <Select value={stageId} onValueChange={setStageId}>
                     <SelectTrigger><SelectValue placeholder="Etapa" /></SelectTrigger>
                     <SelectContent>
-                      {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      {stageGroups.map(([pipe, items]) => (
+                        <SelectGroup key={pipe}>
+                          <SelectLabel>{pipe}</SelectLabel>
+                          {items.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        </SelectGroup>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -269,11 +295,21 @@ export function WebhooksDialog({
                         value={h.default_stage_id ?? ""}
                         onValueChange={(v) => patch.mutate({ id: h.id, default_stage_id: v })}
                       >
-                        <SelectTrigger className="h-8"><SelectValue placeholder="Primeira etapa" /></SelectTrigger>
+                        <SelectTrigger className="h-8"><SelectValue placeholder="Escolha a etapa" /></SelectTrigger>
                         <SelectContent>
-                          {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                          {stageGroups.map(([pipe, items]) => (
+                            <SelectGroup key={pipe}>
+                              <SelectLabel>{pipe}</SelectLabel>
+                              {items.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                            </SelectGroup>
+                          ))}
                         </SelectContent>
                       </Select>
+                      {!h.default_stage_id && (
+                        <p className="mt-1 text-[11px] text-destructive">
+                          Sem etapa definida — os leads caem na primeira etapa do primeiro pipeline.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-[11px]">Fonte do lead</Label>
