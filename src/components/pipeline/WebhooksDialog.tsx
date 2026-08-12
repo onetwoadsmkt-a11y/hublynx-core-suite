@@ -304,6 +304,9 @@ export function WebhooksDialog({
                     : "Recebe eventos de criação e mudança de etapa dos leads."}
                   {" · "}
                   {h.call_count} chamadas
+                  {h.last_called_at
+                    ? ` · último: ${new Date(h.last_called_at).toLocaleString("pt-BR")}`
+                    : " · nenhuma recebida ainda"}
                 </p>
               </div>
             );
