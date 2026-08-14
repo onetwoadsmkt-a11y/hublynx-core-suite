@@ -305,15 +305,17 @@ function LeadsPage() {
         stages={stages}
         lead={editing}
       />
-      <LeadDrawer
+      <LeadViewDialog
         lead={viewing}
-        stages={viewingStages}
-        onOpenChange={(o) => !o && setParam("view", undefined as never)}
-        onEdit={(l) => {
+        stage={viewingStage}
+        pipelineName={viewingPipeline}
+        onOpenChange={(o: boolean) => !o && setParam("view", undefined as never)}
+        onEdit={(l: Lead) => {
           setParam("view", undefined as never);
           setEditing(l);
         }}
       />
+
     </>
   );
 }
