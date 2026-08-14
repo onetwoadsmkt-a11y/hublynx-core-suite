@@ -621,3 +621,22 @@ export const deleteLeadFile = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
+/* ---------------- Lista de leads (todos os pipelines) ---------------- */
+
+export const listAllLeads = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const [{ data: pipelines }, { data: stages }, { data: leads, error }] = await Promise.all([
+      supabase.from("pipelines").select("*").order("position"),
+      supabase.from("pipeline_stages").select("*").order("position"),
+      supabase.from("leads").select("*").order("created_at", { ascending: false }),
+    ]);
+    if (error) throw new Error(error.message);
+    return {
+      pipelines: pipelines ?? [],
+      stages: stages ?? [],
+      leads: leads ?? [],
+    };
+  });
