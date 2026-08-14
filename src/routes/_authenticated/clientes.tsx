@@ -14,11 +14,13 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Users, Pencil, Eye } from "lucide-react";
+import { Plus, Search, Users, Pencil, Eye, FileSpreadsheet } from "lucide-react";
 import { listAllLeads } from "@/lib/pipeline/pipeline.functions";
-import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
+import { LeadViewDialog } from "@/components/pipeline/LeadViewDialog";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
+import { exportLeadsToExcel } from "@/lib/pipeline/export-leads";
 import type { Lead } from "@/components/pipeline/types";
+
 
 function initials(name: string) {
   return (
@@ -121,10 +123,11 @@ function LeadsPage() {
     [all, search.view],
   );
 
-  const viewingStages = useMemo(() => {
-    const pid = viewing?.stage_id ? stageById.get(viewing.stage_id)?.pipeline_id : null;
-    return pid ? stages.filter((s) => s.pipeline_id === pid) : stages;
-  }, [viewing, stages, stageById]);
+  const viewingStage = viewing?.stage_id ? stageById.get(viewing.stage_id) : undefined;
+  const viewingPipeline = viewingStage?.pipeline_id
+    ? pipelineById.get(viewingStage.pipeline_id)?.name
+    : undefined;
+
 
   function setParam<K extends keyof LeadsSearch>(key: K, value: LeadsSearch[K]) {
     navigate({ to: "/clientes", search: (prev: Partial<LeadsSearch>) => ({ ...prev, [key]: value }) });
@@ -144,9 +147,25 @@ function LeadsPage() {
               Todos os leads do pipeline de vendas — {filtered.length} lead(s) · {currency(total)}
             </p>
           </div>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Novo lead
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={filtered.length === 0}
+              onClick={() =>
+                exportLeadsToExcel(
+                  filtered,
+                  stageById,
+                  new Map(pipelines.map((p) => [p.id, p.name])),
+                )
+              }
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-1" /> Exportar Excel
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Novo lead
+            </Button>
+          </div>
+
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
@@ -302,15 +321,17 @@ function LeadsPage() {
         stages={stages}
         lead={editing}
       />
-      <LeadDrawer
+      <LeadViewDialog
         lead={viewing}
-        stages={viewingStages}
-        onOpenChange={(o) => !o && setParam("view", undefined as never)}
-        onEdit={(l) => {
+        stage={viewingStage}
+        pipelineName={viewingPipeline}
+        onOpenChange={(o: boolean) => !o && setParam("view", undefined as never)}
+        onEdit={(l: Lead) => {
           setParam("view", undefined as never);
           setEditing(l);
         }}
       />
+
     </>
   );
 }
