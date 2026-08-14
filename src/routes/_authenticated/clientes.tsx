@@ -123,10 +123,11 @@ function LeadsPage() {
     [all, search.view],
   );
 
-  const viewingStages = useMemo(() => {
-    const pid = viewing?.stage_id ? stageById.get(viewing.stage_id)?.pipeline_id : null;
-    return pid ? stages.filter((s) => s.pipeline_id === pid) : stages;
-  }, [viewing, stages, stageById]);
+  const viewingStage = viewing?.stage_id ? stageById.get(viewing.stage_id) : undefined;
+  const viewingPipeline = viewingStage?.pipeline_id
+    ? pipelineById.get(viewingStage.pipeline_id)?.name
+    : undefined;
+
 
   function setParam<K extends keyof LeadsSearch>(key: K, value: LeadsSearch[K]) {
     navigate({ to: "/clientes", search: (prev: Partial<LeadsSearch>) => ({ ...prev, [key]: value }) });
