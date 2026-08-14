@@ -367,6 +367,42 @@ export type Database = {
           },
         ]
       }
+      google_oauth_logs: {
+        Row: {
+          account_email: string | null
+          action: string
+          connector_id: string
+          created_at: string
+          id: string
+          message: string | null
+          meta: Json
+          status: string
+          user_id: string
+        }
+        Insert: {
+          account_email?: string | null
+          action: string
+          connector_id: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          meta?: Json
+          status: string
+          user_id: string
+        }
+        Update: {
+          account_email?: string | null
+          action?: string
+          connector_id?: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          meta?: Json
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       google_sheets_sync: {
         Row: {
           created_at: string
