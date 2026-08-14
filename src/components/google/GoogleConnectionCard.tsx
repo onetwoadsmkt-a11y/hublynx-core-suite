@@ -113,7 +113,7 @@ export function GoogleConnectionCard() {
       toast.success("Conta Google conectada.");
       await refresh();
     } catch (e) {
-      popup.close();
+      popup?.close();
       toast.error((e as Error).message);
     } finally {
       setB(connectorId, {});
