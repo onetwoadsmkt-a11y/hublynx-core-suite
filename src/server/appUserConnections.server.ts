@@ -76,3 +76,65 @@ export async function setConnectionEmail(
     .eq("user_id", userId)
     .eq("connector_id", connectorId);
 }
+
+export type OAuthLogAction = "connect_start" | "connect_complete" | "test" | "disconnect";
+
+/** Registra um evento de OAuth do usuário (nunca guarda segredos). */
+export async function logOAuthEvent(entry: {
+  userId: string;
+  connectorId: string;
+  action: OAuthLogAction;
+  status: "success" | "error";
+  message?: string | null;
+  accountEmail?: string | null;
+  meta?: Record<string, unknown>;
+}) {
+  try {
+    const db = await admin();
+    await db.from("google_oauth_logs").insert({
+      user_id: entry.userId,
+      connector_id: entry.connectorId,
+      action: entry.action,
+      status: entry.status,
+      message: entry.message ? String(entry.message).slice(0, 500) : null,
+      account_email: entry.accountEmail ?? null,
+      meta: entry.meta ?? {},
+    });
+  } catch {
+    // logging nunca deve quebrar o fluxo
+  }
+}
+
+export async function listOAuthLogs(params: {
+  userId: string;
+  isAdmin: boolean;
+  scopeUserId?: string | null;
+  limit?: number;
+}) {
+  const db = await admin();
+  let q = db
+    .from("google_oauth_logs")
+    .select("id, user_id, connector_id, action, status, message, account_email, created_at")
+    .order("created_at", { ascending: false })
+    .limit(params.limit ?? 200);
+  if (!params.isAdmin) q = q.eq("user_id", params.userId);
+  else if (params.scopeUserId) q = q.eq("user_id", params.scopeUserId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as Array<{
+    id: string;
+    user_id: string;
+    connector_id: string;
+    action: string;
+    status: string;
+    message: string | null;
+    account_email: string | null;
+    created_at: string;
+  }>;
+}
+
+export async function listProfilesBasic() {
+  const db = await admin();
+  const { data } = await db.from("profiles").select("id, full_name");
+  return (data ?? []) as Array<{ id: string; full_name: string | null }>;
+}
