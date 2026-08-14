@@ -104,6 +104,7 @@ export const startGoogleAppUserConnect = createServerFn({ method: "POST" })
       existing = null;
     }
 
+    const { logOAuthEvent } = await import("@/server/appUserConnections.server");
     const { authorizationUrl } = await authorizeAppUserOAuth({
       gatewayBaseUrl: GATEWAY_BASE_URL,
       connectorId,
@@ -112,6 +113,13 @@ export const startGoogleAppUserConnect = createServerFn({ method: "POST" })
       returnUrl,
       connectionAPIKey: existing ?? undefined,
       credentialsConfiguration: { scopes: SCOPES[connectorId] },
+    });
+    await logOAuthEvent({
+      userId: context.userId,
+      connectorId,
+      action: "connect_start",
+      status: "success",
+      message: "Consentimento OAuth iniciado",
     });
     return { authorizationUrl };
   });
@@ -149,6 +157,15 @@ export const completeGoogleAppUserConnect = createServerFn({ method: "POST" })
     }
 
     await saveConnectionKeyForUser(context.userId, connectorId, connectionAPIKey, email);
+    const { logOAuthEvent } = await import("@/server/appUserConnections.server");
+    await logOAuthEvent({
+      userId: context.userId,
+      connectorId,
+      action: "connect_complete",
+      status: "success",
+      message: "Conta conectada com sucesso",
+      accountEmail: email,
+    });
     return { ok: true, connectorId };
   });
 
@@ -158,12 +175,19 @@ export const testMyGoogleConnection = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => connectorSchema.parse(d))
   .handler(async ({ data, context }) => {
     const connectorId = data.connectorId as GoogleConnectorId;
-    const { getConnectionKeyForUser, setConnectionEmail } = await import(
+    const { getConnectionKeyForUser, setConnectionEmail, logOAuthEvent } = await import(
       "@/server/appUserConnections.server"
     );
     const { callAsAppUser } = await import("@/integrations/lovable/appUserConnector");
     const connectionAPIKey = await getConnectionKeyForUser(context.userId, connectorId);
     if (!connectionAPIKey) {
+      await logOAuthEvent({
+        userId: context.userId,
+        connectorId,
+        action: "test",
+        status: "error",
+        message: "Conta não conectada.",
+      });
       return { ok: false as const, message: "Conta não conectada." };
     }
     try {
@@ -175,18 +199,39 @@ export const testMyGoogleConnection = createServerFn({ method: "POST" })
       });
       const json: any = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return {
-          ok: false as const,
-          message: `Erro ${res.status}: ${json?.error?.message ?? "falha na chamada ao Google"}`,
-        };
+        const message = `Erro ${res.status}: ${json?.error?.message ?? "falha na chamada ao Google"}`;
+        await logOAuthEvent({
+          userId: context.userId,
+          connectorId,
+          action: "test",
+          status: "error",
+          message,
+        });
+        return { ok: false as const, message };
       }
       const detail =
         json?.emailAddress ?? json?.user?.emailAddress ?? json?.items?.[0]?.summary ?? null;
       if (typeof detail === "string" && detail.includes("@")) {
         await setConnectionEmail(context.userId, connectorId, detail);
       }
-      return { ok: true as const, message: detail ? `Conexão OK — ${detail}` : "Conexão OK" };
+      const okMessage = detail ? `Conexão OK — ${detail}` : "Conexão OK";
+      await logOAuthEvent({
+        userId: context.userId,
+        connectorId,
+        action: "test",
+        status: "success",
+        message: okMessage,
+        accountEmail: typeof detail === "string" && detail.includes("@") ? detail : null,
+      });
+      return { ok: true as const, message: okMessage };
     } catch (e) {
+      await logOAuthEvent({
+        userId: context.userId,
+        connectorId,
+        action: "test",
+        status: "error",
+        message: (e as Error).message,
+      });
       return { ok: false as const, message: (e as Error).message };
     }
   });
@@ -197,7 +242,7 @@ export const disconnectMyGoogleConnection = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => connectorSchema.parse(d))
   .handler(async ({ data, context }) => {
     const connectorId = data.connectorId as GoogleConnectorId;
-    const { getConnectionKeyForUser, deleteConnectionForUser } = await import(
+    const { getConnectionKeyForUser, deleteConnectionForUser, logOAuthEvent } = await import(
       "@/server/appUserConnections.server"
     );
     const { disconnectAppUser } = await import("@/integrations/lovable/appUserConnector");
@@ -214,5 +259,38 @@ export const disconnectMyGoogleConnection = createServerFn({ method: "POST" })
       }
     }
     await deleteConnectionForUser(context.userId, connectorId);
+    await logOAuthEvent({
+      userId: context.userId,
+      connectorId,
+      action: "disconnect",
+      status: "success",
+      message: "Conta desconectada",
+    });
     return { ok: true };
+  });
+
+/** Histórico de eventos OAuth do usuário (admins veem de todos). */
+export const listGoogleOAuthLogs = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ userId: z.string().uuid().nullish() }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { listOAuthLogs, listProfilesBasic } = await import(
+      "@/server/appUserConnections.server"
+    );
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    const isAdmin = !!roleRow;
+    const logs = await listOAuthLogs({
+      userId: context.userId,
+      isAdmin,
+      scopeUserId: data?.userId ?? null,
+    });
+    const users = isAdmin ? await listProfilesBasic() : [];
+    return { isAdmin, logs, users };
   });
