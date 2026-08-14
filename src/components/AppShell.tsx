@@ -68,8 +68,12 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     section: "Gestão",
-    items: [{ to: "/relatorios", label: "Relatórios", icon: BarChart3 }],
+    items: [
+      { to: "/gestao/clientes", label: "Clientes", icon: Building2 },
+      { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
+    ],
   },
+
   {
     section: "Administração",
     items: [{ to: "/configuracoes", label: "Configurações", icon: Settings }],
