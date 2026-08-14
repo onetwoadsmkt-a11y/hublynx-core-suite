@@ -23,6 +23,7 @@ import {
   PlugZap,
   LinkIcon,
   Unlink,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -79,6 +80,18 @@ export function GoogleConnectionCard() {
     queryKey: ["my-google-connections"],
     queryFn: () => listFn(),
   });
+
+  const [checking, setChecking] = useState(false);
+
+  async function recheck() {
+    setChecking(true);
+    try {
+      await qc.refetchQueries({ queryKey: ["my-google-connections"] });
+      toast.success("Status das integrações atualizado.");
+    } finally {
+      setChecking(false);
+    }
+  }
 
   const setB = (id: GoogleConnectorId, v: Busy) => setBusy((s) => ({ ...s, [id]: v }));
   const refresh = () => qc.invalidateQueries({ queryKey: ["my-google-connections"] });
@@ -186,7 +199,7 @@ export function GoogleConnectionCard() {
                   <Button
                     size="sm"
                     onClick={() => connect(id)}
-                    disabled={b.connecting || !s.clientConfigured}
+                    disabled={b.connecting}
                   >
                     {b.connecting ? (
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -221,8 +234,8 @@ export function GoogleConnectionCard() {
                   )}
                 </div>
                 {!s.clientConfigured && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Aguardando configuração do cliente OAuth pelo administrador.
+                  <p className="mt-2 text-xs text-amber-600">
+                    Cliente OAuth pendente — você ainda pode tentar conectar.
                   </p>
                 )}
                 {r && (
@@ -237,14 +250,54 @@ export function GoogleConnectionCard() {
             );
           })}
         </div>
-        <div className="flex items-start gap-2 rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            {pendingSetup
-              ? "A autorização por usuário ainda depende do cadastro do cliente OAuth do Google no workspace. Assim que ele for criado, os botões “Conectar” ficam ativos."
-              : "Ao clicar em “Conectar”, uma janela do Google abre para você autorizar sua conta. A autorização vale apenas para o seu usuário."}
-          </p>
-        </div>
+        {pendingSetup ? (
+          <div className="space-y-2 rounded-lg border border-dashed bg-muted/30 p-3 text-sm">
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                O cliente OAuth do Google do workspace ainda não foi aprovado. Os botões
+                “Conectar” continuam liberados: se ainda não estiver pronto, o Google exibirá
+                uma mensagem e você pode tentar de novo depois da aprovação.
+              </p>
+            </div>
+            <div className="rounded-md bg-background p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Passo a passo do administrador</p>
+              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                <li>Criar um OAuth Web Client no Google Cloud.</li>
+                <li>
+                  Adicionar o redirect{" "}
+                  <code className="break-all">
+                    https://connector-gateway.lovable.dev/api/v1/app-users/oauth2/callback
+                  </code>
+                </li>
+                <li>Aprovar/registrar o cliente no workspace (um cliente atende os 4 serviços).</li>
+              </ol>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => void recheck()}>
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />
+                Verificar novamente
+              </Button>
+              <Button size="sm" variant="ghost" asChild>
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Abrir Google Cloud
+                </a>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Ao clicar em “Conectar”, uma janela do Google abre para você autorizar sua conta. A
+              autorização vale apenas para o seu usuário.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
