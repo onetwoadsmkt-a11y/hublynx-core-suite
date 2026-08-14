@@ -41,6 +41,13 @@ const CLIENT_KEY_ENV: Record<GoogleConnectorId, string> = {
   google_sheets: "GOOGLE_SHEETS_APP_USER_CONNECTOR_CLIENT_API_KEY",
 };
 
+/** Fallback: um único cliente OAuth compartilhado pode atender os 4 serviços. */
+const SHARED_CLIENT_KEY_ENV = "GOOGLE_APP_USER_CONNECTOR_CLIENT_API_KEY";
+
+function resolveClientKey(connectorId: GoogleConnectorId): string | undefined {
+  return process.env[CLIENT_KEY_ENV[connectorId]] || process.env[SHARED_CLIENT_KEY_ENV];
+}
+
 const PROBE: Record<GoogleConnectorId, string> = {
   google_mail: "/gmail/v1/users/me/profile",
   google_calendar: "/calendar/v3/users/me/calendarList?maxResults=1",
@@ -64,7 +71,7 @@ export const getMyGoogleConnections = createServerFn({ method: "GET" })
       return {
         connectorId: s.connectorId,
         label: s.label,
-        clientConfigured: !!process.env[CLIENT_KEY_ENV[s.connectorId]],
+        clientConfigured: !!resolveClientKey(s.connectorId),
         connected: !!row,
         email: row?.account_email ?? null,
         updatedAt: row?.updated_at ?? null,
@@ -78,10 +85,10 @@ export const startGoogleAppUserConnect = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => connectorSchema.parse(d))
   .handler(async ({ data, context }) => {
     const connectorId = data.connectorId as GoogleConnectorId;
-    const clientAPIKey = process.env[CLIENT_KEY_ENV[connectorId]];
+    const clientAPIKey = resolveClientKey(connectorId);
     if (!clientAPIKey) {
       throw new Error(
-        `Integração ainda não habilitada: falta configurar o cliente OAuth do Google (${CLIENT_KEY_ENV[connectorId]}).`,
+        `Cliente OAuth do Google ainda não aprovado no workspace. Peça ao administrador para criar/aprovar o cliente (${CLIENT_KEY_ENV[connectorId]} ou ${SHARED_CLIENT_KEY_ENV}) e clique em "Verificar novamente".`,
       );
     }
     const request = getRequest();
