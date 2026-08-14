@@ -40,13 +40,13 @@ import { Route as AuthenticatedFinanceiroDreRouteImport } from './routes/_authen
 import { Route as AuthenticatedFinanceiroCategoriasRouteImport } from './routes/_authenticated/financeiro.categorias'
 import { Route as AuthenticatedFinanceiroCalendarioRouteImport } from './routes/_authenticated/financeiro.calendario'
 import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
-import { Route as AuthenticatedConfiguracoesIntegracoesRouteImport } from './routes/_authenticated/configuracoes.integracoes'
 import { Route as AuthenticatedAppTarefasRouteImport } from './routes/_authenticated/app.tarefas'
 import { Route as AuthenticatedAppProjetosRouteImport } from './routes/_authenticated/app.projetos'
 import { Route as AuthenticatedAppMaisRouteImport } from './routes/_authenticated/app.mais'
 import { Route as AuthenticatedAppLembretesRouteImport } from './routes/_authenticated/app.lembretes'
 import { Route as AuthenticatedAppHojeRouteImport } from './routes/_authenticated/app.hoje'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
+import { Route as AuthenticatedConfiguracoesIntegracoesIndexRouteImport } from './routes/_authenticated/configuracoes.integracoes.index'
 import { Route as ApiPublicLeadsTokenRouteImport } from './routes/api/public/leads/$token'
 import { Route as ApiPublicHooksRunRemindersRouteImport } from './routes/api/public/hooks/run-reminders'
 import { Route as AuthenticatedConfiguracoesIntegracoesLogsRouteImport } from './routes/_authenticated/configuracoes.integracoes.logs'
@@ -220,12 +220,6 @@ const AuthenticatedConfiguracoesModulosRoute =
     path: '/modulos',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
-const AuthenticatedConfiguracoesIntegracoesRoute =
-  AuthenticatedConfiguracoesIntegracoesRouteImport.update({
-    id: '/integracoes',
-    path: '/integracoes',
-    getParentRoute: () => AuthenticatedConfiguracoesRoute,
-  } as any)
 const AuthenticatedAppTarefasRoute = AuthenticatedAppTarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
@@ -259,6 +253,12 @@ const AuthenticatedAdminUsuariosRoute =
     path: '/admin/usuarios',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedConfiguracoesIntegracoesIndexRoute =
+  AuthenticatedConfiguracoesIntegracoesIndexRouteImport.update({
+    id: '/integracoes/',
+    path: '/integracoes/',
+    getParentRoute: () => AuthenticatedConfiguracoesRoute,
+  } as any)
 const ApiPublicLeadsTokenRoute = ApiPublicLeadsTokenRouteImport.update({
   id: '/api/public/leads/$token',
   path: '/api/public/leads/$token',
@@ -272,9 +272,9 @@ const ApiPublicHooksRunRemindersRoute =
   } as any)
 const AuthenticatedConfiguracoesIntegracoesLogsRoute =
   AuthenticatedConfiguracoesIntegracoesLogsRouteImport.update({
-    id: '/logs',
-    path: '/logs',
-    getParentRoute: () => AuthenticatedConfiguracoesIntegracoesRoute,
+    id: '/integracoes/logs',
+    path: '/integracoes/logs',
+    getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
 const AuthenticatedAppTarefasIdRoute =
   AuthenticatedAppTarefasIdRouteImport.update({
@@ -305,7 +305,6 @@ export interface FileRoutesByFullPath {
   '/app/mais': typeof AuthenticatedAppMaisRoute
   '/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
-  '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRouteWithChildren
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -325,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
+  '/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -345,7 +345,6 @@ export interface FileRoutesByTo {
   '/app/mais': typeof AuthenticatedAppMaisRoute
   '/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
-  '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRouteWithChildren
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -365,6 +364,7 @@ export interface FileRoutesByTo {
   '/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
+  '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -390,7 +390,6 @@ export interface FileRoutesById {
   '/_authenticated/app/mais': typeof AuthenticatedAppMaisRoute
   '/_authenticated/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/_authenticated/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
-  '/_authenticated/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesRouteWithChildren
   '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/_authenticated/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/_authenticated/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -410,6 +409,7 @@ export interface FileRoutesById {
   '/_authenticated/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
+  '/_authenticated/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -435,7 +435,6 @@ export interface FileRouteTypes {
     | '/app/mais'
     | '/app/projetos'
     | '/app/tarefas'
-    | '/configuracoes/integracoes'
     | '/configuracoes/modulos'
     | '/financeiro/calendario'
     | '/financeiro/categorias'
@@ -455,6 +454,7 @@ export interface FileRouteTypes {
     | '/configuracoes/integracoes/logs'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
+    | '/configuracoes/integracoes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -475,7 +475,6 @@ export interface FileRouteTypes {
     | '/app/mais'
     | '/app/projetos'
     | '/app/tarefas'
-    | '/configuracoes/integracoes'
     | '/configuracoes/modulos'
     | '/financeiro/calendario'
     | '/financeiro/categorias'
@@ -495,6 +494,7 @@ export interface FileRouteTypes {
     | '/configuracoes/integracoes/logs'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
+    | '/configuracoes/integracoes'
   id:
     | '__root__'
     | '/'
@@ -519,7 +519,6 @@ export interface FileRouteTypes {
     | '/_authenticated/app/mais'
     | '/_authenticated/app/projetos'
     | '/_authenticated/app/tarefas'
-    | '/_authenticated/configuracoes/integracoes'
     | '/_authenticated/configuracoes/modulos'
     | '/_authenticated/financeiro/calendario'
     | '/_authenticated/financeiro/categorias'
@@ -539,6 +538,7 @@ export interface FileRouteTypes {
     | '/_authenticated/configuracoes/integracoes/logs'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
+    | '/_authenticated/configuracoes/integracoes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -770,13 +770,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesModulosRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
     }
-    '/_authenticated/configuracoes/integracoes': {
-      id: '/_authenticated/configuracoes/integracoes'
-      path: '/integracoes'
-      fullPath: '/configuracoes/integracoes'
-      preLoaderRoute: typeof AuthenticatedConfiguracoesIntegracoesRouteImport
-      parentRoute: typeof AuthenticatedConfiguracoesRoute
-    }
     '/_authenticated/app/tarefas': {
       id: '/_authenticated/app/tarefas'
       path: '/tarefas'
@@ -819,6 +812,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsuariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/configuracoes/integracoes/': {
+      id: '/_authenticated/configuracoes/integracoes/'
+      path: '/integracoes'
+      fullPath: '/configuracoes/integracoes/'
+      preLoaderRoute: typeof AuthenticatedConfiguracoesIntegracoesIndexRouteImport
+      parentRoute: typeof AuthenticatedConfiguracoesRoute
+    }
     '/api/public/leads/$token': {
       id: '/api/public/leads/$token'
       path: '/api/public/leads/$token'
@@ -835,10 +835,10 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/configuracoes/integracoes/logs': {
       id: '/_authenticated/configuracoes/integracoes/logs'
-      path: '/logs'
+      path: '/integracoes/logs'
       fullPath: '/configuracoes/integracoes/logs'
       preLoaderRoute: typeof AuthenticatedConfiguracoesIntegracoesLogsRouteImport
-      parentRoute: typeof AuthenticatedConfiguracoesIntegracoesRoute
+      parentRoute: typeof AuthenticatedConfiguracoesRoute
     }
     '/_authenticated/app/tarefas/$id': {
       id: '/_authenticated/app/tarefas/$id'
@@ -885,34 +885,22 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
 const AuthenticatedAppRouteWithChildren =
   AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
 
-interface AuthenticatedConfiguracoesIntegracoesRouteChildren {
-  AuthenticatedConfiguracoesIntegracoesLogsRoute: typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
-}
-
-const AuthenticatedConfiguracoesIntegracoesRouteChildren: AuthenticatedConfiguracoesIntegracoesRouteChildren =
-  {
-    AuthenticatedConfiguracoesIntegracoesLogsRoute:
-      AuthenticatedConfiguracoesIntegracoesLogsRoute,
-  }
-
-const AuthenticatedConfiguracoesIntegracoesRouteWithChildren =
-  AuthenticatedConfiguracoesIntegracoesRoute._addFileChildren(
-    AuthenticatedConfiguracoesIntegracoesRouteChildren,
-  )
-
 interface AuthenticatedConfiguracoesRouteChildren {
-  AuthenticatedConfiguracoesIntegracoesRoute: typeof AuthenticatedConfiguracoesIntegracoesRouteWithChildren
   AuthenticatedConfiguracoesModulosRoute: typeof AuthenticatedConfiguracoesModulosRoute
   AuthenticatedConfiguracoesIndexRoute: typeof AuthenticatedConfiguracoesIndexRoute
+  AuthenticatedConfiguracoesIntegracoesLogsRoute: typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
+  AuthenticatedConfiguracoesIntegracoesIndexRoute: typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
 }
 
 const AuthenticatedConfiguracoesRouteChildren: AuthenticatedConfiguracoesRouteChildren =
   {
-    AuthenticatedConfiguracoesIntegracoesRoute:
-      AuthenticatedConfiguracoesIntegracoesRouteWithChildren,
     AuthenticatedConfiguracoesModulosRoute:
       AuthenticatedConfiguracoesModulosRoute,
     AuthenticatedConfiguracoesIndexRoute: AuthenticatedConfiguracoesIndexRoute,
+    AuthenticatedConfiguracoesIntegracoesLogsRoute:
+      AuthenticatedConfiguracoesIntegracoesLogsRoute,
+    AuthenticatedConfiguracoesIntegracoesIndexRoute:
+      AuthenticatedConfiguracoesIntegracoesIndexRoute,
   }
 
 const AuthenticatedConfiguracoesRouteWithChildren =
