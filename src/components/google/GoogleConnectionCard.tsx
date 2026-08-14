@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,10 +18,8 @@ import {
   Sheet,
   CheckCircle2,
   XCircle,
-  Info,
   Loader2,
   PlugZap,
-  LinkIcon,
   Unlink,
   RefreshCw,
 } from "lucide-react";
@@ -34,35 +32,29 @@ const ICONS: Record<GoogleConnectorId, typeof Mail> = {
   google_sheets: Sheet,
 };
 
-type Busy = { connecting?: boolean; testing?: boolean; disconnecting?: boolean };
+const QUEUE_KEY = "hublynx_google_connect_queue";
 
-function waitForOAuthCompletion(popup: Window) {
-  return new Promise<void>((resolve, reject) => {
-    let poll: number | undefined;
-    const cleanup = () => {
-      window.removeEventListener("message", onMessage);
-      if (poll !== undefined) window.clearInterval(poll);
-    };
-    const onMessage = (event: MessageEvent) => {
-      const type = event.data?.type;
-      if (
-        event.origin !== window.location.origin ||
-        event.source !== popup ||
-        (type !== "appUserConnectorOAuthComplete" && type !== "appUserConnectorOAuthFailed")
-      )
-        return;
-      cleanup();
-      if (type === "appUserConnectorOAuthComplete") return resolve();
-      popup.close();
-      reject(new Error("A conexão não foi concluída."));
-    };
-    window.addEventListener("message", onMessage);
-    poll = window.setInterval(() => {
-      if (!popup.closed) return;
-      cleanup();
-      reject(new Error("A janela foi fechada antes de concluir."));
-    }, 500);
-  });
+function GoogleGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9.1h12.4c-.5 2.9-2.1 5.4-4.6 7l7.2 5.6c4.2-3.9 7.1-9.6 7.1-17.1z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.4 28.7a14.6 14.6 0 0 1 0-9.4l-7.8-6.1a24 24 0 0 0 0 21.6l7.8-6.1z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.2-5.6c-2 1.4-4.6 2.2-8.7 2.2-6.3 0-11.7-3.7-13.6-9.1l-7.8 6.1C6.5 42.6 14.6 48 24 48z"
+      />
+    </svg>
+  );
 }
 
 export function GoogleConnectionCard() {
@@ -71,113 +63,206 @@ export function GoogleConnectionCard() {
   const startFn = useServerFn(startGoogleAppUserConnect);
   const testFn = useServerFn(testMyGoogleConnection);
   const disconnectFn = useServerFn(disconnectMyGoogleConnection);
-  const [busy, setBusy] = useState<Partial<Record<GoogleConnectorId, Busy>>>({});
+
+  const [connecting, setConnecting] = useState(false);
+  const [step, setStep] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Partial<Record<GoogleConnectorId, boolean>>>({});
   const [results, setResults] = useState<
     Partial<Record<GoogleConnectorId, { ok: boolean; message: string }>>
   >({});
+  const resumed = useRef(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-google-connections"],
     queryFn: () => listFn(),
   });
 
-  const [checking, setChecking] = useState(false);
+  const services = data ?? [];
+  const connectedCount = services.filter((s) => s.connected).length;
+  const account = services.find((s) => s.email)?.email ?? null;
+  const allConnected = services.length > 0 && connectedCount === services.length;
 
-  async function recheck() {
-    setChecking(true);
-    try {
-      await qc.refetchQueries({ queryKey: ["my-google-connections"] });
-      toast.success("Status das integrações atualizado.");
-    } finally {
-      setChecking(false);
-    }
-  }
-
-  const setB = (id: GoogleConnectorId, v: Busy) => setBusy((s) => ({ ...s, [id]: v }));
   const refresh = () => qc.invalidateQueries({ queryKey: ["my-google-connections"] });
 
-  async function connect(connectorId: GoogleConnectorId) {
-    const popup = window.open("", "hublynx-google-oauth", "width=600,height=720");
-    setB(connectorId, { connecting: true });
-    try {
-      const { authorizationUrl } = await startFn({ data: { connectorId } });
-      // Pop-up bloqueado (ou preview em iframe): segue na mesma aba.
+  function waitForOAuthCompletion(popup: Window) {
+    return new Promise<void>((resolve, reject) => {
+      let poll: number | undefined;
+      const cleanup = () => {
+        window.removeEventListener("message", onMessage);
+        if (poll !== undefined) window.clearInterval(poll);
+      };
+      const onMessage = (event: MessageEvent) => {
+        const type = event.data?.type;
+        if (
+          event.origin !== window.location.origin ||
+          (type !== "appUserConnectorOAuthComplete" && type !== "appUserConnectorOAuthFailed")
+        )
+          return;
+        cleanup();
+        if (type === "appUserConnectorOAuthComplete") return resolve();
+        reject(new Error("A autorização do Google não foi concluída."));
+      };
+      window.addEventListener("message", onMessage);
+      poll = window.setInterval(() => {
+        if (!popup.closed) return;
+        cleanup();
+        reject(new Error("A janela do Google foi fechada antes de concluir."));
+      }, 600);
+    });
+  }
+
+  /** Executa o consentimento de uma lista de serviços reutilizando a mesma janela. */
+  async function runQueue(queue: GoogleConnectorId[], popup: Window | null) {
+    for (let i = 0; i < queue.length; i++) {
+      const id = queue[i]!;
+      const label = services.find((s) => s.connectorId === id)?.label ?? id;
+      setStep(`Autorizando ${label}…`);
+      const { authorizationUrl } = await startFn({ data: { connectorId: id } });
+
       if (!popup || popup.closed) {
-        toast.info("Abrindo a autorização do Google nesta aba…");
+        // Sem pop-up: guarda o restante da fila e segue na mesma aba.
+        sessionStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(i)));
         window.location.href = authorizationUrl;
-        return;
+        return false;
       }
       const completion = waitForOAuthCompletion(popup);
       popup.location.href = authorizationUrl;
       await completion;
-      toast.success("Conta Google conectada.");
-      await refresh();
+    }
+    sessionStorage.removeItem(QUEUE_KEY);
+    popup?.close();
+    return true;
+  }
+
+  async function connectAccount(only?: GoogleConnectorId) {
+    const queue: GoogleConnectorId[] = only
+      ? [only]
+      : (services.map((s) => s.connectorId) as GoogleConnectorId[]);
+    if (!queue.length) return;
+    const popup = window.open("", "hublynx-google-oauth", "width=520,height=680");
+    setConnecting(true);
+    try {
+      const done = await runQueue(queue, popup);
+      if (done) {
+        toast.success("Conta Google conectada.");
+        await refresh();
+      }
     } catch (e) {
       popup?.close();
+      sessionStorage.removeItem(QUEUE_KEY);
       toast.error((e as Error).message);
     } finally {
-      setB(connectorId, {});
+      setConnecting(false);
+      setStep(null);
     }
   }
 
-  async function test(connectorId: GoogleConnectorId) {
-    setB(connectorId, { testing: true });
+  // Retoma a fila após voltar do Google na mesma aba.
+  useEffect(() => {
+    if (resumed.current || !services.length) return;
+    const raw = sessionStorage.getItem(QUEUE_KEY);
+    if (!raw) return;
+    resumed.current = true;
+    let rest: GoogleConnectorId[] = [];
     try {
-      const r = await testFn({ data: { connectorId } });
-      setResults((s) => ({ ...s, [connectorId]: { ok: r.ok, message: r.message } }));
+      rest = (JSON.parse(raw) as GoogleConnectorId[]).slice(1);
+    } catch {
+      rest = [];
+    }
+    sessionStorage.removeItem(QUEUE_KEY);
+    if (!rest.length) {
+      toast.success("Conta Google conectada.");
+      void refresh();
+      return;
+    }
+    setConnecting(true);
+    void runQueue(rest, null)
+      .catch((e) => toast.error((e as Error).message))
+      .finally(() => setConnecting(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services.length]);
+
+  async function test(id: GoogleConnectorId) {
+    setBusy((s) => ({ ...s, [id]: true }));
+    try {
+      const r = await testFn({ data: { connectorId: id } });
+      setResults((s) => ({ ...s, [id]: { ok: r.ok, message: r.message } }));
     } catch (e) {
-      setResults((s) => ({ ...s, [connectorId]: { ok: false, message: (e as Error).message } }));
+      setResults((s) => ({ ...s, [id]: { ok: false, message: (e as Error).message } }));
     } finally {
-      setB(connectorId, {});
+      setBusy((s) => ({ ...s, [id]: false }));
     }
   }
 
-  async function disconnect(connectorId: GoogleConnectorId) {
-    setB(connectorId, { disconnecting: true });
+  async function disconnectAll() {
+    setConnecting(true);
     try {
-      await disconnectFn({ data: { connectorId } });
-      setResults((s) => ({ ...s, [connectorId]: undefined as never }));
-      toast.success("Conta desconectada.");
+      for (const s of services.filter((x) => x.connected)) {
+        await disconnectFn({ data: { connectorId: s.connectorId as GoogleConnectorId } });
+      }
+      setResults({});
+      toast.success("Conta Google desconectada.");
       await refresh();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setB(connectorId, {});
+      setConnecting(false);
     }
   }
-
-  const connectedCount = data?.filter((s) => s.connected).length ?? 0;
-  const pendingSetup = (data ?? []).some((s) => !s.clientConfigured);
 
   return (
     <Card>
       <CardHeader>
-        <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2">
-            Minhas contas Google
-            {!isLoading && (
-              <Badge variant={connectedCount ? "secondary" : "outline"} className="gap-1">
-                {connectedCount ? (
-                  <CheckCircle2 className="h-3 w-3" />
-                ) : (
-                  <XCircle className="h-3 w-3" />
-                )}
-                {connectedCount}/{data?.length ?? 4} conectados
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Conecte sua própria conta do Google. Cada usuário autoriza individualmente Gmail,
-            Calendar, Drive e Sheets.
-          </CardDescription>
-        </div>
+        <CardTitle className="flex items-center gap-2">
+          Conta Google
+          {!isLoading && (
+            <Badge variant={connectedCount ? "secondary" : "outline"} className="gap-1">
+              {connectedCount ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : (
+                <XCircle className="h-3 w-3" />
+              )}
+              {connectedCount ? `${connectedCount}/${services.length} serviços` : "Não conectada"}
+            </Badge>
+          )}
+        </CardTitle>
+        <CardDescription>
+          Faça login com sua conta Google uma única vez para liberar Gmail, Google Agenda, Drive e
+          Planilhas dentro do Hublynx.
+        </CardDescription>
       </CardHeader>
+
       <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-4">
+          <Button size="lg" onClick={() => void connectAccount()} disabled={connecting || isLoading}>
+            {connecting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <GoogleGlyph className="mr-2 h-4 w-4" />
+            )}
+            {allConnected ? "Reconectar conta Google" : "Conectar conta Google"}
+          </Button>
+          {connectedCount > 0 && (
+            <Button variant="ghost" onClick={() => void disconnectAll()} disabled={connecting}>
+              <Unlink className="mr-1.5 h-4 w-4" /> Desconectar
+            </Button>
+          )}
+          <Button variant="outline" size="icon" onClick={() => void refresh()} title="Atualizar">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <div className="w-full text-xs text-muted-foreground">
+            {step
+              ? step
+              : account
+                ? `Conectado como ${account}`
+                : "Você autoriza cada serviço em sequência na janela do Google."}
+          </div>
+        </div>
+
         <div className="grid gap-2 sm:grid-cols-2">
-          {(data ?? []).map((s) => {
+          {services.map((s) => {
             const id = s.connectorId as GoogleConnectorId;
             const Icon = ICONS[id];
-            const b = busy[id] ?? {};
             const r = results[id];
             return (
               <div key={id} className="rounded-lg border bg-card p-3 text-sm">
@@ -190,56 +275,30 @@ export function GoogleConnectionCard() {
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="gap-1">
-                      <XCircle className="h-3 w-3" /> Não conectado
+                      <XCircle className="h-3 w-3" /> Pendente
                     </Badge>
                   )}
                 </div>
-                {s.email && (
-                  <p className="mt-1 truncate text-xs text-muted-foreground">{s.email}</p>
-                )}
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => connect(id)}
-                    disabled={b.connecting}
-                  >
-                    {b.connecting ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <LinkIcon className="mr-1.5 h-3.5 w-3.5" />
-                    )}
-                    {s.connected ? "Reconectar" : "Conectar"}
-                  </Button>
+                <div className="mt-2 flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => test(id)}
-                    disabled={b.testing || !s.connected}
+                    onClick={() => void test(id)}
+                    disabled={!s.connected || busy[id]}
                   >
-                    {b.testing ? (
+                    {busy[id] ? (
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <PlugZap className="mr-1.5 h-3.5 w-3.5" />
                     )}
                     Testar
                   </Button>
-                  {s.connected && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={() => disconnect(id)}
-                      disabled={b.disconnecting}
-                    >
-                      <Unlink className="mr-1.5 h-3.5 w-3.5" /> Desconectar
+                  {!s.connected && (
+                    <Button size="sm" variant="ghost" onClick={() => void connectAccount(id)} disabled={connecting}>
+                      Conectar só este
                     </Button>
                   )}
                 </div>
-                {!s.clientConfigured && (
-                  <p className="mt-2 text-xs text-amber-600">
-                    Cliente OAuth pendente — você ainda pode tentar conectar.
-                  </p>
-                )}
                 {r && (
                   <p
                     className={`mt-2 truncate text-xs ${r.ok ? "text-green-600" : "text-destructive"}`}
@@ -252,54 +311,6 @@ export function GoogleConnectionCard() {
             );
           })}
         </div>
-        {pendingSetup ? (
-          <div className="space-y-2 rounded-lg border border-dashed bg-muted/30 p-3 text-sm">
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <Info className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>
-                O cliente OAuth do Google do workspace ainda não foi aprovado. Os botões
-                “Conectar” continuam liberados: se ainda não estiver pronto, o Google exibirá
-                uma mensagem e você pode tentar de novo depois da aprovação.
-              </p>
-            </div>
-            <div className="rounded-md bg-background p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Passo a passo do administrador</p>
-              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-                <li>Criar um OAuth Web Client no Google Cloud.</li>
-                <li>
-                  Adicionar o redirect{" "}
-                  <code className="break-all">
-                    https://connector-gateway.lovable.dev/api/v1/app-users/oauth2/callback
-                  </code>
-                </li>
-                <li>Aprovar/registrar o cliente no workspace (um cliente atende os 4 serviços).</li>
-              </ol>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => void recheck()}>
-                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />
-                Verificar novamente
-              </Button>
-              <Button size="sm" variant="ghost" asChild>
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Abrir Google Cloud
-                </a>
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-start gap-2 rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>
-              Ao clicar em “Conectar”, uma janela do Google abre para você autorizar sua conta. A
-              autorização vale apenas para o seu usuário.
-            </p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
