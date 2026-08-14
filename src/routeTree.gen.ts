@@ -29,6 +29,7 @@ import { Route as AuthenticatedProjetosIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedFinanceiroIndexRouteImport } from './routes/_authenticated/financeiro.index'
 import { Route as AuthenticatedConfiguracoesIndexRouteImport } from './routes/_authenticated/configuracoes.index'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
+import { Route as OauthGoogleReturnRouteImport } from './routes/oauth.google.return'
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
 import { Route as AuthenticatedGestaoClientesRouteImport } from './routes/_authenticated/gestao.clientes'
 import { Route as AuthenticatedFinanceiroRecorrenciasRouteImport } from './routes/_authenticated/financeiro.recorrencias'
@@ -153,6 +154,11 @@ const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const OauthGoogleReturnRoute = OauthGoogleReturnRouteImport.update({
+  id: '/oauth/google/return',
+  path: '/oauth/google/return',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedProjetosIdRoute = AuthenticatedProjetosIdRouteImport.update({
   id: '/projetos/$id',
@@ -303,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/oauth/google/return': typeof OauthGoogleReturnRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
   '/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
@@ -341,6 +348,7 @@ export interface FileRoutesByTo {
   '/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/oauth/google/return': typeof OauthGoogleReturnRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesIndexRoute
   '/financeiro': typeof AuthenticatedFinanceiroIndexRoute
@@ -384,6 +392,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/_authenticated/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/oauth/google/return': typeof OauthGoogleReturnRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
   '/_authenticated/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
@@ -427,6 +436,7 @@ export interface FileRouteTypes {
     | '/financeiro/recorrencias'
     | '/gestao/clientes'
     | '/projetos/$id'
+    | '/oauth/google/return'
     | '/app/'
     | '/configuracoes/'
     | '/financeiro/'
@@ -465,6 +475,7 @@ export interface FileRouteTypes {
     | '/financeiro/recorrencias'
     | '/gestao/clientes'
     | '/projetos/$id'
+    | '/oauth/google/return'
     | '/app'
     | '/configuracoes'
     | '/financeiro'
@@ -507,6 +518,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro/recorrencias'
     | '/_authenticated/gestao/clientes'
     | '/_authenticated/projetos/$id'
+    | '/oauth/google/return'
     | '/_authenticated/app/'
     | '/_authenticated/configuracoes/'
     | '/_authenticated/financeiro/'
@@ -521,6 +533,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  OauthGoogleReturnRoute: typeof OauthGoogleReturnRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
 }
@@ -666,6 +679,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/'
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
       parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/oauth/google/return': {
+      id: '/oauth/google/return'
+      path: '/oauth/google/return'
+      fullPath: '/oauth/google/return'
+      preLoaderRoute: typeof OauthGoogleReturnRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/projetos/$id': {
       id: '/_authenticated/projetos/$id'
@@ -942,6 +962,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  OauthGoogleReturnRoute: OauthGoogleReturnRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
 }
