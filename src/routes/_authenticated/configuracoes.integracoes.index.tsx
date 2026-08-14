@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { GoogleConnectionCard } from "@/components/google/GoogleConnectionCard";
 import { TestEmailCard } from "@/components/google/TestEmailCard";
 
-export const Route = createFileRoute("/_authenticated/configuracoes/integracoes")({
+export const Route = createFileRoute("/_authenticated/configuracoes/integracoes/")({
   head: () => ({ meta: [{ title: "Integrações — Hublynx Core" }] }),
   component: IntegracoesPage,
 });
