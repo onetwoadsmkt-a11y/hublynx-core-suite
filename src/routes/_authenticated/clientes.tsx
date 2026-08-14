@@ -14,11 +14,13 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Users, Pencil, Eye } from "lucide-react";
+import { Plus, Search, Users, Pencil, Eye, FileSpreadsheet } from "lucide-react";
 import { listAllLeads } from "@/lib/pipeline/pipeline.functions";
-import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
+import { LeadViewDialog } from "@/components/pipeline/LeadViewDialog";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
+import { exportLeadsToExcel } from "@/lib/pipeline/export-leads";
 import type { Lead } from "@/components/pipeline/types";
+
 
 function initials(name: string) {
   return (
