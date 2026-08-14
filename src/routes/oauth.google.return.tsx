@@ -24,8 +24,14 @@ function OAuthReturn() {
     const params = new URLSearchParams(window.location.search);
     const connectorId = params.get("connector_id") ?? "";
     const notify = (type: "appUserConnectorOAuthComplete" | "appUserConnectorOAuthFailed") => {
-      window.opener?.postMessage({ type, connectorId }, window.location.origin);
-      window.close();
+      if (window.opener) {
+        window.opener.postMessage({ type, connectorId }, window.location.origin);
+        window.close();
+        return;
+      }
+      // Fluxo sem pop-up: voltamos para a tela de integrações na mesma aba.
+      const ok = type === "appUserConnectorOAuthComplete" ? "1" : "0";
+      window.location.replace(`/configuracoes/integracoes?google=${ok}`);
     };
     if (params.get("success") !== "true") {
       setMessage(params.get("error") ?? "A autorização não foi concluída.");
