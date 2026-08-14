@@ -147,9 +147,25 @@ function LeadsPage() {
               Todos os leads do pipeline de vendas — {filtered.length} lead(s) · {currency(total)}
             </p>
           </div>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Novo lead
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={filtered.length === 0}
+              onClick={() =>
+                exportLeadsToExcel(
+                  filtered,
+                  stageById,
+                  new Map(pipelines.map((p) => [p.id, p.name])),
+                )
+              }
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-1" /> Exportar Excel
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Novo lead
+            </Button>
+          </div>
+
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
