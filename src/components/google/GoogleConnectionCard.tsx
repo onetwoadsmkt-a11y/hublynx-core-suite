@@ -98,13 +98,15 @@ export function GoogleConnectionCard() {
 
   async function connect(connectorId: GoogleConnectorId) {
     const popup = window.open("", "hublynx-google-oauth", "width=600,height=720");
-    if (!popup) {
-      toast.error("Pop-up bloqueado. Libere pop-ups e tente novamente.");
-      return;
-    }
     setB(connectorId, { connecting: true });
     try {
       const { authorizationUrl } = await startFn({ data: { connectorId } });
+      // Pop-up bloqueado (ou preview em iframe): segue na mesma aba.
+      if (!popup || popup.closed) {
+        toast.info("Abrindo a autorização do Google nesta aba…");
+        window.location.href = authorizationUrl;
+        return;
+      }
       const completion = waitForOAuthCompletion(popup);
       popup.location.href = authorizationUrl;
       await completion;
