@@ -49,10 +49,20 @@ export function LeadCard({
 }) {
   const qc = useQueryClient();
   const del = useServerFn(deleteLead);
+  const detail = useServerFn(getLeadDetail);
   const remove = useMutation({
     mutationFn: () => del({ data: { id: lead.id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
   });
+  const exportJourney = useMutation({
+    mutationFn: async () => {
+      const d = await detail({ data: { leadId: lead.id } });
+      exportLeadJourneyToExcel(lead, d.events, d.tasks);
+    },
+    onSuccess: () => toast.success("Jornada exportada"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: lead.id,
