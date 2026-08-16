@@ -26,6 +26,7 @@ type Form = {
   source: string;
   value: string;
   stage_id: string;
+  temperature: string;
   utm_source: string;
   utm_medium: string;
   utm_campaign: string;
@@ -35,7 +36,7 @@ type Form = {
 
 const EMPTY: Form = {
   name: "", company: "", email: "", phone: "", city: "", state: "", source: "", value: "",
-  stage_id: "", utm_source: "", utm_medium: "", utm_campaign: "", utm_term: "", utm_content: "",
+  stage_id: "", temperature: "morno", utm_source: "", utm_medium: "", utm_campaign: "", utm_term: "", utm_content: "",
 };
 
 export function LeadFormDialog({
