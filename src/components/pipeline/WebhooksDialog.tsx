@@ -19,6 +19,7 @@ import {
   createWebhook, deleteWebhook, listAllStages, listWebhooks, toggleWebhook, updateWebhook,
 } from "@/lib/pipeline/pipeline.functions";
 import { WebhookFieldMapper } from "./WebhookFieldMapper";
+import { WebhookPayloadTemplate } from "./WebhookPayloadTemplate";
 import type { PipelineStage } from "./types";
 
 /** URL pública acessível por serviços externos (o preview do editor bloqueia POSTs externos). */
@@ -326,6 +327,7 @@ export function WebhooksDialog({
                     </div>
                   </div>
                 )}
+                {h.direction === "inbound" && <WebhookPayloadTemplate />}
                 {h.direction === "inbound" && (
                   <WebhookFieldMapper
                     webhookId={h.id}
@@ -334,6 +336,7 @@ export function WebhooksDialog({
                     lastPayloadAt={h.last_payload_at ?? null}
                   />
                 )}
+
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {h.direction === "inbound"
                     ? "POST JSON: { name, email, phone, company, value, utm_source, utm_medium, utm_campaign, utm_term, utm_content, source, landing_url }"
