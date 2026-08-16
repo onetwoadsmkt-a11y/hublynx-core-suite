@@ -19,6 +19,7 @@ import {
   createWebhook, deleteWebhook, listAllStages, listWebhooks, toggleWebhook, updateWebhook,
 } from "@/lib/pipeline/pipeline.functions";
 import { WebhookFieldMapper } from "./WebhookFieldMapper";
+import { WebhookPayloadTemplate } from "./WebhookPayloadTemplate";
 import type { PipelineStage } from "./types";
 
 /** URL pública acessível por serviços externos (o preview do editor bloqueia POSTs externos). */
