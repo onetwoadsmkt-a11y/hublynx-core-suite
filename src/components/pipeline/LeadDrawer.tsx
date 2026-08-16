@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Activity, ArrowRightLeft, Building2, CalendarClock, CalendarDays, CheckCircle2, Download, FileUp,
-  Mail, MapPin, MessageSquare, Pencil, Phone, Plus, Tag, Trash2, X,
+  Mail, MapPin, MessageSquare, Paperclip, Pencil, Phone, Plus, Tag, Trash2, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
