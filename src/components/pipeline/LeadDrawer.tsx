@@ -290,8 +290,27 @@ export function LeadDrawer({
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
                   <div className="lead-gradient-card grid gap-2 rounded-xl border p-3 text-sm sm:grid-cols-2">
                     {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-white/80" />{lead.company}</p>}
-                    {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-white/80" />{lead.phone}</p>}
-                    {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-white/80" />{lead.email}</p>}
+                    {lead.phone && (
+                      <p className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-white/80" />
+                        <a href={`tel:${lead.phone}`} className="underline underline-offset-2 hover:text-white/90">{lead.phone}</a>
+                        <a
+                          href={`https://wa.me/${lead.phone.replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Abrir WhatsApp"
+                          className="ml-1 inline-flex items-center rounded-full bg-[#25D366] p-1 text-white hover:opacity-90"
+                        >
+                          <WhatsAppIcon className="h-3 w-3" />
+                        </a>
+                      </p>
+                    )}
+                    {lead.email && (
+                      <p className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-white/80" />
+                        <a href={`mailto:${lead.email}`} className="underline underline-offset-2 hover:text-white/90">{lead.email}</a>
+                      </p>
+                    )}
                     {(lead.city || lead.state) && (
                       <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-white/80" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
                     )}
