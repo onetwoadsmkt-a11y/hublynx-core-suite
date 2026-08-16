@@ -95,6 +95,7 @@ export function LeadFormDialog({
           source: form.source || null,
           value: form.value ? Number(form.value.replace(",", ".")) : null,
           stage_id: form.stage_id || null,
+          temperature: (form.temperature as "quente" | "morno" | "frio") || "morno",
           utm_source: form.utm_source || null,
           utm_medium: form.utm_medium || null,
           utm_campaign: form.utm_campaign || null,
