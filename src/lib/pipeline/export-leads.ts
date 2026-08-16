@@ -84,3 +84,74 @@ export function exportLeadDetailToExcel(
   const safe = lead.name.replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase();
   save(wb, `lead-${safe}.xlsx`);
 }
+
+type JourneyTask = {
+  title: string;
+  kind: string;
+  due_at: string | null;
+  done: boolean;
+  completed_at: string | null;
+  notes: string | null;
+  meet_link?: string | null;
+  duration_minutes?: number | null;
+};
+
+/** Exporta a jornada do lead: histórico, agendamentos e próxima ação. */
+export function exportLeadJourneyToExcel(
+  lead: Lead,
+  events: LeadEvent[],
+  tasks: JourneyTask[],
+  stageName?: string,
+  pipelineName?: string,
+) {
+  const wb = XLSX.utils.book_new();
+
+  const pending = tasks
+    .filter((t) => !t.done && t.due_at)
+    .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime());
+  const next = pending[0];
+
+  const resumo = Object.entries({
+    ...leadRow(lead, stageName, pipelineName),
+    "Próxima ação": next ? next.title : "Sem próxima ação agendada",
+    "Próxima ação — tipo": next?.kind ?? "",
+    "Próxima ação — data": fmtDate(next?.due_at),
+    "Agendamentos pendentes": pending.length,
+    "Agendamentos concluídos": tasks.filter((t) => t.done).length,
+    "Eventos na jornada": events.length,
+  }).map(([Campo, Valor]) => ({ Campo, Valor }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo), "Resumo");
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      events.map((e) => ({
+        Data: fmtDate(e.created_at),
+        Tipo: e.kind,
+        Título: e.title,
+        Descrição: e.description ?? "",
+      })),
+    ),
+    "Jornada",
+  );
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      tasks.map((t) => ({
+        Título: t.title,
+        Tipo: t.kind,
+        "Data/Hora": fmtDate(t.due_at),
+        "Duração (min)": t.duration_minutes ?? "",
+        Status: t.done ? "Concluído" : "Pendente",
+        "Concluído em": fmtDate(t.completed_at),
+        "Link da reunião": t.meet_link ?? "",
+        Observações: t.notes ?? "",
+      })),
+    ),
+    "Agendamentos",
+  );
+
+  const safe = lead.name.replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase();
+  save(wb, `jornada-${safe}.xlsx`);
+}
