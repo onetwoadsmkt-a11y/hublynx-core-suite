@@ -95,6 +95,13 @@ export function LeadCard({
             <DropdownMenuItem onSelect={() => onEdit(lead)}>
               <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
             </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={exportJourney.isPending}
+              onSelect={(e) => { e.preventDefault(); exportJourney.mutate(); }}
+            >
+              <FileSpreadsheet className="mr-2 h-3.5 w-3.5" /> Exportar jornada (Excel)
+            </DropdownMenuItem>
+
             <DropdownMenuItem className="text-destructive" onSelect={() => remove.mutate()}>
               <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
             </DropdownMenuItem>
