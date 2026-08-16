@@ -326,6 +326,7 @@ export function WebhooksDialog({
                     </div>
                   </div>
                 )}
+                {h.direction === "inbound" && <WebhookPayloadTemplate />}
                 {h.direction === "inbound" && (
                   <WebhookFieldMapper
                     webhookId={h.id}
@@ -334,6 +335,7 @@ export function WebhooksDialog({
                     lastPayloadAt={h.last_payload_at ?? null}
                   />
                 )}
+
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {h.direction === "inbound"
                     ? "POST JSON: { name, email, phone, company, value, utm_source, utm_medium, utm_campaign, utm_term, utm_content, source, landing_url }"
