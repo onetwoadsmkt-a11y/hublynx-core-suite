@@ -70,6 +70,7 @@ export function LeadFormDialog({
             source: lead.source ?? "",
             value: lead.value != null ? String(lead.value) : "",
             stage_id: lead.stage_id ?? defaultStageId ?? stages[0]?.id ?? "",
+            temperature: lead.temperature ?? "morno",
             utm_source: lead.utm_source ?? "",
             utm_medium: lead.utm_medium ?? "",
             utm_campaign: lead.utm_campaign ?? "",
