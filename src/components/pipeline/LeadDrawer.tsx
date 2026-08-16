@@ -230,7 +230,10 @@ export function LeadDrawer({
           <>
             <header className="lead-gradient-card flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3 md:px-6">
               <div className="min-w-0 flex-1">
-                <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
+                <div className="flex items-center gap-2">
+                  <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
+                  <TemperatureBadge value={lead.temperature} />
+                </div>
                 <p className="text-xs text-white/70">
                   Criado em {fmt(lead.created_at)}
                 </p>
@@ -250,21 +253,36 @@ export function LeadDrawer({
                   </SelectContent>
                 </Select>
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="outline"
-                  className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                  title="Enviar e-mail"
+                  className="h-8 w-8 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
                   onClick={() => setEmailOpen(true)}
                 >
-                  <Mail className="mr-1.5 h-4 w-4" /> E-mail
+                  <Mail className="h-4 w-4" />
                 </Button>
-                <Button size="sm" className="bg-primary font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => onEdit(lead)}>
-                  Editar
+                <Button
+                  size="icon"
+                  title="Editar lead"
+                  className="h-8 w-8 bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                  onClick={() => onEdit(lead)}
+                >
+                  <Pencil className="h-4 w-4" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/10" onClick={() => onOpenChange(false)}>
                   <X className="h-5 w-5 stroke-[3]" />
                 </Button>
               </div>
             </header>
+
+            {nextTask && (
+              <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground md:px-6">
+                <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                <span className="font-medium text-foreground">Próximo agendamento:</span>
+                <span>{fmt(nextTask.due_at!)}</span>
+                <span className="truncate">· {nextTask.title}</span>
+              </div>
+            )}
 
             <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
               {/* Coluna principal: dados + jornada + anotações */}
