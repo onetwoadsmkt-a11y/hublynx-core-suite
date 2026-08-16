@@ -731,6 +731,7 @@ export type Database = {
           state: string | null
           status: string
           tags: string[]
+          temperature: string | null
           updated_at: string
           utm_campaign: string | null
           utm_content: string | null
@@ -762,6 +763,7 @@ export type Database = {
           state?: string | null
           status?: string
           tags?: string[]
+          temperature?: string | null
           updated_at?: string
           utm_campaign?: string | null
           utm_content?: string | null
@@ -793,6 +795,7 @@ export type Database = {
           state?: string | null
           status?: string
           tags?: string[]
+          temperature?: string | null
           updated_at?: string
           utm_campaign?: string | null
           utm_content?: string | null
