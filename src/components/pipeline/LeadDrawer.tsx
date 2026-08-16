@@ -104,6 +104,7 @@ export function LeadDrawer({
   const [emailOpen, setEmailOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [showAllEvents, setShowAllEvents] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
   const [taskDue, setTaskDue] = useState("");
