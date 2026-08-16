@@ -142,6 +142,17 @@ export function LeadFormDialog({
             </Select>
           </div>
           <div>
+            <Label>Temperatura</Label>
+            <Select value={form.temperature} onValueChange={(v) => setForm((f) => ({ ...f, temperature: v }))}>
+              <SelectTrigger><SelectValue placeholder="Temperatura" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="quente">Quente</SelectItem>
+                <SelectItem value="morno">Morno</SelectItem>
+                <SelectItem value="frio">Frio</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
             <Label>Telefone</Label>
             <Input value={form.phone} onChange={set("phone")} />
           </div>
