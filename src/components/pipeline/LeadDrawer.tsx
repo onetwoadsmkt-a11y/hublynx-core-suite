@@ -213,6 +213,13 @@ export function LeadDrawer({
   const tasks = data?.tasks ?? [];
   const files = data?.files ?? [];
 
+  const nextTask = tasks
+    .filter((t) => !t.done && t.due_at)
+    .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())[0];
+
+  const events = data?.events ?? [];
+  const visibleEvents = showAllEvents ? events : events.slice(0, 3);
+
   return (
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
       <DialogContent
