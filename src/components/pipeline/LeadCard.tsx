@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil } from "lucide-react";
+import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil, FileSpreadsheet } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,10 +11,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { deleteLead } from "@/lib/pipeline/pipeline.functions";
+import { deleteLead, getLeadDetail } from "@/lib/pipeline/pipeline.functions";
+import { exportLeadJourneyToExcel } from "@/lib/pipeline/export-leads";
 import { cn } from "@/lib/utils";
 import { useLeadCardLayout } from "./card-layout";
 import type { Lead } from "./types";
+
 
 
 export function relativeTime(iso: string | null) {
@@ -46,10 +49,20 @@ export function LeadCard({
 }) {
   const qc = useQueryClient();
   const del = useServerFn(deleteLead);
+  const detail = useServerFn(getLeadDetail);
   const remove = useMutation({
     mutationFn: () => del({ data: { id: lead.id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
   });
+  const exportJourney = useMutation({
+    mutationFn: async () => {
+      const d = await detail({ data: { leadId: lead.id } });
+      exportLeadJourneyToExcel(lead, d.events, d.tasks);
+    },
+    onSuccess: () => toast.success("Jornada exportada"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: lead.id,
@@ -82,6 +95,13 @@ export function LeadCard({
             <DropdownMenuItem onSelect={() => onEdit(lead)}>
               <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
             </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={exportJourney.isPending}
+              onSelect={(e) => { e.preventDefault(); exportJourney.mutate(); }}
+            >
+              <FileSpreadsheet className="mr-2 h-3.5 w-3.5" /> Exportar jornada (Excel)
+            </DropdownMenuItem>
+
             <DropdownMenuItem className="text-destructive" onSelect={() => remove.mutate()}>
               <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
             </DropdownMenuItem>
