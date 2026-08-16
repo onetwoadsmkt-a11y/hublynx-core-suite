@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Activity, ArrowRightLeft, Building2, CalendarClock, CheckCircle2, Download, FileUp,
-  Mail, MapPin, MessageSquare, Paperclip, Phone, Plus, Tag, Trash2, X,
+  Activity, ArrowRightLeft, Building2, CalendarClock, CalendarDays, CheckCircle2, Download, FileUp,
+  Mail, MapPin, MessageSquare, Paperclip, Pencil, Phone, Plus, Tag, Trash2, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,24 @@ import {
 import { currency } from "./LeadCard";
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
+}
+
+function TemperatureBadge({ value }: { value: Lead["temperature"] }) {
+  const config = {
+    quente: { label: "Quente", className: "bg-red-500/90 text-white hover:bg-red-500/90" },
+    morno: { label: "Morno", className: "bg-amber-500/90 text-white hover:bg-amber-500/90" },
+    frio: { label: "Frio", className: "bg-sky-500/90 text-white hover:bg-sky-500/90" },
+  };
+  const cfg = config[(value as keyof typeof config) ?? "morno"];
+  return <Badge className={cfg.className}>{cfg.label}</Badge>;
+}
 
 const EVENT_ICON: Record<string, typeof Activity> = {
   created: Plus,
@@ -86,6 +104,7 @@ export function LeadDrawer({
   const [emailOpen, setEmailOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [showAllEvents, setShowAllEvents] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
   const [taskDue, setTaskDue] = useState("");
@@ -194,6 +213,13 @@ export function LeadDrawer({
   const tasks = data?.tasks ?? [];
   const files = data?.files ?? [];
 
+  const nextTask = tasks
+    .filter((t) => !t.done && t.due_at)
+    .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())[0];
+
+  const events = data?.events ?? [];
+  const visibleEvents = showAllEvents ? events : events.slice(0, 3);
+
   return (
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
       <DialogContent
@@ -204,7 +230,10 @@ export function LeadDrawer({
           <>
             <header className="lead-gradient-card flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3 md:px-6">
               <div className="min-w-0 flex-1">
-                <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
+                <div className="flex items-center gap-2">
+                  <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
+                  <TemperatureBadge value={lead.temperature} />
+                </div>
                 <p className="text-xs text-white/70">
                   Criado em {fmt(lead.created_at)}
                 </p>
@@ -224,15 +253,21 @@ export function LeadDrawer({
                   </SelectContent>
                 </Select>
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="outline"
-                  className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                  title="Enviar e-mail"
+                  className="h-8 w-8 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
                   onClick={() => setEmailOpen(true)}
                 >
-                  <Mail className="mr-1.5 h-4 w-4" /> E-mail
+                  <Mail className="h-4 w-4" />
                 </Button>
-                <Button size="sm" className="bg-primary font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => onEdit(lead)}>
-                  Editar
+                <Button
+                  size="icon"
+                  title="Editar lead"
+                  className="h-8 w-8 bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                  onClick={() => onEdit(lead)}
+                >
+                  <Pencil className="h-4 w-4" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/10" onClick={() => onOpenChange(false)}>
                   <X className="h-5 w-5 stroke-[3]" />
@@ -240,14 +275,42 @@ export function LeadDrawer({
               </div>
             </header>
 
+            {nextTask && (
+              <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground md:px-6">
+                <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                <span className="font-medium text-foreground">Próximo agendamento:</span>
+                <span>{fmt(nextTask.due_at!)}</span>
+                <span className="truncate">· {nextTask.title}</span>
+              </div>
+            )}
+
             <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
               {/* Coluna principal: dados + jornada + anotações */}
               <div className="flex min-h-0 flex-col">
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
                   <div className="lead-gradient-card grid gap-2 rounded-xl border p-3 text-sm sm:grid-cols-2">
                     {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-white/80" />{lead.company}</p>}
-                    {lead.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-white/80" />{lead.phone}</p>}
-                    {lead.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-white/80" />{lead.email}</p>}
+                    {lead.phone && (
+                      <p className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-white/80" />
+                        <a href={`tel:${lead.phone}`} className="underline underline-offset-2 hover:text-white/90">{lead.phone}</a>
+                        <a
+                          href={`https://wa.me/${lead.phone.replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Abrir WhatsApp"
+                          className="ml-1 inline-flex items-center rounded-full bg-[#25D366] p-1 text-white hover:opacity-90"
+                        >
+                          <WhatsAppIcon className="h-3 w-3" />
+                        </a>
+                      </p>
+                    )}
+                    {lead.email && (
+                      <p className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-white/80" />
+                        <a href={`mailto:${lead.email}`} className="underline underline-offset-2 hover:text-white/90">{lead.email}</a>
+                      </p>
+                    )}
                     {(lead.city || lead.state) && (
                       <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-white/80" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
                     )}
@@ -258,7 +321,7 @@ export function LeadDrawer({
                     <Activity className="h-4 w-4 text-primary" /> Histórico da jornada
                   </p>
                   <ol className="relative space-y-4 border-l pl-5">
-                    {(data?.events ?? []).map((ev) => {
+                    {visibleEvents.map((ev) => {
                       const Icon = EVENT_ICON[ev.kind] ?? Activity;
                       const note = findNoteFromEvent(ev, data?.notes ?? []);
                       return (
@@ -282,31 +345,40 @@ export function LeadDrawer({
                         </li>
                       );
                     })}
-                    {(data?.events ?? []).length === 0 && (
+                    {events.length === 0 && (
                       <li className="text-sm text-muted-foreground">Sem eventos ainda.</li>
                     )}
                   </ol>
-                </div>
-
-                {/* Anotações */}
-                <div className="border-t bg-muted/40 px-4 py-3 md:px-6">
-                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <MessageSquare className="h-4 w-4 text-primary" /> Anotações
-                  </p>
-                  <div className="flex items-start gap-2">
-                    <Textarea
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      placeholder="Registre conversas, detalhes ou próximos passos..."
-                      className="min-h-[72px] flex-1 resize-none bg-white text-foreground"
-                    />
-                    <Button
-                      className="h-10"
-                      disabled={!noteText.trim() || addNote.isPending}
-                      onClick={() => addNote.mutate()}
+                  {events.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllEvents((v) => !v)}
+                      className="mt-3 text-xs font-medium text-primary hover:underline"
                     >
-                      <Plus className="mr-1.5 h-4 w-4" /> Adicionar
-                    </Button>
+                      {showAllEvents ? "Ver histórico resumido" : "Ver histórico completo"}
+                    </button>
+                  )}
+
+                  {/* Anotações */}
+                  <div className="mt-6 rounded-xl border bg-muted/40 px-4 py-3">
+                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                      <MessageSquare className="h-4 w-4 text-primary" /> Anotações
+                    </p>
+                    <div className="flex items-start gap-2">
+                      <Textarea
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="Registre conversas, detalhes ou próximos passos..."
+                        className="min-h-[72px] flex-1 resize-none bg-white text-foreground"
+                      />
+                      <Button
+                        className="h-10"
+                        disabled={!noteText.trim() || addNote.isPending}
+                        onClick={() => addNote.mutate()}
+                      >
+                        <Plus className="mr-1.5 h-4 w-4" /> Adicionar
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>

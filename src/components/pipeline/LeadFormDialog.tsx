@@ -95,6 +95,7 @@ export function LeadFormDialog({
           source: form.source || null,
           value: form.value ? Number(form.value.replace(",", ".")) : null,
           stage_id: form.stage_id || null,
+          temperature: (form.temperature as "quente" | "morno" | "frio") || "morno",
           utm_source: form.utm_source || null,
           utm_medium: form.utm_medium || null,
           utm_campaign: form.utm_campaign || null,
@@ -137,6 +138,17 @@ export function LeadFormDialog({
                 {stages.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Temperatura</Label>
+            <Select value={form.temperature} onValueChange={(v) => setForm((f) => ({ ...f, temperature: v }))}>
+              <SelectTrigger><SelectValue placeholder="Temperatura" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="quente">Quente</SelectItem>
+                <SelectItem value="morno">Morno</SelectItem>
+                <SelectItem value="frio">Frio</SelectItem>
               </SelectContent>
             </Select>
           </div>
