@@ -321,7 +321,7 @@ export function LeadDrawer({
                     <Activity className="h-4 w-4 text-primary" /> Histórico da jornada
                   </p>
                   <ol className="relative space-y-4 border-l pl-5">
-                    {(data?.events ?? []).map((ev) => {
+                    {visibleEvents.map((ev) => {
                       const Icon = EVENT_ICON[ev.kind] ?? Activity;
                       const note = findNoteFromEvent(ev, data?.notes ?? []);
                       return (
@@ -345,31 +345,40 @@ export function LeadDrawer({
                         </li>
                       );
                     })}
-                    {(data?.events ?? []).length === 0 && (
+                    {events.length === 0 && (
                       <li className="text-sm text-muted-foreground">Sem eventos ainda.</li>
                     )}
                   </ol>
-                </div>
-
-                {/* Anotações */}
-                <div className="border-t bg-muted/40 px-4 py-3 md:px-6">
-                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <MessageSquare className="h-4 w-4 text-primary" /> Anotações
-                  </p>
-                  <div className="flex items-start gap-2">
-                    <Textarea
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      placeholder="Registre conversas, detalhes ou próximos passos..."
-                      className="min-h-[72px] flex-1 resize-none bg-white text-foreground"
-                    />
-                    <Button
-                      className="h-10"
-                      disabled={!noteText.trim() || addNote.isPending}
-                      onClick={() => addNote.mutate()}
+                  {events.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllEvents((v) => !v)}
+                      className="mt-3 text-xs font-medium text-primary hover:underline"
                     >
-                      <Plus className="mr-1.5 h-4 w-4" /> Adicionar
-                    </Button>
+                      {showAllEvents ? "Ver histórico resumido" : "Ver histórico completo"}
+                    </button>
+                  )}
+
+                  {/* Anotações */}
+                  <div className="mt-6 rounded-xl border bg-muted/40 px-4 py-3">
+                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                      <MessageSquare className="h-4 w-4 text-primary" /> Anotações
+                    </p>
+                    <div className="flex items-start gap-2">
+                      <Textarea
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="Registre conversas, detalhes ou próximos passos..."
+                        className="min-h-[72px] flex-1 resize-none bg-white text-foreground"
+                      />
+                      <Button
+                        className="h-10"
+                        disabled={!noteText.trim() || addNote.isPending}
+                        onClick={() => addNote.mutate()}
+                      >
+                        <Plus className="mr-1.5 h-4 w-4" /> Adicionar
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
