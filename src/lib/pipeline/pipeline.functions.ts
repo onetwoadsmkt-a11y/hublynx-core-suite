@@ -215,6 +215,7 @@ const leadSchema = z.object({
   source: z.string().max(120).nullable().optional(),
   value: z.number().nonnegative().nullable().optional(),
   status: z.string().max(30).optional(),
+  temperature: z.enum(["quente", "morno", "frio"]).nullable().optional(),
   utm_source: z.string().max(200).nullable().optional(),
   utm_medium: z.string().max(200).nullable().optional(),
   utm_campaign: z.string().max(200).nullable().optional(),
