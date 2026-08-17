@@ -30,10 +30,28 @@ function AuthPage() {
   const [fullName, setFullName] = useState("");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard" });
+    // Listener registrado ANTES da checagem inicial de sessão.
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) navigate({ to: "/dashboard", replace: true });
     });
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) navigate({ to: "/dashboard", replace: true });
+    });
+    return () => sub.subscription.unsubscribe();
   }, [navigate]);
+
+  async function handleGoogle() {
+    setLoading(true);
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+    if (result.error) {
+      setLoading(false);
+      return toast.error(result.error.message ?? "Não foi possível entrar com o Google.");
+    }
+    if (result.redirected) return;
+    navigate({ to: "/dashboard", replace: true });
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
