@@ -16,7 +16,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -160,7 +160,13 @@ function UserMenu() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
       const { data: p } = await supabase.from("profiles").select("full_name,avatar_url,company").eq("id", u.user.id).maybeSingle();
-      return { email: u.user.email, ...p };
+      const meta = (u.user.user_metadata ?? {}) as Record<string, string | undefined>;
+      return {
+        email: u.user.email,
+        ...p,
+        full_name: p?.full_name || meta.full_name || meta.name || u.user.email,
+        avatar_url: p?.avatar_url || meta.avatar_url || meta.picture || null,
+      };
     },
   });
 
@@ -178,7 +184,10 @@ function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex items-center gap-2 rounded-lg p-2 hover:bg-muted transition-colors">
-          <Avatar className="h-8 w-8"><AvatarFallback className="text-xs bg-primary text-primary-foreground">{initials}</AvatarFallback></Avatar>
+          <Avatar className="h-8 w-8">
+            {data?.avatar_url ? <AvatarImage src={data.avatar_url} alt={name} referrerPolicy="no-referrer" /> : null}
+            <AvatarFallback className="text-xs bg-primary text-primary-foreground">{initials}</AvatarFallback>
+          </Avatar>
           <div className="hidden md:flex flex-col items-start leading-tight">
             <span className="text-sm font-medium">{data?.full_name ?? "..."}</span>
             <span className="text-xs text-muted-foreground">Administrador</span>
