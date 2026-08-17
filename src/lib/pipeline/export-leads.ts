@@ -39,7 +39,21 @@ function save(wb: XLSX.WorkBook, filename: string) {
   XLSX.writeFile(wb, filename);
 }
 
-/** Exporta a lista de leads exibida na página. */
+function autoWidth(ws: XLSX.WorkSheet) {
+  const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1");
+  const widths: number[] = [];
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      if (!cell || cell.v == null) continue;
+      const text = String(cell.v);
+      widths[c] = Math.max(widths[c] ?? 10, Math.min(text.length + 2, 60));
+    }
+  }
+  ws["!cols"] = widths.map((w) => ({ wch: w }));
+}
+
+/** Exporta a lista de leads como uma planilha em formato de lista (um lead por linha). */
 export function exportLeadsToExcel(
   leads: Lead[],
   stageById: Map<string, PipelineStage>,
@@ -52,11 +66,31 @@ export function exportLeadsToExcel(
     return leadRow(l, stage?.name, pipeline);
   });
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Leads");
+  const ws = XLSX.utils.json_to_sheet(rows);
+  autoWidth(ws);
+  XLSX.utils.book_append_sheet(wb, ws, "Lista de Leads");
   save(wb, filename);
 }
 
-/** Exporta um lead com o histórico da jornada em abas separadas. */
+function journeyAsColumns(events: LeadEvent[]) {
+  const headers: Record<string, string | number> = { Campo: "Campo" };
+  events.forEach((e, i) => {
+    headers[`Evento ${i + 1}`] = `${fmtDate(e.created_at)} — ${e.kind}`;
+  });
+
+  const dataRow = (label: string, getter: (e: LeadEvent) => string | number) => {
+    const row: Record<string, string | number> = { Campo: label };
+    events.forEach((e, i) => {
+      row[`Evento ${i + 1}`] = getter(e);
+    });
+    return row;
+  };
+
+  return [headers, dataRow("Data", (e) => fmtDate(e.created_at)), dataRow("Tipo", (e) => e.kind), dataRow("Título", (e) => e.title), dataRow("Descrição", (e) => e.description ?? "")];
+}
+
+/** Exporta um lead com o histórico da jornada em abas separadas.
+ *  O histórico é apresentado em colunas (cada evento vira uma coluna). */
 export function exportLeadDetailToExcel(
   lead: Lead,
   events: LeadEvent[],
@@ -68,19 +102,14 @@ export function exportLeadDetailToExcel(
     Campo,
     Valor,
   }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(info), "Lead");
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.json_to_sheet(
-      events.map((e) => ({
-        Data: fmtDate(e.created_at),
-        Tipo: e.kind,
-        Título: e.title,
-        Descrição: e.description ?? "",
-      })),
-    ),
-    "Jornada",
-  );
+  const wsInfo = XLSX.utils.json_to_sheet(info);
+  autoWidth(wsInfo);
+  XLSX.utils.book_append_sheet(wb, wsInfo, "Lead");
+
+  const wsJourney = XLSX.utils.json_to_sheet(journeyAsColumns(events));
+  autoWidth(wsJourney);
+  XLSX.utils.book_append_sheet(wb, wsJourney, "Jornada");
+
   const safe = lead.name.replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase();
   save(wb, `lead-${safe}.xlsx`);
 }
@@ -96,7 +125,7 @@ type JourneyTask = {
   duration_minutes?: number | null;
 };
 
-/** Exporta a jornada do lead: histórico, agendamentos e próxima ação. */
+/** Exporta a jornada do lead: histórico em colunas, agendamentos em lista e próxima ação. */
 export function exportLeadJourneyToExcel(
   lead: Lead,
   events: LeadEvent[],
@@ -120,37 +149,28 @@ export function exportLeadJourneyToExcel(
     "Agendamentos concluídos": tasks.filter((t) => t.done).length,
     "Eventos na jornada": events.length,
   }).map(([Campo, Valor]) => ({ Campo, Valor }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo), "Resumo");
+  const wsResumo = XLSX.utils.json_to_sheet(resumo);
+  autoWidth(wsResumo);
+  XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.json_to_sheet(
-      events.map((e) => ({
-        Data: fmtDate(e.created_at),
-        Tipo: e.kind,
-        Título: e.title,
-        Descrição: e.description ?? "",
-      })),
-    ),
-    "Jornada",
-  );
+  const wsJourney = XLSX.utils.json_to_sheet(journeyAsColumns(events));
+  autoWidth(wsJourney);
+  XLSX.utils.book_append_sheet(wb, wsJourney, "Jornada");
 
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.json_to_sheet(
-      tasks.map((t) => ({
-        Título: t.title,
-        Tipo: t.kind,
-        "Data/Hora": fmtDate(t.due_at),
-        "Duração (min)": t.duration_minutes ?? "",
-        Status: t.done ? "Concluído" : "Pendente",
-        "Concluído em": fmtDate(t.completed_at),
-        "Link da reunião": t.meet_link ?? "",
-        Observações: t.notes ?? "",
-      })),
-    ),
-    "Agendamentos",
+  const wsTasks = XLSX.utils.json_to_sheet(
+    tasks.map((t) => ({
+      Título: t.title,
+      Tipo: t.kind,
+      "Data/Hora": fmtDate(t.due_at),
+      "Duração (min)": t.duration_minutes ?? "",
+      Status: t.done ? "Concluído" : "Pendente",
+      "Concluído em": fmtDate(t.completed_at),
+      "Link da reunião": t.meet_link ?? "",
+      Observações: t.notes ?? "",
+    })),
   );
+  autoWidth(wsTasks);
+  XLSX.utils.book_append_sheet(wb, wsTasks, "Agendamentos");
 
   const safe = lead.name.replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase();
   save(wb, `jornada-${safe}.xlsx`);
