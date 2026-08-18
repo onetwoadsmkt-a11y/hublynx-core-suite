@@ -32,6 +32,7 @@ const ICONS: Record<GoogleConnectorId, typeof Mail> = {
 };
 
 const QUEUE_KEY = "hublynx_google_connect_queue";
+const EMAIL_KEY = "hublynx_google_account_email";
 
 function GoogleGlyph({ className }: { className?: string }) {
   return (
@@ -72,10 +73,13 @@ export function GoogleConnectionCard() {
     Partial<Record<GoogleConnectorId, { ok: boolean; message: string }>>
   >({});
   const resumed = useRef(false);
+  const emailRef = useRef("");
 
   // Conta de integração informada pelo usuário (persistida localmente).
   useEffect(() => {
-    setAccountEmail(localStorage.getItem(EMAIL_KEY) ?? "");
+    const saved = localStorage.getItem(EMAIL_KEY) ?? "";
+    setAccountEmail(saved);
+    emailRef.current = saved;
   }, []);
 
 
@@ -125,7 +129,9 @@ export function GoogleConnectionCard() {
       const id = queue[i]!;
       const label = services.find((s) => s.connectorId === id)?.label ?? id;
       setStep(`Autorizando ${label}…`);
-      const { authorizationUrl } = await startFn({ data: { connectorId: id } });
+      const { authorizationUrl } = await startFn({
+        data: { connectorId: id, accountEmail: emailRef.current || null },
+      });
 
       if (!popup || popup.closed) {
         // Sem pop-up: guarda o restante da fila e segue na mesma aba.
@@ -136,7 +142,8 @@ export function GoogleConnectionCard() {
       const completion = waitForOAuthCompletion(popup);
       popup.location.href = authorizationUrl;
       const code = await completion;
-      if (code) await completeFn({ data: { code } });
+      if (code)
+        await completeFn({ data: { code, expectedEmail: emailRef.current || null } });
     }
     sessionStorage.removeItem(QUEUE_KEY);
     popup?.close();
