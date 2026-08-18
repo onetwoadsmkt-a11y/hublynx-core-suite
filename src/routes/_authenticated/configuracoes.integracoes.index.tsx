@@ -1,9 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GoogleConnectionCard } from "@/components/google/GoogleConnectionCard";
-import { TestEmailCard } from "@/components/google/TestEmailCard";
+import { GoogleAccountCard } from "@/components/google/GoogleAccountCard";
 
 export const Route = createFileRoute("/_authenticated/configuracoes/integracoes/")({
-  head: () => ({ meta: [{ title: "Integrações — Hublynx Core" }] }),
+  head: () => ({
+    meta: [
+      { title: "Integrações — Hublynx Core" },
+      { name: "description", content: "Gerencie a conta Google usada para entrar no Hublynx Core." },
+      { property: "og:title", content: "Integrações — Hublynx Core" },
+      { property: "og:description", content: "Conta Google usada para autenticação no Hublynx Core." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: IntegracoesPage,
 });
 
@@ -13,11 +21,10 @@ function IntegracoesPage() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Integrações</h1>
         <p className="text-muted-foreground">
-          Conecte ferramentas externas à sua conta Hublynx. Cada usuário gerencia as próprias conexões.
+          Autenticação da sua conta no Hublynx Core.
         </p>
       </header>
-      <GoogleConnectionCard />
-      <TestEmailCard />
+      <GoogleAccountCard />
     </div>
   );
 }
