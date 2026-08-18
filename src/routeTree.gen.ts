@@ -34,6 +34,7 @@ import { Route as OauthGoogleReturnRouteImport } from './routes/oauth.google.ret
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
 import { Route as AuthenticatedGestaoClientesRouteImport } from './routes/_authenticated/gestao.clientes'
 import { Route as AuthenticatedFinanceiroRecorrenciasRouteImport } from './routes/_authenticated/financeiro.recorrencias'
+import { Route as AuthenticatedFinanceiroRecebiveisRouteImport } from './routes/_authenticated/financeiro.recebiveis'
 import { Route as AuthenticatedFinanceiroReceberRouteImport } from './routes/_authenticated/financeiro.receber'
 import { Route as AuthenticatedFinanceiroPrevisaoRouteImport } from './routes/_authenticated/financeiro.previsao'
 import { Route as AuthenticatedFinanceiroPagarRouteImport } from './routes/_authenticated/financeiro.pagar'
@@ -184,6 +185,12 @@ const AuthenticatedFinanceiroRecorrenciasRoute =
     path: '/recorrencias',
     getParentRoute: () => AuthenticatedFinanceiroRoute,
   } as any)
+const AuthenticatedFinanceiroRecebiveisRoute =
+  AuthenticatedFinanceiroRecebiveisRouteImport.update({
+    id: '/recebiveis',
+    path: '/recebiveis',
+    getParentRoute: () => AuthenticatedFinanceiroRoute,
+  } as any)
 const AuthenticatedFinanceiroReceberRoute =
   AuthenticatedFinanceiroReceberRouteImport.update({
     id: '/receber',
@@ -319,6 +326,7 @@ export interface FileRoutesByFullPath {
   '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
   '/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
   '/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
+  '/financeiro/recebiveis': typeof AuthenticatedFinanceiroRecebiveisRoute
   '/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
@@ -360,6 +368,7 @@ export interface FileRoutesByTo {
   '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
   '/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
   '/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
+  '/financeiro/recebiveis': typeof AuthenticatedFinanceiroRecebiveisRoute
   '/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
@@ -406,6 +415,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
   '/_authenticated/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
   '/_authenticated/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
+  '/_authenticated/financeiro/recebiveis': typeof AuthenticatedFinanceiroRecebiveisRoute
   '/_authenticated/financeiro/recorrencias': typeof AuthenticatedFinanceiroRecorrenciasRoute
   '/_authenticated/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
@@ -452,6 +462,7 @@ export interface FileRouteTypes {
     | '/financeiro/pagar'
     | '/financeiro/previsao'
     | '/financeiro/receber'
+    | '/financeiro/recebiveis'
     | '/financeiro/recorrencias'
     | '/gestao/clientes'
     | '/projetos/$id'
@@ -493,6 +504,7 @@ export interface FileRouteTypes {
     | '/financeiro/pagar'
     | '/financeiro/previsao'
     | '/financeiro/receber'
+    | '/financeiro/recebiveis'
     | '/financeiro/recorrencias'
     | '/gestao/clientes'
     | '/projetos/$id'
@@ -538,6 +550,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro/pagar'
     | '/_authenticated/financeiro/previsao'
     | '/_authenticated/financeiro/receber'
+    | '/_authenticated/financeiro/recebiveis'
     | '/_authenticated/financeiro/recorrencias'
     | '/_authenticated/gestao/clientes'
     | '/_authenticated/projetos/$id'
@@ -741,6 +754,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinanceiroRecorrenciasRouteImport
       parentRoute: typeof AuthenticatedFinanceiroRoute
     }
+    '/_authenticated/financeiro/recebiveis': {
+      id: '/_authenticated/financeiro/recebiveis'
+      path: '/recebiveis'
+      fullPath: '/financeiro/recebiveis'
+      preLoaderRoute: typeof AuthenticatedFinanceiroRecebiveisRouteImport
+      parentRoute: typeof AuthenticatedFinanceiroRoute
+    }
     '/_authenticated/financeiro/receber': {
       id: '/_authenticated/financeiro/receber'
       path: '/receber'
@@ -935,6 +955,7 @@ interface AuthenticatedFinanceiroRouteChildren {
   AuthenticatedFinanceiroPagarRoute: typeof AuthenticatedFinanceiroPagarRoute
   AuthenticatedFinanceiroPrevisaoRoute: typeof AuthenticatedFinanceiroPrevisaoRoute
   AuthenticatedFinanceiroReceberRoute: typeof AuthenticatedFinanceiroReceberRoute
+  AuthenticatedFinanceiroRecebiveisRoute: typeof AuthenticatedFinanceiroRecebiveisRoute
   AuthenticatedFinanceiroRecorrenciasRoute: typeof AuthenticatedFinanceiroRecorrenciasRoute
   AuthenticatedFinanceiroIndexRoute: typeof AuthenticatedFinanceiroIndexRoute
 }
@@ -949,6 +970,8 @@ const AuthenticatedFinanceiroRouteChildren: AuthenticatedFinanceiroRouteChildren
     AuthenticatedFinanceiroPagarRoute: AuthenticatedFinanceiroPagarRoute,
     AuthenticatedFinanceiroPrevisaoRoute: AuthenticatedFinanceiroPrevisaoRoute,
     AuthenticatedFinanceiroReceberRoute: AuthenticatedFinanceiroReceberRoute,
+    AuthenticatedFinanceiroRecebiveisRoute:
+      AuthenticatedFinanceiroRecebiveisRoute,
     AuthenticatedFinanceiroRecorrenciasRoute:
       AuthenticatedFinanceiroRecorrenciasRoute,
     AuthenticatedFinanceiroIndexRoute: AuthenticatedFinanceiroIndexRoute,

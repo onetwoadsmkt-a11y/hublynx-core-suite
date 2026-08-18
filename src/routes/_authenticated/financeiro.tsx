@@ -17,6 +17,7 @@ export const Route = createFileRoute("/_authenticated/financeiro")({
 const TABS = [
   { to: "/financeiro", label: "Dashboard" },
   { to: "/financeiro/receber", label: "Receber" },
+  { to: "/financeiro/recebiveis", label: "Recebíveis (Clientes/Projetos)" },
   { to: "/financeiro/pagar", label: "Pagar" },
   { to: "/financeiro/calendario", label: "Calendário" },
   { to: "/financeiro/recorrencias", label: "Recorrências" },
