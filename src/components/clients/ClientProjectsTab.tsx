@@ -5,6 +5,7 @@ import { getClientRelated } from "@/lib/clients/clients.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, FolderKanban } from "lucide-react";
+import { maskBRL } from "@/lib/security/value-lock";
 
 export function ClientProjectsTab({ clientId }: { clientId: string }) {
   const fn = useServerFn(getClientRelated);
