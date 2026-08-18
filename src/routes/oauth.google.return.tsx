@@ -60,7 +60,12 @@ function OAuthReturn() {
       notify("appUserConnectorOAuthComplete", code);
       return;
     }
-    void completeGoogleAppUserConnect({ data: { code } })
+    void completeGoogleAppUserConnect({
+      data: {
+        code,
+        expectedEmail: localStorage.getItem("hublynx_google_account_email") || null,
+      },
+    })
       .then(() => notify("appUserConnectorOAuthComplete"))
       .catch(() => {
         setMessage("Não foi possível finalizar a conexão.");

@@ -1,3 +1,4 @@
+import type { ChangeEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -157,6 +158,11 @@ export function GoogleConnectionCard() {
       ? [only]
       : (services.map((s) => s.connectorId) as GoogleConnectorId[]);
     if (!queue.length) return;
+    const email = emailRef.current.trim();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      toast.error("Informe a conta Google de integração antes de conectar.");
+      return;
+    }
     const popup = window.open("", "hublynx-google-oauth", "width=520,height=680");
     setConnecting(true);
     try {
@@ -260,7 +266,7 @@ export function GoogleConnectionCard() {
               placeholder="seuemail@gmail.com"
               className="max-w-sm"
               value={accountEmail}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
                 setAccountEmail(e.target.value);
                 emailRef.current = e.target.value.trim();
                 localStorage.setItem(EMAIL_KEY, e.target.value.trim());
