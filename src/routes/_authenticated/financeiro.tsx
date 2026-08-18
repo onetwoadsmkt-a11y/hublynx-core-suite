@@ -46,11 +46,13 @@ function FinanceLayout() {
   const ensure = useServerFn(ensureDefaultCategories);
   const rollover = useServerFn(runRecurringRollover);
   const search = Route.useSearch();
+  const unlocked = useValuesUnlocked();
 
   useEffect(() => {
+    if (!unlocked) return;
     ensure().catch(() => {});
     rollover().catch(() => {});
-  }, [ensure, rollover]);
+  }, [ensure, rollover, unlocked]);
 
   useEffect(() => {
     const ch = supabase
@@ -67,16 +69,31 @@ function FinanceLayout() {
     };
   }, [qc]);
 
+  if (!unlocked) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <FinanceLockScreen />
+      </div>
+    );
+  }
+
+  const moreActive = MORE_TABS.some((t) => pathname === t.to);
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Financeiro</h1>
-        <p className="text-sm text-muted-foreground">
-          Receitas, despesas, fluxo de caixa, lucratividade e previsões.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold">Financeiro</h1>
+          <p className="text-sm text-muted-foreground">
+            Previsão de faturamento, recebíveis e contas a pagar.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => lockValues()}>
+          <Lock className="mr-2 h-4 w-4" /> Bloquear valores
+        </Button>
       </div>
       <div className="border-b overflow-x-auto">
-        <nav className="flex gap-1">
+        <nav className="flex gap-1 items-center">
           {TABS.map((t) => {
             const active = pathname === t.to;
             return (
@@ -94,6 +111,28 @@ function FinanceLayout() {
               </Link>
             );
           })}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  moreActive
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Mais
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {MORE_TABS.map((t) => (
+                <DropdownMenuItem key={t.to} asChild>
+                  <Link to={t.to} search={search}>
+                    {t.label}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
       </div>
       <Outlet />
