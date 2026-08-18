@@ -2,8 +2,18 @@ import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-r
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureDefaultCategories, runRecurringRollover } from "@/lib/finance/finance.functions";
+import { FinanceLockScreen } from "@/components/finance/FinanceLockScreen";
+import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/_authenticated/financeiro")({
   head: () => ({ meta: [{ title: "Financeiro — Hublynx Core" }] }),
@@ -15,16 +25,20 @@ export const Route = createFileRoute("/_authenticated/financeiro")({
 });
 
 const TABS = [
-  { to: "/financeiro", label: "Dashboard" },
-  { to: "/financeiro/receber", label: "Receber" },
-  { to: "/financeiro/recebiveis", label: "Recebíveis (Clientes/Projetos)" },
-  { to: "/financeiro/pagar", label: "Pagar" },
+  { to: "/financeiro", label: "Visão Geral" },
+  { to: "/financeiro/previsao", label: "Previsão de Faturamento" },
+  { to: "/financeiro/recebiveis", label: "Recebíveis" },
+  { to: "/financeiro/pagar", label: "Contas a Pagar" },
+] as const;
+
+const MORE_TABS = [
+  { to: "/financeiro/receber", label: "Contas a Receber (lista)" },
   { to: "/financeiro/calendario", label: "Calendário" },
   { to: "/financeiro/recorrencias", label: "Recorrências" },
   { to: "/financeiro/dre", label: "DRE + Lucratividade" },
-  { to: "/financeiro/previsao", label: "Previsão" },
   { to: "/financeiro/categorias", label: "Categorias" },
 ] as const;
+
 
 function FinanceLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
