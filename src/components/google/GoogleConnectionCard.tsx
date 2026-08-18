@@ -15,7 +15,6 @@ import {
   Mail,
   FolderOpen,
   Calendar,
-  Sheet,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -29,7 +28,6 @@ const ICONS: Record<GoogleConnectorId, typeof Mail> = {
   google_mail: Mail,
   google_calendar: Calendar,
   google_drive: FolderOpen,
-  google_sheets: Sheet,
 };
 
 const QUEUE_KEY = "hublynx_google_connect_queue";

@@ -13,7 +13,7 @@ export const GOOGLE_APP_USER_SERVICES = [
 export type GoogleConnectorId = (typeof GOOGLE_APP_USER_SERVICES)[number]["connectorId"];
 
 const connectorSchema = z.object({
-  connectorId: z.enum(["google_mail", "google_calendar", "google_drive", "google_sheets"]),
+  connectorId: z.enum(["google_mail", "google_calendar", "google_drive"]),
 });
 
 const GATEWAY_BASE_URL = "https://connector-gateway.lovable.dev";
@@ -31,14 +31,12 @@ const SCOPES: Record<GoogleConnectorId, string[]> = {
   ],
   google_calendar: [...BASE_SCOPES, "https://www.googleapis.com/auth/calendar"],
   google_drive: [...BASE_SCOPES, "https://www.googleapis.com/auth/drive"],
-  google_sheets: [...BASE_SCOPES, "https://www.googleapis.com/auth/spreadsheets"],
 };
 
 const CLIENT_KEY_ENV: Record<GoogleConnectorId, string> = {
   google_mail: "GOOGLE_MAIL_APP_USER_CONNECTOR_CLIENT_API_KEY",
   google_calendar: "GOOGLE_CALENDAR_APP_USER_CONNECTOR_CLIENT_API_KEY",
   google_drive: "GOOGLE_DRIVE_APP_USER_CONNECTOR_CLIENT_API_KEY",
-  google_sheets: "GOOGLE_SHEETS_APP_USER_CONNECTOR_CLIENT_API_KEY",
 };
 
 /** Fallback: um único cliente OAuth compartilhado pode atender os 4 serviços. */
@@ -52,7 +50,6 @@ const PROBE: Record<GoogleConnectorId, string> = {
   google_mail: "/gmail/v1/users/me/profile",
   google_calendar: "/calendar/v3/users/me/calendarList?maxResults=1",
   google_drive: "/drive/v3/about?fields=user",
-  google_sheets: "/drive/v3/about?fields=user",
 };
 
 /** Status das conexões Google do usuário logado. Não expõe segredos. */
