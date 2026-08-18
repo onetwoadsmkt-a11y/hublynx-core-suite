@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
+import { maskBRL } from "@/lib/security/value-lock";
 
 export const Route = createFileRoute("/_authenticated/projetos/")({
   head: () => ({ meta: [{ title: "Projetos — Hublynx Core" }] }),
@@ -58,7 +59,7 @@ const STATUS_TONE: Record<ProjectStatus, string> = {
 };
 
 function brl(n: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+  return maskBRL(n);
 }
 
 type ViewMode = "grid" | "list";

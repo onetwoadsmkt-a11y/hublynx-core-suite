@@ -8,6 +8,7 @@ import { CheckSquare, FolderKanban, Calendar as CalIcon, Users, Plus } from "luc
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { maskBRL } from "@/lib/security/value-lock";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Hublynx Core" }] }),
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   notFoundComponent: () => <div className="p-6">Não encontrado.</div>,
 });
 
-const fmtBRL = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtBRL = (n: number) => maskBRL(n);
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 

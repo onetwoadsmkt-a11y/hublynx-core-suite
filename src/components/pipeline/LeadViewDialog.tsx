@@ -16,6 +16,7 @@ import { ptBR } from "date-fns/locale";
 import { getLeadDetail } from "@/lib/pipeline/pipeline.functions";
 import { exportLeadDetailToExcel } from "@/lib/pipeline/export-leads";
 import type { Lead, PipelineStage } from "./types";
+import { maskBRL } from "@/lib/security/value-lock";
 
 function Field({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
@@ -93,12 +94,7 @@ export function LeadViewDialog({
               <Field
                 label="Valor"
                 value={
-                  lead.value != null
-                    ? Number(lead.value).toLocaleString("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      })
-                    : null
+                  lead.value != null ? maskBRL(lead.value) : null
                 }
               />
               <Field label="Cidade/UF" value={[lead.city, lead.state].filter(Boolean).join(" / ")} />

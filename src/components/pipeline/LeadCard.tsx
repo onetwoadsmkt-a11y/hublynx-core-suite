@@ -16,6 +16,7 @@ import { exportLeadJourneyToExcel } from "@/lib/pipeline/export-leads";
 import { cn } from "@/lib/utils";
 import { useLeadCardLayout } from "./card-layout";
 import type { Lead } from "./types";
+import { maskBRL } from "@/lib/security/value-lock";
 
 
 
@@ -33,7 +34,7 @@ export function relativeTime(iso: string | null) {
 
 export function currency(v: number | null) {
   if (v == null) return null;
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  return maskBRL(v, { maximumFractionDigits: 0 });
 }
 
 export function LeadCard({

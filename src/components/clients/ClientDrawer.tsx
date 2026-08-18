@@ -18,6 +18,7 @@ import { ClientDocumentsTab } from "./ClientDocumentsTab";
 import { ClientHistoryTab } from "./ClientHistoryTab";
 import { ClientProjectsTab } from "./ClientProjectsTab";
 import { ClientFormDialog } from "./ClientFormDialog";
+import { maskBRL } from "@/lib/security/value-lock";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -101,11 +102,7 @@ export function ClientDrawer({
                   <Field
                     label="Valor mensal"
                     value={
-                      client.monthly_value != null
-                        ? `R$ ${Number(client.monthly_value).toLocaleString("pt-BR", {
-                            minimumFractionDigits: 2,
-                          })}`
-                        : null
+                      client.monthly_value != null ? maskBRL(client.monthly_value) : null
                     }
                   />
                   <Field label="Início contrato" value={client.contract_start} />

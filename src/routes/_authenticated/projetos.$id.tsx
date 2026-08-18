@@ -43,6 +43,7 @@ import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { maskBRL } from "@/lib/security/value-lock";
 
 export const Route = createFileRoute("/_authenticated/projetos/$id")({
   head: () => ({ meta: [{ title: "Projeto — Hublynx Core" }] }),
@@ -82,7 +83,7 @@ const SERVICE_LABEL: Record<string, string> = {
 
 
 function brl(n: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
+  return maskBRL(n);
 }
 
 function fmtDate(d?: string | null) {
