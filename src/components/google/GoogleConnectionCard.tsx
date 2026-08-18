@@ -249,7 +249,35 @@ export function GoogleConnectionCard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        <div className="space-y-2 rounded-lg border p-4">
+          <Label htmlFor="google-account">Conta Google de integração</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              id="google-account"
+              type="email"
+              placeholder="seuemail@gmail.com"
+              className="max-w-sm"
+              value={accountEmail}
+              onChange={(e) => {
+                setAccountEmail(e.target.value);
+                emailRef.current = e.target.value.trim();
+                localStorage.setItem(EMAIL_KEY, e.target.value.trim());
+              }}
+            />
+            {account && (
+              <Badge variant="secondary" className="gap-1">
+                <CheckCircle2 className="h-3 w-3" /> {account}
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Informe a conta que será usada para Gmail, Agenda e Drive. Na janela do Google, escolha
+            exatamente essa conta — se autorizar outra, a conexão é recusada.
+          </p>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-4">
+
           <Button size="lg" onClick={() => void connectAccount()} disabled={connecting || isLoading}>
             {connecting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
