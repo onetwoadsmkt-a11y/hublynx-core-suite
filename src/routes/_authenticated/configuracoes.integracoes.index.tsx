@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GoogleAccountCard } from "@/components/google/GoogleAccountCard";
+import { GoogleConnectionCard } from "@/components/google/GoogleConnectionCard";
 
 export const Route = createFileRoute("/_authenticated/configuracoes/integracoes/")({
   head: () => ({
@@ -21,9 +22,11 @@ function IntegracoesPage() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Integrações</h1>
         <p className="text-muted-foreground">
-          Autenticação da sua conta no Hublynx Core.
+          Conecte sua conta Google para usar Gmail, Google Agenda e Drive dentro do sistema — sem
+          chave de API.
         </p>
       </header>
+      <GoogleConnectionCard />
       <GoogleAccountCard />
     </div>
   );

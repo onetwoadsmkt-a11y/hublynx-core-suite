@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { completeGoogleAppUserConnect } from "@/lib/google/app-user.functions";
 
+
 export const Route = createFileRoute("/oauth/google/return")({
   ssr: false,
   head: () => ({
@@ -23,9 +24,15 @@ function OAuthReturn() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const connectorId = params.get("connector_id") ?? "";
-    const notify = (type: "appUserConnectorOAuthComplete" | "appUserConnectorOAuthFailed") => {
+    const notify = (
+      type: "appUserConnectorOAuthComplete" | "appUserConnectorOAuthFailed",
+      code?: string | null,
+    ) => {
       if (window.opener) {
-        window.opener.postMessage({ type, connectorId }, window.location.origin);
+        window.opener.postMessage(
+          { type, connectorId, code: code ?? null },
+          window.location.origin,
+        );
         window.close();
         return;
       }
@@ -46,6 +53,11 @@ function OAuthReturn() {
       }
       setMessage("Autorização concluída sem código de troca.");
       notify("appUserConnectorOAuthFailed");
+      return;
+    }
+    // Em pop-up, quem troca o código é a aba principal (ela tem a sessão do app).
+    if (window.opener) {
+      notify("appUserConnectorOAuthComplete", code);
       return;
     }
     void completeGoogleAppUserConnect({ data: { code } })
