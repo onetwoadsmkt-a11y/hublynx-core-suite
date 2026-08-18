@@ -76,10 +76,25 @@ export const getMyGoogleConnections = createServerFn({ method: "GET" })
     });
   });
 
+function pickEmail(json: any): string | null {
+  const candidates = [
+    json?.emailAddress,
+    json?.user?.emailAddress,
+    json?.items?.[0]?.id,
+    json?.items?.[0]?.summary,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.includes("@")) return c;
+  }
+  return null;
+}
+
 /** Inicia o consentimento OAuth do usuário para um serviço Google. */
 export const startGoogleAppUserConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => connectorSchema.parse(d))
+  .inputValidator((d: unknown) =>
+    connectorSchema.extend({ accountEmail: z.string().email().nullish() }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     const connectorId = data.connectorId as GoogleConnectorId;
     const clientAPIKey = resolveClientKey(connectorId);
@@ -90,7 +105,12 @@ export const startGoogleAppUserConnect = createServerFn({ method: "POST" })
     }
     const request = getRequest();
     if (!request) throw new Error("OAuth precisa iniciar a partir de uma requisição do app.");
-    const returnUrl = new URL("/oauth/google/return", request.url).toString();
+    const reqUrl = new URL(request.url);
+    // Em preview o app roda atrás de um proxy local; usa o host público.
+    const forwardedHost =
+      reqUrl.hostname === "localhost" ? request.headers.get("x-forwarded-host") : null;
+    const origin = forwardedHost ? `https://${forwardedHost}` : reqUrl.origin;
+    const returnUrl = new URL("/oauth/google/return", origin).toString();
 
     const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const { authorizeAppUserOAuth } = await import("@/integrations/lovable/appUserConnector");
@@ -111,25 +131,47 @@ export const startGoogleAppUserConnect = createServerFn({ method: "POST" })
       connectionAPIKey: existing ?? undefined,
       credentialsConfiguration: { scopes: SCOPES[connectorId] },
     });
+
+    // Sugere a conta informada pelo usuário na tela do Google (quando possível).
+    let finalUrl = authorizationUrl;
+    if (data.accountEmail) {
+      try {
+        const u = new URL(authorizationUrl);
+        if (u.hostname.endsWith("google.com")) {
+          u.searchParams.set("login_hint", data.accountEmail);
+          finalUrl = u.toString();
+        }
+      } catch {
+        // mantém a URL original
+      }
+    }
+
     await logOAuthEvent({
       userId: context.userId,
       connectorId,
       action: "connect_start",
       status: "success",
       message: "Consentimento OAuth iniciado",
+      accountEmail: data.accountEmail ?? null,
     });
-    return { authorizationUrl };
+    return { authorizationUrl: finalUrl };
   });
 
 /** Troca o código de retorno pela chave de conexão e persiste (criptografada). */
 export const completeGoogleAppUserConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ code: z.string().min(1) }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({ code: z.string().min(1), expectedEmail: z.string().email().nullish() })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
-    const { exchangeAppUserOAuthCode, callAsAppUser } = await import(
+    const { exchangeAppUserOAuthCode, callAsAppUser, disconnectAppUser } = await import(
       "@/integrations/lovable/appUserConnector"
     );
-    const { saveConnectionKeyForUser } = await import("@/server/appUserConnections.server");
+    const { saveConnectionKeyForUser, logOAuthEvent } = await import(
+      "@/server/appUserConnections.server"
+    );
     const { connectionAPIKey, connectorId } = await exchangeAppUserOAuthCode(
       GATEWAY_BASE_URL,
       data.code,
@@ -145,26 +187,56 @@ export const completeGoogleAppUserConnect = createServerFn({ method: "POST" })
         connectorId,
         path: PROBE[connectorId as GoogleConnectorId],
       });
-      if (res.ok) {
-        const j: any = await res.json();
-        email = j?.emailAddress ?? j?.user?.emailAddress ?? null;
-      }
+      if (res.ok) email = pickEmail(await res.json());
     } catch {
       email = null;
     }
 
-    await saveConnectionKeyForUser(context.userId, connectorId, connectionAPIKey, email);
-    const { logOAuthEvent } = await import("@/server/appUserConnections.server");
+    // A conta autorizada precisa ser a que o usuário informou.
+    if (
+      data.expectedEmail &&
+      email &&
+      email.toLowerCase() !== data.expectedEmail.toLowerCase()
+    ) {
+      try {
+        await disconnectAppUser({
+          gatewayBaseUrl: GATEWAY_BASE_URL,
+          connectionAPIKey,
+          connectorId,
+        });
+      } catch {
+        // ignora falha ao desfazer no gateway
+      }
+      const message = `Você autorizou ${email}, mas a conta de integração configurada é ${data.expectedEmail}.`;
+      await logOAuthEvent({
+        userId: context.userId,
+        connectorId,
+        action: "connect_complete",
+        status: "error",
+        message,
+        accountEmail: email,
+      });
+      throw new Error(message);
+    }
+
+    await saveConnectionKeyForUser(
+      context.userId,
+      connectorId,
+      connectionAPIKey,
+      email ?? data.expectedEmail ?? null,
+    );
     await logOAuthEvent({
       userId: context.userId,
       connectorId,
       action: "connect_complete",
       status: "success",
       message: "Conta conectada com sucesso",
-      accountEmail: email,
+      accountEmail: email ?? data.expectedEmail ?? null,
     });
-    return { ok: true, connectorId };
+    return { ok: true, connectorId, email: email ?? data.expectedEmail ?? null };
   });
+
+
 
 /** Testa a conexão do usuário chamando um endpoint leve do Google. */
 export const testMyGoogleConnection = createServerFn({ method: "POST" })
