@@ -7,7 +7,7 @@ export const GOOGLE_APP_USER_SERVICES = [
   { connectorId: "google_mail", label: "Gmail" },
   { connectorId: "google_calendar", label: "Google Calendar" },
   { connectorId: "google_drive", label: "Google Drive" },
-  { connectorId: "google_sheets", label: "Google Sheets" },
+  
 ] as const;
 
 export type GoogleConnectorId = (typeof GOOGLE_APP_USER_SERVICES)[number]["connectorId"];

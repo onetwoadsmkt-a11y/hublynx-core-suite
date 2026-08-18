@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { completeGoogleAppUserConnect } from "@/lib/google/app-user.functions";
 
+
 export const Route = createFileRoute("/oauth/google/return")({
   ssr: false,
   head: () => ({
