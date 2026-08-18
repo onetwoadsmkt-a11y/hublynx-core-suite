@@ -25,6 +25,7 @@ import { Menu } from "lucide-react";
 import { listUserModules } from "@/lib/modules/modules.functions";
 import { moduleForPath, type ModuleSlug } from "@/lib/modules/registry";
 import { InstallModuleButton } from "@/components/modules/InstallModuleButton";
+import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
 
 function HeaderInstallModule() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -80,6 +81,7 @@ const NAV_GROUPS: NavGroup[] = [
 function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isAdmin } = useIsAdmin();
+  const valuesUnlocked = useValuesUnlocked();
   const listMods = useServerFn(listUserModules);
   const { data: modules } = useQuery({
     queryKey: ["user-modules"],
@@ -110,6 +112,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
               const slug = item.moduleSlug;
               const row = slug ? modules?.find((r) => r.module_slug === slug) : undefined;
               const disabled = slug && row ? !row.enabled : false;
+              const locked = item.to === "/financeiro" && !valuesUnlocked;
               const link = (
                 <Link
                   key={item.to}
@@ -127,7 +130,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                   {!collapsed && (
                     <span className="flex-1 flex items-center justify-between">
                       {item.label}
-                      {disabled && <Lock className="h-3 w-3 opacity-60" />}
+                      {(disabled || locked) && <Lock className="h-3 w-3 opacity-60" />}
                     </span>
                   )}
                 </Link>
@@ -206,6 +209,7 @@ function UserMenu() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const valuesUnlocked = useValuesUnlocked();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sidebar-collapsed") === "1";
@@ -280,6 +284,17 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="flex items-center gap-2 ml-auto">
             <HeaderInstallModule />
+            {valuesUnlocked && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => lockValues()}
+                aria-label="Bloquear valores"
+                title="Bloquear valores"
+              >
+                <Lock className="h-4 w-4" />
+              </Button>
+            )}
             <ThemeToggle />
             <NotificationsBell />
             <UserMenu />
@@ -287,7 +302,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="p-4 lg:p-8 max-w-[1600px] mx-auto w-full">{children}</div>
+          <div key={valuesUnlocked ? "unlocked" : "locked"} className="p-4 lg:p-8 max-w-[1600px] mx-auto w-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>
