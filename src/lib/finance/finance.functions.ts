@@ -325,7 +325,12 @@ export const upsertFinance = createServerFn({ method: "POST" })
         })
         .eq("id", data.id)
         .eq("owner_id", userId);
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (error.message.includes("uq_finances_parent_due")) {
+          throw new Error("Já existe um lançamento desta recorrência nesta data de vencimento.");
+        }
+        throw new Error(error.message);
+      }
       return { ok: true, id: data.id };
     }
 
