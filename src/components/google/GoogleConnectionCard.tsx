@@ -8,6 +8,7 @@ import {
   getMyGoogleConnections,
   startGoogleAppUserConnect,
   testMyGoogleConnection,
+  completeGoogleAppUserConnect,
   disconnectMyGoogleConnection,
 } from "@/lib/google/app-user.functions";
 import type { GoogleConnectorId } from "@/lib/google/app-user.functions";
@@ -60,6 +61,7 @@ export function GoogleConnectionCard() {
   const listFn = useServerFn(getMyGoogleConnections);
   const startFn = useServerFn(startGoogleAppUserConnect);
   const testFn = useServerFn(testMyGoogleConnection);
+  const completeFn = useServerFn(completeGoogleAppUserConnect);
   const disconnectFn = useServerFn(disconnectMyGoogleConnection);
 
   const [connecting, setConnecting] = useState(false);
@@ -83,7 +85,7 @@ export function GoogleConnectionCard() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["my-google-connections"] });
 
   function waitForOAuthCompletion(popup: Window) {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<string | null>((resolve, reject) => {
       let poll: number | undefined;
       const cleanup = () => {
         window.removeEventListener("message", onMessage);
@@ -97,7 +99,8 @@ export function GoogleConnectionCard() {
         )
           return;
         cleanup();
-        if (type === "appUserConnectorOAuthComplete") return resolve();
+        if (type === "appUserConnectorOAuthComplete")
+          return resolve(typeof event.data?.code === "string" ? event.data.code : null);
         reject(new Error("A autorização do Google não foi concluída."));
       };
       window.addEventListener("message", onMessage);
@@ -125,7 +128,8 @@ export function GoogleConnectionCard() {
       }
       const completion = waitForOAuthCompletion(popup);
       popup.location.href = authorizationUrl;
-      await completion;
+      const code = await completion;
+      if (code) await completeFn({ data: { code } });
     }
     sessionStorage.removeItem(QUEUE_KEY);
     popup?.close();
