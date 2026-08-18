@@ -1,9 +1,12 @@
+import type { ChangeEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   getMyGoogleConnections,
   startGoogleAppUserConnect,
@@ -32,6 +35,7 @@ const ICONS: Record<GoogleConnectorId, typeof Mail> = {
 };
 
 const QUEUE_KEY = "hublynx_google_connect_queue";
+const EMAIL_KEY = "hublynx_google_account_email";
 
 function GoogleGlyph({ className }: { className?: string }) {
   return (
@@ -66,11 +70,21 @@ export function GoogleConnectionCard() {
 
   const [connecting, setConnecting] = useState(false);
   const [step, setStep] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState("");
   const [busy, setBusy] = useState<Partial<Record<GoogleConnectorId, boolean>>>({});
   const [results, setResults] = useState<
     Partial<Record<GoogleConnectorId, { ok: boolean; message: string }>>
   >({});
   const resumed = useRef(false);
+  const emailRef = useRef("");
+
+  // Conta de integração informada pelo usuário (persistida localmente).
+  useEffect(() => {
+    const saved = localStorage.getItem(EMAIL_KEY) ?? "";
+    setAccountEmail(saved);
+    emailRef.current = saved;
+  }, []);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-google-connections"],
@@ -118,7 +132,9 @@ export function GoogleConnectionCard() {
       const id = queue[i]!;
       const label = services.find((s) => s.connectorId === id)?.label ?? id;
       setStep(`Autorizando ${label}…`);
-      const { authorizationUrl } = await startFn({ data: { connectorId: id } });
+      const { authorizationUrl } = await startFn({
+        data: { connectorId: id, accountEmail: emailRef.current || null },
+      });
 
       if (!popup || popup.closed) {
         // Sem pop-up: guarda o restante da fila e segue na mesma aba.
@@ -129,7 +145,8 @@ export function GoogleConnectionCard() {
       const completion = waitForOAuthCompletion(popup);
       popup.location.href = authorizationUrl;
       const code = await completion;
-      if (code) await completeFn({ data: { code } });
+      if (code)
+        await completeFn({ data: { code, expectedEmail: emailRef.current || null } });
     }
     sessionStorage.removeItem(QUEUE_KEY);
     popup?.close();
@@ -141,6 +158,11 @@ export function GoogleConnectionCard() {
       ? [only]
       : (services.map((s) => s.connectorId) as GoogleConnectorId[]);
     if (!queue.length) return;
+    const email = emailRef.current.trim();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      toast.error("Informe a conta Google de integração antes de conectar.");
+      return;
+    }
     const popup = window.open("", "hublynx-google-oauth", "width=520,height=680");
     setConnecting(true);
     try {
@@ -235,7 +257,35 @@ export function GoogleConnectionCard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        <div className="space-y-2 rounded-lg border p-4">
+          <Label htmlFor="google-account">Conta Google de integração</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              id="google-account"
+              type="email"
+              placeholder="seuemail@gmail.com"
+              className="max-w-sm"
+              value={accountEmail}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                setAccountEmail(e.target.value);
+                emailRef.current = e.target.value.trim();
+                localStorage.setItem(EMAIL_KEY, e.target.value.trim());
+              }}
+            />
+            {account && (
+              <Badge variant="secondary" className="gap-1">
+                <CheckCircle2 className="h-3 w-3" /> {account}
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Informe a conta que será usada para Gmail, Agenda e Drive. Na janela do Google, escolha
+            exatamente essa conta — se autorizar outra, a conexão é recusada.
+          </p>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-4">
+
           <Button size="lg" onClick={() => void connectAccount()} disabled={connecting || isLoading}>
             {connecting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
