@@ -63,7 +63,7 @@ export const uploadClientDocument = createServerFn({ method: "POST" })
     if (cErr) throw new Error(cErr.message);
     if (!client) throw new Error("Cliente não encontrado");
 
-    const headers = await googleHeaders(userId);
+    const headers = await googleHeaders(context.userId);
 
     const boundary = "----hublynx_" + crypto.randomUUID();
     const metadata = {
@@ -140,7 +140,7 @@ export const deleteClientDocument = createServerFn({ method: "POST" })
 
     // Best-effort Drive delete (don't fail the row delete if Drive is offline)
     try {
-      const headers = await googleHeaders(userId);
+      const headers = await googleHeaders(context.userId);
       await fetch(`${GOOGLE_API_BASE}/drive/v3/files/${row.storage_path}`, {
         method: "DELETE",
         headers: headers as Record<string, string>,

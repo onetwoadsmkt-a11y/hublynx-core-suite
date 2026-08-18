@@ -20,6 +20,7 @@ const instantSchema = z.object({
 });
 
 async function createCalendarEvent({
+  userId,
   summary,
   description,
   startISO,
@@ -27,6 +28,7 @@ async function createCalendarEvent({
   attendees,
   sendUpdates,
 }: {
+  userId: string;
   summary: string;
   description?: string;
   startISO: string;
@@ -112,6 +114,7 @@ export const scheduleMeeting = createServerFn({ method: "POST" })
     const end = new Date(start.getTime() + data.durationMinutes * 60_000);
 
     const evt = await createCalendarEvent({
+      userId: context.userId,
       summary: data.summary,
       description: data.description,
       startISO: start.toISOString(),
@@ -148,6 +151,7 @@ export const createInstantMeet = createServerFn({ method: "POST" })
     const end = new Date(start.getTime() + data.durationMinutes * 60_000);
 
     const evt = await createCalendarEvent({
+      userId: context.userId,
       summary: data.summary,
       startISO: start.toISOString(),
       endISO: end.toISOString(),

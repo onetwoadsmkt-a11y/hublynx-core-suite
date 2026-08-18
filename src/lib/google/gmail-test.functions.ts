@@ -45,7 +45,7 @@ const TEST_HTML = `<!doctype html>
 export const sendTestEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => schema.parse(data))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const subject = "Hublynx — Teste de codificação UTF-8 ✅";
     const encSubject = `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
     const encodedBody = Buffer.from(TEST_HTML, "utf-8")
@@ -64,7 +64,7 @@ export const sendTestEmail = createServerFn({ method: "POST" })
 
     const raw = toBase64Url(rfc);
 
-    const headers = await googleHeaders(userId);
+    const headers = await googleHeaders(context.userId);
     const res = await fetch(
       `${GOOGLE_API_BASE}/gmail/v1/users/me/messages/send`,
       {

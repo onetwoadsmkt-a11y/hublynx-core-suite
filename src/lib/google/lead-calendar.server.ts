@@ -25,7 +25,7 @@ export type LeadEventResult = {
  * para um agendamento de lead. Nunca lança: retorna `error` quando falha,
  * para que o agendamento local continue sendo salvo.
  */
-export async function upsertLeadCalendarEvent(input: LeadEventInput): Promise<LeadEventResult> {
+export async function upsertLeadCalendarEvent(userId: string, input: LeadEventInput): Promise<LeadEventResult> {
   try {
     const headers = await googleHeaders(userId);
     const start = new Date(input.startISO);
@@ -81,7 +81,7 @@ export async function upsertLeadCalendarEvent(input: LeadEventInput): Promise<Le
   }
 }
 
-export async function deleteLeadCalendarEvent(eventId: string): Promise<void> {
+export async function deleteLeadCalendarEvent(userId: string, eventId: string): Promise<void> {
   try {
     const headers = await googleHeaders(userId);
     await fetch(`${EVENTS_URL}/${eventId}?sendUpdates=all`, { method: "DELETE", headers });
