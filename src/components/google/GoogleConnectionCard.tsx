@@ -66,11 +66,18 @@ export function GoogleConnectionCard() {
 
   const [connecting, setConnecting] = useState(false);
   const [step, setStep] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState("");
   const [busy, setBusy] = useState<Partial<Record<GoogleConnectorId, boolean>>>({});
   const [results, setResults] = useState<
     Partial<Record<GoogleConnectorId, { ok: boolean; message: string }>>
   >({});
   const resumed = useRef(false);
+
+  // Conta de integração informada pelo usuário (persistida localmente).
+  useEffect(() => {
+    setAccountEmail(localStorage.getItem(EMAIL_KEY) ?? "");
+  }, []);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-google-connections"],
