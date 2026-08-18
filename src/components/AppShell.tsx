@@ -58,22 +58,18 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    section: "Operações",
+    section: "Operação & Gestão",
     items: [
       { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" },
       { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" },
       { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" },
       { to: "/arquivos", label: "Arquivos", icon: FolderArchive },
-    ],
-  },
-  {
-    section: "Gestão",
-    items: [
       { to: "/gestao/clientes", label: "Clientes", icon: Building2 },
       { to: "/financeiro", label: "Financeiro", icon: Wallet },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
     ],
   },
+
 
   {
     section: "Administração",
