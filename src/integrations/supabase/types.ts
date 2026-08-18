@@ -367,6 +367,75 @@ export type Database = {
           },
         ]
       }
+      google_connections: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          expires_at: string | null
+          google_email: string | null
+          id: string
+          last_error: string | null
+          refresh_token: string | null
+          scopes: string[]
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          expires_at?: string | null
+          google_email?: string | null
+          id?: string
+          last_error?: string | null
+          refresh_token?: string | null
+          scopes?: string[]
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          expires_at?: string | null
+          google_email?: string | null
+          id?: string
+          last_error?: string | null
+          refresh_token?: string | null
+          scopes?: string[]
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      google_oauth_config: {
+        Row: {
+          client_id: string | null
+          client_secret: string | null
+          enabled_scopes: string[]
+          id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          client_secret?: string | null
+          enabled_scopes?: string[]
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          client_secret?: string | null
+          enabled_scopes?: string[]
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       google_oauth_logs: {
         Row: {
           account_email: string | null
@@ -847,6 +916,33 @@ export type Database = {
           link?: string | null
           read?: boolean
           title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          redirect_uri: string
+          scopes: string[]
+          state: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          redirect_uri: string
+          scopes?: string[]
+          state: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          redirect_uri?: string
+          scopes?: string[]
+          state?: string
           user_id?: string
         }
         Relationships: []
@@ -1925,7 +2021,36 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      google_connections_public: {
+        Row: {
+          expires_at: string | null
+          google_email: string | null
+          last_error: string | null
+          scopes: string[] | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          expires_at?: string | null
+          google_email?: string | null
+          last_error?: string | null
+          scopes?: string[] | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          expires_at?: string | null
+          google_email?: string | null
+          last_error?: string | null
+          scopes?: string[] | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { GOOGLE_GATEWAY_URL, getGoogleGatewayHeaders } from "./google.functions";
+import { GOOGLE_API_BASE, googleHeaders } from "./google.functions";
 
 const schema = z.object({
   to: z.string().email(),
@@ -45,7 +45,7 @@ const TEST_HTML = `<!doctype html>
 export const sendTestEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => schema.parse(data))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const subject = "Hublynx — Teste de codificação UTF-8 ✅";
     const encSubject = `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
     const encodedBody = Buffer.from(TEST_HTML, "utf-8")
@@ -64,9 +64,9 @@ export const sendTestEmail = createServerFn({ method: "POST" })
 
     const raw = toBase64Url(rfc);
 
-    const headers = getGoogleGatewayHeaders("mail");
+    const headers = await googleHeaders(context.userId);
     const res = await fetch(
-      `${GOOGLE_GATEWAY_URL}/google_mail/gmail/v1/users/me/messages/send`,
+      `${GOOGLE_API_BASE}/gmail/v1/users/me/messages/send`,
       {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },

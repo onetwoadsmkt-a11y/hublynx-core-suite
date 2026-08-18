@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listGoogleOAuthLogs } from "@/lib/google/app-user.functions";
+import { listGoogleOAuthLogs } from "@/lib/google/oauth.functions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -89,7 +89,7 @@ function LogsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os usuários</SelectItem>
-                {(data?.users ?? []).map((u) => (
+                {(data?.users ?? []).map((u: { id: string; full_name: string | null }) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.full_name ?? u.id.slice(0, 8)}
                   </SelectItem>
@@ -120,7 +120,7 @@ function LogsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(data?.logs ?? []).map((l) => (
+                  {(data?.logs ?? []).map((l: any) => (
                     <TableRow key={l.id}>
                       <TableCell className="font-medium">
                         {SERVICE_LABEL[l.connector_id] ?? l.connector_id}

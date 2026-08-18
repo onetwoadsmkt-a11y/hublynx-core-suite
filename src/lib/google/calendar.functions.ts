@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { GOOGLE_GATEWAY_URL, getGoogleGatewayHeaders } from "./google.functions";
+import { GOOGLE_API_BASE, googleHeaders } from "./google.functions";
 
 const scheduleSchema = z.object({
   taskId: z.string().uuid(),
@@ -20,6 +20,7 @@ const instantSchema = z.object({
 });
 
 async function createCalendarEvent({
+  userId,
   summary,
   description,
   startISO,
@@ -27,6 +28,7 @@ async function createCalendarEvent({
   attendees,
   sendUpdates,
 }: {
+  userId: string;
   summary: string;
   description?: string;
   startISO: string;
@@ -34,7 +36,7 @@ async function createCalendarEvent({
   attendees: string[];
   sendUpdates: "all" | "none";
 }) {
-  const headers = getGoogleGatewayHeaders("calendar");
+  const headers = await googleHeaders(userId);
   const requestId = `meet-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const body = {
     summary,
@@ -49,7 +51,7 @@ async function createCalendarEvent({
       },
     },
   };
-  const url = `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=${sendUpdates}`;
+  const url = `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=${sendUpdates}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
@@ -112,6 +114,7 @@ export const scheduleMeeting = createServerFn({ method: "POST" })
     const end = new Date(start.getTime() + data.durationMinutes * 60_000);
 
     const evt = await createCalendarEvent({
+      userId: context.userId,
       summary: data.summary,
       description: data.description,
       startISO: start.toISOString(),
@@ -148,6 +151,7 @@ export const createInstantMeet = createServerFn({ method: "POST" })
     const end = new Date(start.getTime() + data.durationMinutes * 60_000);
 
     const evt = await createCalendarEvent({
+      userId: context.userId,
       summary: data.summary,
       startISO: start.toISOString(),
       endISO: end.toISOString(),
@@ -197,7 +201,7 @@ export const syncTaskToCalendar = createServerFn({ method: "POST" })
     const start = new Date(task.due_date as string);
     const end = new Date(start.getTime() + data.durationMinutes * 60_000);
 
-    const headers = getGoogleGatewayHeaders("calendar");
+    const headers = await googleHeaders(userId);
     const body: any = {
       summary: task.title,
       description: (task.description as string | null) ?? undefined,
@@ -226,12 +230,12 @@ export const syncTaskToCalendar = createServerFn({ method: "POST" })
     let res: Response;
     if (existing?.provider_id) {
       res = await fetch(
-        `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`,
+        `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`,
         { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
       );
     } else {
       res = await fetch(
-        `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
+        `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
         { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
       );
     }
@@ -280,7 +284,7 @@ export const syncAllPendingTasksToCalendar = createServerFn({ method: "POST" })
       .limit(500);
     if (error) throw new Error(error.message);
 
-    const headers = getGoogleGatewayHeaders("calendar");
+    const headers = await googleHeaders(userId);
     let created = 0, updated = 0, failed = 0;
     const errors: string[] = [];
 
@@ -316,12 +320,12 @@ export const syncAllPendingTasksToCalendar = createServerFn({ method: "POST" })
         let res: Response;
         if (existing?.provider_id) {
           res = await fetch(
-            `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`,
+            `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`,
             { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
           );
         } else {
           res = await fetch(
-            `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
+            `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
             { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
           );
         }

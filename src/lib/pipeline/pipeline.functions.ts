@@ -519,7 +519,7 @@ export const upsertLeadTask = createServerFn({ method: "POST" })
 
     if (data.due_at) {
       const { upsertLeadCalendarEvent } = await import("@/lib/google/lead-calendar.server");
-      const res = await upsertLeadCalendarEvent({
+      const res = await upsertLeadCalendarEvent(context.userId, {
         title: `[${lead?.name ?? "Lead"}] ${data.title}`,
         kind: data.kind,
         description: data.notes ?? null,
@@ -579,7 +579,7 @@ export const deleteLeadTask = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (prev?.gcal_event_id) {
       const { deleteLeadCalendarEvent } = await import("@/lib/google/lead-calendar.server");
-      await deleteLeadCalendarEvent(prev.gcal_event_id as string);
+      await deleteLeadCalendarEvent(context.userId, prev.gcal_event_id as string);
     }
     return { ok: true as const };
   });
