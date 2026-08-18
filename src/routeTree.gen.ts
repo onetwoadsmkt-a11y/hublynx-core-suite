@@ -53,6 +53,7 @@ import { Route as ApiPublicLeadsTokenRouteImport } from './routes/api/public/lea
 import { Route as ApiPublicHooksRunRemindersRouteImport } from './routes/api/public/hooks/run-reminders'
 import { Route as AuthenticatedConfiguracoesIntegracoesLogsRouteImport } from './routes/_authenticated/configuracoes.integracoes.logs'
 import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authenticated/app.tarefas.$id'
+import { Route as ApiPublicGoogleOauthCallbackRouteImport } from './routes/api/public/google/oauth/callback'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -295,6 +296,12 @@ const AuthenticatedAppTarefasIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedAppTarefasRoute,
   } as any)
+const ApiPublicGoogleOauthCallbackRoute =
+  ApiPublicGoogleOauthCallbackRouteImport.update({
+    id: '/api/public/google/oauth/callback',
+    path: '/api/public/google/oauth/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
+  '/api/public/google/oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -382,6 +390,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
+  '/api/public/google/oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -429,6 +438,7 @@ export interface FileRoutesById {
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/_authenticated/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
+  '/api/public/google/oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -476,6 +486,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/configuracoes/integracoes/'
+    | '/api/public/google/oauth/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -518,6 +529,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/configuracoes/integracoes'
+    | '/api/public/google/oauth/callback'
   id:
     | '__root__'
     | '/'
@@ -564,6 +576,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/_authenticated/configuracoes/integracoes/'
+    | '/api/public/google/oauth/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -575,6 +588,7 @@ export interface RootRouteChildren {
   OauthGoogleReturnRoute: typeof OauthGoogleReturnRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
+  ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -887,6 +901,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTarefasIdRouteImport
       parentRoute: typeof AuthenticatedAppTarefasRoute
     }
+    '/api/public/google/oauth/callback': {
+      id: '/api/public/google/oauth/callback'
+      path: '/api/public/google/oauth/callback'
+      fullPath: '/api/public/google/oauth/callback'
+      preLoaderRoute: typeof ApiPublicGoogleOauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1032,6 +1053,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthGoogleReturnRoute: OauthGoogleReturnRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
+  ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
