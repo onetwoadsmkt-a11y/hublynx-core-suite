@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { maskBRL } from "@/lib/security/value-lock";
 
 export function ClientHistoryTab({ clientId }: { clientId: string }) {
   const fn = useServerFn(getClientRelated);
@@ -76,7 +77,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
                   {f.description ?? "Lançamento"}
                 </Link>
                 <span className={f.kind === "receber" ? "text-emerald-600" : "text-rose-600"}>
-                  R$ {Number(f.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  {maskBRL(f.amount)}
                 </span>
               </li>
             ))}

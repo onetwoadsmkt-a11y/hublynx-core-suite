@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 
 import {
+import { maskBRL } from "@/lib/security/value-lock";
   listProjectFinances, upsertProjectFinance, deleteProjectFinance,
   generateRecurringInvoice,
 } from "@/lib/projects/projects.functions";
@@ -42,7 +43,7 @@ type Entry = {
 };
 
 function brl(n: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
+  return maskBRL(n);
 }
 function fmtDate(d?: string | null) {
   return d ? new Date(d).toLocaleDateString("pt-BR") : "—";

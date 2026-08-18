@@ -6,6 +6,7 @@ import { Mail, Phone, Pencil, Eye, CalendarClock } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { ClientRow } from "@/lib/clients/clients.functions";
+import { maskBRL } from "@/lib/security/value-lock";
 
 const STATUS_TONE: Record<ClientRow["status"], string> = {
   ativo: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -86,7 +87,7 @@ export function ClientCard({
         <div className="text-sm">
           {client.monthly_value != null && (
             <span className="font-semibold text-foreground">
-              R$ {Number(client.monthly_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              {maskBRL(client.monthly_value)}
               <span className="text-xs text-muted-foreground font-normal"> /mês</span>
             </span>
           )}
