@@ -18,8 +18,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 
-import {
 import { maskBRL } from "@/lib/security/value-lock";
+import {
   listProjectFinances, upsertProjectFinance, deleteProjectFinance,
   generateRecurringInvoice,
 } from "@/lib/projects/projects.functions";
