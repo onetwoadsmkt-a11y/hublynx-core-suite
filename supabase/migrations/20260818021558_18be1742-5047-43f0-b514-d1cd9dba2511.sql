@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS public.uq_finances_parent_due;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_finances_parent_due ON public.finances(parent_id, due_date) WHERE parent_id IS NOT NULL AND installment_total IS NULL;
