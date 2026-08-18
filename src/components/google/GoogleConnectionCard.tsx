@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   getMyGoogleConnections,
   startGoogleAppUserConnect,
@@ -258,7 +260,7 @@ export function GoogleConnectionCard() {
               placeholder="seuemail@gmail.com"
               className="max-w-sm"
               value={accountEmail}
-              onChange={(e) => {
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 setAccountEmail(e.target.value);
                 emailRef.current = e.target.value.trim();
                 localStorage.setItem(EMAIL_KEY, e.target.value.trim());
