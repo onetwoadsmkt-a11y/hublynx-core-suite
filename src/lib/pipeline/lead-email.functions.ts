@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { GOOGLE_GATEWAY_URL, getGoogleGatewayHeaders } from "@/lib/google/google.functions";
+import { GOOGLE_API_BASE, googleHeaders } from "@/lib/google/google.functions";
 
 const schema = z.object({
   leadId: z.string().uuid(),
@@ -68,10 +68,10 @@ export const sendLeadEmail = createServerFn({ method: "POST" })
     );
 
     const res = await fetch(
-      `${GOOGLE_GATEWAY_URL}/google_mail/gmail/v1/users/me/messages/send`,
+      `${GOOGLE_API_BASE}/gmail/v1/users/me/messages/send`,
       {
         method: "POST",
-        headers: { ...getGoogleGatewayHeaders("mail"), "Content-Type": "application/json" },
+        headers: { ...await googleHeaders(userId), "Content-Type": "application/json" },
         body: JSON.stringify({ raw }),
       },
     );

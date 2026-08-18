@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { GOOGLE_GATEWAY_URL, getGoogleGatewayHeaders } from "@/lib/google/google.functions";
+import { GOOGLE_API_BASE, googleHeaders } from "@/lib/google/google.functions";
 
 export interface ClientDocument {
   id: string;
@@ -63,7 +63,7 @@ export const uploadClientDocument = createServerFn({ method: "POST" })
     if (cErr) throw new Error(cErr.message);
     if (!client) throw new Error("Cliente não encontrado");
 
-    const headers = getGoogleGatewayHeaders("drive");
+    const headers = await googleHeaders(userId);
 
     const boundary = "----hublynx_" + crypto.randomUUID();
     const metadata = {
@@ -83,7 +83,7 @@ export const uploadClientDocument = createServerFn({ method: "POST" })
     });
 
     const url =
-      `${GOOGLE_GATEWAY_URL}/google_drive/upload/drive/v3/files` +
+      `${GOOGLE_API_BASE}/upload/drive/v3/files` +
       `?uploadType=multipart&fields=id,name,mimeType,size,webViewLink`;
 
     const res = await fetch(url, {
@@ -140,8 +140,8 @@ export const deleteClientDocument = createServerFn({ method: "POST" })
 
     // Best-effort Drive delete (don't fail the row delete if Drive is offline)
     try {
-      const headers = getGoogleGatewayHeaders("drive");
-      await fetch(`${GOOGLE_GATEWAY_URL}/google_drive/drive/v3/files/${row.storage_path}`, {
+      const headers = await googleHeaders(userId);
+      await fetch(`${GOOGLE_API_BASE}/drive/v3/files/${row.storage_path}`, {
         method: "DELETE",
         headers: headers as Record<string, string>,
       });

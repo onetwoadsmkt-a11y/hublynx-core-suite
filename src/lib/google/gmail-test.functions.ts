@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { GOOGLE_GATEWAY_URL, getGoogleGatewayHeaders } from "./google.functions";
+import { GOOGLE_API_BASE, googleHeaders } from "./google.functions";
 
 const schema = z.object({
   to: z.string().email(),
@@ -64,9 +64,9 @@ export const sendTestEmail = createServerFn({ method: "POST" })
 
     const raw = toBase64Url(rfc);
 
-    const headers = getGoogleGatewayHeaders("mail");
+    const headers = await googleHeaders(userId);
     const res = await fetch(
-      `${GOOGLE_GATEWAY_URL}/google_mail/gmail/v1/users/me/messages/send`,
+      `${GOOGLE_API_BASE}/gmail/v1/users/me/messages/send`,
       {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },

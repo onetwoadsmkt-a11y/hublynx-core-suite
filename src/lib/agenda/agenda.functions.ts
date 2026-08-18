@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { GOOGLE_GATEWAY_URL } from "@/lib/google/google.functions";
+import { GOOGLE_API_BASE } from "@/lib/google/google.functions";
 import type { AgendaEvent } from "./types";
 
 const rangeSchema = z.object({
@@ -113,7 +113,7 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
     const calKey = process.env.GOOGLE_CALENDAR_API_KEY;
     if (lovableKey && calKey) {
       try {
-        const url = new URL(`${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events`);
+        const url = new URL(`${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events`);
         url.searchParams.set("timeMin", fromISO);
         url.searchParams.set("timeMax", toISO);
         url.searchParams.set("singleEvents", "true");

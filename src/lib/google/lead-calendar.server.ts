@@ -1,6 +1,6 @@
-import { GOOGLE_GATEWAY_URL, getGoogleGatewayHeaders } from "./google.functions";
+import { GOOGLE_API_BASE, googleHeaders } from "./google.functions";
 
-const EVENTS_URL = `${GOOGLE_GATEWAY_URL}/google_calendar/calendar/v3/calendars/primary/events`;
+const EVENTS_URL = `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events`;
 
 export type LeadEventInput = {
   title: string;
@@ -27,7 +27,7 @@ export type LeadEventResult = {
  */
 export async function upsertLeadCalendarEvent(input: LeadEventInput): Promise<LeadEventResult> {
   try {
-    const headers = getGoogleGatewayHeaders("calendar");
+    const headers = await googleHeaders(userId);
     const start = new Date(input.startISO);
     const end = new Date(start.getTime() + input.durationMinutes * 60_000);
 
@@ -83,7 +83,7 @@ export async function upsertLeadCalendarEvent(input: LeadEventInput): Promise<Le
 
 export async function deleteLeadCalendarEvent(eventId: string): Promise<void> {
   try {
-    const headers = getGoogleGatewayHeaders("calendar");
+    const headers = await googleHeaders(userId);
     await fetch(`${EVENTS_URL}/${eventId}?sendUpdates=all`, { method: "DELETE", headers });
   } catch {
     // best-effort
