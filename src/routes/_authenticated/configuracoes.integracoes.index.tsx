@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GoogleAccountCard } from "@/components/google/GoogleAccountCard";
+import { GoogleConnectionCard } from "@/components/google/GoogleConnectionCard";
 
 export const Route = createFileRoute("/_authenticated/configuracoes/integracoes/")({
   head: () => ({
