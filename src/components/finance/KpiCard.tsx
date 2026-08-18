@@ -1,8 +1,8 @@
 import { Card } from "@/components/ui/card";
 import type { LucideIcon } from "lucide-react";
+import { maskBRL } from "@/lib/security/value-lock";
 
-export const brl = (n: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
+export const brl = (n: number) => maskBRL(n);
 
 export function KpiCard({
   label, value, icon: Icon, tone = "neutral", hint,

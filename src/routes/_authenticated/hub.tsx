@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import hubDarkBg from "@/assets/hub-dark-bg.png.asset.json";
 import hubLightBg from "@/assets/hub-light-bg.png.asset.json";
+import { maskBRL } from "@/lib/security/value-lock";
 
 export const Route = createFileRoute("/_authenticated/hub")({
   head: () => ({ meta: [{ title: "Hub Central — Hublynx Core" }] }),
@@ -26,8 +27,7 @@ const QUOTES = [
   "A simplicidade é a sofisticação suprema.",
 ];
 
-const fmtBRL = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const fmtBRL = (n: number) => maskBRL(n, { maximumFractionDigits: 0 });
 
 function greeting() {
   const h = new Date().getHours();

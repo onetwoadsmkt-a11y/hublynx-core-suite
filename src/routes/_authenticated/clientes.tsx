@@ -20,6 +20,7 @@ import { LeadViewDialog } from "@/components/pipeline/LeadViewDialog";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
 import { exportLeadsToExcel } from "@/lib/pipeline/export-leads";
 import type { Lead } from "@/components/pipeline/types";
+import { maskBRL } from "@/lib/security/value-lock";
 
 
 function initials(name: string) {
@@ -35,11 +36,7 @@ function initials(name: string) {
 
 function currency(v: number | null) {
   if (v == null) return "—";
-  return Number(v).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    maximumFractionDigits: 0,
-  });
+  return maskBRL(v, { maximumFractionDigits: 0 });
 }
 
 const searchSchema = z.object({
