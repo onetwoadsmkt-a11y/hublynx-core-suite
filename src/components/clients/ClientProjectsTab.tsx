@@ -16,6 +16,14 @@ export function ClientProjectsTab({ clientId }: { clientId: string }) {
   if (isLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
 
   const projects = data?.projects ?? [];
+  const finances = data?.finances ?? [];
+  const previsto = finances
+    .filter((f) => f.kind === "receber")
+    .reduce((a, f) => a + (Number(f.amount) || 0), 0);
+  const recebido = finances
+    .filter((f) => f.kind === "receber" && f.status === "pago")
+    .reduce((a, f) => a + (Number(f.amount) || 0), 0);
+  const emAberto = previsto - recebido;
 
   if (projects.length === 0) {
     return (
@@ -27,8 +35,23 @@ export function ClientProjectsTab({ clientId }: { clientId: string }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-lg border p-3">
+          <p className="text-[11px] uppercase text-muted-foreground">Previsto</p>
+          <p className="text-sm font-semibold tabular-nums">{maskBRL(previsto)}</p>
+        </div>
+        <div className="rounded-lg border p-3">
+          <p className="text-[11px] uppercase text-muted-foreground">Recebido</p>
+          <p className="text-sm font-semibold tabular-nums text-emerald-600">{maskBRL(recebido)}</p>
+        </div>
+        <div className="rounded-lg border p-3">
+          <p className="text-[11px] uppercase text-muted-foreground">Em aberto</p>
+          <p className="text-sm font-semibold tabular-nums text-amber-600">{maskBRL(emAberto)}</p>
+        </div>
+      </div>
       <h4 className="text-sm font-semibold">Projetos ({projects.length})</h4>
+
       <ul className="space-y-2">
         {projects.map((p) => (
           <li
