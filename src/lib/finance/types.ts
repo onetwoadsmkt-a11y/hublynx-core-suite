@@ -104,4 +104,16 @@ export type AlertItem = {
   level: "red" | "yellow" | "green";
   title: string;
   description: string;
+  /** Dados estruturados para a apresentação do alerta. */
+  kind?: "overdue" | "upcoming" | "contract";
+  finance_id?: string | null;
+  finance_kind?: FinanceKind | null;
+  client_name?: string | null;
+  service_line?: string | null;
+  installment_label?: string | null;
+  due_date?: string | null;
+  /** Valor em aberto (saldo). */
+  saldo?: number;
+  /** Dias em atraso (positivo) ou dias até vencer (para "upcoming"). */
+  days?: number;
 };
