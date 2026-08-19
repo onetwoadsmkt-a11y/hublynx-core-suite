@@ -36,7 +36,7 @@ export function FormRenderer({
 }: {
   form: FormData;
   preview?: boolean;
-  onSubmit?: (answers: Record<string, Answer>) => void;
+  onSubmit?: (answers: Record<string, Answer>) => void | Promise<void>;
 }) {
   const theme = form.theme ?? {};
   const primary = String(theme["primary_color"] ?? "#22C55E");
@@ -51,6 +51,7 @@ export function FormRenderer({
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [sending, setSending] = useState(false);
 
   if (!questions.length) {
     return (
@@ -69,7 +70,7 @@ export function FormRenderer({
     setAnswers((prev) => ({ ...prev, [q.id]: v }));
   };
 
-  const goNext = (override?: Answer) => {
+  const goNext = async (override?: Answer) => {
     const current = override !== undefined ? override : value;
     const err = validate(q, current);
     if (err) {
@@ -77,8 +78,16 @@ export function FormRenderer({
       return;
     }
     if (step + 1 >= questions.length) {
-      setDone(true);
-      onSubmit?.({ ...answers, [q.id]: current });
+      const payload = { ...answers, [q.id]: current };
+      try {
+        setSending(true);
+        await onSubmit?.(payload);
+        setDone(true);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Não foi possível enviar. Tente novamente.");
+      } finally {
+        setSending(false);
+      }
       return;
     }
     setError(null);
@@ -90,6 +99,7 @@ export function FormRenderer({
     setStep(0);
     setDone(false);
     setError(null);
+    setSending(false);
   };
 
   if (done) {
@@ -157,7 +167,7 @@ export function FormRenderer({
                 type="button"
                 onClick={() => {
                   setValue(o.label);
-                  goNext(o.label);
+                  void goNext(o.label);
                 }}
                 className="w-full border border-[#E6EAF0] px-4 py-3 text-left text-sm transition-colors hover:bg-[#F6F8FA]"
                 style={{
@@ -200,7 +210,7 @@ export function FormRenderer({
                   type="button"
                   onClick={() => {
                     setValue(String(n));
-                    goNext(String(n));
+                    void goNext(String(n));
                   }}
                   className="h-12 flex-1 rounded-lg border border-[#E6EAF0] text-sm font-medium transition-colors hover:bg-[#F6F8FA]"
                   style={value === String(n) ? { borderColor: primary, backgroundColor: `${primary}12` } : {}}
@@ -250,7 +260,7 @@ export function FormRenderer({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    goNext();
+                    void goNext();
                   }
                 }}
               />
@@ -273,11 +283,12 @@ export function FormRenderer({
           </button>
           <button
             type="button"
-            onClick={() => goNext()}
-            className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white"
+            onClick={() => void goNext()}
+            disabled={sending}
+            className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
             style={{ backgroundColor: primary }}
           >
-            {step + 1 === questions.length ? "Concluir" : "Continuar"}
+            {sending ? "Enviando…" : step + 1 === questions.length ? "Concluir" : "Continuar"}
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
