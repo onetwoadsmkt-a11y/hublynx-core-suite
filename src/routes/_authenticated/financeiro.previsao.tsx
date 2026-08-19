@@ -10,6 +10,7 @@ import { KpiCard, brl } from "@/components/finance/KpiCard";
 import { AlertsPanel } from "@/components/finance/AlertsPanel";
 import { TrendingUp, FileCheck2, CircleDashed, Wand2 } from "lucide-react";
 import { getBillingForecast, generateForecastCharges } from "@/lib/finance/receivables.functions";
+import { getFinanceMetricsSeries } from "@/lib/finance/metrics.functions";
 
 export const Route = createFileRoute("/_authenticated/financeiro/previsao")({
   component: PrevisaoPage,
@@ -28,6 +29,12 @@ function PrevisaoPage() {
   const { data } = useQuery({
     queryKey: ["finance", "billing-forecast", startYear, startMonth],
     queryFn: () => fn({ data: { startYear, startMonth, months: 12 } }),
+  });
+
+  const seriesFn = useServerFn(getFinanceMetricsSeries);
+  const { data: serie } = useQuery({
+    queryKey: ["finance", "metrics-series", startYear, startMonth, 12],
+    queryFn: () => seriesFn({ data: { startMonth, startYear, months: 12 } }),
   });
 
   const gap = useMemo(
@@ -62,7 +69,12 @@ function PrevisaoPage() {
           tone="positive"
           hint="Contratos recorrentes"
         />
-        <KpiCard label="Já lançado" value={brl(data?.grandBooked ?? 0)} icon={FileCheck2} />
+        <KpiCard
+          label="Receita lançada"
+          value={brl(serie?.totals.receita ?? 0)}
+          icon={FileCheck2}
+          hint="Competência · fee"
+        />
         <KpiCard
           label="A lançar"
           value={brl(gap > 0 ? gap : 0)}
@@ -70,9 +82,10 @@ function PrevisaoPage() {
           tone={gap > 0 ? "warning" : "neutral"}
         />
         <KpiCard
-          label="Contratos ativos"
-          value={String(data?.rows.length ?? 0)}
+          label="Recebido no período"
+          value={brl(serie?.totals.recebido ?? 0)}
           icon={Wand2}
+          hint={`${data?.rows.length ?? 0} contrato(s) ativo(s)`}
         />
       </div>
 
