@@ -225,6 +225,7 @@ const listSchema = z.object({
   year: z.number().int().min(2000).max(2100),
   status: z.union([filterStatusSchema, z.literal("all")]).optional(),
   clientId: z.string().optional(),
+  servicoId: z.string().optional(),
   q: z.string().optional(),
 });
 
@@ -255,6 +256,7 @@ export const listFinances = createServerFn({ method: "POST" })
       }
     }
     if (data.clientId) q = q.eq("client_id", data.clientId);
+    if (data.servicoId) q = q.eq("servico_id", data.servicoId);
 
     const { data: rows } = await q;
 

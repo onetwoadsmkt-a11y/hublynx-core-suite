@@ -34,6 +34,7 @@ export const getReceivablesPanel = createServerFn({ method: "POST" })
         kind: z.enum(["receber", "pagar"]).default("receber"),
         clientId: z.string().uuid().optional(),
         projectId: z.string().uuid().optional(),
+        servicoId: z.string().uuid().optional(),
       })
       .parse(d),
   )
@@ -66,6 +67,7 @@ export const getReceivablesPanel = createServerFn({ method: "POST" })
       .lte("due_date", to);
     if (data.clientId) q = q.eq("client_id", data.clientId);
     if (data.projectId) q = q.eq("project_id", data.projectId);
+    if (data.servicoId) q = q.eq("servico_id", data.servicoId);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
 
