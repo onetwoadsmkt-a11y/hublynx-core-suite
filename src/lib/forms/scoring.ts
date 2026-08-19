@@ -61,7 +61,7 @@ export function computeSubmission(
   const details: AnswerDetail[] = [];
   let score = 0;
 
-  for (const q of [...questions].sort((a, b) => a.question.localeCompare(b.question) * 0)) {
+  for (const q of questions) {
     const raw = answers[q.id] ?? null;
     const text = asText(raw);
 
