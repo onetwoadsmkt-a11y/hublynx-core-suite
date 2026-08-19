@@ -20,6 +20,7 @@ import { listFinances, markFinanceStatus, deleteFinance } from "@/lib/finance/fi
 import { MonthYearPicker } from "@/components/finance/MonthYearPicker";
 import { FinanceFormDialog } from "@/components/finance/FinanceFormDialog";
 import { brl } from "@/components/finance/KpiCard";
+import { getFinanceMetrics } from "@/lib/finance/metrics.functions";
 import type { FinanceKind, FinanceRow } from "@/lib/finance/types";
 
 export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string }) {
@@ -62,8 +63,14 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
     },
   });
 
-  const total = (rows ?? []).reduce((s, r) => s + r.amount, 0);
-  const realizado = (rows ?? []).filter((r) => r.status === "quitado").reduce((s, r) => s + r.amount, 0);
+  const metricsFn = useServerFn(getFinanceMetrics);
+  const { data: metrics } = useQuery({
+    queryKey: ["finance", "metrics", search.month, search.year],
+    queryFn: () => metricsFn({ data: { month: search.month, year: search.year } }),
+  });
+  // Fonte única: nunca recalcular receita/despesa nesta tela.
+  const total = kind === "receber" ? (metrics?.receita_mes ?? 0) : (metrics?.despesas_mes ?? 0);
+  const realizado = kind === "receber" ? (metrics?.recebido_mes ?? 0) : (metrics?.pago_mes ?? 0);
 
   const byDay = useMemo(() => {
     const map = new Map<string, FinanceRow[]>();
