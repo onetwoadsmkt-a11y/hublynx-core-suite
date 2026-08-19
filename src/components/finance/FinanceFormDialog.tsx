@@ -122,6 +122,25 @@ export function FinanceFormDialog({
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
+          {isReceita && (
+            <div>
+              <Label>Natureza</Label>
+              <Select value={natureza} onValueChange={(v) => setNatureza(v as typeof natureza)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fee">Fee (receita da agência)</SelectItem>
+                  <SelectItem value="repasse">Repasse de mídia</SelectItem>
+                  <SelectItem value="reembolso">Reembolso</SelectItem>
+                </SelectContent>
+              </Select>
+              {natureza !== "fee" && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Entra só no caixa. Uma despesa espelho em Mídia será criada automaticamente com o mesmo valor e competência.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             {isReceita ? (
               <div>
