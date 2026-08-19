@@ -379,7 +379,7 @@ export type Database = {
           amount: number
           category_id: string | null
           client_id: string | null
-          competencia: string
+          competencia: string | null
           created_at: string
           description: string | null
           due_date: string
@@ -404,7 +404,7 @@ export type Database = {
           amount: number
           category_id?: string | null
           client_id?: string | null
-          competencia: string
+          competencia?: string | null
           created_at?: string
           description?: string | null
           due_date: string
@@ -429,7 +429,7 @@ export type Database = {
           amount?: number
           category_id?: string | null
           client_id?: string | null
-          competencia?: string
+          competencia?: string | null
           created_at?: string
           description?: string | null
           due_date?: string
