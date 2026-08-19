@@ -122,12 +122,10 @@ function ConciliacaoPage() {
                     {t.linhas.map((l) => (
                       <div key={l.label} className="flex items-baseline justify-between gap-3">
                         <span className="text-[12.2px] text-muted-foreground">{l.label}</span>
-                        {typeof l.value === "number" && !Number.isInteger(l.value * 100) === false && l.label.toLowerCase().match(/quantidade|títulos|repasses|contas|linha[s]? |sem espelho/) ? (
-                          <span className="font-mono text-[14.5px] tabular-nums">{l.value}</span>
-                        ) : typeof l.value === "number" ? (
+                        {typeof l.value === "number" ? (
                           <Money value={l.value} className="text-[14.5px]" />
                         ) : (
-                          <span className="text-[14.5px]">{l.value}</span>
+                          <span className="font-mono text-[14.5px] tabular-nums">{l.value}</span>
                         )}
                       </div>
                     ))}

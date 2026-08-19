@@ -39,6 +39,7 @@ import { Route as AuthenticatedFinanceiroReceberRouteImport } from './routes/_au
 import { Route as AuthenticatedFinanceiroPrevisaoRouteImport } from './routes/_authenticated/financeiro.previsao'
 import { Route as AuthenticatedFinanceiroPagarRouteImport } from './routes/_authenticated/financeiro.pagar'
 import { Route as AuthenticatedFinanceiroDreRouteImport } from './routes/_authenticated/financeiro.dre'
+import { Route as AuthenticatedFinanceiroConciliacaoRouteImport } from './routes/_authenticated/financeiro.conciliacao'
 import { Route as AuthenticatedFinanceiroCategoriasRouteImport } from './routes/_authenticated/financeiro.categorias'
 import { Route as AuthenticatedFinanceiroCalendarioRouteImport } from './routes/_authenticated/financeiro.calendario'
 import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
@@ -217,6 +218,12 @@ const AuthenticatedFinanceiroDreRoute =
     path: '/dre',
     getParentRoute: () => AuthenticatedFinanceiroRoute,
   } as any)
+const AuthenticatedFinanceiroConciliacaoRoute =
+  AuthenticatedFinanceiroConciliacaoRouteImport.update({
+    id: '/conciliacao',
+    path: '/conciliacao',
+    getParentRoute: () => AuthenticatedFinanceiroRoute,
+  } as any)
 const AuthenticatedFinanceiroCategoriasRoute =
   AuthenticatedFinanceiroCategoriasRouteImport.update({
     id: '/categorias',
@@ -330,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
+  '/financeiro/conciliacao': typeof AuthenticatedFinanceiroConciliacaoRoute
   '/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
   '/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
@@ -373,6 +381,7 @@ export interface FileRoutesByTo {
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
+  '/financeiro/conciliacao': typeof AuthenticatedFinanceiroConciliacaoRoute
   '/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
   '/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
@@ -421,6 +430,7 @@ export interface FileRoutesById {
   '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/_authenticated/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/_authenticated/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
+  '/_authenticated/financeiro/conciliacao': typeof AuthenticatedFinanceiroConciliacaoRoute
   '/_authenticated/financeiro/dre': typeof AuthenticatedFinanceiroDreRoute
   '/_authenticated/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
   '/_authenticated/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
@@ -469,6 +479,7 @@ export interface FileRouteTypes {
     | '/configuracoes/modulos'
     | '/financeiro/calendario'
     | '/financeiro/categorias'
+    | '/financeiro/conciliacao'
     | '/financeiro/dre'
     | '/financeiro/pagar'
     | '/financeiro/previsao'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/configuracoes/modulos'
     | '/financeiro/calendario'
     | '/financeiro/categorias'
+    | '/financeiro/conciliacao'
     | '/financeiro/dre'
     | '/financeiro/pagar'
     | '/financeiro/previsao'
@@ -559,6 +571,7 @@ export interface FileRouteTypes {
     | '/_authenticated/configuracoes/modulos'
     | '/_authenticated/financeiro/calendario'
     | '/_authenticated/financeiro/categorias'
+    | '/_authenticated/financeiro/conciliacao'
     | '/_authenticated/financeiro/dre'
     | '/_authenticated/financeiro/pagar'
     | '/_authenticated/financeiro/previsao'
@@ -803,6 +816,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinanceiroDreRouteImport
       parentRoute: typeof AuthenticatedFinanceiroRoute
     }
+    '/_authenticated/financeiro/conciliacao': {
+      id: '/_authenticated/financeiro/conciliacao'
+      path: '/conciliacao'
+      fullPath: '/financeiro/conciliacao'
+      preLoaderRoute: typeof AuthenticatedFinanceiroConciliacaoRouteImport
+      parentRoute: typeof AuthenticatedFinanceiroRoute
+    }
     '/_authenticated/financeiro/categorias': {
       id: '/_authenticated/financeiro/categorias'
       path: '/categorias'
@@ -972,6 +992,7 @@ const AuthenticatedConfiguracoesRouteWithChildren =
 interface AuthenticatedFinanceiroRouteChildren {
   AuthenticatedFinanceiroCalendarioRoute: typeof AuthenticatedFinanceiroCalendarioRoute
   AuthenticatedFinanceiroCategoriasRoute: typeof AuthenticatedFinanceiroCategoriasRoute
+  AuthenticatedFinanceiroConciliacaoRoute: typeof AuthenticatedFinanceiroConciliacaoRoute
   AuthenticatedFinanceiroDreRoute: typeof AuthenticatedFinanceiroDreRoute
   AuthenticatedFinanceiroPagarRoute: typeof AuthenticatedFinanceiroPagarRoute
   AuthenticatedFinanceiroPrevisaoRoute: typeof AuthenticatedFinanceiroPrevisaoRoute
@@ -988,6 +1009,8 @@ const AuthenticatedFinanceiroRouteChildren: AuthenticatedFinanceiroRouteChildren
       AuthenticatedFinanceiroCalendarioRoute,
     AuthenticatedFinanceiroCategoriasRoute:
       AuthenticatedFinanceiroCategoriasRoute,
+    AuthenticatedFinanceiroConciliacaoRoute:
+      AuthenticatedFinanceiroConciliacaoRoute,
     AuthenticatedFinanceiroDreRoute: AuthenticatedFinanceiroDreRoute,
     AuthenticatedFinanceiroPagarRoute: AuthenticatedFinanceiroPagarRoute,
     AuthenticatedFinanceiroPrevisaoRoute: AuthenticatedFinanceiroPrevisaoRoute,
