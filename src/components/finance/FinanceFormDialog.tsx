@@ -80,6 +80,8 @@ export function FinanceFormDialog({
           recurrence: recurring ? "monthly" : "none",
           recurrence_day: recurring ? new Date(dueDate).getUTCDate() : null,
           installments: installments > 1 ? installments : undefined,
+          natureza: kind === "receber" ? natureza : "fee",
+
         },
       });
     },
