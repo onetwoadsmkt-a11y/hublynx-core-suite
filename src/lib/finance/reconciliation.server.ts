@@ -312,8 +312,8 @@ export async function reconciliationReport(
         String(r.competencia ?? "").startsWith(String(year)),
     )
     .reduce((s, r) => s + num(r.amount), 0);
-  const somaLinhas = servicePanel.cards.reduce((s, c) => s + num(c.receita_ano), 0);
-  const semLinha = servicePanel.cards.find((c) => c.id === null);
+  const somaLinhas = servicePanel.lines.reduce((s, c) => s + num(c.receita_ano), 0);
+  const semLinha = servicePanel.lines.find((c) => c.id === null);
   testes.push(
     compare({
       id: 8,
@@ -323,7 +323,7 @@ export async function reconciliationReport(
       obtido: somaLinhas,
       detalhe: semLinha
         ? `Existe receita sem linha de serviço em ${year}`
-        : `${servicePanel.cards.length} linha(s) em ${year}`,
+        : `${servicePanel.lines.length} linha(s) em ${year}`,
       critico: "Se este teste falhar, algum contrato ficou fora de uma linha de serviço.",
       linhas: [
         { label: `Receita total ${year}`, value: receitaAnoTotal },
