@@ -55,7 +55,7 @@ export function FinanceFormDialog({
     setRecurring(initial?.recurrence === "monthly");
     setInstallments(initial?.installment_total ?? 1);
     setStatus(initial?.status === "quitado" ? "quitado" : "aberto");
-    setStatus(initial?.status === "quitado" ? "quitado" : "aberto");
+
     setNatureza((initial?.natureza as "fee" | "repasse" | "reembolso") ?? "fee");
   }, [open, initial]);
 
