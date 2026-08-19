@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card } from "@/components/ui/card";
@@ -206,8 +206,8 @@ function ServicosPage() {
             </thead>
             <tbody>
               {groupKeys.map((key) => (
-                <>
-                  <tr key={`g-${key}`} className="bg-muted/30">
+                <Fragment key={key}>
+                  <tr className="bg-muted/30">
                     <td colSpan={5} className="px-2 py-1.5 text-[12.2px] font-semibold">
                       {groupLabel(key)}
                     </td>
@@ -241,7 +241,7 @@ function ServicosPage() {
                       </td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               ))}
               {groupKeys.length === 0 && (
                 <tr>
