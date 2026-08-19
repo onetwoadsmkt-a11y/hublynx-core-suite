@@ -53,7 +53,10 @@ const monthSchema = z.object({
 });
 
 const kindSchema = z.enum(["receber", "pagar"]);
-const statusSchema = z.enum(["aberto", "quitado", "atrasado"]);
+/** Status gravados no banco (regime de competência). "atrasado" não existe mais como status. */
+const statusSchema = z.enum(["aberto", "parcial", "quitado", "cancelado"]);
+/** Status aceitos como filtro de consulta — "atrasado" é derivado (vencido com saldo). */
+const filterStatusSchema = z.enum(["aberto", "parcial", "quitado", "cancelado", "atrasado"]);
 
 // ── ensureDefaultCategories ──────────────────────────────────────────────
 export const ensureDefaultCategories = createServerFn({ method: "POST" })
