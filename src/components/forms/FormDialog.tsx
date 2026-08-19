@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listPipelines, listStages } from "@/lib/pipeline/pipeline.functions";
+import { listPipelines, listAllStages } from "@/lib/pipeline/pipeline.functions";
 import { upsertForm, type FormListItem } from "@/lib/forms/forms.functions";
 
 export function FormDialog({
@@ -54,12 +54,13 @@ export function FormDialog({
     enabled: open,
   });
 
-  const stagesFn = useServerFn(listStages);
-  const { data: stages } = useQuery({
-    queryKey: ["pipeline-stages", pipelineId],
-    queryFn: () => stagesFn({ data: { pipelineId } }),
-    enabled: open && !!pipelineId,
+  const stagesFn = useServerFn(listAllStages);
+  const { data: allStages } = useQuery({
+    queryKey: ["pipeline-stages-all"],
+    queryFn: () => stagesFn(),
+    enabled: open,
   });
+  const stages = (allStages ?? []).filter((s) => s.pipeline_id === pipelineId);
 
   const saveFn = useServerFn(upsertForm);
   const save = useMutation({
@@ -146,7 +147,7 @@ export function FormDialog({
                   <SelectValue placeholder={pipelineId ? "Selecione" : "Escolha o pipeline"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(stages ?? []).map((s) => (
+                  {stages.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>
