@@ -471,6 +471,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           category_id: data.category_id ?? null,
           supplier: data.supplier ?? null,
           payment_method: data.payment_method ?? null,
+          natureza: data.natureza,
           installment_no: 1,
           installment_total: total,
         })
@@ -491,12 +492,35 @@ export const upsertFinance = createServerFn({ method: "POST" })
           category_id: data.category_id ?? null,
           supplier: data.supplier ?? null,
           payment_method: data.payment_method ?? null,
+          natureza: data.natureza,
           installment_no: i,
           installment_total: total,
           parent_id: first.id,
         });
       }
-      if (rest.length) await supabase.from("finances").insert(rest as never);
+      let restRows: Array<{ id: string; due_date: string }> = [];
+      if (rest.length) {
+        const { data: inserted } = await supabase
+          .from("finances")
+          .insert(rest as never)
+          .select("id, due_date");
+        restRows = (inserted ?? []) as Array<{ id: string; due_date: string }>;
+      }
+      await syncRepasseMirror(supabase, userId, {
+        ...data,
+        id: first.id,
+        amount: each,
+        natureza: data.natureza,
+      });
+      for (const r of restRows) {
+        await syncRepasseMirror(supabase, userId, {
+          ...data,
+          id: r.id,
+          amount: each,
+          due_date: r.due_date,
+          natureza: data.natureza,
+        });
+      }
       return { ok: true, id: first.id };
     }
 
@@ -515,6 +539,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
         supplier: data.supplier ?? null,
         payment_method: data.payment_method ?? null,
         paid_at: data.paid_at ?? null,
+        natureza: data.natureza,
         recurrence: data.recurrence,
         recurrence_day: data.recurrence_day ?? null,
         recurrence_until: data.recurrence_until ?? null,
@@ -522,7 +547,9 @@ export const upsertFinance = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await syncRepasseMirror(supabase, userId, { ...data, id: ins!.id, natureza: data.natureza });
     return { ok: true, id: ins!.id };
+
   });
 
 // ── markStatus / delete ──────────────────────────────────────────────────
