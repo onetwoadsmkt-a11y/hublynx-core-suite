@@ -9,6 +9,7 @@ import type {
   FinanceCategory,
   FinanceKind,
   FinanceRow,
+  FinanceStatus,
   ForecastBucket,
   ProfitabilityRow,
 } from "./types";
@@ -219,7 +220,7 @@ const listSchema = z.object({
   kind: kindSchema,
   month: z.number().int().min(1).max(12),
   year: z.number().int().min(2000).max(2100),
-  status: z.string().optional(),
+  status: z.union([filterStatusSchema, z.literal("all")]).optional(),
   clientId: z.string().optional(),
   q: z.string().optional(),
 });
@@ -247,7 +248,7 @@ export const listFinances = createServerFn({ method: "POST" })
         // "Em atraso" é cálculo: vencimento < hoje e ainda com saldo em aberto.
         q = q.in("status", ["aberto", "parcial"]).lt("due_date", today);
       } else {
-        q = q.eq("status", data.status);
+        q = q.eq("status", data.status as FinanceStatus);
       }
     }
     if (data.clientId) q = q.eq("client_id", data.clientId);
