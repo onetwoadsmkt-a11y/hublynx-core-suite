@@ -30,6 +30,7 @@ const TABS = [
   { to: "/financeiro/recebiveis", label: "Recebíveis" },
   { to: "/financeiro/pagar", label: "Contas a Pagar" },
   { to: "/financeiro/servicos", label: "Linhas de serviço" },
+  { to: "/financeiro/conciliacao", label: "Conciliação" },
 ] as const;
 
 const MORE_TABS = [

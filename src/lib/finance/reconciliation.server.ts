@@ -109,7 +109,7 @@ export async function reconciliationReport(
       linhas: [
         { label: "Soma das baixas de entrada", value: somaBaixasReceita },
         { label: "Cartão “Recebido no mês”", value: metrics.recebido_mes },
-        { label: "Quantidade de baixas", value: baixasReceitaMes.length },
+        { label: "Quantidade de baixas", value: String(baixasReceitaMes.length) },
       ],
     }),
   );
@@ -153,7 +153,7 @@ export async function reconciliationReport(
       linhas: [
         { label: "Soma dos saldos da lista", value: somaSaldosVencidos },
         { label: "Cartão de inadimplência", value: metrics.inadimplencia },
-        { label: "Títulos vencidos", value: vencidos.length },
+        { label: "Títulos vencidos", value: String(vencidos.length) },
       ],
     }),
   );
@@ -183,7 +183,7 @@ export async function reconciliationReport(
       linhas: [
         { label: "Receita gerada por títulos sem baixa", value: valorSemBaixa },
         { label: "Caixa gerado por eles (deve ser zero)", value: caixaDosSemBaixa },
-        { label: "Títulos sem baixa", value: semBaixaNaComp.length },
+        { label: "Títulos sem baixa", value: String(semBaixaNaComp.length) },
       ],
     }),
   );
@@ -223,7 +223,7 @@ export async function reconciliationReport(
         { label: "Valor total dos parciais", value: totalParcial },
         { label: "Pago", value: totalPagoParcial },
         { label: "Saldo", value: totalParcial - totalPagoParcial },
-        { label: "Títulos incoerentes", value: inconsistentes.length },
+        { label: "Títulos incoerentes", value: String(inconsistentes.length) },
       ],
     }),
   );
@@ -269,7 +269,7 @@ export async function reconciliationReport(
       linhas: [
         { label: "Repasse recebido (entra no caixa)", value: totalRepasse },
         { label: "Despesa espelho de mídia (sai do caixa)", value: totalEspelho },
-        { label: "Repasses sem espelho", value: semEspelho.length },
+        { label: "Repasses sem espelho", value: String(semEspelho.length) },
         { label: "Repasse contado como receita", value: receitaContemRepasse ? "sim" : "não" },
         { label: "Receita do mês (sem repasse)", value: metrics.receita_mes },
       ],
