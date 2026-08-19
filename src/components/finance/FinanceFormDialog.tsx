@@ -38,7 +38,7 @@ export function FinanceFormDialog({
   const [paymentMethod, setPaymentMethod] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [installments, setInstallments] = useState(1);
-  const [status, setStatus] = useState<"pendente" | "pago">("pendente");
+  const [status, setStatus] = useState<"aberto" | "quitado">("aberto");
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +52,7 @@ export function FinanceFormDialog({
     setPaymentMethod(initial?.payment_method ?? "");
     setRecurring(initial?.recurrence === "monthly");
     setInstallments(initial?.installment_total ?? 1);
-    setStatus(initial?.status === "pago" ? "pago" : "pendente");
+    setStatus(initial?.status === "quitado" ? "quitado" : "aberto");
   }, [open, initial]);
 
   const mut = useMutation({
@@ -160,8 +160,8 @@ export function FinanceFormDialog({
               <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="pago">{isReceita ? "Recebido" : "Pago"}</SelectItem>
+                  <SelectItem value="aberto">Pendente</SelectItem>
+                  <SelectItem value="quitado">{isReceita ? "Recebido" : "Pago"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

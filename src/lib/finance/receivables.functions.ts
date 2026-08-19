@@ -107,7 +107,7 @@ export const getReceivablesPanel = createServerFn({ method: "POST" })
       row.total += amount;
       previsto[i] = (previsto[i] ?? 0) + amount;
       count[i] = (count[i] ?? 0) + 1;
-      if (r.status === "pago") {
+      if (r.status === "quitado") {
         row.received[i] = (row.received[i] ?? 0) + amount;
         recebido[i] = (recebido[i] ?? 0) + amount;
       }
@@ -314,7 +314,7 @@ export const generateForecastCharges = createServerFn({ method: "POST" })
         description: project.name,
         amount,
         due_date,
-        status: "pendente" as const,
+        status: "aberto" as const,
       }));
 
     if (rows.length === 0) return { created: 0 };

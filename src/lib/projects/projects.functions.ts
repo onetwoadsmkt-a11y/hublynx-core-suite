@@ -194,10 +194,10 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const progress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : (project as any).progress ?? 0;
 
     const revenueReceived = finances
-      .filter((f: any) => f.kind === "receber" && f.status === "pago")
+      .filter((f: any) => f.kind === "receber" && f.status === "quitado")
       .reduce((s: number, f: any) => s + Number(f.amount), 0);
     const revenuePending = finances
-      .filter((f: any) => f.kind === "receber" && f.status !== "pago")
+      .filter((f: any) => f.kind === "receber" && f.status !== "quitado")
       .reduce((s: number, f: any) => s + Number(f.amount), 0);
     const totalCost = costs.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const contractValue = Number((project as any).contract_value ?? (project as any).value ?? 0);
@@ -353,7 +353,7 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       const revenue = finances
-        .filter((f: any) => f.kind === "receber" && f.status === "pago" && f.created_at && new Date(f.created_at) >= d && new Date(f.created_at) < next)
+        .filter((f: any) => f.kind === "receber" && f.status === "quitado" && f.created_at && new Date(f.created_at) >= d && new Date(f.created_at) < next)
         .reduce((s: number, f: any) => s + Number(f.amount), 0);
       const cost = costs
         .filter((c: any) => c.incurred_at && new Date(c.incurred_at) >= d && new Date(c.incurred_at) < next)
@@ -378,10 +378,10 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const billableValue = hourlyRate > 0 ? hoursWorked * hourlyRate : 0;
 
     const recurringFinances = finances.filter((f: any) => f.kind === "receber");
-    const monthsPaid = recurringFinances.filter((f: any) => f.status === "pago").length;
-    const monthsPending = recurringFinances.filter((f: any) => f.status !== "pago").length;
+    const monthsPaid = recurringFinances.filter((f: any) => f.status === "quitado").length;
+    const monthsPending = recurringFinances.filter((f: any) => f.status !== "quitado").length;
     const nextBilling = p.next_billing_date ?? recurringFinances
-      .filter((f: any) => f.status !== "pago" && f.due_date)
+      .filter((f: any) => f.status !== "quitado" && f.due_date)
       .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0]?.due_date ?? null;
 
     const commercial = {
@@ -653,7 +653,7 @@ export const generateRecurringInvoice = createServerFn({ method: "POST" })
       description: data.description ?? `Cobrança — ${p.name}`,
       amount,
       due_date: dueIso,
-      status: "pendente",
+      status: "aberto",
     });
     if (fErr) throw new Error(fErr.message);
 
@@ -685,7 +685,7 @@ export const listProjectFinances = createServerFn({ method: "GET" })
     let revenue = 0, expense = 0;
     for (const r of items) {
       const amt = Number(r.amount) || 0;
-      if (r.status === "pago") {
+      if (r.status === "quitado") {
         if (r.kind === "receber") revenue += amt;
         else expense += amt;
       }
@@ -701,7 +701,7 @@ const financeEntrySchema = z.object({
   description: z.string().max(500).optional().nullable(),
   amount: z.number().positive(),
   due_date: z.string().min(8),
-  status: z.enum(["pendente", "pago"]),
+  status: z.enum(["aberto", "quitado"]),
   payment_method: z.string().max(80).optional().nullable(),
   installments: z.number().int().min(1).max(60).optional(),
   installment_mode: z.enum(["split", "fixed"]).optional(),
@@ -735,7 +735,7 @@ export const upsertProjectFinance = createServerFn({ method: "POST" })
           ...basePayload,
           amount: data.amount,
           due_date: data.due_date,
-          paid_at: data.status === "pago" ? new Date().toISOString() : null,
+          paid_at: data.status === "quitado" ? new Date().toISOString() : null,
         }).eq("id", data.id);
       if (error) throw new Error(error.message);
       return { ok: true as const, id: data.id };
@@ -748,7 +748,7 @@ export const upsertProjectFinance = createServerFn({ method: "POST" })
           ...basePayload,
           amount: data.amount,
           due_date: data.due_date,
-          paid_at: data.status === "pago" ? new Date().toISOString() : null,
+          paid_at: data.status === "quitado" ? new Date().toISOString() : null,
         }).select("id").single();
       if (error) throw new Error(error.message);
       return { ok: true as const, id: (ins as any).id };
@@ -771,7 +771,7 @@ export const upsertProjectFinance = createServerFn({ method: "POST" })
           ? `${data.description} (${i + 1}/${n})`
           : `Parcela ${i + 1}/${n}`,
         paid_at: null,
-        status: "pendente",
+        status: "aberto",
       };
     });
     const { error } = await context.supabase.from("finances").insert(rows);

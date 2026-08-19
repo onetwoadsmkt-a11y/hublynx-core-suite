@@ -26,7 +26,7 @@ import {
 
 type Kind = "receber" | "pagar";
 type Periodicity = "diaria" | "mensal";
-type Status = "pendente" | "pago";
+type Status = "aberto" | "quitado";
 
 type Entry = {
   id: string;
@@ -181,7 +181,7 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
   const totals = useMemo(() => {
     let rev = 0, exp = 0;
     for (const r of filtered) {
-      if (r.status === "pago") {
+      if (r.status === "quitado") {
         if (r.kind === "receber") rev += Number(r.amount) || 0;
         else exp += Number(r.amount) || 0;
       }
@@ -293,11 +293,11 @@ export function ProjectCommercialTable({ projectId }: { projectId: string }) {
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className={
-                                r.status === "pago" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                r.status === "quitado" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                                 : r.status === "atrasado" ? "border-rose-200 bg-rose-50 text-rose-700"
                                 : "border-amber-200 bg-amber-50 text-amber-700"
                               }>
-                                {r.status === "pago" ? (isRev ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
+                                {r.status === "quitado" ? (isRev ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
@@ -418,11 +418,11 @@ function EntryDetailsDialog({
           <Row label="Pagamento" value={fmtDate(entry.paid_at)} />
           <Row label="Status" value={
             <Badge variant="outline" className={
-              entry.status === "pago" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              entry.status === "quitado" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : entry.status === "atrasado" ? "border-rose-200 bg-rose-50 text-rose-700"
               : "border-amber-200 bg-amber-50 text-amber-700"
             }>
-              {entry.status === "pago" ? (isRev ? "Recebido" : "Pago") : entry.status === "atrasado" ? "Atrasado" : "Pendente"}
+              {entry.status === "quitado" ? (isRev ? "Recebido" : "Pago") : entry.status === "atrasado" ? "Atrasado" : "Pendente"}
             </Badge>
           } />
           <Row label="Periodicidade" value={per} />
@@ -457,7 +457,7 @@ function EntryDialog({
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [status, setStatus] = useState<Status>("pendente");
+  const [status, setStatus] = useState<Status>("aberto");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [installments, setInstallments] = useState(1);
   const [installmentMode, setInstallmentMode] = useState<"split" | "fixed">("split");
@@ -470,7 +470,7 @@ function EntryDialog({
       setDescription(initial.description ?? "");
       setAmount(String(initial.amount));
       setDueDate(initial.due_date);
-      setStatus(initial.status === "pago" ? "pago" : "pendente");
+      setStatus(initial.status === "quitado" ? "quitado" : "aberto");
       setPaymentMethod(initial.payment_method ?? "");
       setInstallments(1);
       setInstallmentMode("split");
@@ -480,7 +480,7 @@ function EntryDialog({
       setDescription("");
       setAmount("");
       setDueDate(new Date().toISOString().slice(0, 10));
-      setStatus("pendente");
+      setStatus("aberto");
       setPaymentMethod("");
       setInstallments(1);
       setInstallmentMode("split");
@@ -568,8 +568,8 @@ function EntryDialog({
               <Select value={status} onValueChange={(v) => setStatus(v as Status)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="pago">{isRev ? "Recebido" : "Pago"}</SelectItem>
+                  <SelectItem value="aberto">Pendente</SelectItem>
+                  <SelectItem value="quitado">{isRev ? "Recebido" : "Pago"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

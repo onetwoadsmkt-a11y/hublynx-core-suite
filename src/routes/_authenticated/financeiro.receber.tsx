@@ -48,7 +48,7 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
   });
 
   const mark = useMutation({
-    mutationFn: (id: string) => markFn({ data: { id, status: "pago" } }),
+    mutationFn: (id: string) => markFn({ data: { id, status: "quitado" } }),
     onSuccess: () => {
       toast.success(kind === "receber" ? "Recebido" : "Pago");
       qc.invalidateQueries({ queryKey: ["finance"] });
@@ -63,7 +63,7 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
   });
 
   const total = (rows ?? []).reduce((s, r) => s + r.amount, 0);
-  const realizado = (rows ?? []).filter((r) => r.status === "pago").reduce((s, r) => s + r.amount, 0);
+  const realizado = (rows ?? []).filter((r) => r.status === "quitado").reduce((s, r) => s + r.amount, 0);
 
   const byDay = useMemo(() => {
     const map = new Map<string, FinanceRow[]>();
@@ -110,8 +110,8 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
                 <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="pago">{kind === "receber" ? "Recebido" : "Pago"}</SelectItem>
+                  <SelectItem value="aberto">Pendente</SelectItem>
+                  <SelectItem value="quitado">{kind === "receber" ? "Recebido" : "Pago"}</SelectItem>
                   <SelectItem value="atrasado">Atrasado</SelectItem>
                 </SelectContent>
               </Select>
@@ -154,13 +154,13 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
                   <TableCell>{new Date(r.due_date + "T00:00:00").toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right tabular-nums">{brl(r.amount)}</TableCell>
                   <TableCell>
-                    <Badge variant={r.status === "pago" ? "default" : r.status === "atrasado" ? "destructive" : "secondary"}>
-                      {r.status === "pago" ? (kind === "receber" ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
+                    <Badge variant={r.status === "quitado" ? "default" : r.status === "atrasado" ? "destructive" : "secondary"}>
+                      {r.status === "quitado" ? (kind === "receber" ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 justify-end">
-                      {r.status !== "pago" && (
+                      {r.status !== "quitado" && (
                         <Button size="icon" variant="ghost" title="Marcar como pago" onClick={() => mark.mutate(r.id)}>
                           <CheckCircle2 className="h-4 w-4" />
                         </Button>

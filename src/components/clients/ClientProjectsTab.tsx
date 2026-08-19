@@ -22,7 +22,7 @@ export function ClientProjectsTab({ clientId }: { clientId: string }) {
     .filter((f) => f.kind === "receber")
     .reduce((a, f) => a + (Number(f.amount) || 0), 0);
   const recebido = finances
-    .filter((f) => f.kind === "receber" && f.status === "pago")
+    .filter((f) => f.kind === "receber" && f.status === "quitado")
     .reduce((a, f) => a + (Number(f.amount) || 0), 0);
   const emAberto = previsto - recebido;
 

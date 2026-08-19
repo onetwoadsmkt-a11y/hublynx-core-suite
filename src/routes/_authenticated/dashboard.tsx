@@ -72,7 +72,7 @@ function Dashboard() {
         supabase.from("projects").select("id", { count: "exact", head: true })
           .lt("due_date", today.startDate).not("status", "in", "(concluido,cancelado)"),
         supabase.from("finances").select("amount")
-          .eq("kind", "receber").eq("status", "pendente")
+          .eq("kind", "receber").eq("status", "aberto")
           .gte("due_date", today.startDate).lte("due_date", in7),
         supabase.from("events").select("id,title,start_at,event_type")
           .gte("start_at", today.start).lte("start_at", today.end).order("start_at"),

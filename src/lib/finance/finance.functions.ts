@@ -53,7 +53,7 @@ const monthSchema = z.object({
 });
 
 const kindSchema = z.enum(["receber", "pagar"]);
-const statusSchema = z.enum(["pendente", "pago", "atrasado"]);
+const statusSchema = z.enum(["aberto", "quitado", "atrasado"]);
 
 // ── ensureDefaultCategories ──────────────────────────────────────────────
 export const ensureDefaultCategories = createServerFn({ method: "POST" })
@@ -116,7 +116,7 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
           description: c.description,
           amount: c.amount,
           due_date: cursor,
-          status: "pendente",
+          status: "aberto",
           payment_method: c.payment_method,
           recurrence: "none",
           parent_id: c.id,
@@ -148,7 +148,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       despesa_prevista = 0;
     for (const r of rows ?? []) {
       const amt = Number(r.amount) || 0;
-      const paid = r.status === "pago";
+      const paid = r.status === "quitado";
       if (r.kind === "receber") {
         if (paid) receita_realizada += amt;
         else receita_prevista += amt;
@@ -165,7 +165,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       .from("finances")
       .select("kind, amount")
       .eq("owner_id", userId)
-      .eq("status", "pago")
+      .eq("status", "quitado")
       .lte("paid_at", today);
     let saldo_caixa = 0;
     for (const r of allPaid ?? []) {
@@ -178,7 +178,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       .select("amount")
       .eq("owner_id", userId)
       .eq("kind", "receber")
-      .eq("status", "pendente")
+      .eq("status", "aberto")
       .lt("due_date", today);
     const inadimplencia = (overdue ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
@@ -238,7 +238,7 @@ export const listFinances = createServerFn({ method: "POST" })
       .lte("due_date", to)
       .order("due_date", { ascending: true });
 
-    if (data.status && data.status !== "all" && (data.status === "pendente" || data.status === "pago" || data.status === "atrasado")) {
+    if (data.status && data.status !== "all" && (data.status === "aberto" || data.status === "quitado" || data.status === "atrasado")) {
       q = q.eq("status", data.status);
     }
     if (data.clientId) q = q.eq("client_id", data.clientId);
@@ -248,7 +248,7 @@ export const listFinances = createServerFn({ method: "POST" })
     const out: FinanceRow[] = [];
     for (const r of rows ?? []) {
       const status =
-        r.status === "pendente" && r.due_date < today ? "atrasado" : (r.status as FinanceRow["status"]);
+        r.status === "aberto" && r.due_date < today ? "atrasado" : (r.status as FinanceRow["status"]);
       const row: FinanceRow = {
         id: r.id,
         kind: r.kind as FinanceKind,
@@ -288,7 +288,7 @@ const upsertSchema = z.object({
   description: z.string().max(500).nullable().optional(),
   amount: z.number().positive(),
   due_date: z.string(),
-  status: statusSchema.default("pendente"),
+  status: statusSchema.default("aberto"),
   client_id: z.string().uuid().nullable().optional(),
   project_id: z.string().uuid().nullable().optional(),
   category_id: z.string().uuid().nullable().optional(),
@@ -345,7 +345,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           description: data.description ?? null,
           amount: each,
           due_date: data.due_date,
-          status: "pendente",
+          status: "aberto",
           client_id: data.client_id ?? null,
           project_id: data.project_id ?? null,
           category_id: data.category_id ?? null,
@@ -365,7 +365,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           description: data.description ?? null,
           amount: each,
           due_date: addMonths(data.due_date, i - 1),
-          status: "pendente",
+          status: "aberto",
           client_id: data.client_id ?? null,
           project_id: data.project_id ?? null,
           category_id: data.category_id ?? null,
@@ -417,7 +417,7 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
       .from("finances")
       .update({
         status: data.status,
-        paid_at: data.status === "pago" ? data.paid_at ?? todayISO() : null,
+        paid_at: data.status === "quitado" ? data.paid_at ?? todayISO() : null,
       })
       .eq("id", data.id)
       .eq("owner_id", userId);
@@ -494,7 +494,7 @@ export const getDRE = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", from)
       .lte("due_date", to)
-      .eq("status", "pago");
+      .eq("status", "quitado");
     let receita_bruta = 0,
       despesas = 0;
     for (const r of fin ?? []) {
@@ -531,7 +531,7 @@ export const getProfitabilityByClient = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", data.from)
       .lte("due_date", data.to)
-      .eq("status", "pago");
+      .eq("status", "quitado");
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount, projects(client_id)")
@@ -579,7 +579,7 @@ export const getProfitabilityByProject = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", data.from)
       .lte("due_date", data.to)
-      .eq("status", "pago");
+      .eq("status", "quitado");
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount, project_id")
@@ -625,7 +625,7 @@ export const getForecast = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, kind, description, amount, due_date, status")
       .eq("owner_id", userId)
-      .eq("status", "pendente")
+      .eq("status", "aberto")
       .gte("due_date", todayISOv)
       .lte("due_date", horizonISO)
       .order("due_date", { ascending: true });
@@ -671,7 +671,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, amount, description, due_date, kind")
       .eq("owner_id", userId)
-      .eq("status", "pendente")
+      .eq("status", "aberto")
       .lt("due_date", today);
     for (const r of (overdue ?? []).slice(0, 5)) {
       alerts.push({
@@ -689,7 +689,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, amount, description, due_date")
       .eq("owner_id", userId)
-      .eq("status", "pendente")
+      .eq("status", "aberto")
       .eq("kind", "receber")
       .gte("due_date", today)
       .lte("due_date", soonISO);
