@@ -165,16 +165,19 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
     const margem = receita_realizada > 0 ? (lucro / receita_realizada) * 100 : 0;
 
     const today = todayISO();
-    const { data: allPaid } = await supabase
-      .from("finances")
-      .select("kind, amount")
-      .eq("owner_id", userId)
-      .eq("status", "quitado")
-      .lte("paid_at", today);
-    let saldo_caixa = 0;
-    for (const r of allPaid ?? []) {
-      const amt = Number(r.amount) || 0;
-      saldo_caixa += r.kind === "receber" ? amt : -amt;
+    // Regime de caixa: só as baixas movimentam o caixa, mais o saldo inicial das contas.
+    const [{ data: allPaid }, { data: contas }] = await Promise.all([
+      supabase
+        .from("baixas")
+        .select("receita_id, despesa_id, valor")
+        .eq("empresa_id", userId)
+        .lte("data", today),
+      supabase.from("contas").select("saldo_inicial").eq("empresa_id", userId).eq("ativo", true),
+    ]);
+    let saldo_caixa = (contas ?? []).reduce((s, c) => s + (Number(c.saldo_inicial) || 0), 0);
+    for (const b of allPaid ?? []) {
+      const amt = Number(b.valor) || 0;
+      saldo_caixa += b.receita_id ? amt : -amt;
     }
 
     const { data: overdue } = await supabase
@@ -182,7 +185,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       .select("amount")
       .eq("owner_id", userId)
       .eq("kind", "receber")
-      .eq("status", "aberto")
+      .in("status", ["aberto", "parcial"])
       .lt("due_date", today);
     const inadimplencia = (overdue ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
@@ -453,12 +456,65 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { data: fin, error: fErr } = await supabase
+      .from("finances")
+      .select("id, kind, amount, payment_method")
+      .eq("id", data.id)
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (fErr) throw new Error(fErr.message);
+    if (!fin) throw new Error("Lançamento não encontrado.");
+
+    if (data.status === "quitado") {
+      // Quitar = registrar a baixa; o status é recalculado automaticamente.
+      const { data: pagas } = await supabase
+        .from("baixas")
+        .select("valor")
+        .eq("empresa_id", userId)
+        .or(`receita_id.eq.${fin.id},despesa_id.eq.${fin.id}`);
+      const jaPago = (pagas ?? []).reduce((s, b) => s + (Number(b.valor) || 0), 0);
+      const saldo = (Number(fin.amount) || 0) - jaPago;
+      if (saldo <= 0) return { ok: true };
+      const { data: conta } = await supabase
+        .from("contas")
+        .select("id")
+        .eq("empresa_id", userId)
+        .eq("ativo", true)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const { error } = await supabase.from("baixas").insert({
+        empresa_id: userId,
+        receita_id: fin.kind === "receber" ? fin.id : null,
+        despesa_id: fin.kind === "pagar" ? fin.id : null,
+        data: data.paid_at ?? todayISO(),
+        valor: saldo,
+        forma_pagamento: fin.payment_method,
+        conta_id: conta?.id ?? null,
+      });
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    }
+
+    if (data.status === "aberto") {
+      // Estornar: remove as baixas; o trigger devolve o status para "aberto".
+      const { error } = await supabase
+        .from("baixas")
+        .delete()
+        .eq("empresa_id", userId)
+        .or(`receita_id.eq.${fin.id},despesa_id.eq.${fin.id}`);
+      if (error) throw new Error(error.message);
+      await supabase
+        .from("finances")
+        .update({ status: "aberto", paid_at: null })
+        .eq("id", fin.id)
+        .eq("owner_id", userId);
+      return { ok: true };
+    }
+
     const { error } = await supabase
       .from("finances")
-      .update({
-        status: data.status,
-        paid_at: data.status === "quitado" ? data.paid_at ?? todayISO() : null,
-      })
+      .update({ status: data.status })
       .eq("id", data.id)
       .eq("owner_id", userId);
     if (error) throw new Error(error.message);
@@ -495,22 +551,39 @@ export const getCashflowSeries = createServerFn({ method: "POST" })
     const fromISO = start.toISOString().slice(0, 10);
     const toISO = end.toISOString().slice(0, 10);
 
+    const today = todayISO();
+    const byDate = new Map<string, { in: number; out: number }>();
+
+    // Realizado (regime de caixa) = baixas.
+    const { data: baixas } = await supabase
+      .from("baixas")
+      .select("receita_id, despesa_id, valor, data")
+      .eq("empresa_id", userId)
+      .gte("data", fromISO)
+      .lte("data", toISO);
+    for (const b of baixas ?? []) {
+      const slot = byDate.get(b.data) ?? { in: 0, out: 0 };
+      const amt = Number(b.valor) || 0;
+      if (b.receita_id) slot.in += amt;
+      else slot.out += amt;
+      byDate.set(b.data, slot);
+    }
+
+    // Projeção futura = lançamentos ainda em aberto pelo vencimento.
     const { data: rows } = await supabase
       .from("finances")
-      .select("kind, amount, due_date, paid_at, status")
+      .select("kind, amount, due_date, status")
       .eq("owner_id", userId)
-      .gte("due_date", fromISO)
+      .in("status", ["aberto", "parcial"])
+      .gt("due_date", today)
       .lte("due_date", toISO);
-
-    const byDate = new Map<string, { in: number; out: number }>();
     for (const r of rows ?? []) {
-      const date = r.paid_at ?? r.due_date;
-      if (!date) continue;
-      const slot = byDate.get(date) ?? { in: 0, out: 0 };
+      if (!r.due_date) continue;
+      const slot = byDate.get(r.due_date) ?? { in: 0, out: 0 };
       const amt = Number(r.amount) || 0;
       if (r.kind === "receber") slot.in += amt;
       else slot.out += amt;
-      byDate.set(date, slot);
+      byDate.set(r.due_date, slot);
     }
     const dates = Array.from(byDate.keys()).sort();
     let balance = 0;
@@ -665,7 +738,7 @@ export const getForecast = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, kind, description, amount, due_date, status")
       .eq("owner_id", userId)
-      .eq("status", "aberto")
+      .in("status", ["aberto", "parcial"])
       .gte("due_date", todayISOv)
       .lte("due_date", horizonISO)
       .order("due_date", { ascending: true });
@@ -711,7 +784,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, amount, description, due_date, kind")
       .eq("owner_id", userId)
-      .eq("status", "aberto")
+      .in("status", ["aberto", "parcial"])
       .lt("due_date", today);
     for (const r of (overdue ?? []).slice(0, 5)) {
       alerts.push({
@@ -729,7 +802,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, amount, description, due_date")
       .eq("owner_id", userId)
-      .eq("status", "aberto")
+      .in("status", ["aberto", "parcial"])
       .eq("kind", "receber")
       .gte("due_date", today)
       .lte("due_date", soonISO);
