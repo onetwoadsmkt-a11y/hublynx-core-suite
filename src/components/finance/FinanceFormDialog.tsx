@@ -39,6 +39,8 @@ export function FinanceFormDialog({
   const [recurring, setRecurring] = useState(false);
   const [installments, setInstallments] = useState(1);
   const [status, setStatus] = useState<"aberto" | "quitado">("aberto");
+  const [natureza, setNatureza] = useState<"fee" | "repasse" | "reembolso">("fee");
+
 
   useEffect(() => {
     if (!open) return;
