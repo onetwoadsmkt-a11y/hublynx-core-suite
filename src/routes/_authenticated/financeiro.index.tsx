@@ -2,13 +2,15 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  ArrowDownCircle, ArrowUpCircle, Calculator, Percent, Wallet, AlertCircle, Repeat, LineChart,
+  ArrowDownCircle, ArrowUpCircle, Wallet, AlertCircle, Repeat, LineChart,
 } from "lucide-react";
 import { getFinanceMetrics } from "@/lib/finance/metrics.functions";
-import { KpiCard, brl } from "@/components/finance/KpiCard";
+import { KpiCard } from "@/components/finance/KpiCard";
+import { ProfitHeroCard } from "@/components/finance/ProfitHeroCard";
 import { MonthYearPicker } from "@/components/finance/MonthYearPicker";
 import { CashflowChart } from "@/components/finance/CashflowChart";
 import { AlertsPanel } from "@/components/finance/AlertsPanel";
+
 
 export const Route = createFileRoute("/_authenticated/financeiro/")({
   component: DashboardPage,
