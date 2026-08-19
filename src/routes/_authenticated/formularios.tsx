@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   Trash2,
+  ListChecks,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FormDialog } from "@/components/forms/FormDialog";
+import { QuestionsEditorDialog } from "@/components/forms/QuestionsEditorDialog";
 import {
   listForms,
   setFormStatus,
@@ -81,6 +83,7 @@ function FormulariosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FormListItem | null>(null);
   const [toDelete, setToDelete] = useState<FormListItem | null>(null);
+  const [questionsFor, setQuestionsFor] = useState<FormListItem | null>(null);
 
   const listFn = useServerFn(listForms);
   const { data: forms, isLoading } = useQuery({
@@ -219,8 +222,11 @@ function FormulariosPage() {
                   >
                     <Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => copyLink(f.slug)}>
-                    <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar link
+                  <Button variant="outline" size="sm" onClick={() => setQuestionsFor(f)}>
+                    <ListChecks className="mr-1.5 h-3.5 w-3.5" /> Perguntas
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => copyLink(f.slug)}>
+                    <Copy className="mr-1.5 h-3.5 w-3.5" /> Link
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -267,6 +273,12 @@ function FormulariosPage() {
       )}
 
       <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} form={editing} />
+
+      <QuestionsEditorDialog
+        open={!!questionsFor}
+        onOpenChange={(v) => !v && setQuestionsFor(null)}
+        form={questionsFor}
+      />
 
       <AlertDialog open={!!toDelete} onOpenChange={(v) => !v && setToDelete(null)}>
         <AlertDialogContent>
