@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { getPublicForm } from "@/lib/forms/public.functions";
+import { FormRenderer } from "@/components/forms/FormRenderer";
 
 export const Route = createFileRoute("/form/$slug")({
   loader: async ({ params }) => {
@@ -68,44 +69,9 @@ function PublicFormPage() {
           <p className="mt-2 text-sm text-[#64748B]">{form.intro_message}</p>
         )}
 
-        {form.questions.length === 0 ? (
-          <p className="mt-6 rounded-lg bg-[#F6F8FA] p-4 text-sm text-[#64748B]">
-            Este formulário ainda está sendo preparado. Em breve as perguntas estarão disponíveis
-            aqui.
-          </p>
-        ) : (
-          <div className="mt-6 space-y-4">
-            <p className="text-[12.2px] text-[#64748B]">
-              {form.questions.length} pergunta{form.questions.length > 1 ? "s" : ""} · uma por vez,
-              leva menos de um minuto.
-            </p>
-            <div
-              className="rounded-lg border border-[#E6EAF0] p-5"
-              style={{ borderRadius: radius }}
-            >
-              <p className="text-base font-medium">{form.questions[0]!.question}</p>
-              {form.questions[0]!.help_text && (
-                <p className="mt-1 text-sm text-[#64748B]">{form.questions[0]!.help_text}</p>
-              )}
-              <div className="mt-4 grid gap-2">
-                {form.questions[0]!.options.map((o) => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    disabled
-                    className="w-full border border-[#E6EAF0] px-4 py-3 text-left text-sm transition-colors disabled:opacity-70"
-                    style={{ borderRadius: radius }}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="text-[12.2px] text-[#64748B]">
-              O envio das respostas será habilitado na próxima etapa do módulo.
-            </p>
-          </div>
-        )}
+        <div className="mt-6">
+          <FormRenderer form={form} />
+        </div>
 
         <div
           className="mt-6 h-1 w-16 rounded-full"

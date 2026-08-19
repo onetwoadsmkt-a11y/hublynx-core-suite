@@ -14,6 +14,7 @@ import {
   Plus,
   Trash2,
   ListChecks,
+  Eye,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FormDialog } from "@/components/forms/FormDialog";
 import { QuestionsEditorDialog } from "@/components/forms/QuestionsEditorDialog";
+import { FormPreviewDialog } from "@/components/forms/FormPreviewDialog";
 import {
   listForms,
   setFormStatus,
@@ -84,6 +86,7 @@ function FormulariosPage() {
   const [editing, setEditing] = useState<FormListItem | null>(null);
   const [toDelete, setToDelete] = useState<FormListItem | null>(null);
   const [questionsFor, setQuestionsFor] = useState<FormListItem | null>(null);
+  const [previewFor, setPreviewFor] = useState<FormListItem | null>(null);
 
   const listFn = useServerFn(listForms);
   const { data: forms, isLoading } = useQuery({
@@ -225,6 +228,9 @@ function FormulariosPage() {
                   <Button variant="outline" size="sm" onClick={() => setQuestionsFor(f)}>
                     <ListChecks className="mr-1.5 h-3.5 w-3.5" /> Perguntas
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => setPreviewFor(f)}>
+                    <Eye className="mr-1.5 h-3.5 w-3.5" /> Prévia
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => copyLink(f.slug)}>
                     <Copy className="mr-1.5 h-3.5 w-3.5" /> Link
                   </Button>
@@ -278,6 +284,12 @@ function FormulariosPage() {
         open={!!questionsFor}
         onOpenChange={(v) => !v && setQuestionsFor(null)}
         form={questionsFor}
+      />
+
+      <FormPreviewDialog
+        open={!!previewFor}
+        onOpenChange={(v) => !v && setPreviewFor(null)}
+        form={previewFor}
       />
 
       <AlertDialog open={!!toDelete} onOpenChange={(v) => !v && setToDelete(null)}>
