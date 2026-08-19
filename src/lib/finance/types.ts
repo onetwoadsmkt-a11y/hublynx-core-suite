@@ -29,7 +29,14 @@ export type FinanceRow = {
   amount: number;
   due_date: string;
   paid_at: string | null;
-  status: FinanceStatus;
+  /** Status derivado para exibição (pode ser "atrasado"). */
+  status: FinanceDisplayStatus;
+  /** Regime de caixa/derivados */
+  valor_pago?: number;
+  saldo?: number;
+  dias_atraso?: number;
+  competencia?: string;
+  natureza?: FinanceNatureza;
   client_id: string | null;
   project_id: string | null;
   category_id: string | null;
