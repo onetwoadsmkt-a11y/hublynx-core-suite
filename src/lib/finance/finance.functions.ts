@@ -439,6 +439,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           supplier: data.supplier ?? null,
           payment_method: data.payment_method ?? null,
           paid_at: data.paid_at ?? null,
+          natureza: data.natureza,
         })
         .eq("id", data.id)
         .eq("owner_id", userId);
@@ -448,7 +449,9 @@ export const upsertFinance = createServerFn({ method: "POST" })
         }
         throw new Error(error.message);
       }
+      await syncRepasseMirror(supabase, userId, { ...data, id: data.id, natureza: data.natureza });
       return { ok: true, id: data.id };
+
     }
 
     if (data.installments && data.installments > 1) {
