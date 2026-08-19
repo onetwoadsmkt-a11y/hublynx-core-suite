@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { brl } from "@/components/finance/KpiCard";
 import { getReceivablesPanel } from "@/lib/finance/receivables.functions";
+import { getFinanceMetricsSeries } from "@/lib/finance/metrics.functions";
 
 export const Route = createFileRoute("/_authenticated/financeiro/recebiveis")({
   head: () => ({
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/financeiro/recebiveis")({
 });
 
 function pct(a: number, b: number) {
-  return b > 0 ? `${((a / b) * 100).toFixed(1).replace(".", ",")}%` : "0,0%";
+  return b > 0 ? `${((a / b) * 100).toFixed(1).replace(".", ",")}%` : "—";
 }
 function cell(v: number) {
   return v > 0 ? brl(v) : "–";
@@ -48,6 +49,12 @@ function RecebiveisPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["finance", "receivables", startYear, startMonth, kind],
     queryFn: () => fn({ data: { startYear, startMonth, months: 12, kind } }),
+  });
+
+  const seriesFn = useServerFn(getFinanceMetricsSeries);
+  const { data: serie } = useQuery({
+    queryKey: ["finance", "metrics-series", startYear, startMonth, 12],
+    queryFn: () => seriesFn({ data: { startMonth, startYear, months: 12 } }),
   });
 
   const rows = useMemo(() => {
@@ -182,7 +189,7 @@ function RecebiveisPage() {
                 <th className="sticky left-0 z-10 bg-muted/60 px-2 py-2 text-left font-semibold">
                   Indicador
                 </th>
-                {(data?.labels ?? []).map((l) => (
+                {(serie?.labels ?? data?.labels ?? []).map((l) => (
                   <th key={l} className="px-2 py-2 text-right font-semibold whitespace-nowrap">
                     {l}
                   </th>
@@ -192,37 +199,47 @@ function RecebiveisPage() {
             </thead>
             <tbody>
               <tr className="border-b">
-                <td className="sticky left-0 z-10 bg-background px-2 py-1.5 font-medium">Previsto</td>
-                {(data?.previsto ?? []).map((v, i) => (
+                <td className="sticky left-0 z-10 bg-background px-2 py-1.5 font-medium">
+                  {positive ? "Receita (competência)" : "Despesas (competência)"}
+                </td>
+                {(serie?.[positive ? "receita" : "despesas"] ?? []).map((v, i) => (
                   <td key={i} className="px-2 py-1.5 text-right tabular-nums">{cell(v)}</td>
                 ))}
-                <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{brl(data?.totalPrevisto ?? 0)}</td>
+                <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                  {brl(serie?.totals[positive ? "receita" : "despesas"] ?? 0)}
+                </td>
               </tr>
               <tr className="border-b">
                 <td className="sticky left-0 z-10 bg-background px-2 py-1.5 font-medium">
-                  {positive ? "Recebido" : "Pago"}
+                  {positive ? "Recebido (caixa)" : "Pago (caixa)"}
                 </td>
-                {(data?.recebido ?? []).map((v, i) => (
+                {(serie?.recebido ?? []).map((v, i) => (
                   <td key={i} className="px-2 py-1.5 text-right tabular-nums text-emerald-600">{cell(v)}</td>
                 ))}
-                <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-emerald-600">{brl(data?.totalRecebido ?? 0)}</td>
+                <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-emerald-600">
+                  {brl(serie?.totals.recebido ?? 0)}
+                </td>
               </tr>
               <tr className="border-b">
                 <td className="sticky left-0 z-10 bg-background px-2 py-1.5 font-medium">Em aberto</td>
-                {(data?.aberto ?? []).map((v, i) => (
+                {(serie?.aberto ?? []).map((v, i) => (
                   <td key={i} className="px-2 py-1.5 text-right tabular-nums text-amber-600">{cell(v)}</td>
                 ))}
-                <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-amber-600">{brl(data?.totalAberto ?? 0)}</td>
+                <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-amber-600">
+                  {brl(serie?.totals.aberto ?? 0)}
+                </td>
               </tr>
               <tr className="border-b">
                 <td className="sticky left-0 z-10 bg-background px-2 py-1.5 font-medium">% concluído</td>
-                {(data?.previsto ?? []).map((v, i) => (
+                {(serie?.receita ?? []).map((v, i) => (
                   <td key={i} className="px-2 py-1.5 text-right tabular-nums">
-                    {pct(data?.recebido[i] ?? 0, v)}
+                    {v > 0 ? pct(serie?.recebido[i] ?? 0, v) : "—"}
                   </td>
                 ))}
                 <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
-                  {pct(data?.totalRecebido ?? 0, data?.totalPrevisto ?? 0)}
+                  {(serie?.totals.receita ?? 0) > 0
+                    ? pct(serie?.totals.recebido ?? 0, serie?.totals.receita ?? 0)
+                    : "—"}
                 </td>
               </tr>
               <tr>
