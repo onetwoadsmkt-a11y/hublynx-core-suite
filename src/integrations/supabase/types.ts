@@ -62,6 +62,81 @@ export type Database = {
         }
         Relationships: []
       }
+      baixas: {
+        Row: {
+          conta_id: string | null
+          created_at: string
+          data: string
+          despesa_id: string | null
+          empresa_id: string
+          forma_pagamento: string | null
+          id: string
+          receita_id: string | null
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          conta_id?: string | null
+          created_at?: string
+          data?: string
+          despesa_id?: string | null
+          empresa_id: string
+          forma_pagamento?: string | null
+          id?: string
+          receita_id?: string | null
+          updated_at?: string
+          valor: number
+        }
+        Update: {
+          conta_id?: string | null
+          created_at?: string
+          data?: string
+          despesa_id?: string | null
+          empresa_id?: string
+          forma_pagamento?: string | null
+          id?: string
+          receita_id?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baixas_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baixas_despesa_id_fkey"
+            columns: ["despesa_id"]
+            isOneToOne: false
+            referencedRelation: "finances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baixas_despesa_id_fkey"
+            columns: ["despesa_id"]
+            isOneToOne: false
+            referencedRelation: "finances_calc"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baixas_receita_id_fkey"
+            columns: ["receita_id"]
+            isOneToOne: false
+            referencedRelation: "finances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "baixas_receita_id_fkey"
+            columns: ["receita_id"]
+            isOneToOne: false
+            referencedRelation: "finances_calc"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null
@@ -122,6 +197,39 @@ export type Database = {
           updated_at?: string
           website?: string | null
           whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      contas: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          data_saldo_inicial: string
+          empresa_id: string
+          id: string
+          nome: string
+          saldo_inicial: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          data_saldo_inicial?: string
+          empresa_id: string
+          id?: string
+          nome: string
+          saldo_inicial?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          data_saldo_inicial?: string
+          empresa_id?: string
+          id?: string
+          nome?: string
+          saldo_inicial?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -271,6 +379,7 @@ export type Database = {
           amount: number
           category_id: string | null
           client_id: string | null
+          competencia: string
           created_at: string
           description: string | null
           due_date: string
@@ -278,6 +387,7 @@ export type Database = {
           installment_no: number | null
           installment_total: number | null
           kind: Database["public"]["Enums"]["finance_kind"]
+          natureza: string
           owner_id: string
           paid_at: string | null
           parent_id: string | null
@@ -294,6 +404,7 @@ export type Database = {
           amount: number
           category_id?: string | null
           client_id?: string | null
+          competencia: string
           created_at?: string
           description?: string | null
           due_date: string
@@ -301,6 +412,7 @@ export type Database = {
           installment_no?: number | null
           installment_total?: number | null
           kind: Database["public"]["Enums"]["finance_kind"]
+          natureza?: string
           owner_id: string
           paid_at?: string | null
           parent_id?: string | null
@@ -317,6 +429,7 @@ export type Database = {
           amount?: number
           category_id?: string | null
           client_id?: string | null
+          competencia?: string
           created_at?: string
           description?: string | null
           due_date?: string
@@ -324,6 +437,7 @@ export type Database = {
           installment_no?: number | null
           installment_total?: number | null
           kind?: Database["public"]["Enums"]["finance_kind"]
+          natureza?: string
           owner_id?: string
           paid_at?: string | null
           parent_id?: string | null
@@ -356,6 +470,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "finances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "finances_calc"
             referencedColumns: ["id"]
           },
           {
@@ -2021,6 +2142,74 @@ export type Database = {
       }
     }
     Views: {
+      finances_calc: {
+        Row: {
+          amount: number | null
+          category_id: string | null
+          client_id: string | null
+          competencia: string | null
+          created_at: string | null
+          description: string | null
+          dias_atraso: number | null
+          due_date: string | null
+          em_atraso: boolean | null
+          id: string | null
+          installment_no: number | null
+          installment_total: number | null
+          kind: Database["public"]["Enums"]["finance_kind"] | null
+          natureza: string | null
+          owner_id: string | null
+          paid_at: string | null
+          parent_id: string | null
+          payment_method: string | null
+          project_id: string | null
+          recurrence: string | null
+          recurrence_day: number | null
+          recurrence_until: string | null
+          saldo: number | null
+          status: Database["public"]["Enums"]["finance_status"] | null
+          supplier: string | null
+          updated_at: string | null
+          valor_pago: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finances_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "finance_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "finances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "finances_calc"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections_public: {
         Row: {
           expires_at: string | null
@@ -2061,6 +2250,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      recalc_finance_status: {
+        Args: { _finance_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "user"
@@ -2075,7 +2268,7 @@ export type Database = {
         | "artes"
         | "videos"
       finance_kind: "receber" | "pagar"
-      finance_status: "pendente" | "pago" | "atrasado"
+      finance_status: "aberto" | "parcial" | "quitado" | "cancelado"
       project_status:
         | "planejamento"
         | "em_andamento"
@@ -2227,7 +2420,7 @@ export const Constants = {
         "videos",
       ],
       finance_kind: ["receber", "pagar"],
-      finance_status: ["pendente", "pago", "atrasado"],
+      finance_status: ["aberto", "parcial", "quitado", "cancelado"],
       project_status: [
         "planejamento",
         "em_andamento",
