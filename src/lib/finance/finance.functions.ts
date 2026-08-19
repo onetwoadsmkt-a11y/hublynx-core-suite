@@ -9,6 +9,7 @@ import type {
   FinanceCategory,
   FinanceKind,
   FinanceRow,
+  FinanceStatus,
   ForecastBucket,
   ProfitabilityRow,
 } from "./types";
@@ -53,7 +54,10 @@ const monthSchema = z.object({
 });
 
 const kindSchema = z.enum(["receber", "pagar"]);
-const statusSchema = z.enum(["pendente", "pago", "atrasado"]);
+/** Status gravados no banco (regime de competência). "atrasado" não existe mais como status. */
+const statusSchema = z.enum(["aberto", "parcial", "quitado", "cancelado"]);
+/** Status aceitos como filtro de consulta — "atrasado" é derivado (vencido com saldo). */
+const filterStatusSchema = z.enum(["aberto", "parcial", "quitado", "cancelado", "atrasado"]);
 
 // ── ensureDefaultCategories ──────────────────────────────────────────────
 export const ensureDefaultCategories = createServerFn({ method: "POST" })
@@ -116,7 +120,7 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
           description: c.description,
           amount: c.amount,
           due_date: cursor,
-          status: "pendente",
+          status: "aberto",
           payment_method: c.payment_method,
           recurrence: "none",
           parent_id: c.id,
@@ -148,7 +152,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       despesa_prevista = 0;
     for (const r of rows ?? []) {
       const amt = Number(r.amount) || 0;
-      const paid = r.status === "pago";
+      const paid = r.status === "quitado";
       if (r.kind === "receber") {
         if (paid) receita_realizada += amt;
         else receita_prevista += amt;
@@ -161,16 +165,19 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
     const margem = receita_realizada > 0 ? (lucro / receita_realizada) * 100 : 0;
 
     const today = todayISO();
-    const { data: allPaid } = await supabase
-      .from("finances")
-      .select("kind, amount")
-      .eq("owner_id", userId)
-      .eq("status", "pago")
-      .lte("paid_at", today);
-    let saldo_caixa = 0;
-    for (const r of allPaid ?? []) {
-      const amt = Number(r.amount) || 0;
-      saldo_caixa += r.kind === "receber" ? amt : -amt;
+    // Regime de caixa: só as baixas movimentam o caixa, mais o saldo inicial das contas.
+    const [{ data: allPaid }, { data: contas }] = await Promise.all([
+      supabase
+        .from("baixas")
+        .select("receita_id, despesa_id, valor")
+        .eq("empresa_id", userId)
+        .lte("data", today),
+      supabase.from("contas").select("saldo_inicial").eq("empresa_id", userId).eq("ativo", true),
+    ]);
+    let saldo_caixa = (contas ?? []).reduce((s, c) => s + (Number(c.saldo_inicial) || 0), 0);
+    for (const b of allPaid ?? []) {
+      const amt = Number(b.valor) || 0;
+      saldo_caixa += b.receita_id ? amt : -amt;
     }
 
     const { data: overdue } = await supabase
@@ -178,7 +185,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       .select("amount")
       .eq("owner_id", userId)
       .eq("kind", "receber")
-      .eq("status", "pendente")
+      .in("status", ["aberto", "parcial"])
       .lt("due_date", today);
     const inadimplencia = (overdue ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
@@ -216,7 +223,7 @@ const listSchema = z.object({
   kind: kindSchema,
   month: z.number().int().min(1).max(12),
   year: z.number().int().min(2000).max(2100),
-  status: z.string().optional(),
+  status: z.union([filterStatusSchema, z.literal("all")]).optional(),
   clientId: z.string().optional(),
   q: z.string().optional(),
 });
@@ -227,10 +234,11 @@ export const listFinances = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<FinanceRow[]> => {
     const { supabase, userId } = context;
     const { from, to } = monthRange(data.month, data.year);
+    const today = todayISO();
     let q = supabase
       .from("finances")
       .select(
-        "id, kind, description, amount, due_date, paid_at, status, client_id, project_id, category_id, supplier, payment_method, recurrence, recurrence_day, recurrence_until, parent_id, installment_no, installment_total, clients(name), projects(name), finance_categories(name)",
+        "id, kind, description, amount, due_date, paid_at, status, competencia, natureza, client_id, project_id, category_id, supplier, payment_method, recurrence, recurrence_day, recurrence_until, parent_id, installment_no, installment_total, clients(name), projects(name), finance_categories(name)",
       )
       .eq("owner_id", userId)
       .eq("kind", data.kind)
@@ -238,18 +246,53 @@ export const listFinances = createServerFn({ method: "POST" })
       .lte("due_date", to)
       .order("due_date", { ascending: true });
 
-    if (data.status && data.status !== "all" && (data.status === "pendente" || data.status === "pago" || data.status === "atrasado")) {
-      q = q.eq("status", data.status);
+    if (data.status && data.status !== "all") {
+      if (data.status === "atrasado") {
+        // "Em atraso" é cálculo: vencimento < hoje e ainda com saldo em aberto.
+        q = q.in("status", ["aberto", "parcial"]).lt("due_date", today);
+      } else {
+        q = q.eq("status", data.status as FinanceStatus);
+      }
     }
     if (data.clientId) q = q.eq("client_id", data.clientId);
 
     const { data: rows } = await q;
-    const today = todayISO();
+
+    // Regime de caixa: valor pago vem exclusivamente das baixas.
+    const ids = (rows ?? []).map((r) => r.id);
+    const paidById = new Map<string, number>();
+    if (ids.length) {
+      const { data: baixas } = await supabase
+        .from("baixas")
+        .select("receita_id, despesa_id, valor")
+        .eq("empresa_id", userId);
+      for (const b of baixas ?? []) {
+        const fid = b.receita_id ?? b.despesa_id;
+        if (!fid) continue;
+        paidById.set(fid, (paidById.get(fid) ?? 0) + (Number(b.valor) || 0));
+      }
+    }
+
     const out: FinanceRow[] = [];
     for (const r of rows ?? []) {
-      const status =
-        r.status === "pendente" && r.due_date < today ? "atrasado" : (r.status as FinanceRow["status"]);
+      const amount = Number(r.amount) || 0;
+      const valor_pago = paidById.get(r.id) ?? 0;
+      const saldo = amount - valor_pago;
+      const dias_atraso = Math.max(
+        0,
+        Math.floor((Date.parse(today) - Date.parse(r.due_date)) / 86400000),
+      );
+      const stored = r.status as FinanceStatus;
+      const status: FinanceRow["status"] =
+        stored !== "quitado" && stored !== "cancelado" && r.due_date < today && saldo > 0
+          ? "atrasado"
+          : stored;
       const row: FinanceRow = {
+        valor_pago,
+        saldo,
+        dias_atraso,
+        competencia: (r as { competencia?: string | null }).competencia ?? undefined,
+        natureza: ((r as { natureza?: string | null }).natureza ?? "fee") as FinanceRow["natureza"],
         id: r.id,
         kind: r.kind as FinanceKind,
         description: r.description,
@@ -288,7 +331,7 @@ const upsertSchema = z.object({
   description: z.string().max(500).nullable().optional(),
   amount: z.number().positive(),
   due_date: z.string(),
-  status: statusSchema.default("pendente"),
+  status: statusSchema.default("aberto"),
   client_id: z.string().uuid().nullable().optional(),
   project_id: z.string().uuid().nullable().optional(),
   category_id: z.string().uuid().nullable().optional(),
@@ -345,7 +388,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           description: data.description ?? null,
           amount: each,
           due_date: data.due_date,
-          status: "pendente",
+          status: "aberto",
           client_id: data.client_id ?? null,
           project_id: data.project_id ?? null,
           category_id: data.category_id ?? null,
@@ -365,7 +408,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           description: data.description ?? null,
           amount: each,
           due_date: addMonths(data.due_date, i - 1),
-          status: "pendente",
+          status: "aberto",
           client_id: data.client_id ?? null,
           project_id: data.project_id ?? null,
           category_id: data.category_id ?? null,
@@ -413,12 +456,65 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { data: fin, error: fErr } = await supabase
+      .from("finances")
+      .select("id, kind, amount, payment_method")
+      .eq("id", data.id)
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (fErr) throw new Error(fErr.message);
+    if (!fin) throw new Error("Lançamento não encontrado.");
+
+    if (data.status === "quitado") {
+      // Quitar = registrar a baixa; o status é recalculado automaticamente.
+      const { data: pagas } = await supabase
+        .from("baixas")
+        .select("valor")
+        .eq("empresa_id", userId)
+        .or(`receita_id.eq.${fin.id},despesa_id.eq.${fin.id}`);
+      const jaPago = (pagas ?? []).reduce((s, b) => s + (Number(b.valor) || 0), 0);
+      const saldo = (Number(fin.amount) || 0) - jaPago;
+      if (saldo <= 0) return { ok: true };
+      const { data: conta } = await supabase
+        .from("contas")
+        .select("id")
+        .eq("empresa_id", userId)
+        .eq("ativo", true)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const { error } = await supabase.from("baixas").insert({
+        empresa_id: userId,
+        receita_id: fin.kind === "receber" ? fin.id : null,
+        despesa_id: fin.kind === "pagar" ? fin.id : null,
+        data: data.paid_at ?? todayISO(),
+        valor: saldo,
+        forma_pagamento: fin.payment_method,
+        conta_id: conta?.id ?? null,
+      });
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    }
+
+    if (data.status === "aberto") {
+      // Estornar: remove as baixas; o trigger devolve o status para "aberto".
+      const { error } = await supabase
+        .from("baixas")
+        .delete()
+        .eq("empresa_id", userId)
+        .or(`receita_id.eq.${fin.id},despesa_id.eq.${fin.id}`);
+      if (error) throw new Error(error.message);
+      await supabase
+        .from("finances")
+        .update({ status: "aberto", paid_at: null })
+        .eq("id", fin.id)
+        .eq("owner_id", userId);
+      return { ok: true };
+    }
+
     const { error } = await supabase
       .from("finances")
-      .update({
-        status: data.status,
-        paid_at: data.status === "pago" ? data.paid_at ?? todayISO() : null,
-      })
+      .update({ status: data.status })
       .eq("id", data.id)
       .eq("owner_id", userId);
     if (error) throw new Error(error.message);
@@ -455,22 +551,39 @@ export const getCashflowSeries = createServerFn({ method: "POST" })
     const fromISO = start.toISOString().slice(0, 10);
     const toISO = end.toISOString().slice(0, 10);
 
+    const today = todayISO();
+    const byDate = new Map<string, { in: number; out: number }>();
+
+    // Realizado (regime de caixa) = baixas.
+    const { data: baixas } = await supabase
+      .from("baixas")
+      .select("receita_id, despesa_id, valor, data")
+      .eq("empresa_id", userId)
+      .gte("data", fromISO)
+      .lte("data", toISO);
+    for (const b of baixas ?? []) {
+      const slot = byDate.get(b.data) ?? { in: 0, out: 0 };
+      const amt = Number(b.valor) || 0;
+      if (b.receita_id) slot.in += amt;
+      else slot.out += amt;
+      byDate.set(b.data, slot);
+    }
+
+    // Projeção futura = lançamentos ainda em aberto pelo vencimento.
     const { data: rows } = await supabase
       .from("finances")
-      .select("kind, amount, due_date, paid_at, status")
+      .select("kind, amount, due_date, status")
       .eq("owner_id", userId)
-      .gte("due_date", fromISO)
+      .in("status", ["aberto", "parcial"])
+      .gt("due_date", today)
       .lte("due_date", toISO);
-
-    const byDate = new Map<string, { in: number; out: number }>();
     for (const r of rows ?? []) {
-      const date = r.paid_at ?? r.due_date;
-      if (!date) continue;
-      const slot = byDate.get(date) ?? { in: 0, out: 0 };
+      if (!r.due_date) continue;
+      const slot = byDate.get(r.due_date) ?? { in: 0, out: 0 };
       const amt = Number(r.amount) || 0;
       if (r.kind === "receber") slot.in += amt;
       else slot.out += amt;
-      byDate.set(date, slot);
+      byDate.set(r.due_date, slot);
     }
     const dates = Array.from(byDate.keys()).sort();
     let balance = 0;
@@ -494,7 +607,7 @@ export const getDRE = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", from)
       .lte("due_date", to)
-      .eq("status", "pago");
+      .eq("status", "quitado");
     let receita_bruta = 0,
       despesas = 0;
     for (const r of fin ?? []) {
@@ -531,7 +644,7 @@ export const getProfitabilityByClient = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", data.from)
       .lte("due_date", data.to)
-      .eq("status", "pago");
+      .eq("status", "quitado");
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount, projects(client_id)")
@@ -579,7 +692,7 @@ export const getProfitabilityByProject = createServerFn({ method: "POST" })
       .eq("owner_id", userId)
       .gte("due_date", data.from)
       .lte("due_date", data.to)
-      .eq("status", "pago");
+      .eq("status", "quitado");
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount, project_id")
@@ -625,7 +738,7 @@ export const getForecast = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, kind, description, amount, due_date, status")
       .eq("owner_id", userId)
-      .eq("status", "pendente")
+      .in("status", ["aberto", "parcial"])
       .gte("due_date", todayISOv)
       .lte("due_date", horizonISO)
       .order("due_date", { ascending: true });
@@ -671,7 +784,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, amount, description, due_date, kind")
       .eq("owner_id", userId)
-      .eq("status", "pendente")
+      .in("status", ["aberto", "parcial"])
       .lt("due_date", today);
     for (const r of (overdue ?? []).slice(0, 5)) {
       alerts.push({
@@ -689,7 +802,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       .from("finances")
       .select("id, amount, description, due_date")
       .eq("owner_id", userId)
-      .eq("status", "pendente")
+      .in("status", ["aberto", "parcial"])
       .eq("kind", "receber")
       .gte("due_date", today)
       .lte("due_date", soonISO);

@@ -74,7 +74,7 @@ function HubCentral() {
         supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "ativo"),
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "ativo"),
         supabase.from("finances").select("amount")
-          .eq("kind", "receber").eq("status", "pendente"),
+          .eq("kind", "receber").eq("status", "aberto"),
         supabase.from("events").select("id,title,start_at,clients(name)")
           .gte("start_at", now.toISOString()).lte("start_at", in14.toISOString())
           .order("start_at").limit(1).maybeSingle(),
