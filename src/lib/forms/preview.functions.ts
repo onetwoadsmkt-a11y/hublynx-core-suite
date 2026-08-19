@@ -21,13 +21,13 @@ export const getFormPreview = createServerFn({ method: "POST" })
     const [{ data: questions }, { data: options }] = await Promise.all([
       supabase
         .from("form_questions")
-        .select("id, question, help_text, question_type, required, order_index")
+        .select("id, question, help_text, question_type, required, order_index, lead_field")
         .eq("form_id", form.id)
         .eq("owner_id", userId)
         .order("order_index"),
       supabase
         .from("form_options")
-        .select("id, question_id, label, value, order_index")
+        .select("id, question_id, label, value, order_index, score")
         .eq("form_id", form.id)
         .eq("owner_id", userId)
         .order("order_index"),
@@ -46,6 +46,7 @@ export const getFormPreview = createServerFn({ method: "POST" })
         question_type: q.question_type,
         required: q.required,
         order_index: q.order_index,
+        lead_field: q.lead_field,
         options: (options ?? [])
           .filter((o) => o.question_id === q.id)
           .map((o) => ({
@@ -53,6 +54,7 @@ export const getFormPreview = createServerFn({ method: "POST" })
             label: o.label,
             value: o.value,
             order_index: o.order_index,
+            score: o.score,
           })),
       })),
     };

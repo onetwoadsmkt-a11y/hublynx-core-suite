@@ -15,7 +15,14 @@ export type PublicForm = {
     question_type: string;
     required: boolean;
     order_index: number;
-    options: { id: string; label: string; value: string | null; order_index: number }[];
+    lead_field?: string | null;
+    options: {
+      id: string;
+      label: string;
+      value: string | null;
+      order_index: number;
+      score?: number | null;
+    }[];
   }[];
 } | null;
 
