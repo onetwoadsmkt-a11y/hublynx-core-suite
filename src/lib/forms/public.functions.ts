@@ -7,7 +7,7 @@ export type PublicForm = {
   slug: string;
   intro_message: string | null;
   success_message: string | null;
-  theme: Record<string, unknown>;
+  theme: Record<string, string | number | boolean | null>;
   questions: {
     id: string;
     question: string;
@@ -67,7 +67,7 @@ export const getPublicForm = createServerFn({ method: "POST" })
       slug: form.slug,
       intro_message: form.intro_message,
       success_message: form.success_message,
-      theme: (form.theme ?? {}) as Record<string, unknown>,
+      theme: (form.theme ?? {}) as Record<string, string | number | boolean | null>,
       questions: (questions ?? []).map((q) => ({
         id: q.id,
         question: q.question,
