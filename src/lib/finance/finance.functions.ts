@@ -230,10 +230,11 @@ export const listFinances = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<FinanceRow[]> => {
     const { supabase, userId } = context;
     const { from, to } = monthRange(data.month, data.year);
+    const today = todayISO();
     let q = supabase
       .from("finances")
       .select(
-        "id, kind, description, amount, due_date, paid_at, status, client_id, project_id, category_id, supplier, payment_method, recurrence, recurrence_day, recurrence_until, parent_id, installment_no, installment_total, clients(name), projects(name), finance_categories(name)",
+        "id, kind, description, amount, due_date, paid_at, status, competencia, natureza, client_id, project_id, category_id, supplier, payment_method, recurrence, recurrence_day, recurrence_until, parent_id, installment_no, installment_total, clients(name), projects(name), finance_categories(name)",
       )
       .eq("owner_id", userId)
       .eq("kind", data.kind)
@@ -241,18 +242,53 @@ export const listFinances = createServerFn({ method: "POST" })
       .lte("due_date", to)
       .order("due_date", { ascending: true });
 
-    if (data.status && data.status !== "all" && (data.status === "aberto" || data.status === "quitado" || data.status === "atrasado")) {
-      q = q.eq("status", data.status);
+    if (data.status && data.status !== "all") {
+      if (data.status === "atrasado") {
+        // "Em atraso" é cálculo: vencimento < hoje e ainda com saldo em aberto.
+        q = q.in("status", ["aberto", "parcial"]).lt("due_date", today);
+      } else {
+        q = q.eq("status", data.status);
+      }
     }
     if (data.clientId) q = q.eq("client_id", data.clientId);
 
     const { data: rows } = await q;
-    const today = todayISO();
+
+    // Regime de caixa: valor pago vem exclusivamente das baixas.
+    const ids = (rows ?? []).map((r) => r.id);
+    const paidById = new Map<string, number>();
+    if (ids.length) {
+      const { data: baixas } = await supabase
+        .from("baixas")
+        .select("receita_id, despesa_id, valor")
+        .eq("empresa_id", userId);
+      for (const b of baixas ?? []) {
+        const fid = b.receita_id ?? b.despesa_id;
+        if (!fid) continue;
+        paidById.set(fid, (paidById.get(fid) ?? 0) + (Number(b.valor) || 0));
+      }
+    }
+
     const out: FinanceRow[] = [];
     for (const r of rows ?? []) {
-      const status =
-        r.status === "aberto" && r.due_date < today ? "atrasado" : (r.status as FinanceRow["status"]);
+      const amount = Number(r.amount) || 0;
+      const valor_pago = paidById.get(r.id) ?? 0;
+      const saldo = amount - valor_pago;
+      const dias_atraso = Math.max(
+        0,
+        Math.floor((Date.parse(today) - Date.parse(r.due_date)) / 86400000),
+      );
+      const stored = r.status as FinanceStatus;
+      const status: FinanceRow["status"] =
+        stored !== "quitado" && stored !== "cancelado" && r.due_date < today && saldo > 0
+          ? "atrasado"
+          : stored;
       const row: FinanceRow = {
+        valor_pago,
+        saldo,
+        dias_atraso,
+        competencia: (r as { competencia?: string | null }).competencia ?? undefined,
+        natureza: ((r as { natureza?: string | null }).natureza ?? "fee") as FinanceRow["natureza"],
         id: r.id,
         kind: r.kind as FinanceKind,
         description: r.description,
