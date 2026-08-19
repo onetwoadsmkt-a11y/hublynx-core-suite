@@ -50,7 +50,7 @@ function DashboardPage() {
           margem={k?.margem}
         />
         <KpiCard label="Recebido no Mês" amount={k?.recebido_mes ?? 0} icon={Wallet} tone="positive" regime="caixa" hint="baixas" />
-        <KpiCard label="Inadimplência" amount={k?.inadimplencia ?? 0} icon={AlertCircle} tone={(k?.inadimplencia ?? 0) > 0 ? "negative" : "neutral"} regime="acumulado" hint="em atraso" />
+        <KpiCard label="Inadimplência" amount={k?.inadimplencia ?? 0} icon={AlertCircle} tone={(k?.inadimplencia ?? 0) > 0 ? "negative" : "neutral"} regime="acumulado" hint="total acumulado · ignora o mês selecionado" />
         <KpiCard label="Receita do Mês" amount={k?.receita_mes ?? 0} icon={ArrowUpCircle} regime="competencia" hint="fee" />
         <KpiCard label="Despesas do Mês" amount={k?.despesas_mes ?? 0} icon={ArrowDownCircle} regime="competencia" hint="sem repasse de mídia" />
         <KpiCard label="Saldo Projetado" amount={k?.saldo_projetado ?? 0} icon={LineChart} tone="warning" regime="caixa" hint="caixa + aberto do período" />
