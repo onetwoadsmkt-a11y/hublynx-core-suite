@@ -1,15 +1,25 @@
 // Use DB enums directly.
 // kind: 'receber' (receita) | 'pagar' (despesa)
-// status: 'pendente' | 'pago' | 'atrasado'
+// status gravado (competência): 'aberto' | 'parcial' | 'quitado' | 'cancelado'
+// 'atrasado' NÃO é gravado — é derivado (vencimento < hoje e saldo > 0).
 export type FinanceKind = "receber" | "pagar";
-export type FinanceStatus = "pendente" | "pago" | "atrasado";
+export type FinanceStatus = "aberto" | "parcial" | "quitado" | "cancelado";
+export type FinanceDisplayStatus = FinanceStatus | "atrasado";
 export type Recurrence = "none" | "monthly";
+export type FinanceNatureza = "fee" | "repasse" | "reembolso";
 
 export const KIND_LABEL: Record<FinanceKind, string> = { receber: "Receita", pagar: "Despesa" };
-export const STATUS_LABEL: Record<FinanceStatus, string> = {
-  pendente: "Pendente",
-  pago: "Pago",
-  atrasado: "Atrasado",
+export const STATUS_LABEL: Record<FinanceDisplayStatus, string> = {
+  aberto: "Aberto",
+  parcial: "Parcial",
+  quitado: "Quitado",
+  cancelado: "Cancelado",
+  atrasado: "Em atraso",
+};
+export const NATUREZA_LABEL: Record<FinanceNatureza, string> = {
+  fee: "Fee",
+  repasse: "Repasse",
+  reembolso: "Reembolso",
 };
 
 export type FinanceRow = {
