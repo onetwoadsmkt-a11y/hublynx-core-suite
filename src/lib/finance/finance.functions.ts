@@ -943,7 +943,6 @@ export const getAlerts = createServerFn({ method: "GET" })
       const overdue = diff > 0;
       const clientName =
         (r.client_id ? clientMap.get(r.client_id) : null) ??
-        (r.kind === "pagar" ? null : null) ??
         r.description ??
         "Sem cliente";
       const serviceLine =
