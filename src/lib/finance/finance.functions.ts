@@ -884,40 +884,97 @@ export const getAlerts = createServerFn({ method: "GET" })
     const today = todayISO();
     const alerts: AlertItem[] = [];
 
-    const { data: overdue } = await supabase
-      .from("finances")
-      .select("id, amount, description, due_date, kind")
-      .eq("owner_id", userId)
-      .in("status", ["aberto", "parcial"])
-      .lt("due_date", today);
-    for (const r of (overdue ?? []).slice(0, 5)) {
-      alerts.push({
-        id: `overdue-${r.id}`,
-        level: "red",
-        title: r.kind === "receber" ? "Receita vencida" : "Despesa vencida",
-        description: `${r.description ?? "—"} • venceu em ${r.due_date}`,
-      });
-    }
-
     const soon = new Date();
     soon.setDate(soon.getDate() + 7);
     const soonISO = soon.toISOString().slice(0, 10);
-    const { data: upcoming } = await supabase
+
+    const { data: open } = await supabase
       .from("finances")
-      .select("id, amount, description, due_date")
+      .select(
+        "id, amount, description, due_date, kind, installment_no, installment_total, client_id, project_id, category_id",
+      )
       .eq("owner_id", userId)
       .in("status", ["aberto", "parcial"])
-      .eq("kind", "receber")
-      .gte("due_date", today)
       .lte("due_date", soonISO);
-    for (const r of (upcoming ?? []).slice(0, 5)) {
+
+    const rows = open ?? [];
+    const ids = rows.map((r) => r.id);
+
+    // Baixas parciais → saldo em aberto.
+    const pagoPorId = new Map<string, number>();
+    if (ids.length) {
+      const { data: baixas } = await supabase
+        .from("baixas")
+        .select("valor, receita_id, despesa_id")
+        .eq("empresa_id", userId);
+      for (const b of baixas ?? []) {
+        const fid = (b.receita_id ?? b.despesa_id) as string | null;
+        if (!fid) continue;
+        pagoPorId.set(fid, (pagoPorId.get(fid) ?? 0) + (Number(b.valor) || 0));
+      }
+    }
+
+    const clientIds = [...new Set(rows.map((r) => r.client_id).filter(Boolean))] as string[];
+    const projectIds = [...new Set(rows.map((r) => r.project_id).filter(Boolean))] as string[];
+    const categoryIds = [...new Set(rows.map((r) => r.category_id).filter(Boolean))] as string[];
+
+    const [clientsRes, projectsRes, catsRes] = await Promise.all([
+      clientIds.length
+        ? supabase.from("clients").select("id, name").in("id", clientIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      projectIds.length
+        ? supabase.from("projects").select("id, name").in("id", projectIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      categoryIds.length
+        ? supabase.from("finance_categories").select("id, name").in("id", categoryIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    ]);
+    const clientMap = new Map((clientsRes.data ?? []).map((c) => [c.id, c.name]));
+    const projectMap = new Map((projectsRes.data ?? []).map((p) => [p.id, p.name]));
+    const catMap = new Map((catsRes.data ?? []).map((c) => [c.id, c.name]));
+
+    const todayMs = new Date(today + "T00:00:00Z").getTime();
+
+    for (const r of rows) {
+      const saldo = (Number(r.amount) || 0) - (pagoPorId.get(r.id) ?? 0);
+      if (saldo <= 0.005) continue;
+      const dueMs = new Date(r.due_date + "T00:00:00Z").getTime();
+      const diff = Math.round((todayMs - dueMs) / 86400000);
+      const overdue = diff > 0;
+      const clientName =
+        (r.client_id ? clientMap.get(r.client_id) : null) ??
+        (r.kind === "pagar" ? null : null) ??
+        r.description ??
+        "Sem cliente";
+      const serviceLine =
+        (r.project_id ? projectMap.get(r.project_id) : null) ??
+        (r.category_id ? catMap.get(r.category_id) : null) ??
+        r.description ??
+        null;
+      const installment = r.installment_total
+        ? `Parcela ${r.installment_no ?? 1}/${r.installment_total}`
+        : null;
+
       alerts.push({
-        id: `upcoming-${r.id}`,
-        level: "yellow",
-        title: "Recebimento próximo",
-        description: `${r.description ?? "—"} • ${r.due_date}`,
+        id: `${overdue ? "overdue" : "upcoming"}-${r.id}`,
+        level: overdue ? "red" : "yellow",
+        title: clientName,
+        description: [serviceLine, installment].filter(Boolean).join(" • "),
+        kind: overdue ? "overdue" : "upcoming",
+        finance_id: r.id,
+        finance_kind: r.kind as FinanceKind,
+        client_name: clientName,
+        service_line: serviceLine,
+        installment_label: installment,
+        due_date: r.due_date,
+        saldo,
+        days: Math.abs(diff),
       });
     }
+
+    // Ordem: maior valor em aberto primeiro (quem cobra liga para o maior).
+    alerts.sort((a, b) => (b.saldo ?? 0) - (a.saldo ?? 0));
+    const top = alerts.slice(0, 8);
 
     const renewSoon = new Date();
     renewSoon.setDate(renewSoon.getDate() + 30);
@@ -929,15 +986,92 @@ export const getAlerts = createServerFn({ method: "GET" })
       .gte("contract_renewal", today)
       .lte("contract_renewal", renewSoon.toISOString().slice(0, 10));
     for (const c of contracts ?? []) {
-      alerts.push({
+      top.push({
         id: `contract-${c.id}`,
         level: "yellow",
-        title: "Contrato próximo do vencimento",
-        description: `${c.name} • renova em ${c.contract_renewal}`,
+        title: c.name,
+        description: "Contrato próximo do vencimento",
+        kind: "contract",
+        client_name: c.name,
+        due_date: c.contract_renewal,
+        saldo: 0,
       });
     }
 
-    return alerts;
+    return top;
+  });
+
+// ── Baixa manual (quitação total ou parcial) ─────────────────────────────
+export const getFinanceBaixaInfo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: fin } = await supabase
+      .from("finances")
+      .select("id, kind, amount, due_date, description, payment_method")
+      .eq("id", data.id)
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (!fin) throw new Error("Lançamento não encontrado.");
+    const { data: baixas } = await supabase
+      .from("baixas")
+      .select("valor")
+      .eq("empresa_id", userId)
+      .or(`receita_id.eq.${fin.id},despesa_id.eq.${fin.id}`);
+    const pago = (baixas ?? []).reduce((s, b) => s + (Number(b.valor) || 0), 0);
+    return {
+      id: fin.id,
+      kind: fin.kind as FinanceKind,
+      amount: Number(fin.amount) || 0,
+      due_date: fin.due_date as string,
+      description: fin.description as string | null,
+      payment_method: fin.payment_method as string | null,
+      valor_pago: pago,
+      saldo: (Number(fin.amount) || 0) - pago,
+    };
+  });
+
+export const registrarBaixa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        valor: z.number().positive(),
+        data: z.string(),
+        forma_pagamento: z.string().optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: fin } = await supabase
+      .from("finances")
+      .select("id, kind")
+      .eq("id", data.id)
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (!fin) throw new Error("Lançamento não encontrado.");
+    const { data: conta } = await supabase
+      .from("contas")
+      .select("id")
+      .eq("empresa_id", userId)
+      .eq("ativo", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const { error } = await supabase.from("baixas").insert({
+      empresa_id: userId,
+      receita_id: fin.kind === "receber" ? fin.id : null,
+      despesa_id: fin.kind === "pagar" ? fin.id : null,
+      data: data.data,
+      valor: data.valor,
+      forma_pagamento: data.forma_pagamento ?? null,
+      conta_id: conta?.id ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 // ── Categories CRUD ──────────────────────────────────────────────────────
