@@ -396,6 +396,7 @@ export type Database = {
           recurrence: string
           recurrence_day: number | null
           recurrence_until: string | null
+          repasse_origem_id: string | null
           status: Database["public"]["Enums"]["finance_status"]
           supplier: string | null
           updated_at: string
@@ -421,6 +422,7 @@ export type Database = {
           recurrence?: string
           recurrence_day?: number | null
           recurrence_until?: string | null
+          repasse_origem_id?: string | null
           status?: Database["public"]["Enums"]["finance_status"]
           supplier?: string | null
           updated_at?: string
@@ -446,6 +448,7 @@ export type Database = {
           recurrence?: string
           recurrence_day?: number | null
           recurrence_until?: string | null
+          repasse_origem_id?: string | null
           status?: Database["public"]["Enums"]["finance_status"]
           supplier?: string | null
           updated_at?: string
@@ -484,6 +487,20 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_repasse_origem_id_fkey"
+            columns: ["repasse_origem_id"]
+            isOneToOne: false
+            referencedRelation: "finances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_repasse_origem_id_fkey"
+            columns: ["repasse_origem_id"]
+            isOneToOne: false
+            referencedRelation: "finances_calc"
             referencedColumns: ["id"]
           },
         ]
