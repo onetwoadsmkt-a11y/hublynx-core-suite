@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { brl } from "@/components/finance/KpiCard";
+import { Money } from "@/components/finance/Money";
 import { getReceivablesPanel } from "@/lib/finance/receivables.functions";
 import { getFinanceMetricsSeries } from "@/lib/finance/metrics.functions";
 
@@ -34,8 +34,8 @@ export const Route = createFileRoute("/_authenticated/financeiro/recebiveis")({
 function pct(a: number, b: number) {
   return b > 0 ? `${((a / b) * 100).toFixed(1).replace(".", ",")}%` : "—";
 }
-function cell(v: number) {
-  return v > 0 ? brl(v) : "–";
+function Cell({ v, className = "" }: { v: number; className?: string }) {
+  return <Money value={v} className={className} />;
 }
 
 function RecebiveisPage() {
@@ -136,7 +136,7 @@ function RecebiveisPage() {
                   <td className="sticky left-0 z-10 bg-background px-2 py-1.5 font-medium">
                     {r.client}
                   </td>
-                  <td className="px-2 py-1.5 text-muted-foreground">{r.project}</td>
+                  <td className="px-2 py-1.5 text-[12.2px] text-muted-foreground">{r.project}</td>
                   {r.months.map((v, i) => (
                     <td
                       key={i}
@@ -144,11 +144,11 @@ function RecebiveisPage() {
                         (r.received[i] ?? 0) > 0 ? "text-emerald-600" : ""
                       }`}
                     >
-                      {cell(v)}
+                      <Cell v={v} />
                     </td>
                   ))}
-                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
-                    {brl(r.total)}
+                  <td className="px-2 py-1.5 text-right text-[14.5px] font-semibold">
+                    <Money value={r.total} zeroDash={false} />
                   </td>
                 </tr>
               ))}
@@ -168,10 +168,10 @@ function RecebiveisPage() {
                 <td />
                 {(data?.previsto ?? []).map((v, i) => (
                   <td key={i} className="px-2 py-2 text-right tabular-nums">
-                    {cell(v)}
+                    <Cell v={v} />
                   </td>
                 ))}
-                <td className="px-2 py-2 text-right tabular-nums">{brl(data?.totalPrevisto ?? 0)}</td>
+                <td className="px-2 py-2 text-right tabular-nums"><Money value={data?.totalPrevisto ?? 0} zeroDash={false} /></td>
               </tr>
             </tfoot>
           </table>
@@ -203,10 +203,10 @@ function RecebiveisPage() {
                   {positive ? "Receita (competência)" : "Despesas (competência)"}
                 </td>
                 {(serie?.[positive ? "receita" : "despesas"] ?? []).map((v, i) => (
-                  <td key={i} className="px-2 py-1.5 text-right tabular-nums">{cell(v)}</td>
+                  <td key={i} className="px-2 py-1.5 text-right tabular-nums"><Cell v={v} /></td>
                 ))}
-                <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
-                  {brl(serie?.totals[positive ? "receita" : "despesas"] ?? 0)}
+                <td className="px-2 py-1.5 text-right text-[14.5px] font-semibold">
+                  <Money value={serie?.totals[positive ? "receita" : "despesas"] ?? 0} zeroDash={false} />
                 </td>
               </tr>
               <tr className="border-b">
@@ -214,19 +214,19 @@ function RecebiveisPage() {
                   {positive ? "Recebido (caixa)" : "Pago (caixa)"}
                 </td>
                 {(serie?.recebido ?? []).map((v, i) => (
-                  <td key={i} className="px-2 py-1.5 text-right tabular-nums text-emerald-600">{cell(v)}</td>
+                  <td key={i} className="px-2 py-1.5 text-right tabular-nums text-emerald-600"><Cell v={v} /></td>
                 ))}
                 <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-emerald-600">
-                  {brl(serie?.totals.recebido ?? 0)}
+                  <Money value={serie?.totals.recebido ?? 0} zeroDash={false} />
                 </td>
               </tr>
               <tr className="border-b">
                 <td className="sticky left-0 z-10 bg-background px-2 py-1.5 font-medium">Em aberto</td>
                 {(serie?.aberto ?? []).map((v, i) => (
-                  <td key={i} className="px-2 py-1.5 text-right tabular-nums text-amber-600">{cell(v)}</td>
+                  <td key={i} className="px-2 py-1.5 text-right tabular-nums text-amber-600"><Cell v={v} /></td>
                 ))}
                 <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-amber-600">
-                  {brl(serie?.totals.aberto ?? 0)}
+                  <Money value={serie?.totals.aberto ?? 0} zeroDash={false} />
                 </td>
               </tr>
               <tr className="border-b">
@@ -236,7 +236,7 @@ function RecebiveisPage() {
                     {v > 0 ? pct(serie?.recebido[i] ?? 0, v) : "—"}
                   </td>
                 ))}
-                <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                <td className="px-2 py-1.5 text-right text-[14.5px] font-semibold">
                   {(serie?.totals.receita ?? 0) > 0
                     ? pct(serie?.totals.recebido ?? 0, serie?.totals.receita ?? 0)
                     : "—"}
@@ -247,7 +247,7 @@ function RecebiveisPage() {
                 {(data?.count ?? []).map((v, i) => (
                   <td key={i} className="px-2 py-1.5 text-right tabular-nums">{v || "–"}</td>
                 ))}
-                <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                <td className="px-2 py-1.5 text-right text-[14.5px] font-semibold">
                   {(data?.count ?? []).reduce((a, b) => a + b, 0)}
                 </td>
               </tr>
