@@ -58,6 +58,7 @@ function DashboardPage() {
         <KpiCard label="MRR" amount={k?.mrr ?? 0} icon={Repeat} regime="competencia" hint="recorrentes ativos" />
       </div>
 
+      <RevenueMixBar month={month} year={year} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2"><CashflowChart /></div>
