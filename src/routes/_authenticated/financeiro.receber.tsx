@@ -21,6 +21,7 @@ import { MonthYearPicker } from "@/components/finance/MonthYearPicker";
 import { FinanceFormDialog } from "@/components/finance/FinanceFormDialog";
 import { brl } from "@/components/finance/KpiCard";
 import { getFinanceMetrics } from "@/lib/finance/metrics.functions";
+import { formatDateBR } from "@/lib/finance/format";
 import type { FinanceKind, FinanceRow } from "@/lib/finance/types";
 
 export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string }) {
