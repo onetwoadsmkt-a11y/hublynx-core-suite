@@ -423,8 +423,6 @@ export const upsertFinance = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
 
     if (data.id) {
       const { error } = await supabase
