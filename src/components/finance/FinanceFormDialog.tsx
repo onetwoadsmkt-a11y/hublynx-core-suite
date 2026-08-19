@@ -39,6 +39,8 @@ export function FinanceFormDialog({
   const [recurring, setRecurring] = useState(false);
   const [installments, setInstallments] = useState(1);
   const [status, setStatus] = useState<"aberto" | "quitado">("aberto");
+  const [natureza, setNatureza] = useState<"fee" | "repasse" | "reembolso">("fee");
+
 
   useEffect(() => {
     if (!open) return;
@@ -53,7 +55,10 @@ export function FinanceFormDialog({
     setRecurring(initial?.recurrence === "monthly");
     setInstallments(initial?.installment_total ?? 1);
     setStatus(initial?.status === "quitado" ? "quitado" : "aberto");
+
+    setNatureza((initial?.natureza as "fee" | "repasse" | "reembolso") ?? "fee");
   }, [open, initial]);
+
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -75,6 +80,8 @@ export function FinanceFormDialog({
           recurrence: recurring ? "monthly" : "none",
           recurrence_day: recurring ? new Date(dueDate).getUTCDate() : null,
           installments: installments > 1 ? installments : undefined,
+          natureza: kind === "receber" ? natureza : "fee",
+
         },
       });
     },
@@ -115,6 +122,25 @@ export function FinanceFormDialog({
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
+          {isReceita && (
+            <div>
+              <Label>Natureza</Label>
+              <Select value={natureza} onValueChange={(v) => setNatureza(v as typeof natureza)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fee">Fee (receita da agência)</SelectItem>
+                  <SelectItem value="repasse">Repasse de mídia</SelectItem>
+                  <SelectItem value="reembolso">Reembolso</SelectItem>
+                </SelectContent>
+              </Select>
+              {natureza !== "fee" && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Entra só no caixa. Uma despesa espelho em Mídia será criada automaticamente com o mesmo valor e competência.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             {isReceita ? (
               <div>

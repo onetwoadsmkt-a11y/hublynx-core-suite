@@ -108,7 +108,7 @@ export async function despesasDoMes(sb: Db, userId: string, month: number, year:
   const [{ data }, media] = await Promise.all([
     sb
       .from("finances")
-      .select("amount, category_id, natureza")
+      .select("amount, category_id, natureza, repasse_origem_id")
       .eq("owner_id", userId)
       .eq("kind", "pagar")
       .eq("competencia", competenciaKey(month, year))
@@ -116,8 +116,15 @@ export async function despesasDoMes(sb: Db, userId: string, month: number, year:
     mediaCategoryIds(sb, userId),
   ]);
   return (data ?? [])
-    .filter((r) => r.natureza !== "repasse" && !(r.category_id && media.has(r.category_id)))
+    .filter(
+      (r) =>
+        r.natureza !== "repasse" &&
+        r.natureza !== "reembolso" &&
+        !r.repasse_origem_id && // despesa espelho de repasse não é operacional
+        !(r.category_id && media.has(r.category_id)),
+    )
     .reduce((s, r) => s + num(r.amount), 0);
+
 }
 
 /* ── 4/5. Lucro e margem (mesma competência) ─────────────────────────────── */

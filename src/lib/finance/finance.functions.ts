@@ -342,13 +342,87 @@ const upsertSchema = z.object({
   recurrence_day: z.number().int().min(1).max(31).nullable().optional(),
   recurrence_until: z.string().nullable().optional(),
   installments: z.number().int().min(1).max(60).optional(),
+  natureza: z.enum(["fee", "repasse", "reembolso"]).default("fee"),
 });
+
+/** Categoria "Mídia" (despesa) do usuário — criada sob demanda. */
+async function mediaCategoryId(
+  supabase: { from: (t: string) => any },
+  userId: string,
+): Promise<string | null> {
+  const { data: found } = await supabase
+    .from("finance_categories")
+    .select("id")
+    .eq("kind", "pagar")
+    .eq("name", "Mídia")
+    .or(`owner_id.eq.${userId},owner_id.is.null`)
+    .limit(1)
+    .maybeSingle();
+  if (found?.id) return found.id as string;
+  const { data: created } = await supabase
+    .from("finance_categories")
+    .insert({ owner_id: userId, kind: "pagar", name: "Mídia", is_default: false })
+    .select("id")
+    .maybeSingle();
+  return (created?.id as string | undefined) ?? null;
+}
+
+/**
+ * Cria/atualiza/remove a despesa espelho de um recebível de repasse/reembolso.
+ * A despesa espelho fica fora da despesa operacional (natureza 'repasse').
+ */
+async function syncRepasseMirror(
+  supabase: any,
+  userId: string,
+  origem: {
+    id: string;
+    natureza: string;
+    kind: string;
+    amount: number;
+    due_date: string;
+    description?: string | null;
+    client_id?: string | null;
+    project_id?: string | null;
+  },
+) {
+  const isRepasse = origem.kind === "receber" && (origem.natureza === "repasse" || origem.natureza === "reembolso");
+  const { data: existing } = await supabase
+    .from("finances")
+    .select("id")
+    .eq("owner_id", userId)
+    .eq("repasse_origem_id", origem.id)
+    .maybeSingle();
+
+  if (!isRepasse) {
+    if (existing?.id) await supabase.from("finances").delete().eq("id", existing.id).eq("owner_id", userId);
+    return;
+  }
+
+  const payload = {
+    kind: "pagar" as const,
+    natureza: "repasse",
+    description: `Repasse de mídia — ${origem.description ?? "recebível"}`,
+    amount: origem.amount,
+    due_date: origem.due_date,
+    client_id: origem.client_id ?? null,
+    project_id: origem.project_id ?? null,
+    category_id: await mediaCategoryId(supabase, userId),
+    repasse_origem_id: origem.id,
+  };
+
+  if (existing?.id) {
+    await supabase.from("finances").update(payload).eq("id", existing.id).eq("owner_id", userId);
+  } else {
+    await supabase.from("finances").insert({ owner_id: userId, status: "aberto", ...payload });
+  }
+}
 
 export const upsertFinance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => upsertSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+
 
     if (data.id) {
       const { error } = await supabase
@@ -365,6 +439,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           supplier: data.supplier ?? null,
           payment_method: data.payment_method ?? null,
           paid_at: data.paid_at ?? null,
+          natureza: data.natureza,
         })
         .eq("id", data.id)
         .eq("owner_id", userId);
@@ -374,7 +449,9 @@ export const upsertFinance = createServerFn({ method: "POST" })
         }
         throw new Error(error.message);
       }
+      await syncRepasseMirror(supabase, userId, { ...data, id: data.id, natureza: data.natureza });
       return { ok: true, id: data.id };
+
     }
 
     if (data.installments && data.installments > 1) {
@@ -394,6 +471,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           category_id: data.category_id ?? null,
           supplier: data.supplier ?? null,
           payment_method: data.payment_method ?? null,
+          natureza: data.natureza,
           installment_no: 1,
           installment_total: total,
         })
@@ -414,12 +492,35 @@ export const upsertFinance = createServerFn({ method: "POST" })
           category_id: data.category_id ?? null,
           supplier: data.supplier ?? null,
           payment_method: data.payment_method ?? null,
+          natureza: data.natureza,
           installment_no: i,
           installment_total: total,
           parent_id: first.id,
         });
       }
-      if (rest.length) await supabase.from("finances").insert(rest as never);
+      let restRows: Array<{ id: string; due_date: string }> = [];
+      if (rest.length) {
+        const { data: inserted } = await supabase
+          .from("finances")
+          .insert(rest as never)
+          .select("id, due_date");
+        restRows = (inserted ?? []) as Array<{ id: string; due_date: string }>;
+      }
+      await syncRepasseMirror(supabase, userId, {
+        ...data,
+        id: first.id,
+        amount: each,
+        natureza: data.natureza,
+      });
+      for (const r of restRows) {
+        await syncRepasseMirror(supabase, userId, {
+          ...data,
+          id: r.id,
+          amount: each,
+          due_date: r.due_date,
+          natureza: data.natureza,
+        });
+      }
       return { ok: true, id: first.id };
     }
 
@@ -438,6 +539,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
         supplier: data.supplier ?? null,
         payment_method: data.payment_method ?? null,
         paid_at: data.paid_at ?? null,
+        natureza: data.natureza,
         recurrence: data.recurrence,
         recurrence_day: data.recurrence_day ?? null,
         recurrence_until: data.recurrence_until ?? null,
@@ -445,7 +547,9 @@ export const upsertFinance = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await syncRepasseMirror(supabase, userId, { ...data, id: ins!.id, natureza: data.natureza });
     return { ok: true, id: ins!.id };
+
   });
 
 // ── markStatus / delete ──────────────────────────────────────────────────
