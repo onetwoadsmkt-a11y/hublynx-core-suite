@@ -21,6 +21,7 @@ import { MonthYearPicker } from "@/components/finance/MonthYearPicker";
 import { FinanceFormDialog } from "@/components/finance/FinanceFormDialog";
 import { brl } from "@/components/finance/KpiCard";
 import { getFinanceMetrics } from "@/lib/finance/metrics.functions";
+import { formatDateBR } from "@/lib/finance/format";
 import type { FinanceKind, FinanceRow } from "@/lib/finance/types";
 
 export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string }) {
@@ -158,7 +159,7 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
                   </TableCell>
                   <TableCell>{kind === "receber" ? r.client_name : r.supplier ?? "—"}</TableCell>
                   <TableCell>{r.category_name ?? "—"}</TableCell>
-                  <TableCell>{new Date(r.due_date + "T00:00:00").toLocaleDateString("pt-BR")}</TableCell>
+                  <TableCell className="text-[12.2px] text-muted-foreground">{formatDateBR(r.due_date)}</TableCell>
                   <TableCell className="text-right tabular-nums">{brl(r.amount)}</TableCell>
                   <TableCell>
                     <Badge variant={r.status === "quitado" ? "default" : r.status === "atrasado" ? "destructive" : "secondary"}>
