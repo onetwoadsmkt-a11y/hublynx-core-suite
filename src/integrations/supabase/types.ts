@@ -515,6 +515,331 @@ export type Database = {
           },
         ]
       }
+      form_answers: {
+        Row: {
+          answer: string | null
+          created_at: string
+          id: string
+          option_id: string | null
+          owner_id: string
+          question_id: string
+          score: number
+          submission_id: string
+        }
+        Insert: {
+          answer?: string | null
+          created_at?: string
+          id?: string
+          option_id?: string | null
+          owner_id: string
+          question_id: string
+          score?: number
+          submission_id: string
+        }
+        Update: {
+          answer?: string | null
+          created_at?: string
+          id?: string
+          option_id?: string | null
+          owner_id?: string
+          question_id?: string
+          score?: number
+          submission_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_answers_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "form_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "form_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_answers_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "form_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_options: {
+        Row: {
+          created_at: string
+          form_id: string
+          id: string
+          label: string
+          next_question_id: string | null
+          order_index: number
+          owner_id: string
+          question_id: string
+          score: number
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          form_id: string
+          id?: string
+          label: string
+          next_question_id?: string | null
+          order_index?: number
+          owner_id: string
+          question_id: string
+          score?: number
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          form_id?: string
+          id?: string
+          label?: string
+          next_question_id?: string | null
+          order_index?: number
+          owner_id?: string
+          question_id?: string
+          score?: number
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_options_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_options_next_question_id_fkey"
+            columns: ["next_question_id"]
+            isOneToOne: false
+            referencedRelation: "form_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_options_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "form_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_questions: {
+        Row: {
+          created_at: string
+          form_id: string
+          help_text: string | null
+          id: string
+          lead_field: string | null
+          order_index: number
+          owner_id: string
+          question: string
+          question_type: Database["public"]["Enums"]["form_question_type"]
+          required: boolean
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          form_id: string
+          help_text?: string | null
+          id?: string
+          lead_field?: string | null
+          order_index?: number
+          owner_id: string
+          question: string
+          question_type?: Database["public"]["Enums"]["form_question_type"]
+          required?: boolean
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          form_id?: string
+          help_text?: string | null
+          id?: string
+          lead_field?: string | null
+          order_index?: number
+          owner_id?: string
+          question?: string
+          question_type?: Database["public"]["Enums"]["form_question_type"]
+          required?: boolean
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_questions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_submissions: {
+        Row: {
+          completed_at: string | null
+          form_id: string
+          id: string
+          landing_url: string | null
+          lead_id: string | null
+          metadata: Json
+          owner_id: string
+          referrer: string | null
+          source: string | null
+          started_at: string
+          status: Database["public"]["Enums"]["form_submission_status"]
+          temperature: string | null
+          total_score: number
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          visitor_identifier: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          form_id: string
+          id?: string
+          landing_url?: string | null
+          lead_id?: string | null
+          metadata?: Json
+          owner_id: string
+          referrer?: string | null
+          source?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["form_submission_status"]
+          temperature?: string | null
+          total_score?: number
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_identifier?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          form_id?: string
+          id?: string
+          landing_url?: string | null
+          lead_id?: string | null
+          metadata?: Json
+          owner_id?: string
+          referrer?: string | null
+          source?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["form_submission_status"]
+          temperature?: string | null
+          total_score?: number
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_identifier?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forms: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          default_source: string | null
+          description: string | null
+          id: string
+          intro_message: string | null
+          name: string
+          owner_id: string
+          pipeline_id: string | null
+          pipeline_stage_id: string | null
+          published_at: string | null
+          settings: Json
+          slug: string
+          status: Database["public"]["Enums"]["form_status"]
+          success_message: string | null
+          theme: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          default_source?: string | null
+          description?: string | null
+          id?: string
+          intro_message?: string | null
+          name: string
+          owner_id: string
+          pipeline_id?: string | null
+          pipeline_stage_id?: string | null
+          published_at?: string | null
+          settings?: Json
+          slug: string
+          status?: Database["public"]["Enums"]["form_status"]
+          success_message?: string | null
+          theme?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          default_source?: string | null
+          description?: string | null
+          id?: string
+          intro_message?: string | null
+          name?: string
+          owner_id?: string
+          pipeline_id?: string | null
+          pipeline_stage_id?: string | null
+          published_at?: string | null
+          settings?: Json
+          slug?: string
+          status?: Database["public"]["Enums"]["form_status"]
+          success_message?: string | null
+          theme?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forms_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forms_pipeline_stage_id_fkey"
+            columns: ["pipeline_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections: {
         Row: {
           access_token: string | null
@@ -2336,6 +2661,19 @@ export type Database = {
         | "videos"
       finance_kind: "receber" | "pagar"
       finance_status: "aberto" | "parcial" | "quitado" | "cancelado"
+      form_question_type:
+        | "single_choice"
+        | "multi_choice"
+        | "short_text"
+        | "long_text"
+        | "email"
+        | "phone"
+        | "number"
+        | "date"
+        | "rating"
+        | "consent"
+      form_status: "rascunho" | "publicado" | "pausado"
+      form_submission_status: "iniciado" | "concluido" | "abandonado"
       project_status:
         | "planejamento"
         | "em_andamento"
@@ -2488,6 +2826,20 @@ export const Constants = {
       ],
       finance_kind: ["receber", "pagar"],
       finance_status: ["aberto", "parcial", "quitado", "cancelado"],
+      form_question_type: [
+        "single_choice",
+        "multi_choice",
+        "short_text",
+        "long_text",
+        "email",
+        "phone",
+        "number",
+        "date",
+        "rating",
+        "consent",
+      ],
+      form_status: ["rascunho", "publicado", "pausado"],
+      form_submission_status: ["iniciado", "concluido", "abandonado"],
       project_status: [
         "planejamento",
         "em_andamento",

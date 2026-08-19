@@ -3,7 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users,
   Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
-  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter, MessageSquare, Building2, Wallet,
+  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter, MessageSquare, Building2, Wallet, FileText,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -55,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/pipeline", label: "Pipeline de Vendas", icon: Filter },
       { to: "/clientes", label: "LEADS", icon: Users, moduleSlug: "clientes" },
+      { to: "/formularios", label: "Formulários", icon: FileText },
       { to: "/atendimento", label: "Atendimento", icon: MessageSquare },
     ],
   },

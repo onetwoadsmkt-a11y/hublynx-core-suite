@@ -14,10 +14,12 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FormSlugRouteImport } from './routes/form.$slug'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedHubRouteImport } from './routes/_authenticated/hub'
+import { Route as AuthenticatedFormulariosRouteImport } from './routes/_authenticated/formularios'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
@@ -80,6 +82,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FormSlugRoute = FormSlugRouteImport.update({
+  id: '/form/$slug',
+  path: '/form/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedTarefasRoute = AuthenticatedTarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
@@ -100,6 +107,12 @@ const AuthenticatedHubRoute = AuthenticatedHubRouteImport.update({
   path: '/hub',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFormulariosRoute =
+  AuthenticatedFormulariosRouteImport.update({
+    id: '/formularios',
+    path: '/formularios',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
   id: '/financeiro',
   path: '/financeiro',
@@ -324,10 +337,12 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
+  '/formularios': typeof AuthenticatedFormulariosRoute
   '/hub': typeof AuthenticatedHubRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
+  '/form/$slug': typeof FormSlugRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
   '/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -368,10 +383,12 @@ export interface FileRoutesByTo {
   '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/formularios': typeof AuthenticatedFormulariosRoute
   '/hub': typeof AuthenticatedHubRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
+  '/form/$slug': typeof FormSlugRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
   '/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -417,10 +434,12 @@ export interface FileRoutesById {
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
+  '/_authenticated/formularios': typeof AuthenticatedFormulariosRoute
   '/_authenticated/hub': typeof AuthenticatedHubRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
+  '/form/$slug': typeof FormSlugRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/app/hoje': typeof AuthenticatedAppHojeRoute
   '/_authenticated/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -466,10 +485,12 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/financeiro'
+    | '/formularios'
     | '/hub'
     | '/pipeline'
     | '/relatorios'
     | '/tarefas'
+    | '/form/$slug'
     | '/admin/usuarios'
     | '/app/hoje'
     | '/app/lembretes'
@@ -510,10 +531,12 @@ export interface FileRouteTypes {
     | '/atendimento'
     | '/clientes'
     | '/dashboard'
+    | '/formularios'
     | '/hub'
     | '/pipeline'
     | '/relatorios'
     | '/tarefas'
+    | '/form/$slug'
     | '/admin/usuarios'
     | '/app/hoje'
     | '/app/lembretes'
@@ -558,10 +581,12 @@ export interface FileRouteTypes {
     | '/_authenticated/configuracoes'
     | '/_authenticated/dashboard'
     | '/_authenticated/financeiro'
+    | '/_authenticated/formularios'
     | '/_authenticated/hub'
     | '/_authenticated/pipeline'
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
+    | '/form/$slug'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/app/hoje'
     | '/_authenticated/app/lembretes'
@@ -599,6 +624,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  FormSlugRoute: typeof FormSlugRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
   ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
@@ -641,6 +667,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/form/$slug': {
+      id: '/form/$slug'
+      path: '/form/$slug'
+      fullPath: '/form/$slug'
+      preLoaderRoute: typeof FormSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/tarefas': {
       id: '/_authenticated/tarefas'
       path: '/tarefas'
@@ -667,6 +700,13 @@ declare module '@tanstack/react-router' {
       path: '/hub'
       fullPath: '/hub'
       preLoaderRoute: typeof AuthenticatedHubRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/formularios': {
+      id: '/_authenticated/formularios'
+      path: '/formularios'
+      fullPath: '/formularios'
+      preLoaderRoute: typeof AuthenticatedFormulariosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/financeiro': {
@@ -1037,6 +1077,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRouteWithChildren
+  AuthenticatedFormulariosRoute: typeof AuthenticatedFormulariosRoute
   AuthenticatedHubRoute: typeof AuthenticatedHubRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -1056,6 +1097,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRouteWithChildren,
+  AuthenticatedFormulariosRoute: AuthenticatedFormulariosRoute,
   AuthenticatedHubRoute: AuthenticatedHubRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
@@ -1075,6 +1117,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  FormSlugRoute: FormSlugRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
   ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,
