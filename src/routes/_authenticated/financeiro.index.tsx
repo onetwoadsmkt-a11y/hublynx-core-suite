@@ -10,6 +10,7 @@ import { ProfitHeroCard } from "@/components/finance/ProfitHeroCard";
 import { MonthYearPicker } from "@/components/finance/MonthYearPicker";
 import { CashflowChart } from "@/components/finance/CashflowChart";
 import { AlertsPanel } from "@/components/finance/AlertsPanel";
+import { RevenueMixBar } from "@/components/finance/RevenueMixBar";
 
 
 export const Route = createFileRoute("/_authenticated/financeiro/")({

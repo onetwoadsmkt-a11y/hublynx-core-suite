@@ -77,7 +77,7 @@ function ServicosPage() {
   const options = useMemo(() => lines.filter((l) => l.id), [lines]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, typeof data.contracts>();
+    const map = new Map<string, NonNullable<typeof data>["contracts"]>();
     for (const c of data?.contracts ?? []) {
       const k = c.servico_id ?? UNASSIGNED;
       const arr = map.get(k) ?? [];

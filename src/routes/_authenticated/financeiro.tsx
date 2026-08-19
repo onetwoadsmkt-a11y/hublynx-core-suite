@@ -29,6 +29,7 @@ const TABS = [
   { to: "/financeiro/previsao", label: "Previsão de Faturamento" },
   { to: "/financeiro/recebiveis", label: "Recebíveis" },
   { to: "/financeiro/pagar", label: "Contas a Pagar" },
+  { to: "/financeiro/servicos", label: "Linhas de serviço" },
 ] as const;
 
 const MORE_TABS = [
