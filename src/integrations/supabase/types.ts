@@ -397,6 +397,7 @@ export type Database = {
           recurrence_day: number | null
           recurrence_until: string | null
           repasse_origem_id: string | null
+          servico_id: string | null
           status: Database["public"]["Enums"]["finance_status"]
           supplier: string | null
           updated_at: string
@@ -423,6 +424,7 @@ export type Database = {
           recurrence_day?: number | null
           recurrence_until?: string | null
           repasse_origem_id?: string | null
+          servico_id?: string | null
           status?: Database["public"]["Enums"]["finance_status"]
           supplier?: string | null
           updated_at?: string
@@ -449,6 +451,7 @@ export type Database = {
           recurrence_day?: number | null
           recurrence_until?: string | null
           repasse_origem_id?: string | null
+          servico_id?: string | null
           status?: Database["public"]["Enums"]["finance_status"]
           supplier?: string | null
           updated_at?: string
@@ -501,6 +504,13 @@ export type Database = {
             columns: ["repasse_origem_id"]
             isOneToOne: false
             referencedRelation: "finances_calc"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finances_servico_id_fkey"
+            columns: ["servico_id"]
+            isOneToOne: false
+            referencedRelation: "servicos"
             referencedColumns: ["id"]
           },
         ]
@@ -1471,6 +1481,7 @@ export type Database = {
           progress: number
           roadmap_stages: Json
           service_type: string | null
+          servico_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
@@ -1496,6 +1507,7 @@ export type Database = {
           progress?: number
           roadmap_stages?: Json
           service_type?: string | null
+          servico_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -1521,6 +1533,7 @@ export type Database = {
           progress?: number
           roadmap_stages?: Json
           service_type?: string | null
+          servico_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -1532,6 +1545,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_servico_id_fkey"
+            columns: ["servico_id"]
+            isOneToOne: false
+            referencedRelation: "servicos"
             referencedColumns: ["id"]
           },
         ]
@@ -1563,6 +1583,36 @@ export type Database = {
           p256dh?: string
           user_agent?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      servicos: {
+        Row: {
+          ativo: boolean
+          cor: string
+          created_at: string
+          empresa_id: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          empresa_id: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          nome?: string
+          updated_at?: string
         }
         Relationships: []
       }

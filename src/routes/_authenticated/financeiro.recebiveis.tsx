@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Money } from "@/components/finance/Money";
 import { getReceivablesPanel } from "@/lib/finance/receivables.functions";
 import { getFinanceMetricsSeries } from "@/lib/finance/metrics.functions";
+import { listServicos } from "@/lib/finance/servicos.functions";
 
 export const Route = createFileRoute("/_authenticated/financeiro/recebiveis")({
   head: () => ({
@@ -44,11 +45,24 @@ function RecebiveisPage() {
   const [startMonth, setStartMonth] = useState(1);
   const [kind, setKind] = useState<"receber" | "pagar">("receber");
   const [search, setSearch] = useState("");
+  const [servicoId, setServicoId] = useState<string>("all");
+
+  const servicosFn = useServerFn(listServicos);
+  const { data: servicos } = useQuery({ queryKey: ["finance", "servicos"], queryFn: () => servicosFn() });
 
   const fn = useServerFn(getReceivablesPanel);
   const { data, isLoading } = useQuery({
-    queryKey: ["finance", "receivables", startYear, startMonth, kind],
-    queryFn: () => fn({ data: { startYear, startMonth, months: 12, kind } }),
+    queryKey: ["finance", "receivables", startYear, startMonth, kind, servicoId],
+    queryFn: () =>
+      fn({
+        data: {
+          startYear,
+          startMonth,
+          months: 12,
+          kind,
+          ...(servicoId !== "all" ? { servicoId } : {}),
+        },
+      }),
   });
 
   const seriesFn = useServerFn(getFinanceMetricsSeries);
@@ -98,6 +112,18 @@ function RecebiveisPage() {
         >
           <option value="receber">Recebíveis</option>
           <option value="pagar">Despesas</option>
+        </select>
+        <select
+          value={servicoId}
+          onChange={(e) => setServicoId(e.target.value)}
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+        >
+          <option value="all">Todas as linhas de serviço</option>
+          {(servicos ?? []).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.nome}
+            </option>
+          ))}
         </select>
         <Input
           placeholder="Filtrar cliente ou projeto..."
