@@ -22,6 +22,7 @@ import { FinanceFormDialog } from "@/components/finance/FinanceFormDialog";
 import { brl } from "@/components/finance/KpiCard";
 import { getFinanceMetrics } from "@/lib/finance/metrics.functions";
 import { formatDateBR } from "@/lib/finance/format";
+import { listServicos } from "@/lib/finance/servicos.functions";
 import type { FinanceKind, FinanceRow } from "@/lib/finance/types";
 
 export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string }) {
@@ -33,6 +34,7 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
   const search = { month, year };
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [q, setQ] = useState("");
+  const [servicoId, setServicoId] = useState<string>("all");
   const [view, setView] = useState<"list" | "calendar">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FinanceRow | null>(null);
@@ -42,12 +44,22 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
   const delFn = useServerFn(deleteFinance);
 
   const { data: rows } = useQuery({
-    queryKey: ["finance", "list", kind, search.month, search.year, statusFilter, q],
+    queryKey: ["finance", "list", kind, search.month, search.year, statusFilter, q, servicoId],
     queryFn: () =>
       listFn({
-        data: { kind, month: search.month, year: search.year, status: statusFilter, q: q || undefined },
+        data: {
+          kind,
+          month: search.month,
+          year: search.year,
+          status: statusFilter,
+          q: q || undefined,
+          ...(servicoId !== "all" ? { servicoId } : {}),
+        },
       }),
   });
+
+  const servicosFn = useServerFn(listServicos);
+  const { data: servicos } = useQuery({ queryKey: ["finance", "servicos"], queryFn: () => servicosFn() });
 
   const mark = useMutation({
     mutationFn: (id: string) => markFn({ data: { id, status: "quitado" } }),
@@ -114,6 +126,15 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
           {view === "list" && (
             <>
               <Input placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} className="w-48" />
+              <Select value={servicoId} onValueChange={setServicoId}>
+                <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as linhas</SelectItem>
+                  {(servicos ?? []).map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
