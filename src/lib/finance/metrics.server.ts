@@ -90,6 +90,19 @@ export async function recebidoNoMes(sb: Db, userId: string, month: number, year:
   return (data ?? []).reduce((s, b) => s + num(b.valor), 0);
 }
 
+/** Pago no mês (caixa: baixas de saída). */
+export async function pagoNoMes(sb: Db, userId: string, month: number, year: number) {
+  const { from, to } = monthBounds(month, year);
+  const { data } = await sb
+    .from("baixas")
+    .select("valor, despesa_id")
+    .eq("empresa_id", userId)
+    .not("despesa_id", "is", null)
+    .gte("data", from)
+    .lte("data", to);
+  return (data ?? []).reduce((s, b) => s + num(b.valor), 0);
+}
+
 /* ── 3. Despesas do mês (competência, sem repasse de mídia) ─────────────── */
 export async function despesasDoMes(sb: Db, userId: string, month: number, year: number) {
   const [{ data }, media] = await Promise.all([
@@ -229,6 +242,7 @@ export type FinanceMetrics = {
   to: string;
   receita_mes: number;
   recebido_mes: number;
+  pago_mes: number;
   despesas_mes: number;
   lucro_mes: number;
   /** null = sem receita no período (a tela mostra "—"). */
@@ -249,9 +263,10 @@ export async function financeMetrics(
   year: number,
 ): Promise<FinanceMetrics> {
   const { from, to } = monthBounds(month, year);
-  const [receita, recebido, despesas, inad, mrrValue, caixa, aberto] = await Promise.all([
+  const [receita, recebido, pago, despesas, inad, mrrValue, caixa, aberto] = await Promise.all([
     receitaDoMes(sb, userId, month, year),
     recebidoNoMes(sb, userId, month, year),
+    pagoNoMes(sb, userId, month, year),
     despesasDoMes(sb, userId, month, year),
     inadimplencia(sb, userId),
     mrr(sb, userId),
@@ -264,6 +279,7 @@ export async function financeMetrics(
     to,
     receita_mes: receita,
     recebido_mes: recebido,
+    pago_mes: pago,
     despesas_mes: despesas,
     lucro_mes: lucroDoMes(receita, despesas),
     margem: margemDoMes(receita, despesas),
