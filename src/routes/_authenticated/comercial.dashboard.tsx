@@ -270,42 +270,57 @@ function ComercialDashboard() {
             </section>
           </div>
 
-          <section className="rounded-xl border p-4">
-            <h2 className="mb-1 text-sm font-semibold">Estado atual no kanban</h2>
-            <p className="mb-3 text-xs text-muted-foreground">
+          <section
+            className="rounded-xl border p-4 text-white"
+            style={{ background: "linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-blue) 100%)" }}
+          >
+            <h2 className="mb-1 text-sm font-semibold text-white">Estado atual no kanban</h2>
+            <p className="mb-4 text-xs text-white/70">
               Quantidade total de leads em cada etapa · em destaque, os que entraram no período.
             </p>
-            <div className="space-y-2.5">
-              {stages.map((s) => {
-                const agg = byStage.get(s.id) ?? { count: 0, total: 0, periodo: 0 };
-                return (
-                  <div key={s.id} className="flex items-center gap-3">
-                    <span className="w-44 shrink-0 truncate text-sm" title={s.name}>
-                      {s.name}
-                      <span className="ml-1 text-[10px] uppercase text-muted-foreground">
-                        {classifyStage(s) !== "entrada" ? classifyStage(s) : ""}
-                      </span>
-                    </span>
-                    <div className="h-2.5 flex-1 rounded-full bg-muted">
-                      <div
-                        className="h-2.5 rounded-full"
-                        style={{ width: `${(agg.count / maxStage) * 100}%`, backgroundColor: s.color }}
-                      />
-                    </div>
-                    <span className="w-12 text-right font-mono text-sm tabular-nums">{agg.count}</span>
-                    <span className="w-16 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
-                      {agg.periodo ? `+${agg.periodo}` : "·"}
-                    </span>
-                    <span className="w-28 text-right font-mono text-xs tabular-nums text-muted-foreground">
-                      {agg.total ? currency(agg.total) : "·"}
-                    </span>
-                  </div>
-                );
-              })}
 
-              {stages.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma etapa configurada.</p>}
-            </div>
+            {stages.length === 0 ? (
+              <p className="text-sm text-white/70">Nenhuma etapa configurada.</p>
+            ) : (
+              <div className="-mx-1 overflow-x-auto pb-2">
+                <div className="flex min-w-max gap-3 px-1">
+                  {stages.map((s) => {
+                    const agg = byStage.get(s.id) ?? { count: 0, total: 0, periodo: 0 };
+                    const kind = classifyStage(s);
+                    return (
+                      <div key={s.id} className="flex w-[168px] shrink-0 flex-col">
+                        <p className="truncate text-center text-[11px] font-bold uppercase tracking-wide text-white" title={s.name}>
+                          {s.name}
+                        </p>
+                        <p className="mt-0.5 text-center text-[11px] text-white/70">
+                          {agg.count} leads, {currency(agg.total)}
+                        </p>
+                        <div className="mt-2 h-[3px] rounded-full" style={{ backgroundColor: s.color }} />
+
+                        <div className="mt-3 flex flex-col items-center justify-center rounded-2xl border border-white/25 bg-white/10 py-6 backdrop-blur-sm">
+                          <span className="font-mono text-[42px] font-light leading-none tabular-nums text-white">
+                            {agg.count || "0"}
+                          </span>
+                          <span className="mt-1 font-mono text-sm font-semibold tabular-nums text-white/90">
+                            {currency(agg.total)}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 h-[3px] rounded-full bg-white/60" />
+                        <p className="mt-1 text-center text-[11px] text-white/70">
+                          {agg.periodo ? `+${agg.periodo} no período` : "· no período"}
+                        </p>
+                        {kind !== "entrada" && (
+                          <p className="mt-0.5 text-center text-[10px] uppercase tracking-wide text-white/50">{kind}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </section>
+
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded-xl border p-4">
