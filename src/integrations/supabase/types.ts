@@ -1363,6 +1363,98 @@ export type Database = {
           },
         ]
       }
+      mail_account_secrets: {
+        Row: {
+          account_id: string
+          password_encrypted: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          password_encrypted: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          password_encrypted?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_account_secrets_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "mail_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_accounts: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string
+          empresa_id: string
+          id: string
+          imap_host: string
+          imap_port: number
+          imap_security: string
+          imap_username: string
+          last_error: string | null
+          last_tested_at: string | null
+          provider: string
+          smtp_auth: boolean
+          smtp_host: string
+          smtp_port: number
+          smtp_security: string
+          smtp_username: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email: string
+          empresa_id: string
+          id?: string
+          imap_host: string
+          imap_port?: number
+          imap_security?: string
+          imap_username: string
+          last_error?: string | null
+          last_tested_at?: string | null
+          provider?: string
+          smtp_auth?: boolean
+          smtp_host: string
+          smtp_port?: number
+          smtp_security?: string
+          smtp_username: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          empresa_id?: string
+          id?: string
+          imap_host?: string
+          imap_port?: number
+          imap_security?: string
+          imap_username?: string
+          last_error?: string | null
+          last_tested_at?: string | null
+          provider?: string
+          smtp_auth?: boolean
+          smtp_host?: string
+          smtp_port?: number
+          smtp_security?: string
+          smtp_username?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null
