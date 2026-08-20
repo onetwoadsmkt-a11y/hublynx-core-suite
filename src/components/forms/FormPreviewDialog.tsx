@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormRenderer } from "@/components/forms/FormRenderer";
 import { getFormPreview } from "@/lib/forms/preview.functions";
+import { computeSubmission, type SubmissionResult } from "@/lib/forms/scoring";
 import type { FormListItem } from "@/lib/forms/forms.functions";
 
 export function FormPreviewDialog({
