@@ -24,6 +24,7 @@ export function FormPreviewDialog({
   form: FormListItem | null;
 }) {
   const previewFn = useServerFn(getFormPreview);
+  const [result, setResult] = useState<SubmissionResult | null>(null);
   const { data, isLoading, error } = useQuery({
     queryKey: ["form-preview", form?.id],
     queryFn: () => previewFn({ data: { form_id: form!.id } }),
