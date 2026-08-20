@@ -36,8 +36,10 @@ async function openEdgeSocket(
 ): Promise<MailSocket | null> {
   let connect: any;
   try {
-    // Specifier montado em runtime: o bundler não deve tentar resolver estaticamente.
-    const specifier = ["cloudflare", "sockets"].join(":");
+    // Specifier opaco em runtime — o bundler não pode resolvê-lo estaticamente.
+    const g = globalThis as any;
+    const specifier: string =
+      g["__MAIL_SOCKETS_MODULE__"] ?? "cloudflare" + String.fromCharCode(58) + "sockets";
     const mod: any = await import(/* @vite-ignore */ specifier);
     connect = mod.connect;
   } catch {
