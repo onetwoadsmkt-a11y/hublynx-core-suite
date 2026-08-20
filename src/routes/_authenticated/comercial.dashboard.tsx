@@ -193,7 +193,23 @@ function ComercialDashboard() {
         </div>
       ) : (
         <>
+          <section className="rounded-xl border bg-muted/30 p-4">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold">Leads no pipeline (total, sem filtro de data)</h2>
+              <span className="text-xs text-muted-foreground">{current?.name ?? "—"}</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <Total label="Total no pipeline" value={total.leads} />
+              <Total label="Em aberto" value={emAberto} />
+              <Total label="Em nutrição" value={total.nutricao} />
+              <Total label="Ganhos" value={total.ganhos} tone="text-emerald-600" />
+              <Total label="Perdidos" value={total.perdidos} tone="text-rose-600" />
+              <Total label="Valor em aberto" value={valorAberto} money />
+            </div>
+          </section>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
             <Kpi label="Leads" value={m.leads} prev={prev.leads} hint="entradas no período" />
             <Kpi label="Conectados" value={m.conectados} prev={prev.conectados} hint={`${m.taxaConexao}% dos leads`} />
             <Kpi label="Reuniões agendadas" value={m.agendadas} prev={prev.agendadas} />
