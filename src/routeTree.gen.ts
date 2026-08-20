@@ -45,6 +45,7 @@ import { Route as AuthenticatedFinanceiroConciliacaoRouteImport } from './routes
 import { Route as AuthenticatedFinanceiroCategoriasRouteImport } from './routes/_authenticated/financeiro.categorias'
 import { Route as AuthenticatedFinanceiroCalendarioRouteImport } from './routes/_authenticated/financeiro.calendario'
 import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
+import { Route as AuthenticatedComercialDashboardRouteImport } from './routes/_authenticated/comercial.dashboard'
 import { Route as AuthenticatedAppTarefasRouteImport } from './routes/_authenticated/app.tarefas'
 import { Route as AuthenticatedAppProjetosRouteImport } from './routes/_authenticated/app.projetos'
 import { Route as AuthenticatedAppMaisRouteImport } from './routes/_authenticated/app.mais'
@@ -255,6 +256,12 @@ const AuthenticatedConfiguracoesModulosRoute =
     path: '/modulos',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
+const AuthenticatedComercialDashboardRoute =
+  AuthenticatedComercialDashboardRouteImport.update({
+    id: '/comercial/dashboard',
+    path: '/comercial/dashboard',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAppTarefasRoute = AuthenticatedAppTarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
@@ -349,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/app/mais': typeof AuthenticatedAppMaisRoute
   '/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
+  '/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -395,6 +403,7 @@ export interface FileRoutesByTo {
   '/app/mais': typeof AuthenticatedAppMaisRoute
   '/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
+  '/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -446,6 +455,7 @@ export interface FileRoutesById {
   '/_authenticated/app/mais': typeof AuthenticatedAppMaisRoute
   '/_authenticated/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/_authenticated/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
+  '/_authenticated/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
   '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/_authenticated/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/_authenticated/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -497,6 +507,7 @@ export interface FileRouteTypes {
     | '/app/mais'
     | '/app/projetos'
     | '/app/tarefas'
+    | '/comercial/dashboard'
     | '/configuracoes/modulos'
     | '/financeiro/calendario'
     | '/financeiro/categorias'
@@ -543,6 +554,7 @@ export interface FileRouteTypes {
     | '/app/mais'
     | '/app/projetos'
     | '/app/tarefas'
+    | '/comercial/dashboard'
     | '/configuracoes/modulos'
     | '/financeiro/calendario'
     | '/financeiro/categorias'
@@ -593,6 +605,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/mais'
     | '/_authenticated/app/projetos'
     | '/_authenticated/app/tarefas'
+    | '/_authenticated/comercial/dashboard'
     | '/_authenticated/configuracoes/modulos'
     | '/_authenticated/financeiro/calendario'
     | '/_authenticated/financeiro/categorias'
@@ -884,6 +897,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesModulosRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
     }
+    '/_authenticated/comercial/dashboard': {
+      id: '/_authenticated/comercial/dashboard'
+      path: '/comercial/dashboard'
+      fullPath: '/comercial/dashboard'
+      preLoaderRoute: typeof AuthenticatedComercialDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/app/tarefas': {
       id: '/_authenticated/app/tarefas'
       path: '/tarefas'
@@ -1083,6 +1103,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
+  AuthenticatedComercialDashboardRoute: typeof AuthenticatedComercialDashboardRoute
   AuthenticatedGestaoClientesRoute: typeof AuthenticatedGestaoClientesRoute
   AuthenticatedProjetosIdRoute: typeof AuthenticatedProjetosIdRoute
   AuthenticatedProjetosIndexRoute: typeof AuthenticatedProjetosIndexRoute
@@ -1103,6 +1124,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
+  AuthenticatedComercialDashboardRoute: AuthenticatedComercialDashboardRoute,
   AuthenticatedGestaoClientesRoute: AuthenticatedGestaoClientesRoute,
   AuthenticatedProjetosIdRoute: AuthenticatedProjetosIdRoute,
   AuthenticatedProjetosIndexRoute: AuthenticatedProjetosIndexRoute,

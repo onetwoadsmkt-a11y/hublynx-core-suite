@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Eye } from "lucide-react";
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormRenderer } from "@/components/forms/FormRenderer";
 import { getFormPreview } from "@/lib/forms/preview.functions";
+import { computeSubmission, type SubmissionResult } from "@/lib/forms/scoring";
 import type { FormListItem } from "@/lib/forms/forms.functions";
 
 export function FormPreviewDialog({
@@ -22,6 +24,7 @@ export function FormPreviewDialog({
   form: FormListItem | null;
 }) {
   const previewFn = useServerFn(getFormPreview);
+  const [result, setResult] = useState<SubmissionResult | null>(null);
   const { data, isLoading, error } = useQuery({
     queryKey: ["form-preview", form?.id],
     queryFn: () => previewFn({ data: { form_id: form!.id } }),
