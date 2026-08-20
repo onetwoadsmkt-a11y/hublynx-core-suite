@@ -135,7 +135,7 @@ function ComercialDashboard() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi label="Leads de entrada" value={String(total)} hint="criados no período" />
-            <Kpi label="Em negociação" value={currency(valueTotal)} hint="soma dos valores" />
+            <Kpi label="Em negociação" value={currency(valueTotal) ?? "·"} hint="soma dos valores" />
             <Kpi label="Ganhos" value={`${wonCount}`} hint={`${conv}% de conversão`} tone="text-emerald-600" />
             <Kpi label="Perdidos" value={`${lostCount}`} hint="etapas de perda" tone="text-rose-600" />
           </div>
