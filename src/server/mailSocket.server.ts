@@ -36,7 +36,8 @@ async function openEdgeSocket(
 ): Promise<MailSocket | null> {
   let connect: any;
   try {
-    ({ connect } = await import(/* @vite-ignore */ "cloudflare:sockets"));
+    const mod: any = await import(/* @vite-ignore */ ("cloudflare:sockets" as string));
+    connect = mod.connect;
   } catch {
     return null;
   }
@@ -53,7 +54,10 @@ async function openEdgeSocket(
 
   return {
     async read(timeoutMs = DEFAULT_TIMEOUT) {
-      const { value, done } = await withTimeout(reader.read(), timeoutMs, "read");
+      const { value, done } = (await withTimeout(reader.read(), timeoutMs, "read")) as {
+        value?: Uint8Array;
+        done: boolean;
+      };
       if (done || !value) return "";
       return decoder.decode(value);
     },
