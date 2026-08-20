@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GoogleAccountCard } from "@/components/google/GoogleAccountCard";
 import { GoogleServicesCard } from "@/components/google/GoogleServicesCard";
-import { GoogleDiagnosticsCard } from "@/components/google/GoogleDiagnosticsCard";
 
 export const Route = createFileRoute("/_authenticated/configuracoes/integracoes/")({
   head: () => ({
@@ -33,7 +32,6 @@ function IntegracoesPage() {
         </p>
       </header>
       <GoogleServicesCard />
-      <GoogleDiagnosticsCard />
       <GoogleAccountCard />
     </div>
   );
