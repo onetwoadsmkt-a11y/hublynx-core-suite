@@ -36,7 +36,9 @@ async function openEdgeSocket(
 ): Promise<MailSocket | null> {
   let connect: any;
   try {
-    const mod: any = await import(/* @vite-ignore */ ("cloudflare:sockets" as string));
+    // Specifier montado em runtime: o bundler não deve tentar resolver estaticamente.
+    const specifier = ["cloudflare", "sockets"].join(":");
+    const mod: any = await import(/* @vite-ignore */ specifier);
     connect = mod.connect;
   } catch {
     return null;
