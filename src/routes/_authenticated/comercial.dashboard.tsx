@@ -2,6 +2,20 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,15 +24,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { pipelineDashboard } from "@/lib/pipeline/dashboard.functions";
+import { computeFunnel, classifyStage } from "@/lib/pipeline/funnel";
 import { currency } from "@/components/pipeline/LeadCard";
 
 export const Route = createFileRoute("/_authenticated/comercial/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard Comercial — Hublynx Core" },
-      { name: "description", content: "Acompanhe leads por etapa do kanban, entradas por período e valor em negociação." },
+      { name: "description", content: "KPIs do funil: leads, conectados, reuniões agendadas e realizadas, no show, COF e taxa de conversão." },
       { property: "og:title", content: "Dashboard Comercial — Hublynx Core" },
-      { property: "og:description", content: "Leads por etapa, entradas por período e valor em negociação." },
+      { property: "og:description", content: "Funil comercial com comparativo de período e gráficos." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -44,8 +59,12 @@ function ComercialDashboard() {
 
   const pipelines = data?.pipelines ?? [];
   const current = data?.pipeline ?? null;
-  const stages = data?.stages ?? [];
-  const leads = data?.leads ?? [];
+  const stages = useMemo(() => data?.stages ?? [], [data]);
+  const leads = useMemo(() => data?.leads ?? [], [data]);
+  const previousLeads = useMemo(() => data?.previousLeads ?? [], [data]);
+
+  const m = useMemo(() => computeFunnel(stages, leads), [stages, leads]);
+  const prev = useMemo(() => computeFunnel(stages, previousLeads), [stages, previousLeads]);
 
   const byStage = useMemo(() => {
     const map = new Map<string, { count: number; total: number }>();
@@ -71,17 +90,37 @@ function ComercialDashboard() {
       const d = l.created_at.slice(0, 10);
       map.set(d, (map.get(d) ?? 0) + 1);
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([d, v]) => ({ dia: d.slice(8, 10) + "/" + d.slice(5, 7), leads: v }));
   }, [leads]);
 
-  const total = leads.length;
-  const valueTotal = leads.reduce((s, l) => s + Number(l.value ?? 0), 0);
-  const won = stages.filter((s) => s.is_won).map((s) => s.id);
-  const lost = stages.filter((s) => s.is_lost).map((s) => s.id);
-  const wonCount = leads.filter((l) => l.stage_id && won.includes(l.stage_id)).length;
-  const lostCount = leads.filter((l) => l.stage_id && lost.includes(l.stage_id)).length;
-  const conv = total ? Math.round((wonCount / total) * 100) : 0;
-  const maxDay = Math.max(1, ...byDay.map(([, v]) => v));
+  const comparativo = useMemo(
+    () => [
+      { nome: "Leads", atual: m.leads, anterior: prev.leads },
+      { nome: "Conectados", atual: m.conectados, anterior: prev.conectados },
+      { nome: "Reun. agend.", atual: m.agendadas, anterior: prev.agendadas },
+      { nome: "Reun. realiz.", atual: m.realizadas, anterior: prev.realizadas },
+      { nome: "No show", atual: m.noshow, anterior: prev.noshow },
+      { nome: "COF", atual: m.cof, anterior: prev.cof },
+      { nome: "Ganhos", atual: m.ganhos, anterior: prev.ganhos },
+      { nome: "Perdidos", atual: m.perdidos, anterior: prev.perdidos },
+    ],
+    [m, prev],
+  );
+
+  const funil = useMemo(
+    () => [
+      { etapa: "Leads", qtd: m.leads },
+      { etapa: "Conectados", qtd: m.conectados },
+      { etapa: "Agendadas", qtd: m.agendadas },
+      { etapa: "Realizadas", qtd: m.realizadas },
+      { etapa: "COF", qtd: m.cof },
+      { etapa: "Ganhos", qtd: m.ganhos },
+    ],
+    [m],
+  );
+
   const maxStage = Math.max(1, ...stages.map((s) => byStage.get(s.id)?.count ?? 0));
 
   const preset = (days: number) => {
@@ -129,15 +168,66 @@ function ComercialDashboard() {
 
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi label="Leads de entrada" value={String(total)} hint="criados no período" />
-            <Kpi label="Em negociação" value={currency(valueTotal) ?? "·"} hint="soma dos valores" />
-            <Kpi label="Ganhos" value={`${wonCount}`} hint={`${conv}% de conversão`} tone="text-emerald-600" />
-            <Kpi label="Perdidos" value={`${lostCount}`} hint="etapas de perda" tone="text-rose-600" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi label="Leads" value={m.leads} prev={prev.leads} hint="entradas no período" />
+            <Kpi label="Conectados" value={m.conectados} prev={prev.conectados} hint={`${m.taxaConexao}% dos leads`} />
+            <Kpi label="Reuniões agendadas" value={m.agendadas} prev={prev.agendadas} />
+            <Kpi label="Reuniões realizadas" value={m.realizadas} prev={prev.realizadas} hint={`${m.taxaReuniao}% dos leads`} />
+            <Kpi label="No show" value={m.noshow} prev={prev.noshow} hint={`${m.taxaNoShow}% das agendadas`} tone="text-rose-600" invert />
+            <Kpi label="COF enviadas" value={m.cof} prev={prev.cof} hint={`${m.taxaCof}% das reuniões`} />
+            <Kpi label="Ganhos" value={m.ganhos} prev={prev.ganhos} hint={`${m.taxaConversao}% de conversão`} tone="text-emerald-600" />
+            <Kpi label="Perdidos" value={m.perdidos} prev={prev.perdidos} tone="text-rose-600" invert />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Rate label="% Leads x Conectados" value={m.taxaConexao} prev={prev.taxaConexao} />
+            <Rate label="% Leads x Reuniões feitas" value={m.taxaReuniao} prev={prev.taxaReuniao} />
+            <Rate label="% Reuniões x COF" value={m.taxaCof} prev={prev.taxaCof} />
+            <Rate label="% Taxa de conversão" value={m.taxaConversao} prev={prev.taxaConversao} />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section className="rounded-xl border p-4">
+              <h2 className="mb-1 text-sm font-semibold">Comparativo com período anterior</h2>
+              <p className="mb-3 text-xs text-muted-foreground">Mesmo número de dias imediatamente anteriores.</p>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparativo} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                    <XAxis dataKey="nome" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={54} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="anterior" name="Período anterior" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="atual" name="Período atual" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="rounded-xl border p-4">
+              <h2 className="mb-1 text-sm font-semibold">Funil comercial</h2>
+              <p className="mb-3 text-xs text-muted-foreground">Leads que alcançaram cada etapa.</p>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={funil} layout="vertical" margin={{ top: 4, right: 16, left: 16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="etapa" tick={{ fontSize: 11 }} width={80} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Bar dataKey="qtd" name="Leads" radius={[0, 4, 4, 0]}>
+                      {funil.map((_, i) => (
+                        <Cell key={i} fill="hsl(var(--primary))" opacity={1 - i * 0.13} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
           </div>
 
           <section className="rounded-xl border p-4">
@@ -147,7 +237,12 @@ function ComercialDashboard() {
                 const agg = byStage.get(s.id) ?? { count: 0, total: 0 };
                 return (
                   <div key={s.id} className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 truncate text-sm">{s.name}</span>
+                    <span className="w-44 shrink-0 truncate text-sm" title={s.name}>
+                      {s.name}
+                      <span className="ml-1 text-[10px] uppercase text-muted-foreground">
+                        {classifyStage(s) !== "entrada" ? classifyStage(s) : ""}
+                      </span>
+                    </span>
                     <div className="h-2.5 flex-1 rounded-full bg-muted">
                       <div
                         className="h-2.5 rounded-full"
@@ -171,13 +266,16 @@ function ComercialDashboard() {
               {byDay.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Sem leads no período.</p>
               ) : (
-                <div className="flex h-40 items-end gap-1 overflow-x-auto">
-                  {byDay.map(([d, v]) => (
-                    <div key={d} className="flex min-w-[10px] flex-1 flex-col items-center gap-1" title={`${brDate(d)}: ${v}`}>
-                      <div className="w-full rounded-t bg-primary" style={{ height: `${(v / maxDay) * 120}px` }} />
-                      <span className="text-[9px] text-muted-foreground">{d.slice(8, 10)}</span>
-                    </div>
-                  ))}
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={byDay} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                      <XAxis dataKey="dia" tick={{ fontSize: 10 }} minTickGap={12} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Line type="monotone" dataKey="leads" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               )}
             </section>
@@ -204,12 +302,46 @@ function ComercialDashboard() {
   );
 }
 
-function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: string }) {
+function Delta({ value, prev, invert }: { value: number; prev: number; invert?: boolean }) {
+  const diff = value - prev;
+  if (!prev && !value) return null;
+  const good = invert ? diff < 0 : diff > 0;
+  const Icon = diff === 0 ? Minus : diff > 0 ? ArrowUp : ArrowDown;
+  const tone = diff === 0 ? "text-muted-foreground" : good ? "text-emerald-600" : "text-rose-600";
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[11px] font-medium ${tone}`}>
+      <Icon className="h-3 w-3" />
+      {Math.abs(diff)}
+    </span>
+  );
+}
+
+function Kpi({
+  label, value, prev, hint, tone, invert,
+}: { label: string; value: number; prev: number; hint?: string; tone?: string; invert?: boolean }) {
   return (
     <div className="rounded-xl border p-4">
-      <p className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`mt-1 font-mono text-[22px] tabular-nums ${tone ?? ""}`}>{value}</p>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="mt-1 flex items-baseline gap-2">
+        <p className={`font-mono text-[26px] leading-none tabular-nums ${tone ?? ""}`}>{value || "·"}</p>
+        <Delta value={value} prev={prev} invert={invert} />
+      </div>
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function Rate({ label, value, prev }: { label: string; value: number; prev: number }) {
+  return (
+    <div className="rounded-xl border bg-muted/30 p-4">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="mt-1 flex items-baseline gap-2">
+        <p className="font-mono text-[26px] leading-none tabular-nums">{value}%</p>
+        <Delta value={value} prev={prev} />
+      </div>
+      <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
+        <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.min(100, value)}%` }} />
+      </div>
     </div>
   );
 }
