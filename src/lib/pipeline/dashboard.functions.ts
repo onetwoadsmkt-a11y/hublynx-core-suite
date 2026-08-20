@@ -36,29 +36,48 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
 
     const stageIds = (stages ?? []).map((s) => s.id);
 
-    let leads: {
+    type Row = {
       id: string;
       stage_id: string | null;
       value: number | null;
       source: string | null;
       created_at: string;
       temperature: string | null;
-    }[] = [];
+    };
 
-    if (stageIds.length > 0) {
-      const isFirst = current && list[0] && current.id === list[0].id;
-      let q = supabase
-        .from("leads")
-        .select("id,stage_id,value,source,created_at,temperature");
+    let leads: Row[] = [];
+    let previousLeads: Row[] = [];
+
+    const isFirst = current && list[0] && current.id === list[0].id;
+
+    const fetchRange = async (fromDay?: string, toDay?: string) => {
+      if (stageIds.length === 0) return [] as Row[];
+      let q = supabase.from("leads").select("id,stage_id,value,source,created_at,temperature");
       q = isFirst
         ? q.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
         : q.in("stage_id", stageIds);
-      if (data.from) q = q.gte("created_at", `${data.from}T00:00:00`);
-      if (data.to) q = q.lte("created_at", `${data.to}T23:59:59`);
-      const { data: rows, error } = await q.order("created_at", { ascending: true });
+      if (fromDay) q = q.gte("created_at", `${fromDay}T00:00:00`);
+      if (toDay) q = q.lte("created_at", `${toDay}T23:59:59`);
+      const { data: rows, error } = await q
+        .order("created_at", { ascending: true })
+        .limit(5000);
       if (error) throw new Error(error.message);
-      leads = (rows ?? []) as typeof leads;
+      return (rows ?? []) as Row[];
+    };
+
+    leads = await fetchRange(data.from, data.to);
+
+    // Período anterior de mesma duração, para comparação
+    if (data.from && data.to) {
+      const start = new Date(`${data.from}T00:00:00Z`);
+      const end = new Date(`${data.to}T00:00:00Z`);
+      const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+      const prevEnd = new Date(start.getTime() - 86400000);
+      const prevStart = new Date(prevEnd.getTime() - (days - 1) * 86400000);
+      const iso = (d: Date) => d.toISOString().slice(0, 10);
+      previousLeads = await fetchRange(iso(prevStart), iso(prevEnd));
     }
 
-    return { pipelines: list, pipeline: current, stages: stages ?? [], leads };
+    return { pipelines: list, pipeline: current, stages: stages ?? [], leads, previousLeads };
   });
+
