@@ -202,8 +202,8 @@ function ComercialDashboard() {
                     <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="anterior" name="Período anterior" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="atual" name="Período atual" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="anterior" name="Período anterior" fill="var(--muted-foreground)" opacity={0.4} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="atual" name="Período atual" fill="var(--primary)" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -221,7 +221,7 @@ function ComercialDashboard() {
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                     <Bar dataKey="qtd" name="Leads" radius={[0, 4, 4, 0]}>
                       {funil.map((_, i) => (
-                        <Cell key={i} fill="hsl(var(--primary))" opacity={1 - i * 0.13} />
+                        <Cell key={i} fill="var(--primary)" opacity={1 - i * 0.13} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -273,7 +273,7 @@ function ComercialDashboard() {
                       <XAxis dataKey="dia" tick={{ fontSize: 10 }} minTickGap={12} />
                       <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                       <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                      <Line type="monotone" dataKey="leads" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="leads" stroke="var(--primary)" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
