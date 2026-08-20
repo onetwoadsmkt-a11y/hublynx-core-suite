@@ -78,6 +78,16 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
       previousLeads = await fetchRange(iso(prevStart), iso(prevEnd));
     }
 
-    return { pipelines: list, pipeline: current, stages: stages ?? [], leads, previousLeads };
+    // Todos os leads atualmente no pipeline (sem filtro de data)
+    const allLeads = await fetchRange();
+
+    return {
+      pipelines: list,
+      pipeline: current,
+      stages: stages ?? [],
+      leads,
+      previousLeads,
+      allLeads,
+    };
   });
 
