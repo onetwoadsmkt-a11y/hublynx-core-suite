@@ -364,12 +364,15 @@ function Delta({ value, prev, invert }: { value: number; prev: number; invert?: 
 }
 
 function Total({
-  label, value, tone, money,
-}: { label: string; value: number; tone?: string; money?: boolean }) {
+  label, value, tone, money, variant,
+}: { label: string; value: number; tone?: string; money?: boolean; variant?: "default" | "gradient" }) {
+  const isGradient = variant === "gradient";
   return (
-    <div className="rounded-lg border bg-background p-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`mt-1 font-mono text-[22px] leading-none tabular-nums ${tone ?? ""}`}>
+    <div className={`rounded-lg border p-3 ${isGradient ? "bg-white/10 backdrop-blur-sm" : "bg-background"}`}>
+      <p className={`text-[11px] font-medium uppercase tracking-wide ${isGradient ? "text-white/80" : "text-muted-foreground"}`}>
+        {label}
+      </p>
+      <p className={`mt-1 font-mono text-[22px] leading-none tabular-nums ${tone ?? (isGradient ? "text-white" : "")}`}>
         {value ? (money ? currency(value) : value) : "·"}
       </p>
     </div>
