@@ -58,6 +58,9 @@ export type GoogleOAuthConfig = {
 };
 
 export async function readConfig(): Promise<GoogleOAuthConfig> {
+  // Credenciais são backend-only: secrets do servidor têm prioridade sobre o banco.
+  const envId = process.env['GOOGLE_OAUTH_CLIENT_ID'] ?? null;
+  const envSecret = process.env['GOOGLE_OAUTH_CLIENT_SECRET'] ?? null;
   const c = await db();
   const { data } = await c
     .from("google_oauth_config")
@@ -65,8 +68,8 @@ export async function readConfig(): Promise<GoogleOAuthConfig> {
     .eq("id", 1)
     .maybeSingle();
   return {
-    client_id: data?.client_id ?? null,
-    client_secret: data?.client_secret ?? null,
+    client_id: envId ?? data?.client_id ?? null,
+    client_secret: envSecret ?? data?.client_secret ?? null,
     enabled_scopes: data?.enabled_scopes ?? [],
     updated_at: data?.updated_at ?? null,
   };

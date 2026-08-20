@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GoogleAccountCard } from "@/components/google/GoogleAccountCard";
-import { GoogleOAuthAdminCard } from "@/components/google/GoogleOAuthAdminCard";
 import { GoogleServicesCard } from "@/components/google/GoogleServicesCard";
 import { GoogleDiagnosticsCard } from "@/components/google/GoogleDiagnosticsCard";
 
@@ -10,12 +9,12 @@ export const Route = createFileRoute("/_authenticated/configuracoes/integracoes/
       { title: "Integração Google — Hublynx Core" },
       {
         name: "description",
-        content: "Configure o cliente OAuth e conecte Gmail, Google Agenda e Drive.",
+        content: "Conecte sua conta Google para usar Gmail, Google Agenda e Drive no Hublynx.",
       },
       { property: "og:title", content: "Integração Google — Hublynx Core" },
       {
         property: "og:description",
-        content: "Credenciais OAuth, conexão por usuário e diagnóstico da integração Google.",
+        content: "Conexão por usuário e diagnóstico da integração Google.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -30,11 +29,9 @@ function IntegracoesPage() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Integração Google</h1>
         <p className="text-muted-foreground">
-          OAuth 2.0 próprio do app: o administrador cadastra o cliente OAuth e cada usuário conecta
-          a própria conta para usar Agenda, Drive e Gmail.
+          Conecte a sua conta Google para usar Agenda, Drive e Gmail dentro do sistema.
         </p>
       </header>
-      <GoogleOAuthAdminCard />
       <GoogleServicesCard />
       <GoogleDiagnosticsCard />
       <GoogleAccountCard />
