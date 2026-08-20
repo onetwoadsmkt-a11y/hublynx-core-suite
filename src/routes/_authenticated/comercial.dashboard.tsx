@@ -360,6 +360,20 @@ function Delta({ value, prev, invert }: { value: number; prev: number; invert?: 
   );
 }
 
+function Total({
+  label, value, tone, money,
+}: { label: string; value: number; tone?: string; money?: boolean }) {
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-1 font-mono text-[22px] leading-none tabular-nums ${tone ?? ""}`}>
+        {value ? (money ? currency(value) : value) : "·"}
+      </p>
+    </div>
+  );
+}
+
+
 function Kpi({
   label, value, prev, hint, tone, invert,
 }: { label: string; value: number; prev: number; hint?: string; tone?: string; invert?: boolean }) {
