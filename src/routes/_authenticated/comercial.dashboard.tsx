@@ -142,7 +142,7 @@ function ComercialDashboard() {
     [m],
   );
 
-  const maxStage = Math.max(1, ...stages.map((s) => byStage.get(s.id)?.count ?? 0));
+  
 
   const preset = (days: number) => {
     const end = new Date();
