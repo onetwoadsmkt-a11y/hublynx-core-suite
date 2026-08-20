@@ -8,7 +8,6 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
 const TABS = [
   { to: "/configuracoes", label: "Geral" },
   { to: "/configuracoes/integracoes", label: "Integrações" },
-  { to: "/configuracoes/integracoes/logs", label: "Logs" },
   { to: "/configuracoes/modulos", label: "Módulos" },
 ];
 
