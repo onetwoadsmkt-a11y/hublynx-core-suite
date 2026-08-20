@@ -193,18 +193,21 @@ function ComercialDashboard() {
         </div>
       ) : (
         <>
-          <section className="rounded-xl border bg-muted/30 p-4">
+          <section
+            className="rounded-xl border p-4 text-white"
+            style={{ background: "linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-blue) 100%)" }}
+          >
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-sm font-semibold">Leads no pipeline (total, sem filtro de data)</h2>
-              <span className="text-xs text-muted-foreground">{current?.name ?? "—"}</span>
+              <h2 className="text-sm font-semibold text-white">Leads no pipeline (total, sem filtro de data)</h2>
+              <span className="text-xs text-white/70">{current?.name ?? "—"}</span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <Total label="Total no pipeline" value={total.leads} />
-              <Total label="Em aberto" value={emAberto} />
-              <Total label="Em nutrição" value={total.nutricao} />
-              <Total label="Ganhos" value={total.ganhos} tone="text-emerald-600" />
-              <Total label="Perdidos" value={total.perdidos} tone="text-rose-600" />
-              <Total label="Valor em aberto" value={valorAberto} money />
+              <Total label="Total no pipeline" value={total.leads} variant="gradient" />
+              <Total label="Em aberto" value={emAberto} variant="gradient" />
+              <Total label="Em nutrição" value={total.nutricao} variant="gradient" />
+              <Total label="Ganhos" value={total.ganhos} tone="text-emerald-400" variant="gradient" />
+              <Total label="Perdidos" value={total.perdidos} tone="text-rose-400" variant="gradient" />
+              <Total label="Valor em aberto" value={valorAberto} money variant="gradient" />
             </div>
           </section>
 
@@ -361,12 +364,15 @@ function Delta({ value, prev, invert }: { value: number; prev: number; invert?: 
 }
 
 function Total({
-  label, value, tone, money,
-}: { label: string; value: number; tone?: string; money?: boolean }) {
+  label, value, tone, money, variant,
+}: { label: string; value: number; tone?: string; money?: boolean; variant?: "default" | "gradient" }) {
+  const isGradient = variant === "gradient";
   return (
-    <div className="rounded-lg border bg-background p-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`mt-1 font-mono text-[22px] leading-none tabular-nums ${tone ?? ""}`}>
+    <div className={`rounded-lg border p-3 ${isGradient ? "bg-white/10 backdrop-blur-sm" : "bg-background"}`}>
+      <p className={`text-[11px] font-medium uppercase tracking-wide ${isGradient ? "text-white/80" : "text-muted-foreground"}`}>
+        {label}
+      </p>
+      <p className={`mt-1 font-mono text-[22px] leading-none tabular-nums ${tone ?? (isGradient ? "text-white" : "")}`}>
         {value ? (money ? currency(value) : value) : "·"}
       </p>
     </div>
