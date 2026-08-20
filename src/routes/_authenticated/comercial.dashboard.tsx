@@ -268,10 +268,13 @@ function ComercialDashboard() {
           </div>
 
           <section className="rounded-xl border p-4">
-            <h2 className="mb-3 text-sm font-semibold">Estado atual no kanban</h2>
+            <h2 className="mb-1 text-sm font-semibold">Estado atual no kanban</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Quantidade total de leads em cada etapa · em destaque, os que entraram no período.
+            </p>
             <div className="space-y-2.5">
               {stages.map((s) => {
-                const agg = byStage.get(s.id) ?? { count: 0, total: 0 };
+                const agg = byStage.get(s.id) ?? { count: 0, total: 0, periodo: 0 };
                 return (
                   <div key={s.id} className="flex items-center gap-3">
                     <span className="w-44 shrink-0 truncate text-sm" title={s.name}>
@@ -287,12 +290,16 @@ function ComercialDashboard() {
                       />
                     </div>
                     <span className="w-12 text-right font-mono text-sm tabular-nums">{agg.count}</span>
+                    <span className="w-16 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+                      {agg.periodo ? `+${agg.periodo}` : "·"}
+                    </span>
                     <span className="w-28 text-right font-mono text-xs tabular-nums text-muted-foreground">
                       {agg.total ? currency(agg.total) : "·"}
                     </span>
                   </div>
                 );
               })}
+
               {stages.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma etapa configurada.</p>}
             </div>
           </section>
