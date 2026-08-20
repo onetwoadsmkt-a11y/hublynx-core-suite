@@ -62,21 +62,42 @@ function ComercialDashboard() {
   const stages = useMemo(() => data?.stages ?? [], [data]);
   const leads = useMemo(() => data?.leads ?? [], [data]);
   const previousLeads = useMemo(() => data?.previousLeads ?? [], [data]);
+  const allLeads = useMemo(() => data?.allLeads ?? [], [data]);
 
   const m = useMemo(() => computeFunnel(stages, leads), [stages, leads]);
   const prev = useMemo(() => computeFunnel(stages, previousLeads), [stages, previousLeads]);
+  const total = useMemo(() => computeFunnel(stages, allLeads), [stages, allLeads]);
+
+  const emAberto = total.leads - total.ganhos - total.perdidos - total.nutricao;
+  const valorAberto = useMemo(() => {
+    const closed = new Set(
+      stages
+        .filter((s) => ["ganho", "perdido", "nutricao"].includes(classifyStage(s)))
+        .map((s) => s.id),
+    );
+    return allLeads.reduce(
+      (acc, l) => (l.stage_id && closed.has(l.stage_id) ? acc : acc + Number(l.value ?? 0)),
+      0,
+    );
+  }, [allLeads, stages]);
 
   const byStage = useMemo(() => {
-    const map = new Map<string, { count: number; total: number }>();
-    for (const l of leads) {
+    const map = new Map<string, { count: number; total: number; periodo: number }>();
+    for (const l of allLeads) {
       const key = l.stage_id ?? "sem-etapa";
-      const acc = map.get(key) ?? { count: 0, total: 0 };
+      const acc = map.get(key) ?? { count: 0, total: 0, periodo: 0 };
       acc.count += 1;
       acc.total += Number(l.value ?? 0);
       map.set(key, acc);
     }
+    for (const l of leads) {
+      const key = l.stage_id ?? "sem-etapa";
+      const acc = map.get(key) ?? { count: 0, total: 0, periodo: 0 };
+      acc.periodo += 1;
+      map.set(key, acc);
+    }
     return map;
-  }, [leads]);
+  }, [allLeads, leads]);
 
   const bySource = useMemo(() => {
     const map = new Map<string, number>();
