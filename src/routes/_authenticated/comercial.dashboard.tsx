@@ -62,21 +62,42 @@ function ComercialDashboard() {
   const stages = useMemo(() => data?.stages ?? [], [data]);
   const leads = useMemo(() => data?.leads ?? [], [data]);
   const previousLeads = useMemo(() => data?.previousLeads ?? [], [data]);
+  const allLeads = useMemo(() => data?.allLeads ?? [], [data]);
 
   const m = useMemo(() => computeFunnel(stages, leads), [stages, leads]);
   const prev = useMemo(() => computeFunnel(stages, previousLeads), [stages, previousLeads]);
+  const total = useMemo(() => computeFunnel(stages, allLeads), [stages, allLeads]);
+
+  const emAberto = total.leads - total.ganhos - total.perdidos - total.nutricao;
+  const valorAberto = useMemo(() => {
+    const closed = new Set(
+      stages
+        .filter((s) => ["ganho", "perdido", "nutricao"].includes(classifyStage(s)))
+        .map((s) => s.id),
+    );
+    return allLeads.reduce(
+      (acc, l) => (l.stage_id && closed.has(l.stage_id) ? acc : acc + Number(l.value ?? 0)),
+      0,
+    );
+  }, [allLeads, stages]);
 
   const byStage = useMemo(() => {
-    const map = new Map<string, { count: number; total: number }>();
-    for (const l of leads) {
+    const map = new Map<string, { count: number; total: number; periodo: number }>();
+    for (const l of allLeads) {
       const key = l.stage_id ?? "sem-etapa";
-      const acc = map.get(key) ?? { count: 0, total: 0 };
+      const acc = map.get(key) ?? { count: 0, total: 0, periodo: 0 };
       acc.count += 1;
       acc.total += Number(l.value ?? 0);
       map.set(key, acc);
     }
+    for (const l of leads) {
+      const key = l.stage_id ?? "sem-etapa";
+      const acc = map.get(key) ?? { count: 0, total: 0, periodo: 0 };
+      acc.periodo += 1;
+      map.set(key, acc);
+    }
     return map;
-  }, [leads]);
+  }, [allLeads, leads]);
 
   const bySource = useMemo(() => {
     const map = new Map<string, number>();
@@ -172,7 +193,23 @@ function ComercialDashboard() {
         </div>
       ) : (
         <>
+          <section className="rounded-xl border bg-muted/30 p-4">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold">Leads no pipeline (total, sem filtro de data)</h2>
+              <span className="text-xs text-muted-foreground">{current?.name ?? "—"}</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <Total label="Total no pipeline" value={total.leads} />
+              <Total label="Em aberto" value={emAberto} />
+              <Total label="Em nutrição" value={total.nutricao} />
+              <Total label="Ganhos" value={total.ganhos} tone="text-emerald-600" />
+              <Total label="Perdidos" value={total.perdidos} tone="text-rose-600" />
+              <Total label="Valor em aberto" value={valorAberto} money />
+            </div>
+          </section>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
             <Kpi label="Leads" value={m.leads} prev={prev.leads} hint="entradas no período" />
             <Kpi label="Conectados" value={m.conectados} prev={prev.conectados} hint={`${m.taxaConexao}% dos leads`} />
             <Kpi label="Reuniões agendadas" value={m.agendadas} prev={prev.agendadas} />
@@ -231,10 +268,13 @@ function ComercialDashboard() {
           </div>
 
           <section className="rounded-xl border p-4">
-            <h2 className="mb-3 text-sm font-semibold">Estado atual no kanban</h2>
+            <h2 className="mb-1 text-sm font-semibold">Estado atual no kanban</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Quantidade total de leads em cada etapa · em destaque, os que entraram no período.
+            </p>
             <div className="space-y-2.5">
               {stages.map((s) => {
-                const agg = byStage.get(s.id) ?? { count: 0, total: 0 };
+                const agg = byStage.get(s.id) ?? { count: 0, total: 0, periodo: 0 };
                 return (
                   <div key={s.id} className="flex items-center gap-3">
                     <span className="w-44 shrink-0 truncate text-sm" title={s.name}>
@@ -250,12 +290,16 @@ function ComercialDashboard() {
                       />
                     </div>
                     <span className="w-12 text-right font-mono text-sm tabular-nums">{agg.count}</span>
+                    <span className="w-16 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+                      {agg.periodo ? `+${agg.periodo}` : "·"}
+                    </span>
                     <span className="w-28 text-right font-mono text-xs tabular-nums text-muted-foreground">
                       {agg.total ? currency(agg.total) : "·"}
                     </span>
                   </div>
                 );
               })}
+
               {stages.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma etapa configurada.</p>}
             </div>
           </section>
@@ -315,6 +359,20 @@ function Delta({ value, prev, invert }: { value: number; prev: number; invert?: 
     </span>
   );
 }
+
+function Total({
+  label, value, tone, money,
+}: { label: string; value: number; tone?: string; money?: boolean }) {
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-1 font-mono text-[22px] leading-none tabular-nums ${tone ?? ""}`}>
+        {value ? (money ? currency(value) : value) : "·"}
+      </p>
+    </div>
+  );
+}
+
 
 function Kpi({
   label, value, prev, hint, tone, invert,
