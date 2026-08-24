@@ -145,8 +145,33 @@ export function exportLeadsReportToExcel(
     XLSX.utils.book_append_sheet(wb, ws, "Jornada");
   }
 
-  XLSX.writeFile(
-    wb,
-    opts.filename ?? `relatorio-leads-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  const filename =
+    opts.filename ?? `relatorio-leads-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  downloadBlob(
+    new Blob([buf], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    filename,
   );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  // Preview roda dentro de iframe: se o download for bloqueado, abre em nova aba.
+  const inIframe = window.self !== window.top;
+  if (inIframe) {
+    setTimeout(() => window.open(url, "_blank", "noopener"), 150);
+  }
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 60_000);
 }
