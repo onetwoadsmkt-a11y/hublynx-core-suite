@@ -143,7 +143,7 @@ export const listPipeline = createServerFn({ method: "GET" })
     }
 
     const stageIds = (stages ?? []).map((s) => s.id);
-    const query = supabase.from("leads").select("*").order("position");
+    const query = supabase.from("leads").select("*").order("created_at", { ascending: false });
     const { data: leads, error: lerr } = await (isFirst
       ? query.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
       : query.in("stage_id", stageIds));

@@ -36,6 +36,7 @@ import {
   createPipeline, deletePipeline, listPipeline, moveLead, renamePipeline,
 } from "@/lib/pipeline/pipeline.functions";
 import { cn } from "@/lib/utils";
+import { useLeadArrivalAlert } from "@/lib/pipeline/use-lead-arrival";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({
@@ -77,13 +78,24 @@ function PipelinePage() {
   const { data, isLoading } = useQuery({
     queryKey: ["pipeline", pipelineId ?? "default"],
     queryFn: () => listFn({ data: pipelineId ? { pipelineId } : {} }),
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
   });
 
   const pipelines = (data?.pipelines ?? []) as PipelineRow[];
   const current = (data?.pipeline ?? null) as PipelineRow | null;
   const stages = (data?.stages ?? []) as PipelineStage[];
-  const leads = (data?.leads ?? []) as Lead[];
+  const leads = useMemo(
+    () =>
+      [...((data?.leads ?? []) as Lead[])].sort(
+        (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
+      ),
+    [data?.leads],
+  );
+
+  useLeadArrivalAlert(leads);
+
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["pipeline"] });
 
