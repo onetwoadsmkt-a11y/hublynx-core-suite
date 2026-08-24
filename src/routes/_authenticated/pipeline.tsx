@@ -36,6 +36,7 @@ import {
   createPipeline, deletePipeline, listPipeline, moveLead, renamePipeline,
 } from "@/lib/pipeline/pipeline.functions";
 import { cn } from "@/lib/utils";
+import { useLeadArrivalAlert } from "@/lib/pipeline/use-lead-arrival";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({
