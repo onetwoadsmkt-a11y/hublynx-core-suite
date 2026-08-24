@@ -45,6 +45,7 @@ import { Route as AuthenticatedFinanceiroConciliacaoRouteImport } from './routes
 import { Route as AuthenticatedFinanceiroCategoriasRouteImport } from './routes/_authenticated/financeiro.categorias'
 import { Route as AuthenticatedFinanceiroCalendarioRouteImport } from './routes/_authenticated/financeiro.calendario'
 import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
+import { Route as AuthenticatedComercialRelatoriosRouteImport } from './routes/_authenticated/comercial.relatorios'
 import { Route as AuthenticatedComercialDashboardRouteImport } from './routes/_authenticated/comercial.dashboard'
 import { Route as AuthenticatedAppTarefasRouteImport } from './routes/_authenticated/app.tarefas'
 import { Route as AuthenticatedAppProjetosRouteImport } from './routes/_authenticated/app.projetos'
@@ -256,6 +257,12 @@ const AuthenticatedConfiguracoesModulosRoute =
     path: '/modulos',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
+const AuthenticatedComercialRelatoriosRoute =
+  AuthenticatedComercialRelatoriosRouteImport.update({
+    id: '/comercial/relatorios',
+    path: '/comercial/relatorios',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedComercialDashboardRoute =
   AuthenticatedComercialDashboardRouteImport.update({
     id: '/comercial/dashboard',
@@ -357,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
+  '/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -404,6 +412,7 @@ export interface FileRoutesByTo {
   '/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
+  '/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -456,6 +465,7 @@ export interface FileRoutesById {
   '/_authenticated/app/projetos': typeof AuthenticatedAppProjetosRoute
   '/_authenticated/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/_authenticated/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
+  '/_authenticated/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
   '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/_authenticated/financeiro/calendario': typeof AuthenticatedFinanceiroCalendarioRoute
   '/_authenticated/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
@@ -508,6 +518,7 @@ export interface FileRouteTypes {
     | '/app/projetos'
     | '/app/tarefas'
     | '/comercial/dashboard'
+    | '/comercial/relatorios'
     | '/configuracoes/modulos'
     | '/financeiro/calendario'
     | '/financeiro/categorias'
@@ -555,6 +566,7 @@ export interface FileRouteTypes {
     | '/app/projetos'
     | '/app/tarefas'
     | '/comercial/dashboard'
+    | '/comercial/relatorios'
     | '/configuracoes/modulos'
     | '/financeiro/calendario'
     | '/financeiro/categorias'
@@ -606,6 +618,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/projetos'
     | '/_authenticated/app/tarefas'
     | '/_authenticated/comercial/dashboard'
+    | '/_authenticated/comercial/relatorios'
     | '/_authenticated/configuracoes/modulos'
     | '/_authenticated/financeiro/calendario'
     | '/_authenticated/financeiro/categorias'
@@ -897,6 +910,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesModulosRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
     }
+    '/_authenticated/comercial/relatorios': {
+      id: '/_authenticated/comercial/relatorios'
+      path: '/comercial/relatorios'
+      fullPath: '/comercial/relatorios'
+      preLoaderRoute: typeof AuthenticatedComercialRelatoriosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/comercial/dashboard': {
       id: '/_authenticated/comercial/dashboard'
       path: '/comercial/dashboard'
@@ -1104,6 +1124,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedComercialDashboardRoute: typeof AuthenticatedComercialDashboardRoute
+  AuthenticatedComercialRelatoriosRoute: typeof AuthenticatedComercialRelatoriosRoute
   AuthenticatedGestaoClientesRoute: typeof AuthenticatedGestaoClientesRoute
   AuthenticatedProjetosIdRoute: typeof AuthenticatedProjetosIdRoute
   AuthenticatedProjetosIndexRoute: typeof AuthenticatedProjetosIndexRoute
@@ -1125,6 +1146,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedComercialDashboardRoute: AuthenticatedComercialDashboardRoute,
+  AuthenticatedComercialRelatoriosRoute: AuthenticatedComercialRelatoriosRoute,
   AuthenticatedGestaoClientesRoute: AuthenticatedGestaoClientesRoute,
   AuthenticatedProjetosIdRoute: AuthenticatedProjetosIdRoute,
   AuthenticatedProjetosIndexRoute: AuthenticatedProjetosIndexRoute,
