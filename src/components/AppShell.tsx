@@ -26,6 +26,9 @@ import { listUserModules } from "@/lib/modules/modules.functions";
 import { moduleForPath, type ModuleSlug } from "@/lib/modules/registry";
 import { InstallModuleButton } from "@/components/modules/InstallModuleButton";
 import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
+import { useAccess } from "@/hooks/useAccess";
+import { capabilityForPath } from "@/lib/subscriptions/capabilities";
+import { CreditCard } from "lucide-react";
 
 function HeaderInstallModule() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -40,6 +43,7 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   moduleSlug?: ModuleSlug;
 };
+
 type NavGroup = { section?: string; items: NavItem[] };
 
 // Financeiro segue existindo (rotas /financeiro/*), apenas oculto do menu.
@@ -91,11 +95,28 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
     queryFn: () => listMods(),
     staleTime: 60_000,
   });
+  const { can } = useAccess();
   const groups: NavGroup[] = NAV_GROUPS.map((g) =>
     g.section === "Administração" && isAdmin
-      ? { ...g, items: [...g.items, { to: "/admin/usuarios", label: "Usuários (Admin)", icon: Shield }] }
+      ? {
+          ...g,
+          items: [
+            ...g.items,
+            { to: "/admin/assinaturas", label: "Assinaturas (Admin)", icon: CreditCard },
+            { to: "/admin/usuarios", label: "Usuários (Admin)", icon: Shield },
+          ],
+        }
       : g,
-  );
+  )
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => {
+        if (isAdmin) return true;
+        const cap = capabilityForPath(item.to);
+        return !cap || can(cap);
+      }),
+    }))
+    .filter((g) => g.items.length > 0);
   return (
     <TooltipProvider delayDuration={0}>
       <nav className={`flex flex-col gap-1 ${collapsed ? "px-2" : "px-3"} py-2`}>

@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { useAccess } from "@/hooks/useAccess";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({
   head: () => ({ meta: [{ title: "Configurações — Hublynx Core" }] }),
@@ -6,17 +7,19 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
 });
 
 const TABS = [
-  { to: "/configuracoes", label: "Geral" },
-  { to: "/configuracoes/integracoes", label: "Integrações" },
-  { to: "/configuracoes/modulos", label: "Módulos" },
+  { to: "/configuracoes", label: "Geral", adminOnly: false },
+  { to: "/configuracoes/integracoes", label: "Integrações", adminOnly: false },
+  { to: "/configuracoes/modulos", label: "Módulos", adminOnly: true },
 ];
 
 function ConfigLayout() {
+  const { isAdmin } = useAccess();
+  const tabs = TABS.filter((t) => !t.adminOnly || isAdmin);
   return (
     <div className="flex min-h-screen flex-col">
       <nav className="border-b bg-card px-6">
         <div className="mx-auto flex max-w-6xl gap-1">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <Link
               key={t.to}
               to={t.to}
