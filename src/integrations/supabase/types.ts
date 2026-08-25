@@ -2057,6 +2057,51 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          account_name: string
+          capabilities: string[]
+          created_at: string
+          current_period_end: string | null
+          id: string
+          notes: string | null
+          plan: string
+          price_monthly: number
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name?: string
+          capabilities?: string[]
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          notes?: string | null
+          plan?: string
+          price_monthly?: number
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          capabilities?: string[]
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          notes?: string | null
+          plan?: string
+          price_monthly?: number
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       task_attachments: {
         Row: {
           id: string
