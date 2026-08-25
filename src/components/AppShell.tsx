@@ -3,7 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users,
   Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
-  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter, MessageSquare, Building2, Wallet, FileText,
+  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter, MessageSquare, Building2, Wallet,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
