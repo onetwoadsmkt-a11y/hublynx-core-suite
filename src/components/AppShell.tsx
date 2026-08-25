@@ -26,6 +26,9 @@ import { listUserModules } from "@/lib/modules/modules.functions";
 import { moduleForPath, type ModuleSlug } from "@/lib/modules/registry";
 import { InstallModuleButton } from "@/components/modules/InstallModuleButton";
 import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
+import { useAccess } from "@/hooks/useAccess";
+import { capabilityForPath } from "@/lib/subscriptions/capabilities";
+import { CreditCard } from "lucide-react";
 
 function HeaderInstallModule() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
