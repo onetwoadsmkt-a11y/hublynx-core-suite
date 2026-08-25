@@ -40,6 +40,7 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   moduleSlug?: ModuleSlug;
 };
+
 type NavGroup = { section?: string; items: NavItem[] };
 
 // Financeiro segue existindo (rotas /financeiro/*), apenas oculto do menu.

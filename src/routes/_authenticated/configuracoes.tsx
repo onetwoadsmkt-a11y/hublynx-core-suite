@@ -19,7 +19,7 @@ function ConfigLayout() {
     <div className="flex min-h-screen flex-col">
       <nav className="border-b bg-card px-6">
         <div className="mx-auto flex max-w-6xl gap-1">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <Link
               key={t.to}
               to={t.to}
