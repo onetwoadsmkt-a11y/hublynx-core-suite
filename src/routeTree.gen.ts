@@ -28,6 +28,7 @@ import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as FormSlugRouteImport } from './routes/form.$slug'
+import { Route as AuthenticatedAdminAssinaturasRouteImport } from './routes/_authenticated/admin.assinaturas'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppHojeRouteImport } from './routes/_authenticated/app.hoje'
@@ -157,6 +158,12 @@ const FormSlugRoute = FormSlugRouteImport.update({
   path: '/form/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminAssinaturasRoute =
+  AuthenticatedAdminAssinaturasRouteImport.update({
+    id: '/admin/assinaturas',
+    path: '/admin/assinaturas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminUsuariosRoute =
   AuthenticatedAdminUsuariosRouteImport.update({
     id: '/admin/usuarios',
@@ -357,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/form/$slug': typeof FormSlugRoute
+  '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
   '/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -405,6 +413,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/form/$slug': typeof FormSlugRoute
+  '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
   '/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -458,6 +467,7 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/form/$slug': typeof FormSlugRoute
+  '/_authenticated/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/app/hoje': typeof AuthenticatedAppHojeRoute
   '/_authenticated/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -511,6 +521,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/tarefas'
     | '/form/$slug'
+    | '/admin/assinaturas'
     | '/admin/usuarios'
     | '/app/hoje'
     | '/app/lembretes'
@@ -559,6 +570,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/tarefas'
     | '/form/$slug'
+    | '/admin/assinaturas'
     | '/admin/usuarios'
     | '/app/hoje'
     | '/app/lembretes'
@@ -611,6 +623,7 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
     | '/form/$slug'
+    | '/_authenticated/admin/assinaturas'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/app/hoje'
     | '/_authenticated/app/lembretes'
@@ -790,6 +803,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/form/$slug'
       preLoaderRoute: typeof FormSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/assinaturas': {
+      id: '/_authenticated/admin/assinaturas'
+      path: '/admin/assinaturas'
+      fullPath: '/admin/assinaturas'
+      preLoaderRoute: typeof AuthenticatedAdminAssinaturasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/usuarios': {
       id: '/_authenticated/admin/usuarios'
@@ -1122,6 +1142,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
+  AuthenticatedAdminAssinaturasRoute: typeof AuthenticatedAdminAssinaturasRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedComercialDashboardRoute: typeof AuthenticatedComercialDashboardRoute
   AuthenticatedComercialRelatoriosRoute: typeof AuthenticatedComercialRelatoriosRoute
@@ -1144,6 +1165,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
+  AuthenticatedAdminAssinaturasRoute: AuthenticatedAdminAssinaturasRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedComercialDashboardRoute: AuthenticatedComercialDashboardRoute,
   AuthenticatedComercialRelatoriosRoute: AuthenticatedComercialRelatoriosRoute,
