@@ -949,6 +949,7 @@ export type Database = {
         Row: {
           created_at: string
           entity_type: string
+          owner_id: string
           sheet_name: string
           spreadsheet_id: string
           spreadsheet_url: string | null
@@ -957,6 +958,7 @@ export type Database = {
         Insert: {
           created_at?: string
           entity_type: string
+          owner_id?: string
           sheet_name?: string
           spreadsheet_id: string
           spreadsheet_url?: string | null
@@ -965,6 +967,7 @@ export type Database = {
         Update: {
           created_at?: string
           entity_type?: string
+          owner_id?: string
           sheet_name?: string
           spreadsheet_id?: string
           spreadsheet_url?: string | null
@@ -978,6 +981,7 @@ export type Database = {
           id: string
           key: string
           label: string
+          owner_id: string
           position: number
           tone: string
           updated_at: string
@@ -987,6 +991,7 @@ export type Database = {
           id?: string
           key: string
           label: string
+          owner_id?: string
           position?: number
           tone?: string
           updated_at?: string
@@ -996,6 +1001,7 @@ export type Database = {
           id?: string
           key?: string
           label?: string
+          owner_id?: string
           position?: number
           tone?: string
           updated_at?: string
