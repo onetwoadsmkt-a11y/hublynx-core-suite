@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { ModuleManifest } from "@/components/modules/ModuleManifest";
 import { ModuleGate } from "@/components/modules/ModuleGate";
+import { AccessGate } from "@/components/access/AccessGate";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -28,9 +29,11 @@ function AuthenticatedLayout() {
   return (
     <AppShell>
       <ModuleManifest />
-      <ModuleGate>
-        <Outlet />
-      </ModuleGate>
+      <AccessGate>
+        <ModuleGate>
+          <Outlet />
+        </ModuleGate>
+      </AccessGate>
     </AppShell>
   );
 }
