@@ -22,12 +22,10 @@ import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
-import { Route as AuthenticatedFormulariosRouteImport } from './routes/_authenticated/formularios'
 import { Route as AuthenticatedHubRouteImport } from './routes/_authenticated/hub'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
-import { Route as FormSlugRouteImport } from './routes/form.$slug'
 import { Route as AuthenticatedAdminAssinaturasRouteImport } from './routes/_authenticated/admin.assinaturas'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
@@ -127,12 +125,6 @@ const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
   path: '/financeiro',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedFormulariosRoute =
-  AuthenticatedFormulariosRouteImport.update({
-    id: '/formularios',
-    path: '/formularios',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedHubRoute = AuthenticatedHubRouteImport.update({
   id: '/hub',
   path: '/hub',
@@ -152,11 +144,6 @@ const AuthenticatedTarefasRoute = AuthenticatedTarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
   getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const FormSlugRoute = FormSlugRouteImport.update({
-  id: '/form/$slug',
-  path: '/form/$slug',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminAssinaturasRoute =
   AuthenticatedAdminAssinaturasRouteImport.update({
@@ -358,12 +345,10 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
-  '/formularios': typeof AuthenticatedFormulariosRoute
   '/hub': typeof AuthenticatedHubRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
-  '/form/$slug': typeof FormSlugRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
@@ -407,12 +392,10 @@ export interface FileRoutesByTo {
   '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/formularios': typeof AuthenticatedFormulariosRoute
   '/hub': typeof AuthenticatedHubRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
-  '/form/$slug': typeof FormSlugRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
@@ -461,12 +444,10 @@ export interface FileRoutesById {
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
-  '/_authenticated/formularios': typeof AuthenticatedFormulariosRoute
   '/_authenticated/hub': typeof AuthenticatedHubRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
-  '/form/$slug': typeof FormSlugRoute
   '/_authenticated/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/app/hoje': typeof AuthenticatedAppHojeRoute
@@ -515,12 +496,10 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/financeiro'
-    | '/formularios'
     | '/hub'
     | '/pipeline'
     | '/relatorios'
     | '/tarefas'
-    | '/form/$slug'
     | '/admin/assinaturas'
     | '/admin/usuarios'
     | '/app/hoje'
@@ -564,12 +543,10 @@ export interface FileRouteTypes {
     | '/atendimento'
     | '/clientes'
     | '/dashboard'
-    | '/formularios'
     | '/hub'
     | '/pipeline'
     | '/relatorios'
     | '/tarefas'
-    | '/form/$slug'
     | '/admin/assinaturas'
     | '/admin/usuarios'
     | '/app/hoje'
@@ -617,12 +594,10 @@ export interface FileRouteTypes {
     | '/_authenticated/configuracoes'
     | '/_authenticated/dashboard'
     | '/_authenticated/financeiro'
-    | '/_authenticated/formularios'
     | '/_authenticated/hub'
     | '/_authenticated/pipeline'
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
-    | '/form/$slug'
     | '/_authenticated/admin/assinaturas'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/app/hoje'
@@ -663,7 +638,6 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
-  FormSlugRoute: typeof FormSlugRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
   ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
@@ -762,13 +736,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinanceiroRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/formularios': {
-      id: '/_authenticated/formularios'
-      path: '/formularios'
-      fullPath: '/formularios'
-      preLoaderRoute: typeof AuthenticatedFormulariosRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/hub': {
       id: '/_authenticated/hub'
       path: '/hub'
@@ -796,13 +763,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/tarefas'
       preLoaderRoute: typeof AuthenticatedTarefasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/form/$slug': {
-      id: '/form/$slug'
-      path: '/form/$slug'
-      fullPath: '/form/$slug'
-      preLoaderRoute: typeof FormSlugRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/assinaturas': {
       id: '/_authenticated/admin/assinaturas'
@@ -1137,7 +1097,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRouteWithChildren
-  AuthenticatedFormulariosRoute: typeof AuthenticatedFormulariosRoute
   AuthenticatedHubRoute: typeof AuthenticatedHubRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -1160,7 +1119,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRouteWithChildren,
-  AuthenticatedFormulariosRoute: AuthenticatedFormulariosRoute,
   AuthenticatedHubRoute: AuthenticatedHubRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
@@ -1183,7 +1141,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
-  FormSlugRoute: FormSlugRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
   ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,
