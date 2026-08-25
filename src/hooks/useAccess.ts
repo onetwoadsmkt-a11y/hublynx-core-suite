@@ -22,9 +22,9 @@ export function useAccess() {
     retry: (failureCount, error) =>
       failureCount < 1 && !error.message.toLowerCase().includes("unauthorized"),
   });
-  const capabilities = (data?.capabilities ?? ALL_CAPABILITIES) as Capability[];
+  const capabilities = (data?.capabilities ?? []) as Capability[];
   return {
-    isLoading: isLoading || isError,
+    isLoading: isLoading || isError || data == null,
     isAdmin: !!data?.isAdmin,
     status: data?.status ?? "ativo",
     accountName: data?.accountName ?? null,
