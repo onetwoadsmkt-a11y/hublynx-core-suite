@@ -29,7 +29,6 @@ const ROUTE_MAP: { prefix: string; cap: Capability }[] = [
   { prefix: "/comercial", cap: "comercial" },
   { prefix: "/pipeline", cap: "comercial" },
   { prefix: "/clientes", cap: "comercial" },
-  { prefix: "/formularios", cap: "comercial" },
   { prefix: "/atendimento", cap: "comercial" },
   { prefix: "/tarefas", cap: "operacao" },
   { prefix: "/projetos", cap: "operacao" },

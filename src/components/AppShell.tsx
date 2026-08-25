@@ -60,7 +60,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/comercial/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { to: "/pipeline", label: "Pipeline de Vendas", icon: Filter },
       { to: "/clientes", label: "LEADS", icon: Users, moduleSlug: "clientes" },
-      { to: "/formularios", label: "Formulários", icon: FileText },
       { to: "/atendimento", label: "Atendimento", icon: MessageSquare },
       { to: "/comercial/relatorios", label: "Relatórios", icon: BarChart3 },
     ],
