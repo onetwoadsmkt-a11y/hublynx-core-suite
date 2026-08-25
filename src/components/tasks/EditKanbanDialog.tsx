@@ -45,13 +45,16 @@ export function EditKanbanDialog({
 
   const saveMutation = useMutation({
     mutationFn: async (next: KanbanColumn[]) => {
+      const { data: auth } = await supabase.auth.getUser();
+      const ownerId = auth.user?.id;
+      if (!ownerId) throw new Error("Sessão expirada.");
       // Upsert/insert each column and update positions
       for (let i = 0; i < next.length; i++) {
         const c = next[i];
         if (c.id.startsWith("default-") || c.id.startsWith("new-")) {
           const { error } = await supabase.from("kanban_columns").upsert(
-            { key: c.key, label: c.label, tone: c.tone, position: i },
-            { onConflict: "key" },
+            { owner_id: ownerId, key: c.key, label: c.label, tone: c.tone, position: i },
+            { onConflict: "owner_id,key" },
           );
           if (error) throw error;
         } else {
