@@ -76,6 +76,9 @@ export function exportLeadsReportToExcel(
     return {
       stageName: stage?.name,
       pipelineName: stage?.pipeline_id ? pipelineById.get(stage.pipeline_id) : undefined,
+      notesText: (notesByLead.get(l.id) ?? [])
+        .map((n) => `${fmtDateTimeBR(n.created_at)} — ${n.body}`)
+        .join("\n"),
     };
   };
 
