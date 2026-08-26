@@ -74,9 +74,11 @@ export function fmtDateTimeBR(v?: string | null) {
 export function leadFieldValue(
   lead: Lead,
   key: LeadFieldKey,
-  ctx: { stageName?: string; pipelineName?: string },
+  ctx: { stageName?: string; pipelineName?: string; notesText?: string },
 ): string | number {
   switch (key) {
+    case "notes":
+      return ctx.notesText ?? "";
     case "stage":
       return ctx.stageName ?? "";
     case "pipeline":
