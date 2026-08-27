@@ -286,16 +286,22 @@ export const moveLead = createServerFn({ method: "POST" })
     // Trava: lead em etapa final (Venda ganha / Desqualificado) não pode sair
     const { data: current } = await context.supabase
       .from("leads")
-      .select("stage_id, pipeline_stages!leads_stage_id_fkey(is_won,is_lost)")
+      .select("stage_id")
       .eq("id", data.id)
       .maybeSingle();
-    const curStage = (current as any)?.pipeline_stages;
-    if ((curStage?.is_won || curStage?.is_lost) && current?.stage_id !== data.stage_id) {
-      throw new Error(
-        curStage.is_won
-          ? "Lead já convertido em venda ganha — não pode ser movido."
-          : "Lead desqualificado — não pode ser movido.",
-      );
+    if (current?.stage_id && current.stage_id !== data.stage_id) {
+      const { data: curStage } = await context.supabase
+        .from("pipeline_stages")
+        .select("is_won,is_lost")
+        .eq("id", current.stage_id)
+        .maybeSingle();
+      if (curStage?.is_won || curStage?.is_lost) {
+        throw new Error(
+          curStage.is_won
+            ? "Lead já convertido em venda ganha — não pode ser movido."
+            : "Lead desqualificado — não pode ser movido.",
+        );
+      }
     }
 
     const status = stage?.is_won ? "ganho" : stage?.is_lost ? "perdido" : "aberto";
