@@ -1261,6 +1261,9 @@ export type Database = {
           city: string | null
           client_id: string | null
           company: string | null
+          converted_at: string | null
+          converted_client_id: string | null
+          converted_project_id: string | null
           created_at: string
           email: string | null
           fbclid: string | null
@@ -1270,6 +1273,8 @@ export type Database = {
           last_contact_at: string | null
           metadata: Json
           name: string
+          next_action: string | null
+          next_action_at: string | null
           owner_id: string
           phone: string | null
           position: number
@@ -1293,6 +1298,9 @@ export type Database = {
           city?: string | null
           client_id?: string | null
           company?: string | null
+          converted_at?: string | null
+          converted_client_id?: string | null
+          converted_project_id?: string | null
           created_at?: string
           email?: string | null
           fbclid?: string | null
@@ -1302,6 +1310,8 @@ export type Database = {
           last_contact_at?: string | null
           metadata?: Json
           name: string
+          next_action?: string | null
+          next_action_at?: string | null
           owner_id: string
           phone?: string | null
           position?: number
@@ -1325,6 +1335,9 @@ export type Database = {
           city?: string | null
           client_id?: string | null
           company?: string | null
+          converted_at?: string | null
+          converted_client_id?: string | null
+          converted_project_id?: string | null
           created_at?: string
           email?: string | null
           fbclid?: string | null
@@ -1334,6 +1347,8 @@ export type Database = {
           last_contact_at?: string | null
           metadata?: Json
           name?: string
+          next_action?: string | null
+          next_action_at?: string | null
           owner_id?: string
           phone?: string | null
           position?: number
@@ -1358,6 +1373,20 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_converted_client_id_fkey"
+            columns: ["converted_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_converted_project_id_fkey"
+            columns: ["converted_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
