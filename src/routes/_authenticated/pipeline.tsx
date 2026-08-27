@@ -31,6 +31,7 @@ import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
 import { StagesDialog } from "@/components/pipeline/StagesDialog";
 import { CardLayoutDialog } from "@/components/pipeline/CardLayoutDialog";
 import { WebhooksDialog } from "@/components/pipeline/WebhooksDialog";
+import { WinLeadDialog } from "@/components/pipeline/WinLeadDialog";
 import type { Lead, PipelineStage } from "@/components/pipeline/types";
 import {
   createPipeline, deletePipeline, listPipeline, moveLead, renamePipeline,
@@ -65,6 +66,7 @@ function PipelinePage() {
   const [pipelineId, setPipelineId] = useState<string | undefined>();
   const [q, setQ] = useState("");
   const [dragging, setDragging] = useState<Lead | null>(null);
+  const [winLead, setWinLead] = useState<Lead | null>(null);
   const [openLead, setOpenLead] = useState<Lead | null>(null);
   const [editing, setEditing] = useState<Lead | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -148,6 +150,7 @@ function PipelinePage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  // modal de conversão Ganho → Cliente → Projeto → Financeiro
   function onDragStart(e: DragStartEvent) {
     setDragging(leads.find((l) => l.id === e.active.id) ?? null);
   }
@@ -156,6 +159,12 @@ function PipelinePage() {
     const stageId = e.over?.id ? String(e.over.id) : null;
     const lead = leads.find((l) => l.id === e.active.id);
     if (!stageId || !lead || lead.stage_id === stageId) return;
+    const target = stages.find((st) => st.id === stageId);
+    if (target?.is_won && !(lead as any).converted_project_id) {
+      move.mutate({ id: lead.id, stage_id: stageId });
+      setWinLead({ ...lead, stage_id: stageId });
+      return;
+    }
     move.mutate({ id: lead.id, stage_id: stageId });
   }
 
@@ -342,6 +351,8 @@ function PipelinePage() {
       />
       <CardLayoutDialog open={layoutOpen} onOpenChange={setLayoutOpen} />
       <WebhooksDialog open={hooksOpen} onOpenChange={setHooksOpen} stages={stages} />
+      <WinLeadDialog lead={winLead} onOpenChange={(v) => !v && setWinLead(null)} />
+
       <LeadDrawer
         lead={openLead}
         stages={stages}

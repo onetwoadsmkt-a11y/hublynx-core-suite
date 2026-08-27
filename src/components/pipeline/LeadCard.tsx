@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil, FileSpreadsheet } from "lucide-react";
+import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +73,9 @@ export function LeadCard({
   const { layout } = useLeadCardLayout();
   const value = currency(lead.value != null ? Number(lead.value) : null);
   const location = [lead.city, lead.state].filter(Boolean).join(" / ");
+  const nextAction = (lead as any).next_action as string | null;
+  const nextActionAt = (lead as any).next_action_at as string | null;
+  const nextActionOverdue = !!nextActionAt && new Date(nextActionAt).getTime() < Date.now();
 
   return (
     <div
@@ -128,6 +131,26 @@ export function LeadCard({
       {layout.email && lead.email && (
         <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
           <Mail className="h-3 w-3 shrink-0" /> <span className="truncate">{lead.email}</span>
+        </p>
+      )}
+
+      {(nextAction || nextActionAt) && (
+        <p
+          className={cn(
+            "mt-1.5 flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-[11px]",
+            nextActionOverdue
+              ? "bg-destructive/10 font-medium text-destructive"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          <AlarmClock className="h-3 w-3 shrink-0" />
+          <span className="truncate">
+            {nextAction || "Próxima ação"}
+            {nextActionAt
+              ? ` · ${new Date(nextActionAt).toLocaleDateString("pt-BR")}`
+              : ""}
+            {nextActionOverdue ? " (atrasada)" : ""}
+          </span>
         </p>
       )}
 
