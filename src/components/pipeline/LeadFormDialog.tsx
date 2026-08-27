@@ -32,11 +32,14 @@ type Form = {
   utm_campaign: string;
   utm_term: string;
   utm_content: string;
+  next_action: string;
+  next_action_at: string;
 };
 
 const EMPTY: Form = {
   name: "", company: "", email: "", phone: "", city: "", state: "", source: "", value: "",
   stage_id: "", temperature: "morno", utm_source: "", utm_medium: "", utm_campaign: "", utm_term: "", utm_content: "",
+  next_action: "", next_action_at: "",
 };
 
 export function LeadFormDialog({
@@ -76,6 +79,10 @@ export function LeadFormDialog({
             utm_campaign: lead.utm_campaign ?? "",
             utm_term: lead.utm_term ?? "",
             utm_content: lead.utm_content ?? "",
+            next_action: (lead as any).next_action ?? "",
+            next_action_at: (lead as any).next_action_at
+              ? String((lead as any).next_action_at).slice(0, 10)
+              : "",
           }
         : { ...EMPTY, stage_id: defaultStageId ?? stages[0]?.id ?? "" },
     );
@@ -101,6 +108,10 @@ export function LeadFormDialog({
           utm_campaign: form.utm_campaign || null,
           utm_term: form.utm_term || null,
           utm_content: form.utm_content || null,
+          next_action: form.next_action || null,
+          next_action_at: form.next_action_at
+            ? new Date(`${form.next_action_at}T12:00:00`).toISOString()
+            : null,
         },
       }),
     onSuccess: () => {
