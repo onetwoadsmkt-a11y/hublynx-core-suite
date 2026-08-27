@@ -84,7 +84,12 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
     // 1) Cliente
     let clientId = data.clientId ?? (lead as any).client_id ?? null;
     if (!clientId) {
-      const c = data.client ?? { name: (lead as any).name };
+      const c: {
+        name: string;
+        company?: string | null;
+        email?: string | null;
+        phone?: string | null;
+      } = data.client ?? { name: String((lead as any).name) };
       const { data: created, error } = await supabase
         .from("clients")
         .insert({
