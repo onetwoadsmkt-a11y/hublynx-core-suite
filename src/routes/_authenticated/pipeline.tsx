@@ -8,7 +8,7 @@ import {
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
 import {
-  CalendarDays, HardDrive, LayoutTemplate, Mail, Pencil, Plus, Search, Settings, Settings2, Trash2, Webhook,
+  CalendarDays, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Trash2, Webhook,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

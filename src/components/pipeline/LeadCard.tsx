@@ -42,11 +42,15 @@ export function LeadCard({
   onOpen,
   onEdit,
   draggable = true,
+  locked = false,
+  onLockedDrag,
 }: {
   lead: Lead;
   onOpen: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
   draggable?: boolean;
+  locked?: boolean;
+  onLockedDrag?: () => void;
 }) {
   const qc = useQueryClient();
   const del = useServerFn(deleteLead);
