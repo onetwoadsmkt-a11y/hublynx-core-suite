@@ -169,6 +169,25 @@ export const upsertStage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+
+    if (data.id) {
+      const { data: existing } = await supabase
+        .from("pipeline_stages")
+        .select("is_won,is_lost")
+        .eq("id", data.id)
+        .maybeSingle();
+      if (existing?.is_won || existing?.is_lost) {
+        // Etapas fixas (Ganho / Perdido): só a posição pode mudar.
+        if (data.position != null) {
+          await supabase
+            .from("pipeline_stages")
+            .update({ position: data.position })
+            .eq("id", data.id);
+        }
+        return { ok: true as const };
+      }
+    }
+
     const { error } = await supabase
       .from("pipeline_stages")
       .upsert({ ...data, owner_id: userId });
@@ -180,6 +199,14 @@ export const deleteStage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
+    const { data: existing } = await context.supabase
+      .from("pipeline_stages")
+      .select("is_won,is_lost")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (existing?.is_won || existing?.is_lost) {
+      throw new Error("As etapas Venda ganha e Desqualificado são fixas e não podem ser removidas.");
+    }
     const { error } = await context.supabase
       .from("pipeline_stages")
       .delete()
@@ -250,12 +277,20 @@ export const moveLead = createServerFn({ method: "POST" })
     z.object({ id: uuid, stage_id: uuid, position: z.number().int().min(0).optional() }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { data: stage } = await context.supabase
+      .from("pipeline_stages")
+      .select("is_won,is_lost")
+      .eq("id", data.stage_id)
+      .maybeSingle();
+
+    const status = stage?.is_won ? "ganho" : stage?.is_lost ? "perdido" : "aberto";
+
     const { error } = await context.supabase
       .from("leads")
-      .update({ stage_id: data.stage_id, position: data.position ?? 0 })
+      .update({ stage_id: data.stage_id, position: data.position ?? 0, status })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
-    return { ok: true as const };
+    return { ok: true as const, is_won: !!stage?.is_won, is_lost: !!stage?.is_lost };
   });
 
 export const deleteLead = createServerFn({ method: "POST" })
