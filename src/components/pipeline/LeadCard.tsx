@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock } from "lucide-react";
+import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -42,11 +42,15 @@ export function LeadCard({
   onOpen,
   onEdit,
   draggable = true,
+  locked = false,
+  onLockedDrag,
 }: {
   lead: Lead;
   onOpen: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
   draggable?: boolean;
+  locked?: boolean;
+  onLockedDrag?: () => void;
 }) {
   const qc = useQueryClient();
   const del = useServerFn(deleteLead);
@@ -84,11 +88,16 @@ export function LeadCard({
       className={cn(
         "group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md",
         isDragging && "opacity-40",
+        locked && "cursor-not-allowed border-dashed bg-muted/40 hover:border-border hover:shadow-sm",
       )}
       onClick={() => onOpen(lead)}
+      onPointerDown={() => locked && onLockedDrag?.()}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="line-clamp-2 text-sm font-semibold leading-tight">{lead.name}</p>
+        <p className="line-clamp-2 flex items-center gap-1.5 text-sm font-semibold leading-tight">
+          {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          {lead.name}
+        </p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">

@@ -8,7 +8,7 @@ import {
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
 import {
-  CalendarDays, HardDrive, LayoutTemplate, Mail, Pencil, Plus, Search, Settings, Settings2, Trash2, Webhook,
+  CalendarDays, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Trash2, Webhook,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -300,6 +300,7 @@ function PipelinePage() {
                 onOpen={setOpenLead}
                 onEdit={(l) => { setEditing(l); setTargetStage(undefined); setFormOpen(true); }}
                 onAdd={() => openNew(stage.id)}
+                locked={!!stage.is_won || !!stage.is_lost}
               />
             ))}
           </div>
@@ -369,12 +370,14 @@ function StageColumn({
   onOpen,
   onEdit,
   onAdd,
+  locked = false,
 }: {
   stage: PipelineStage;
   leads: Lead[];
   onOpen: (l: Lead) => void;
   onEdit: (l: Lead) => void;
   onAdd: () => void;
+  locked?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = leads.reduce((s, l) => s + Number(l.value ?? 0), 0);
@@ -385,23 +388,48 @@ function StageColumn({
       className={cn(
         "flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 transition",
         isOver && "border-primary/60 bg-primary/5",
+        locked && "border-dashed",
       )}
     >
       <div className="h-1.5 rounded-t-xl" style={{ backgroundColor: stage.color }} />
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{stage.name}</p>
+          <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
+            {stage.name}
+            {locked && (
+              <span title="Etapa final — leads não podem ser movidos">
+                <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </span>
+            )}
+          </p>
           <p className="text-[11px] text-muted-foreground">
             {leads.length} leads {total > 0 && `· ${currency(total)}`}
+            {locked && " · etapa final"}
           </p>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onAdd}>
-          <Plus className="h-4 w-4" />
-        </Button>
+        {!locked && (
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onAdd}>
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-3">
         {leads.map((l) => (
-          <LeadCard key={l.id} lead={l} onOpen={onOpen} onEdit={onEdit} />
+          <LeadCard
+            key={l.id}
+            lead={l}
+            onOpen={onOpen}
+            onEdit={onEdit}
+            draggable={!locked}
+            locked={locked}
+            onLockedDrag={() =>
+              toast.info(
+                stage.is_won
+                  ? "Lead já convertido em venda ganha — não pode ser movido."
+                  : "Lead desqualificado — não pode ser movido.",
+              )
+            }
+          />
         ))}
         {leads.length === 0 && (
           <p className="px-2 py-6 text-center text-xs text-muted-foreground">Arraste leads para cá</p>
