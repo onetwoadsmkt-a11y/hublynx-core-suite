@@ -226,6 +226,8 @@ const leadSchema = z.object({
   landing_url: z.string().max(600).nullable().optional(),
   referrer: z.string().max(600).nullable().optional(),
   tags: z.array(z.string().max(40)).max(20).optional(),
+  next_action: z.string().max(200).nullable().optional(),
+  next_action_at: z.string().max(40).nullable().optional(),
 });
 
 export const upsertLead = createServerFn({ method: "POST" })
