@@ -169,6 +169,25 @@ export const upsertStage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+
+    if (data.id) {
+      const { data: existing } = await supabase
+        .from("pipeline_stages")
+        .select("is_won,is_lost")
+        .eq("id", data.id)
+        .maybeSingle();
+      if (existing?.is_won || existing?.is_lost) {
+        // Etapas fixas (Ganho / Perdido): só a posição pode mudar.
+        if (data.position != null) {
+          await supabase
+            .from("pipeline_stages")
+            .update({ position: data.position })
+            .eq("id", data.id);
+        }
+        return { ok: true as const };
+      }
+    }
+
     const { error } = await supabase
       .from("pipeline_stages")
       .upsert({ ...data, owner_id: userId });
@@ -180,6 +199,14 @@ export const deleteStage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
+    const { data: existing } = await context.supabase
+      .from("pipeline_stages")
+      .select("is_won,is_lost")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (existing?.is_won || existing?.is_lost) {
+      throw new Error("As etapas Venda ganha e Desqualificado são fixas e não podem ser removidas.");
+    }
     const { error } = await context.supabase
       .from("pipeline_stages")
       .delete()
