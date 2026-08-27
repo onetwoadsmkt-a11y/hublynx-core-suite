@@ -148,6 +148,7 @@ function PipelinePage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  // modal de conversão Ganho → Cliente → Projeto → Financeiro
   function onDragStart(e: DragStartEvent) {
     setDragging(leads.find((l) => l.id === e.active.id) ?? null);
   }
@@ -156,6 +157,12 @@ function PipelinePage() {
     const stageId = e.over?.id ? String(e.over.id) : null;
     const lead = leads.find((l) => l.id === e.active.id);
     if (!stageId || !lead || lead.stage_id === stageId) return;
+    const target = stages.find((st) => st.id === stageId);
+    if (target?.is_won && !(lead as any).converted_project_id) {
+      move.mutate({ id: lead.id, stage_id: stageId });
+      setWinLead({ ...lead, stage_id: stageId });
+      return;
+    }
     move.mutate({ id: lead.id, stage_id: stageId });
   }
 
