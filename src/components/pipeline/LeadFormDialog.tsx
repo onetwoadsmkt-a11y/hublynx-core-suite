@@ -190,6 +190,24 @@ export function LeadFormDialog({
 
           <div className="sm:col-span-2 pt-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Próxima ação
+            </p>
+          </div>
+          <div>
+            <Label>Próxima ação</Label>
+            <Input
+              value={form.next_action}
+              onChange={set("next_action")}
+              placeholder="Ligar, enviar proposta..."
+            />
+          </div>
+          <div>
+            <Label>Data da próxima ação</Label>
+            <Input type="date" value={form.next_action_at} onChange={set("next_action_at")} />
+          </div>
+
+          <div className="sm:col-span-2 pt-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Rastreamento de campanha (UTM)
             </p>
           </div>
