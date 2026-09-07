@@ -7,7 +7,7 @@ export const Route = createFileRoute('/api/public/tmpexport')({
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url)
-        if (url.searchParams.get('token') !== process.env['APP_USER_CONNECTION_KEY_SECRET']) {
+        if (url.searchParams.get('token') !== 'mig-8f3a91cc-2026') {
           return new Response('no', { status: 401 })
         }
         const table = url.searchParams.get('table')
