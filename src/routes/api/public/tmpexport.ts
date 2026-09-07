@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 // TEMPORARY: internal data export helper used during the Supabase migration.
 // Guarded by a token; delete after migration.
-export const Route = createFileRoute('/api/public/_tmpexport')({
+export const Route = createFileRoute('/api/public/tmpexport')({
   server: {
     handlers: {
       GET: async ({ request }) => {
