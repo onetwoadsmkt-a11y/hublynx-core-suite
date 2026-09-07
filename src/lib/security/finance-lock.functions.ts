@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { SUPABASE_URL as CFG_URL, SUPABASE_PUBLISHABLE_KEY as CFG_KEY } from "@/integrations/supabase/env";
 
 /** Informa se a conta possui senha própria (provider "email"). */
 export const getAccountPasswordStatus = createServerFn({ method: "POST" })
@@ -24,8 +25,8 @@ export const verifyAccountPassword = createServerFn({ method: "POST" })
     const email = (context.claims as { email?: string } | undefined)?.email;
     if (!email) return { ok: false };
 
-    const url = process.env["SUPABASE_URL"]!;
-    const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+    const url = CFG_URL;
+    const key = CFG_KEY;
     const client = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: {
