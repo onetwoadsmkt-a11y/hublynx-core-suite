@@ -52,6 +52,7 @@ import { Route as AuthenticatedFinanceiroServicosRouteImport } from './routes/_a
 import { Route as AuthenticatedGestaoClientesRouteImport } from './routes/_authenticated/gestao.clientes'
 import { Route as AuthenticatedProjetosIndexRouteImport } from './routes/_authenticated/projetos.index'
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
+import { Route as ApiPublicTmpexportRouteImport } from './routes/api/public/_tmpexport'
 import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authenticated/app.tarefas.$id'
 import { Route as AuthenticatedConfiguracoesIntegracoesIndexRouteImport } from './routes/_authenticated/configuracoes.integracoes.index'
 import { Route as AuthenticatedConfiguracoesIntegracoesLogsRouteImport } from './routes/_authenticated/configuracoes.integracoes.logs'
@@ -296,6 +297,11 @@ const AuthenticatedProjetosIdRoute = AuthenticatedProjetosIdRouteImport.update({
   path: '/projetos/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicTmpexportRoute = ApiPublicTmpexportRouteImport.update({
+  id: '/api/public/_tmpexport',
+  path: '/api/public',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAppTarefasIdRoute =
   AuthenticatedAppTarefasIdRouteImport.update({
     id: '/$id',
@@ -371,6 +377,7 @@ export interface FileRoutesByFullPath {
   '/financeiro/servicos': typeof AuthenticatedFinanceiroServicosRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/api/public': typeof ApiPublicTmpexportRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
   '/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
@@ -418,6 +425,7 @@ export interface FileRoutesByTo {
   '/financeiro/servicos': typeof AuthenticatedFinanceiroServicosRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/api/public': typeof ApiPublicTmpexportRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesIndexRoute
   '/financeiro': typeof AuthenticatedFinanceiroIndexRoute
@@ -470,6 +478,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro/servicos': typeof AuthenticatedFinanceiroServicosRoute
   '/_authenticated/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/api/public/_tmpexport': typeof ApiPublicTmpexportRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
   '/_authenticated/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
@@ -522,6 +531,7 @@ export interface FileRouteTypes {
     | '/financeiro/servicos'
     | '/gestao/clientes'
     | '/projetos/$id'
+    | '/api/public'
     | '/app/'
     | '/configuracoes/'
     | '/financeiro/'
@@ -569,6 +579,7 @@ export interface FileRouteTypes {
     | '/financeiro/servicos'
     | '/gestao/clientes'
     | '/projetos/$id'
+    | '/api/public'
     | '/app'
     | '/configuracoes'
     | '/financeiro'
@@ -620,6 +631,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro/servicos'
     | '/_authenticated/gestao/clientes'
     | '/_authenticated/projetos/$id'
+    | '/api/public/_tmpexport'
     | '/_authenticated/app/'
     | '/_authenticated/configuracoes/'
     | '/_authenticated/financeiro/'
@@ -638,6 +650,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicTmpexportRoute: typeof ApiPublicTmpexportRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
   ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
@@ -946,6 +959,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjetosIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/_tmpexport': {
+      id: '/api/public/_tmpexport'
+      path: '/api/public'
+      fullPath: '/api/public'
+      preLoaderRoute: typeof ApiPublicTmpexportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/tarefas/$id': {
       id: '/_authenticated/app/tarefas/$id'
       path: '/$id'
@@ -1141,6 +1161,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicTmpexportRoute: ApiPublicTmpexportRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
   ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,
