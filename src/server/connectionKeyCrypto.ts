@@ -1,9 +1,12 @@
 // Server-only — nunca importar no browser.
+// Criptografia AES-256-GCM para senhas de contas IMAP/SMTP.
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
+const ENV_KEY = "MAIL_PASSWORD_ENCRYPTION_KEY";
+
 function key(): Buffer {
-  const raw = process.env['APP_USER_CONNECTION_KEY_SECRET'];
-  if (!raw) throw new Error("APP_USER_CONNECTION_KEY_SECRET is not set");
+  const raw = process.env[ENV_KEY];
+  if (!raw) throw new Error(`${ENV_KEY} is not set`);
   return Buffer.from(raw, "base64");
 }
 

@@ -273,7 +273,7 @@ export const getGoogleDiagnostics = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { readConfig, getConnection } = await import("@/server/googleOAuth.server");
     const { resolveRedirectUri, resolveOrigin } = await import("@/server/googleOrigin.server");
-    const { listOAuthLogs } = await import("@/server/appUserConnections.server");
+    const { listOAuthLogs } = await import("@/server/googleOAuthLogs.server");
     const cfg = await readConfig();
     const conn = await getConnection(context.userId);
     const request = getRequest();
@@ -306,7 +306,7 @@ export const listGoogleOAuthLogs = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }) => {
     const { listOAuthLogs, listProfilesBasic } = await import(
-      "@/server/appUserConnections.server"
+      "@/server/googleOAuthLogs.server"
     );
     const { data: roleRow } = await context.supabase
       .from("user_roles")
