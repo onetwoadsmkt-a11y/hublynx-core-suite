@@ -20,7 +20,10 @@ async function getServerEntry(): Promise<ServerEntry> {
 
 // h3 swallows in-handler throws into a normal 500 Response with body
 // {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.
-async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
+async function normalizeCatastrophicSsrResponse(
+  response: Response,
+  request: Request,
+): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) return response;
@@ -34,7 +37,7 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
   // The browser closed the connection mid-render (navigation/reload). Not a real failure.
   const aborted =
-    request.signal?.aborted ||
+    request.signal?.aborted === true ||
     (captured as { code?: string; cause?: { code?: string } })?.code === "ECONNRESET" ||
     (captured as { cause?: { code?: string } })?.cause?.code === "ECONNRESET";
   if (aborted) {
