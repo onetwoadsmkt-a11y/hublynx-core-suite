@@ -5,6 +5,6 @@
 export const GOOGLE_API_BASE = "https://www.googleapis.com";
 
 export async function googleHeaders(userId: string): Promise<Record<string, string>> {
-  const { googleAuthHeaders } = await import("@/server/googleOAuth.server");
-  return googleAuthHeaders(userId);
+  const { resolveGoogleHeaders } = await import("./google-headers.server");
+  return resolveGoogleHeaders(userId);
 }
