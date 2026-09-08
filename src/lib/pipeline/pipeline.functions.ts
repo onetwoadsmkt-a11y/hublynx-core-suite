@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DEFAULT_STAGES } from "./defaults";
+import { scopeWorkspace, workspaceFields } from "@/lib/workspaces/filter";
 
 const uuid = z.string().uuid();
 
@@ -84,7 +85,7 @@ export const deletePipeline = createServerFn({ method: "POST" })
 export const listPipeline = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ pipelineId: uuid.optional() }).parse(d ?? {}),
+    z.object({ pipelineId: uuid.optional(), workspaceId: uuid.optional() }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -143,7 +144,10 @@ export const listPipeline = createServerFn({ method: "GET" })
     }
 
     const stageIds = (stages ?? []).map((s) => s.id);
-    const query = supabase.from("leads").select("*").order("created_at", { ascending: false });
+    const query = scopeWorkspace(
+      supabase.from("leads").select("*").order("created_at", { ascending: false }),
+      data.workspaceId,
+    );
     const { data: leads, error: lerr } = await (isFirst
       ? query.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
       : query.in("stage_id", stageIds));
@@ -259,12 +263,18 @@ const leadSchema = z.object({
 
 export const upsertLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => leadSchema.parse(d))
+  .inputValidator((d: unknown) => leadSchema.extend({ workspaceId: uuid.optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { workspaceId, ...lead } = data;
+    // Lead existente: preserva id/owner_id/workspace_id. Lead novo: recebe o workspace ativo
+    // e o owner_id do usuário (compatibilidade com o RLS atual).
+    const payload = lead.id
+      ? { ...lead, owner_id: userId }
+      : { ...lead, owner_id: userId, ...workspaceFields(workspaceId) };
     const { data: row, error } = await supabase
       .from("leads")
-      .upsert({ ...data, owner_id: userId })
+      .upsert(payload as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -685,12 +695,16 @@ export const deleteLeadFile = createServerFn({ method: "POST" })
 
 export const listAllLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: unknown) => z.object({ workspaceId: uuid.optional() }).parse(d ?? {}))
+  .handler(async ({ data, context }) => {
     const { supabase } = context;
     const [{ data: pipelines }, { data: stages }, { data: leads, error }] = await Promise.all([
       supabase.from("pipelines").select("*").order("position"),
       supabase.from("pipeline_stages").select("*").order("position"),
-      supabase.from("leads").select("*").order("created_at", { ascending: false }),
+      scopeWorkspace(
+        supabase.from("leads").select("*").order("created_at", { ascending: false }),
+        data.workspaceId,
+      ),
     ]);
     if (error) throw new Error(error.message);
     return {
