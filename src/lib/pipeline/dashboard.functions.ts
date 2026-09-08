@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { scopeWorkspace } from "@/lib/workspaces/filter";
 
 const uuid = z.string().uuid();
 
@@ -12,6 +13,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
         pipelineId: uuid.optional(),
         from: z.string().optional(),
         to: z.string().optional(),
+        workspaceId: uuid.optional(),
       })
       .parse(d ?? {}),
   )
@@ -52,7 +54,10 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
 
     const fetchRange = async (fromDay?: string, toDay?: string) => {
       if (stageIds.length === 0) return [] as Row[];
-      let q = supabase.from("leads").select("id,stage_id,value,source,created_at,temperature");
+      let q = scopeWorkspace(
+        supabase.from("leads").select("id,stage_id,value,source,created_at,temperature"),
+        data.workspaceId,
+      );
       q = isFirst
         ? q.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
         : q.in("stage_id", stageIds);

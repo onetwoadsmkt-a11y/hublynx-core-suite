@@ -29,6 +29,7 @@ import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
 import { useAccess } from "@/hooks/useAccess";
 import { capabilityForPath } from "@/lib/subscriptions/capabilities";
 import { CreditCard } from "lucide-react";
+import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 
 function HeaderInstallModule() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -306,6 +307,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <WorkspaceSwitcher />
             <HeaderInstallModule />
             {valuesUnlocked && (
               <Button

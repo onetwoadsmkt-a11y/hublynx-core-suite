@@ -108,14 +108,29 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           stageId = firstStage?.id ?? null;
         }
 
+        // Fase 2: resolve o workspace a partir do dono do webhook (workspaces.legacy_owner_id).
+        // Best-effort: se não encontrar, o lead continua entrando apenas com owner_id.
+        let workspaceId: string | null = null;
+        try {
+          const { data: ws } = await (supabaseAdmin as unknown as { from: (t: string) => any })
+            .from("workspaces")
+            .select("id")
+            .eq("legacy_owner_id", hook.owner_id)
+            .maybeSingle();
+          workspaceId = (ws?.id as string | undefined) ?? null;
+        } catch {
+          workspaceId = null;
+        }
+
         const { data: lead, error } = await supabaseAdmin
           .from("leads")
           .insert({
             ...parsed.data,
             owner_id: hook.owner_id,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
             stage_id: stageId,
             metadata: raw as never,
-          })
+          } as never)
           .select("id")
           .single();
 

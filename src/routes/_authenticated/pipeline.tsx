@@ -38,6 +38,7 @@ import {
 } from "@/lib/pipeline/pipeline.functions";
 import { cn } from "@/lib/utils";
 import { useLeadArrivalAlert } from "@/lib/pipeline/use-lead-arrival";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({
@@ -77,12 +78,19 @@ function PipelinePage() {
   const [pipeDialog, setPipeDialog] = useState<"new" | "rename" | null>(null);
   const [pipeName, setPipeName] = useState("");
 
+  const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
+
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline", pipelineId ?? "default"],
-    queryFn: () => listFn({ data: pipelineId ? { pipelineId } : {} }),
+    queryKey: ["pipeline", pipelineId ?? "default", activeWorkspaceId ?? "none"],
+    queryFn: () =>
+      listFn({
+        data: {
+          ...(pipelineId ? { pipelineId } : {}),
+          ...(activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}),
+        },
+      }),
+    enabled: !wsLoading,
     staleTime: 15_000,
-    refetchInterval: 30_000,
-    refetchIntervalInBackground: true,
   });
 
   const pipelines = (data?.pipelines ?? []) as PipelineRow[];
