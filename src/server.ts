@@ -30,12 +30,24 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
     return response;
   }
 
-  console.error(consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`));
+  const captured = consumeLastCapturedError();
+
+  // The browser closed the connection mid-render (navigation/reload). Not a real failure.
+  const aborted =
+    request.signal?.aborted ||
+    (captured as { code?: string; cause?: { code?: string } })?.code === "ECONNRESET" ||
+    (captured as { cause?: { code?: string } })?.cause?.code === "ECONNRESET";
+  if (aborted) {
+    return new Response(null, { status: 499 });
+  }
+
+  console.error(captured ?? new Error(`h3 swallowed SSR error: ${body}`));
   return new Response(renderErrorPage(), {
     status: 500,
     headers: { "content-type": "text/html; charset=utf-8" },
   });
 }
+
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
