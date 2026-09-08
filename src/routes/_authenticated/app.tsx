@@ -30,11 +30,7 @@ function AppMobileLayout() {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
     const host = window.location.hostname;
-    const isPreview =
-      host.startsWith("id-preview--") ||
-      host.startsWith("preview--") ||
-      host.endsWith(".lovableproject.com") ||
-      host.endsWith(".lovableproject-dev.com");
+    const isPreview = host.startsWith("id-preview--") || host.startsWith("preview--");
     if (isPreview) return;
     navigator.serviceWorker.register("/sw-push.js").catch(() => {});
   }, []);
