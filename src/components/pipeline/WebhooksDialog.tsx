@@ -28,7 +28,7 @@ const PRODUCTION_BASE = "https://core.hublynx.com.br";
 function publicBaseUrl() {
   if (typeof window === "undefined") return PRODUCTION_BASE;
   const host = window.location.hostname;
-  const isPreview = host.includes("id-preview--") || host.endsWith(".lovableproject.com") || host === "localhost";
+  const isPreview = host.includes("id-preview--") || host === "localhost";
   return isPreview ? PRODUCTION_BASE : window.location.origin;
 }
 

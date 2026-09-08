@@ -26,6 +26,7 @@ import { Route as AuthenticatedHubRouteImport } from './routes/_authenticated/hu
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedAdminAssinaturasRouteImport } from './routes/_authenticated/admin.assinaturas'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
@@ -144,6 +145,11 @@ const AuthenticatedTarefasRoute = AuthenticatedTarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
 } as any)
 const AuthenticatedAdminAssinaturasRoute =
   AuthenticatedAdminAssinaturasRouteImport.update({
@@ -334,7 +340,7 @@ const ApiPublicGoogleOauthCallbackRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/agenda': typeof AuthenticatedAgendaRoute
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
@@ -384,7 +391,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/agenda': typeof AuthenticatedAgendaRoute
@@ -396,6 +403,7 @@ export interface FileRoutesByTo {
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
@@ -433,7 +441,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/agenda': typeof AuthenticatedAgendaRoute
@@ -448,6 +456,7 @@ export interface FileRoutesById {
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/_authenticated/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/app/hoje': typeof AuthenticatedAppHojeRoute
@@ -500,6 +509,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/relatorios'
     | '/tarefas'
+    | '/auth/callback'
     | '/admin/assinaturas'
     | '/admin/usuarios'
     | '/app/hoje'
@@ -547,6 +557,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/relatorios'
     | '/tarefas'
+    | '/auth/callback'
     | '/admin/assinaturas'
     | '/admin/usuarios'
     | '/app/hoje'
@@ -598,6 +609,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pipeline'
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
+    | '/auth/callback'
     | '/_authenticated/admin/assinaturas'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/app/hoje'
@@ -635,7 +647,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
@@ -763,6 +775,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tarefas'
       preLoaderRoute: typeof AuthenticatedTarefasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_authenticated/admin/assinaturas': {
       id: '/_authenticated/admin/assinaturas'
@@ -1135,10 +1154,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,

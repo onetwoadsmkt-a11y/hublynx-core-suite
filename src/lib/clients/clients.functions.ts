@@ -77,7 +77,7 @@ export const upsertClient = createServerFn({ method: "POST" })
     // Fire-and-forget Google Sheets sync
     try {
       const { performSheetsSync } = await import("@/lib/google/sheets-sync.functions");
-      await performSheetsSync(context.supabase, "client", (row as ClientRow).id);
+      await performSheetsSync(context.supabase, context.userId, "client", (row as ClientRow).id);
     } catch (e) {
       console.warn("[sheets-sync] client sync failed:", e);
     }

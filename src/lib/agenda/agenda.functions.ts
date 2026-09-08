@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { GOOGLE_API_BASE } from "@/lib/google/google.functions";
+import { GOOGLE_API_BASE, googleHeaders } from "@/lib/google/google.functions";
 import type { AgendaEvent } from "./types";
 
 const rangeSchema = z.object({
@@ -109,44 +109,37 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
     }
 
 
-    const lovableKey = process.env.LOVABLE_API_KEY;
-    const calKey = process.env.GOOGLE_CALENDAR_API_KEY;
-    if (lovableKey && calKey) {
-      try {
-        const url = new URL(`${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events`);
-        url.searchParams.set("timeMin", fromISO);
-        url.searchParams.set("timeMax", toISO);
-        url.searchParams.set("singleEvents", "true");
-        url.searchParams.set("orderBy", "startTime");
-        url.searchParams.set("maxResults", "250");
-        const res = await fetch(url.toString(), {
-          headers: {
-            Authorization: `Bearer ${lovableKey}`,
-            "X-Connection-Api-Key": calKey,
-          },
-        });
-        if (res.ok) {
-          const json = (await res.json()) as any;
-          for (const ev of (json.items ?? []) as any[]) {
-            const s = ev.start?.dateTime ?? (ev.start?.date ? `${ev.start.date}T00:00:00Z` : null);
-            const e = ev.end?.dateTime ?? (ev.end?.date ? `${ev.end.date}T00:00:00Z` : null);
-            if (!s) continue;
-            events.push({
-              id: `gcal-${ev.id}`,
-              source: "gcal",
-              title: ev.summary || "(sem título)",
-              start: s,
-              end: e,
-              allDay: !!ev.start?.date,
-              meetLink: ev.hangoutLink ?? null,
-              htmlLink: ev.htmlLink ?? null,
-              description: ev.description ?? null,
-            });
-          }
+    // Eventos do Google Calendar via OAuth próprio do usuário
+    try {
+      const headers = await googleHeaders(userId);
+      const url = new URL(`${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events`);
+      url.searchParams.set("timeMin", fromISO);
+      url.searchParams.set("timeMax", toISO);
+      url.searchParams.set("singleEvents", "true");
+      url.searchParams.set("orderBy", "startTime");
+      url.searchParams.set("maxResults", "250");
+      const res = await fetch(url.toString(), { headers });
+      if (res.ok) {
+        const json = (await res.json()) as any;
+        for (const ev of (json.items ?? []) as any[]) {
+          const s = ev.start?.dateTime ?? (ev.start?.date ? `${ev.start.date}T00:00:00Z` : null);
+          const e = ev.end?.dateTime ?? (ev.end?.date ? `${ev.end.date}T00:00:00Z` : null);
+          if (!s) continue;
+          events.push({
+            id: `gcal-${ev.id}`,
+            source: "gcal",
+            title: ev.summary || "(sem título)",
+            start: s,
+            end: e,
+            allDay: !!ev.start?.date,
+            meetLink: ev.hangoutLink ?? null,
+            htmlLink: ev.htmlLink ?? null,
+            description: ev.description ?? null,
+          });
         }
-      } catch {
-        // silencioso
       }
+    } catch {
+      // silencioso: se o usuário não conectou o Google, ignora eventos externos
     }
 
     events.sort((a, b) => a.start.localeCompare(b.start));
