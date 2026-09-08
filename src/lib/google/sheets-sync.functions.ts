@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_sheets/v4";
+import { GOOGLE_API_BASE, googleHeaders } from "./google.functions";
 
 type EntityType = "task" | "client" | "project";
 
@@ -77,22 +76,14 @@ const ENTITY_DEFS: Record<EntityType, EntityDef> = {
   },
 };
 
-function getEnv() {
-  const lovableKey = process.env.LOVABLE_API_KEY;
-  const sheetsKey = process.env.GOOGLE_SHEETS_API_KEY;
-  if (!lovableKey || !sheetsKey) {
-    throw new Error("Conector Google Sheets não configurado.");
-  }
-  return { lovableKey, sheetsKey };
-}
+const SHEETS_API_BASE = `${GOOGLE_API_BASE}/sheets/v4`;
 
-async function gatewayFetch(path: string, init: RequestInit = {}) {
-  const { lovableKey, sheetsKey } = getEnv();
-  const res = await fetch(`${GATEWAY_URL}${path}`, {
+async function sheetsFetch(userId: string, path: string, init: RequestInit = {}) {
+  const headers = await googleHeaders(userId);
+  const res = await fetch(`${SHEETS_API_BASE}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": sheetsKey,
+      ...headers,
       "Content-Type": "application/json",
       ...(init.headers ?? {}),
     },
@@ -104,7 +95,7 @@ async function gatewayFetch(path: string, init: RequestInit = {}) {
   return res.json();
 }
 
-async function ensureSpreadsheet(supabase: any, entityType: EntityType) {
+async function ensureSpreadsheet(supabase: any, userId: string, entityType: EntityType) {
   const def = ENTITY_DEFS[entityType];
   const { data: existing } = await supabase
     .from("google_sheets_sync")
@@ -117,7 +108,7 @@ async function ensureSpreadsheet(supabase: any, entityType: EntityType) {
   }
 
   // Create new spreadsheet with headers
-  const created = await gatewayFetch("/spreadsheets", {
+  const created = await sheetsFetch(userId, "/spreadsheets", {
     method: "POST",
     body: JSON.stringify({
       properties: { title: def.title },
@@ -129,7 +120,8 @@ async function ensureSpreadsheet(supabase: any, entityType: EntityType) {
     created.spreadsheetUrl ?? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
 
   // Write headers
-  await gatewayFetch(
+  await sheetsFetch(
+    userId,
     `/spreadsheets/${spreadsheetId}/values/Sheet1!A1?valueInputOption=RAW`,
     {
       method: "PUT",
@@ -151,8 +143,9 @@ async function ensureSpreadsheet(supabase: any, entityType: EntityType) {
   return saved;
 }
 
-async function findRowIndex(spreadsheetId: string, sheetName: string, recordId: string) {
-  const data = await gatewayFetch(
+async function findRowIndex(userId: string, spreadsheetId: string, sheetName: string, recordId: string) {
+  const data = await sheetsFetch(
+    userId,
     `/spreadsheets/${spreadsheetId}/values/${sheetName}!A:A`,
   );
   const values: string[][] = data.values ?? [];
@@ -164,6 +157,7 @@ async function findRowIndex(spreadsheetId: string, sheetName: string, recordId: 
 
 export async function performSheetsSync(
   supabase: any,
+  userId: string,
   entityType: EntityType,
   recordId: string,
 ) {
@@ -176,18 +170,20 @@ export async function performSheetsSync(
   if (error) throw new Error(error.message);
   if (!record) return { ok: false as const, reason: "not_found" };
 
-  const cfg = await ensureSpreadsheet(supabase, entityType);
+  const cfg = await ensureSpreadsheet(supabase, userId, entityType);
   const row = def.toRow(record);
   const sheetName = cfg.sheet_name ?? "Sheet1";
 
-  const rowIndex = await findRowIndex(cfg.spreadsheet_id, sheetName, recordId);
+  const rowIndex = await findRowIndex(userId, cfg.spreadsheet_id, sheetName, recordId);
   if (rowIndex) {
-    await gatewayFetch(
+    await sheetsFetch(
+      userId,
       `/spreadsheets/${cfg.spreadsheet_id}/values/${sheetName}!A${rowIndex}?valueInputOption=USER_ENTERED`,
       { method: "PUT", body: JSON.stringify({ values: [row] }) },
     );
   } else {
-    await gatewayFetch(
+    await sheetsFetch(
+      userId,
       `/spreadsheets/${cfg.spreadsheet_id}/values/${sheetName}!A:A:append?valueInputOption=USER_ENTERED`,
       { method: "POST", body: JSON.stringify({ values: [row] }) },
     );
@@ -207,7 +203,7 @@ export const syncEntityToSheets = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     try {
-      return await performSheetsSync(context.supabase, data.entityType as EntityType, data.recordId);
+      return await performSheetsSync(context.supabase, context.userId, data.entityType as EntityType, data.recordId);
     } catch (e: any) {
       console.warn("[sheets-sync] skipped:", e?.message ?? e);
       return { ok: false as const, reason: "sync_failed", message: String(e?.message ?? e).slice(0, 200) };
@@ -232,10 +228,11 @@ export const deleteEntityRowFromSheets = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!cfg?.spreadsheet_id) return { ok: true as const };
     const sheetName = cfg.sheet_name ?? "Sheet1";
-    const rowIndex = await findRowIndex(cfg.spreadsheet_id, sheetName, data.recordId);
+    const rowIndex = await findRowIndex(context.userId, cfg.spreadsheet_id, sheetName, data.recordId);
     if (!rowIndex) return { ok: true as const };
     // Clear the row contents (keep row to avoid shifting refs)
-    await gatewayFetch(
+    await sheetsFetch(
+      context.userId,
       `/spreadsheets/${cfg.spreadsheet_id}/values/${sheetName}!A${rowIndex}:Z${rowIndex}:clear`,
       { method: "POST", body: JSON.stringify({}) },
     );
