@@ -491,7 +491,9 @@ export const updateWebhookMapping = createServerFn({ method: "POST" })
 
 export const reprocessLastPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: uuid, create: z.boolean().optional() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({ id: uuid, create: z.boolean().optional(), workspaceId: uuid.optional() }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: hook, error } = await supabase
@@ -512,6 +514,7 @@ export const reprocessLastPayload = createServerFn({ method: "POST" })
     if (data.create && preview["name"]) {
       await supabase.from("leads").insert({
         owner_id: userId,
+        ...workspaceFields(data.workspaceId),
         stage_id: hook.default_stage_id,
         ...preview,
         value: preview["value"] ? Number(preview["value"]) : null,
