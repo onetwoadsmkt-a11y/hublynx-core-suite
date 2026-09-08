@@ -1,6 +1,4 @@
 // Server-only — leitura de logs de OAuth do Google (próprio do app, não App User Connector).
-import type { OAuthLogAction } from "./googleOAuth.server";
-
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin as unknown as {
