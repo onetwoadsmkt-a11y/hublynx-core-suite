@@ -24,6 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { pipelineDashboard } from "@/lib/pipeline/dashboard.functions";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { computeFunnel, classifyStage } from "@/lib/pipeline/funnel";
 import { currency } from "@/components/pipeline/LeadCard";
 
@@ -51,10 +52,15 @@ function ComercialDashboard() {
   const [from, setFrom] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)));
   const [to, setTo] = useState(iso(today));
 
+  const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
   const { data, isLoading } = useQuery({
-    queryKey: ["comercial-dashboard", pipelineId ?? "default", from, to],
-    queryFn: () => dashFn({ data: { pipelineId, from, to } }),
+    queryKey: ["comercial-dashboard", pipelineId ?? "default", from, to, activeWorkspaceId ?? "none"],
+    queryFn: () =>
+      dashFn({
+        data: { pipelineId, from, to, ...(activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}) },
+      }),
     staleTime: 30_000,
+    enabled: !wsLoading,
   });
 
   const pipelines = data?.pipelines ?? [];

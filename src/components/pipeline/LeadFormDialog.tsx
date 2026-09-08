@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { upsertLead } from "@/lib/pipeline/pipeline.functions";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import type { Lead, PipelineStage } from "./types";
 
 type Form = {
@@ -57,6 +58,7 @@ export function LeadFormDialog({
 }) {
   const qc = useQueryClient();
   const save = useServerFn(upsertLead);
+  const { activeWorkspaceId } = useWorkspace();
   const [form, setForm] = useState<Form>(EMPTY);
 
   useEffect(() => {
@@ -92,7 +94,7 @@ export function LeadFormDialog({
     mutationFn: () =>
       save({
         data: {
-          ...(lead ? { id: lead.id } : {}),
+          ...(lead ? { id: lead.id } : activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}),
           name: form.name.trim(),
           company: form.company || null,
           email: form.email || null,

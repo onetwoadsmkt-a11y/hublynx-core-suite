@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { ModuleManifest } from "@/components/modules/ModuleManifest";
 import { ModuleGate } from "@/components/modules/ModuleGate";
 import { AccessGate } from "@/components/access/AccessGate";
+import { WorkspaceProvider } from "@/hooks/useWorkspace";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -20,20 +21,22 @@ function AuthenticatedLayout() {
   // Rotas do PWA mobile (/app/*) rodam fora do AppShell desktop.
   if (pathname.startsWith("/app")) {
     return (
-      <>
+      <WorkspaceProvider>
         <ModuleManifest />
         <Outlet />
-      </>
+      </WorkspaceProvider>
     );
   }
   return (
-    <AppShell>
-      <ModuleManifest />
-      <AccessGate>
-        <ModuleGate>
-          <Outlet />
-        </ModuleGate>
-      </AccessGate>
-    </AppShell>
+    <WorkspaceProvider>
+      <AppShell>
+        <ModuleManifest />
+        <AccessGate>
+          <ModuleGate>
+            <Outlet />
+          </ModuleGate>
+        </AccessGate>
+      </AppShell>
+    </WorkspaceProvider>
   );
 }

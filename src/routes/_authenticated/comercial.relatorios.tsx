@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getLeadsReport } from "@/lib/pipeline/report.functions";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { exportLeadsReportToExcel } from "@/lib/pipeline/export-report";
 import { DEFAULT_FIELDS, LEAD_FIELDS, type LeadFieldKey } from "@/lib/pipeline/report-fields";
 
@@ -54,16 +55,19 @@ function RelatoriosComerciaisPage() {
   const [exporting, setExporting] = useState(false);
 
   const reportFn = useServerFn(getLeadsReport);
+  const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ["leads-report", pipelineId, from, to],
+    queryKey: ["leads-report", pipelineId, from, to, activeWorkspaceId ?? "none"],
     queryFn: () =>
       reportFn({
         data: {
           pipelineId: pipelineId === "all" ? null : pipelineId,
           from: from || null,
           to: to || null,
+          ...(activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}),
         },
       }),
+    enabled: !wsLoading,
   });
 
   const pipelines = data?.pipelines ?? [];

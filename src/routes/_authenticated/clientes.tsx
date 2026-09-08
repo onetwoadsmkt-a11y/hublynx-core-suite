@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Users, Pencil, Eye, FileSpreadsheet } from "lucide-react";
 import { listAllLeads } from "@/lib/pipeline/pipeline.functions";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { LeadViewDialog } from "@/components/pipeline/LeadViewDialog";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
 import { exportLeadsToExcel } from "@/lib/pipeline/export-leads";
@@ -76,9 +77,11 @@ function LeadsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
 
+  const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline", "all-leads"],
-    queryFn: () => listFn(),
+    queryKey: ["pipeline", "all-leads", activeWorkspaceId ?? "none"],
+    queryFn: () => listFn({ data: activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {} }),
+    enabled: !wsLoading,
   });
 
   const pipelines = data?.pipelines ?? [];
