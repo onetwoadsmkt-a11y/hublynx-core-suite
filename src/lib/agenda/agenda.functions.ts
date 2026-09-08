@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { GOOGLE_API_BASE } from "@/lib/google/google.functions";
+import { GOOGLE_API_BASE, googleHeaders } from "@/lib/google/google.functions";
 import type { AgendaEvent } from "./types";
 
 const rangeSchema = z.object({
