@@ -62,7 +62,7 @@ export const setLeadTags = createServerFn({ method: "POST" })
 
     const { data: lead, error: leadError } = await supabase
       .from("leads")
-      .select("id, owner_id, pipeline_id, tags")
+      .select("id, owner_id, stage_id, tags")
       .eq("id", data.leadId)
       .maybeSingle();
     if (leadError) throw new Error(leadError.message);
