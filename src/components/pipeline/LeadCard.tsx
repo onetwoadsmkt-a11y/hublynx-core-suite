@@ -1,16 +1,20 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
+import { Building2, Mail, MapPin, Phone, Tag, TagIcon, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { setLeadTags } from "@/lib/pipeline/tags.functions";
 import { deleteLead, getLeadDetail } from "@/lib/pipeline/pipeline.functions";
 import { exportLeadJourneyToExcel } from "@/lib/pipeline/export-leads";
 import { cn } from "@/lib/utils";
@@ -55,12 +59,31 @@ export function LeadCard({
   tags?: { slug: string; name: string; color: string }[];
 }) {
   const leadTags = ((lead as any).tags as string[] | null) ?? [];
-  const shownTags = tags.filter((t) =>
-    leadTags.some((s) => String(s).toLowerCase() === t.slug.toLowerCase()),
-  );
+  const [sel, setSel] = useState<string[]>(leadTags.map(String));
+  useEffect(() => {
+    setSel((((lead as any).tags as string[] | null) ?? []).map(String));
+  }, [lead]);
+  const has = (slug: string) => sel.some((s) => s.toLowerCase() === slug.toLowerCase());
+  const shownTags = tags.filter((t) => has(t.slug));
   const qc = useQueryClient();
   const del = useServerFn(deleteLead);
   const detail = useServerFn(getLeadDetail);
+  const saveTags = useServerFn(setLeadTags);
+  const tagMut = useMutation({
+    mutationFn: (next: string[]) => saveTags({ data: { leadId: lead.id, tags: next } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
+    onError: (e: Error) => {
+      setSel(leadTags.map(String));
+      toast.error(e.message);
+    },
+  });
+  const toggleTag = (slug: string) => {
+    const next = has(slug)
+      ? sel.filter((s) => s.toLowerCase() !== slug.toLowerCase())
+      : [...sel, slug];
+    setSel(next);
+    tagMut.mutate(next);
+  };
   const remove = useMutation({
     mutationFn: () => del({ data: { id: lead.id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
@@ -103,6 +126,45 @@ export function LeadCard({
         <p className="line-clamp-2 flex items-center gap-1.5 text-sm font-semibold leading-tight">
           {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           {lead.name}
+          {tags.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Adicionar tag"
+                  className={cn(
+                    "h-5 w-5 shrink-0 text-muted-foreground",
+                    shownTags.length === 0 && "opacity-0 group-hover:opacity-100",
+                  )}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <TagIcon className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="w-56"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <DropdownMenuLabel className="text-xs">Tags</DropdownMenuLabel>
+                {tags.map((t) => (
+                  <DropdownMenuCheckboxItem
+                    key={t.slug}
+                    checked={has(t.slug)}
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={() => toggleTag(t.slug)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                      {t.name}
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
