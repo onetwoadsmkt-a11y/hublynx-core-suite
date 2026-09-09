@@ -183,6 +183,17 @@ function ComercialDashboard() {
             </Select>
           </div>
           <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Medir por</Label>
+            <Select value={mode} onValueChange={(v) => setMode(v as FunnelMode)}>
+              <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="both">Tags + etapas</SelectItem>
+                <SelectItem value="tags">Só tags</SelectItem>
+                <SelectItem value="stages">Só etapas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">De</Label>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-[150px]" />
           </div>
