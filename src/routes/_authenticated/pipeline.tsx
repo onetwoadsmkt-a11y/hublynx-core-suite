@@ -401,6 +401,7 @@ function StageColumn({
   onEdit,
   onAdd,
   locked = false,
+  tags = [],
 }: {
   stage: PipelineStage;
   leads: Lead[];
@@ -408,6 +409,7 @@ function StageColumn({
   onEdit: (l: Lead) => void;
   onAdd: () => void;
   locked?: boolean;
+  tags?: { slug: string; name: string; color: string }[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = leads.reduce((s, l) => s + Number(l.value ?? 0), 0);
