@@ -51,17 +51,20 @@ export function LeadFormDialog({
   stages,
   lead,
   defaultStageId,
+  tags = [],
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   stages: PipelineStage[];
   lead?: Lead | null;
   defaultStageId?: string;
+  tags?: PipelineTag[];
 }) {
   const qc = useQueryClient();
   const save = useServerFn(upsertLead);
   const { activeWorkspaceId } = useWorkspace();
   const [form, setForm] = useState<Form>(EMPTY);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
