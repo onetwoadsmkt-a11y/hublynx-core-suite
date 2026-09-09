@@ -56,7 +56,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
     const fetchRange = async (fromDay?: string, toDay?: string) => {
       if (stageIds.length === 0) return [] as Row[];
       let q = scopeWorkspace(
-        supabase.from("leads").select("id,stage_id,value,source,created_at,temperature"),
+        supabase.from("leads").select("id,stage_id,value,source,created_at,temperature,tags"),
         data.workspaceId,
       );
       q = isFirst
@@ -87,10 +87,17 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
     // Todos os leads atualmente no pipeline (sem filtro de data)
     const allLeads = await fetchRange();
 
+    let tags: Awaited<ReturnType<typeof import("./tags.server").readPipelineTags>> = [];
+    if (current) {
+      const { readPipelineTags } = await import("./tags.server");
+      tags = await readPipelineTags(current.id);
+    }
+
     return {
       pipelines: list,
       pipeline: current,
       stages: stages ?? [],
+      tags,
       leads,
       previousLeads,
       allLeads,
