@@ -126,6 +126,45 @@ export function LeadCard({
         <p className="line-clamp-2 flex items-center gap-1.5 text-sm font-semibold leading-tight">
           {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           {lead.name}
+          {tags.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Adicionar tag"
+                  className={cn(
+                    "h-5 w-5 shrink-0 text-muted-foreground",
+                    shownTags.length === 0 && "opacity-0 group-hover:opacity-100",
+                  )}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <TagIcon className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="w-56"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <DropdownMenuLabel className="text-xs">Tags</DropdownMenuLabel>
+                {tags.map((t) => (
+                  <DropdownMenuCheckboxItem
+                    key={t.slug}
+                    checked={has(t.slug)}
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={() => toggleTag(t.slug)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                      {t.name}
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
