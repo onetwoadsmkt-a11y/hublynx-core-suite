@@ -387,6 +387,7 @@ function PipelinePage() {
       <LeadDrawer
         lead={openLead}
         stages={stages}
+        tags={tags}
         onOpenChange={(v) => !v && setOpenLead(null)}
         onEdit={(l) => { setOpenLead(null); setEditing(l); setFormOpen(true); }}
       />
