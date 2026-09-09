@@ -29,6 +29,8 @@ import { LeadCard, currency } from "@/components/pipeline/LeadCard";
 import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
 import { StagesDialog } from "@/components/pipeline/StagesDialog";
+import { TagsDialog } from "@/components/pipeline/TagsDialog";
+import { listPipelineTags } from "@/lib/pipeline/tags.functions";
 import { CardLayoutDialog } from "@/components/pipeline/CardLayoutDialog";
 import { WebhooksDialog } from "@/components/pipeline/WebhooksDialog";
 import { WinLeadDialog } from "@/components/pipeline/WinLeadDialog";
