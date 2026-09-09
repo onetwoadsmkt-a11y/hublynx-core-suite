@@ -131,7 +131,10 @@ export function LeadDrawer({
   const saveTagsFn = useServerFn(setLeadTags);
   const tagMut = useMutation({
     mutationFn: (next: string[]) => saveTagsFn({ data: { leadId: lead!.id, tags: next } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipeline"] });
+      qc.invalidateQueries({ queryKey: ["lead-detail", lead?.id] });
+    },
     onError: (e: Error) => {
       setSelTags(leadTags.map(String));
       toast.error(e.message);
