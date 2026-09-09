@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { pipelineDashboard } from "@/lib/pipeline/dashboard.functions";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { computeFunnel, classifyStage } from "@/lib/pipeline/funnel";
+import { computeFunnel, classifyStage, countByTag, type FunnelMode } from "@/lib/pipeline/funnel";
 import { currency } from "@/components/pipeline/LeadCard";
 
 export const Route = createFileRoute("/_authenticated/comercial/dashboard")({
@@ -51,6 +51,7 @@ function ComercialDashboard() {
   const [pipelineId, setPipelineId] = useState<string | undefined>();
   const [from, setFrom] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)));
   const [to, setTo] = useState(iso(today));
+  const [mode, setMode] = useState<FunnelMode>("both");
 
   const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
   const { data, isLoading } = useQuery({
