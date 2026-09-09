@@ -262,6 +262,45 @@ export function LeadDrawer({
                 <div className="flex items-center gap-2">
                   <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
                   <TemperatureBadge value={lead.temperature} />
+                  {tags.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Adicionar tag"
+                          className="h-7 w-7 shrink-0 text-white hover:bg-white/10 hover:text-white"
+                        >
+                          <Tag className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuLabel className="text-xs">Tags</DropdownMenuLabel>
+                        {tags.map((t) => (
+                          <DropdownMenuCheckboxItem
+                            key={t.slug}
+                            checked={hasTag(t.slug)}
+                            onSelect={(e) => e.preventDefault()}
+                            onCheckedChange={() => toggleTag(t.slug)}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                              {t.name}
+                            </span>
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  {shownTags.map((t) => (
+                    <Badge
+                      key={t.slug}
+                      className="border-0 text-white"
+                      style={{ backgroundColor: t.color }}
+                    >
+                      {t.name}
+                    </Badge>
+                  ))}
                 </div>
                 <p className="text-xs text-white/70">
                   Criado em {fmt(lead.created_at)}
