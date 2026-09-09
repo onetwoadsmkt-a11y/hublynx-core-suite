@@ -6,7 +6,7 @@ export function HublynxLogo({ className = "", collapsed = false }: { className?:
     <div className={`flex items-center ${className}`}>
       <img
         src={collapsed ? iconAsset.url : logoAsset.url}
-        alt="Hublynx Core Suite"
+        alt="Hublynx"
         className="w-auto object-contain"
         style={{ height: collapsed ? "40px" : "80px" }}
       />

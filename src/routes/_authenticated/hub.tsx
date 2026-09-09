@@ -349,7 +349,7 @@ function HubCentral() {
           </p>
           <p className="mt-1 text-sm text-[#071A3D]/70 dark:text-white/65">Continue construindo.</p>
           <p className="mt-4 text-xs uppercase tracking-[0.3em] text-[#00A86A] dark:text-[#00D084]/80">
-            Hublynx Core Suite
+            Hublynx · Digital Business Ecosystem
           </p>
         </motion.section>
       </div>
