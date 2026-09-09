@@ -44,6 +44,7 @@ export function LeadCard({
   draggable = true,
   locked = false,
   onLockedDrag,
+  tags = [],
 }: {
   lead: Lead;
   onOpen: (lead: Lead) => void;
@@ -51,7 +52,12 @@ export function LeadCard({
   draggable?: boolean;
   locked?: boolean;
   onLockedDrag?: () => void;
+  tags?: { slug: string; name: string; color: string }[];
 }) {
+  const leadTags = ((lead as any).tags as string[] | null) ?? [];
+  const shownTags = tags.filter((t) =>
+    leadTags.some((s) => String(s).toLowerCase() === t.slug.toLowerCase()),
+  );
   const qc = useQueryClient();
   const del = useServerFn(deleteLead);
   const detail = useServerFn(getLeadDetail);

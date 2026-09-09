@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { upsertLead } from "@/lib/pipeline/pipeline.functions";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import type { PipelineTag } from "@/lib/pipeline/tags";
+import { cn } from "@/lib/utils";
 import type { Lead, PipelineStage } from "./types";
 
 type Form = {
