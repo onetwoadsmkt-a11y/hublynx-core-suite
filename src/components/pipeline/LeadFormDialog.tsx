@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { upsertLead } from "@/lib/pipeline/pipeline.functions";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import type { PipelineTag } from "@/lib/pipeline/tags";
+import { cn } from "@/lib/utils";
 import type { Lead, PipelineStage } from "./types";
 
 type Form = {
@@ -49,17 +51,20 @@ export function LeadFormDialog({
   stages,
   lead,
   defaultStageId,
+  tags = [],
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   stages: PipelineStage[];
   lead?: Lead | null;
   defaultStageId?: string;
+  tags?: PipelineTag[];
 }) {
   const qc = useQueryClient();
   const save = useServerFn(upsertLead);
   const { activeWorkspaceId } = useWorkspace();
   const [form, setForm] = useState<Form>(EMPTY);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -88,6 +93,7 @@ export function LeadFormDialog({
           }
         : { ...EMPTY, stage_id: defaultStageId ?? stages[0]?.id ?? "" },
     );
+    setSelectedTags((((lead as any)?.tags as string[] | null) ?? []).map(String));
   }, [open, lead, defaultStageId, stages]);
 
   const mutation = useMutation({
@@ -110,6 +116,7 @@ export function LeadFormDialog({
           utm_campaign: form.utm_campaign || null,
           utm_term: form.utm_term || null,
           utm_content: form.utm_content || null,
+          tags: selectedTags,
           next_action: form.next_action || null,
           next_action_at: form.next_action_at
             ? new Date(`${form.next_action_at}T12:00:00`).toISOString()
@@ -189,6 +196,39 @@ export function LeadFormDialog({
             <Label>Valor (R$)</Label>
             <Input value={form.value} onChange={set("value")} inputMode="decimal" />
           </div>
+
+          {tags.length > 0 && (
+            <div className="sm:col-span-2 pt-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Tags de conversão
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {tags.map((t) => {
+                  const on = selectedTags.some((s) => s.toLowerCase() === t.slug.toLowerCase());
+                  return (
+                    <button
+                      key={t.slug}
+                      type="button"
+                      onClick={() =>
+                        setSelectedTags((prev) =>
+                          on
+                            ? prev.filter((s) => s.toLowerCase() !== t.slug.toLowerCase())
+                            : [...prev, t.slug],
+                        )
+                      }
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs transition",
+                        on ? "border-transparent font-medium text-white" : "text-muted-foreground hover:bg-muted",
+                      )}
+                      style={on ? { backgroundColor: t.color } : undefined}
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="sm:col-span-2 pt-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

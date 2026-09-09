@@ -44,6 +44,7 @@ export function LeadCard({
   draggable = true,
   locked = false,
   onLockedDrag,
+  tags = [],
 }: {
   lead: Lead;
   onOpen: (lead: Lead) => void;
@@ -51,7 +52,12 @@ export function LeadCard({
   draggable?: boolean;
   locked?: boolean;
   onLockedDrag?: () => void;
+  tags?: { slug: string; name: string; color: string }[];
 }) {
+  const leadTags = ((lead as any).tags as string[] | null) ?? [];
+  const shownTags = tags.filter((t) =>
+    leadTags.some((s) => String(s).toLowerCase() === t.slug.toLowerCase()),
+  );
   const qc = useQueryClient();
   const del = useServerFn(deleteLead);
   const detail = useServerFn(getLeadDetail);
@@ -161,6 +167,20 @@ export function LeadCard({
             {nextActionOverdue ? " (atrasada)" : ""}
           </span>
         </p>
+      )}
+
+      {shownTags.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {shownTags.map((t) => (
+            <span
+              key={t.slug}
+              className="rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+              style={{ backgroundColor: `${t.color}1f`, color: t.color }}
+            >
+              {t.name}
+            </span>
+          ))}
+        </div>
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

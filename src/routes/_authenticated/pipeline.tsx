@@ -8,7 +8,7 @@ import {
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
 import {
-  CalendarDays, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Trash2, Webhook,
+  CalendarDays, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Tags, Trash2, Webhook,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ import { LeadCard, currency } from "@/components/pipeline/LeadCard";
 import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
 import { StagesDialog } from "@/components/pipeline/StagesDialog";
+import { TagsDialog } from "@/components/pipeline/TagsDialog";
+import { listPipelineTags } from "@/lib/pipeline/tags.functions";
 import { CardLayoutDialog } from "@/components/pipeline/CardLayoutDialog";
 import { WebhooksDialog } from "@/components/pipeline/WebhooksDialog";
 import { WinLeadDialog } from "@/components/pipeline/WinLeadDialog";
@@ -74,6 +76,7 @@ function PipelinePage() {
   const [stagesOpen, setStagesOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const [targetStage, setTargetStage] = useState<string | undefined>();
   const [pipeDialog, setPipeDialog] = useState<"new" | "rename" | null>(null);
   const [pipeName, setPipeName] = useState("");
@@ -95,6 +98,19 @@ function PipelinePage() {
 
   const pipelines = (data?.pipelines ?? []) as PipelineRow[];
   const current = (data?.pipeline ?? null) as PipelineRow | null;
+
+  const tagsFn = useServerFn(listPipelineTags);
+  const { data: tagsData } = useQuery({
+    queryKey: ["pipeline-tags", current?.id ?? "none"],
+    queryFn: () => tagsFn({ data: { pipelineId: current!.id } }),
+    enabled: !!current?.id,
+    staleTime: 60_000,
+  });
+  const tags = useMemo(
+    () => (tagsData?.tags ?? []).filter((t) => t.active !== false),
+    [tagsData],
+  );
+
   const stages = (data?.stages ?? []) as PipelineStage[];
   const leads = useMemo(
     () =>
@@ -258,6 +274,9 @@ function PipelinePage() {
               <DropdownMenuItem onSelect={() => setLayoutOpen(true)}>
                 <LayoutTemplate className="mr-2 h-4 w-4" /> Layout do card
               </DropdownMenuItem>
+              <DropdownMenuItem disabled={!current} onSelect={() => setTagsOpen(true)}>
+                <Tags className="mr-2 h-4 w-4" /> Tags de conversão
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setHooksOpen(true)}>
                 <Webhook className="mr-2 h-4 w-4" /> Webhooks
               </DropdownMenuItem>
@@ -309,6 +328,7 @@ function PipelinePage() {
                 onEdit={(l) => { setEditing(l); setTargetStage(undefined); setFormOpen(true); }}
                 onAdd={() => openNew(stage.id)}
                 locked={!!stage.is_won || !!stage.is_lost}
+                tags={tags}
               />
             ))}
           </div>
@@ -351,7 +371,9 @@ function PipelinePage() {
         stages={stages}
         lead={editing}
         defaultStageId={targetStage}
+        tags={tags}
       />
+      <TagsDialog open={tagsOpen} onOpenChange={setTagsOpen} pipelineId={current?.id} />
       <StagesDialog
         open={stagesOpen}
         onOpenChange={setStagesOpen}
@@ -379,6 +401,7 @@ function StageColumn({
   onEdit,
   onAdd,
   locked = false,
+  tags = [],
 }: {
   stage: PipelineStage;
   leads: Lead[];
@@ -386,6 +409,7 @@ function StageColumn({
   onEdit: (l: Lead) => void;
   onAdd: () => void;
   locked?: boolean;
+  tags?: { slug: string; name: string; color: string }[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = leads.reduce((s, l) => s + Number(l.value ?? 0), 0);
@@ -430,6 +454,7 @@ function StageColumn({
             onEdit={onEdit}
             draggable={!locked}
             locked={locked}
+            tags={tags}
             onLockedDrag={() =>
               toast.info(
                 stage.is_won

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { pipelineDashboard } from "@/lib/pipeline/dashboard.functions";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { computeFunnel, classifyStage } from "@/lib/pipeline/funnel";
+import { computeFunnel, classifyStage, countByTag, type FunnelMode } from "@/lib/pipeline/funnel";
 import { currency } from "@/components/pipeline/LeadCard";
 
 export const Route = createFileRoute("/_authenticated/comercial/dashboard")({
@@ -51,6 +51,7 @@ function ComercialDashboard() {
   const [pipelineId, setPipelineId] = useState<string | undefined>();
   const [from, setFrom] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)));
   const [to, setTo] = useState(iso(today));
+  const [mode, setMode] = useState<FunnelMode>("both");
 
   const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
   const { data, isLoading } = useQuery({
@@ -70,9 +71,13 @@ function ComercialDashboard() {
   const previousLeads = useMemo(() => data?.previousLeads ?? [], [data]);
   const allLeads = useMemo(() => data?.allLeads ?? [], [data]);
 
-  const m = useMemo(() => computeFunnel(stages, leads), [stages, leads]);
-  const prev = useMemo(() => computeFunnel(stages, previousLeads), [stages, previousLeads]);
-  const total = useMemo(() => computeFunnel(stages, allLeads), [stages, allLeads]);
+  const tags = useMemo(() => (data?.tags ?? []).filter((t) => t.active !== false), [data]);
+  const opts = useMemo(() => ({ tags, mode }), [tags, mode]);
+
+  const m = useMemo(() => computeFunnel(stages, leads, opts), [stages, leads, opts]);
+  const prev = useMemo(() => computeFunnel(stages, previousLeads, opts), [stages, previousLeads, opts]);
+  const total = useMemo(() => computeFunnel(stages, allLeads, opts), [stages, allLeads, opts]);
+  const tagCounts = useMemo(() => countByTag(leads, tags), [leads, tags]);
 
   const emAberto = total.leads - total.ganhos - total.perdidos - total.nutricao;
   const valorAberto = useMemo(() => {
@@ -178,6 +183,17 @@ function ComercialDashboard() {
             </Select>
           </div>
           <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Medir por</Label>
+            <Select value={mode} onValueChange={(v) => setMode(v as FunnelMode)}>
+              <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="both">Tags + etapas</SelectItem>
+                <SelectItem value="tags">Só tags</SelectItem>
+                <SelectItem value="stages">Só etapas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">De</Label>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-[150px]" />
           </div>
@@ -235,6 +251,37 @@ function ComercialDashboard() {
             <Rate label="% Reuniões x COF" value={m.taxaCof} prev={prev.taxaCof} />
             <Rate label="% Taxa de conversão" value={m.taxaConversao} prev={prev.taxaConversao} />
           </div>
+
+          <section className="rounded-xl border p-4">
+            <h2 className="mb-1 text-sm font-semibold">Tags no período</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Leads marcados com cada tag configurada · a conversão acima considera o modo “{
+                mode === "both" ? "Tags + etapas" : mode === "tags" ? "Só tags" : "Só etapas"
+              }”.
+            </p>
+            {tags.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma tag configurada. Configure em Pipeline → Configurações → Tags de conversão.
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {tagCounts.map((t) => (
+                  <div key={t.slug} className="rounded-lg border p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                      <p className="truncate text-xs font-medium">{t.name}</p>
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <p className="font-mono text-[22px] leading-none tabular-nums">{t.count || "·"}</p>
+                      <span className="text-[11px] text-muted-foreground">
+                        {m.leads > 0 ? `${Math.round((t.count / m.leads) * 100)}%` : "0%"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded-xl border p-4">
