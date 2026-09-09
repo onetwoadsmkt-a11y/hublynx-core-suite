@@ -84,9 +84,16 @@ export const setLeadTags = createServerFn({ method: "POST" })
     if (added.length || removed.length) {
       let labels: Record<string, string> = {};
       try {
-        if (lead.pipeline_id) {
+        const { data: stage } = lead.stage_id
+          ? await supabase
+              .from("pipeline_stages")
+              .select("pipeline_id")
+              .eq("id", lead.stage_id)
+              .maybeSingle()
+          : { data: null };
+        if (stage?.pipeline_id) {
           const { readPipelineTags } = await import("./tags.server");
-          const cfg = await readPipelineTags(lead.pipeline_id);
+          const cfg = await readPipelineTags(stage.pipeline_id);
           labels = Object.fromEntries(cfg.map((t) => [t.slug.toLowerCase(), t.name]));
         }
       } catch { /* sem configuração de tags */ }
