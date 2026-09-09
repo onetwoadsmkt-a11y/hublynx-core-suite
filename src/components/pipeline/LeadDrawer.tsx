@@ -82,11 +82,13 @@ function findNoteFromEvent(ev: LeadEvent, notes: LeadNote[]): LeadNote | undefin
 export function LeadDrawer({
   lead,
   stages,
+  tags = [],
   onOpenChange,
   onEdit,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
+  tags?: { slug: string; name: string; color: string }[];
   onOpenChange: (v: boolean) => void;
   onEdit: (lead: Lead) => void;
 }) {
