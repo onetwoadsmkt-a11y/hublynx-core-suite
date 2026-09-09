@@ -328,6 +328,7 @@ function PipelinePage() {
                 onEdit={(l) => { setEditing(l); setTargetStage(undefined); setFormOpen(true); }}
                 onAdd={() => openNew(stage.id)}
                 locked={!!stage.is_won || !!stage.is_lost}
+                tags={tags}
               />
             ))}
           </div>
@@ -370,7 +371,9 @@ function PipelinePage() {
         stages={stages}
         lead={editing}
         defaultStageId={targetStage}
+        tags={tags}
       />
+      <TagsDialog open={tagsOpen} onOpenChange={setTagsOpen} pipelineId={current?.id} />
       <StagesDialog
         open={stagesOpen}
         onOpenChange={setStagesOpen}
