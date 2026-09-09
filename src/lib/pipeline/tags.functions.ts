@@ -60,11 +60,13 @@ export const setLeadTags = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context as any;
 
-    const { data: lead } = await supabase
+    const { data: lead, error: leadError } = await supabase
       .from("leads")
       .select("id, owner_id, pipeline_id, tags")
       .eq("id", data.leadId)
       .maybeSingle();
+    if (leadError) throw new Error(leadError.message);
+    if (!lead) throw new Error("Lead não encontrado.");
 
     const before = ((lead?.tags as string[] | null) ?? []).map(String);
 
@@ -79,7 +81,7 @@ export const setLeadTags = createServerFn({ method: "POST" })
     const added = data.tags.filter((t) => !lower(before).includes(t.toLowerCase()));
     const removed = before.filter((t) => !lower(data.tags).includes(t.toLowerCase()));
 
-    if (lead && (added.length || removed.length)) {
+    if (added.length || removed.length) {
       let labels: Record<string, string> = {};
       try {
         if (lead.pipeline_id) {
@@ -93,7 +95,7 @@ export const setLeadTags = createServerFn({ method: "POST" })
       const rows = [
         ...added.map((t) => ({
           lead_id: data.leadId,
-          owner_id: lead.owner_id ?? userId,
+          owner_id: userId,
           actor_id: userId,
           kind: "tag_added",
           title: `Tag adicionada: ${label(t)}`,
@@ -102,7 +104,7 @@ export const setLeadTags = createServerFn({ method: "POST" })
         })),
         ...removed.map((t) => ({
           lead_id: data.leadId,
-          owner_id: lead.owner_id ?? userId,
+          owner_id: userId,
           actor_id: userId,
           kind: "tag_removed",
           title: `Tag removida: ${label(t)}`,
@@ -110,7 +112,8 @@ export const setLeadTags = createServerFn({ method: "POST" })
           meta: { tag: t },
         })),
       ];
-      await supabase.from("lead_events").insert(rows);
+      const { error: eventError } = await supabase.from("lead_events").insert(rows);
+      if (eventError) throw new Error(`Não foi possível registrar a jornada: ${eventError.message}`);
     }
 
     return { ok: true as const, tags: data.tags };
