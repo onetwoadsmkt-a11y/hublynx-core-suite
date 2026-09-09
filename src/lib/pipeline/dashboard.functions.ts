@@ -45,6 +45,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
       source: string | null;
       created_at: string;
       temperature: string | null;
+      tags: string[] | null;
     };
 
     let leads: Row[] = [];
