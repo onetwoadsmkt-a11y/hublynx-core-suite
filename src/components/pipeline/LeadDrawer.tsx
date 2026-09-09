@@ -20,6 +20,10 @@ import {
   addLeadNote, deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
+import { setLeadTags } from "@/lib/pipeline/tags.functions";
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { currency } from "./LeadCard";
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
