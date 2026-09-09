@@ -59,12 +59,31 @@ export function LeadCard({
   tags?: { slug: string; name: string; color: string }[];
 }) {
   const leadTags = ((lead as any).tags as string[] | null) ?? [];
-  const shownTags = tags.filter((t) =>
-    leadTags.some((s) => String(s).toLowerCase() === t.slug.toLowerCase()),
-  );
+  const [sel, setSel] = useState<string[]>(leadTags.map(String));
+  useEffect(() => {
+    setSel((((lead as any).tags as string[] | null) ?? []).map(String));
+  }, [lead]);
+  const has = (slug: string) => sel.some((s) => s.toLowerCase() === slug.toLowerCase());
+  const shownTags = tags.filter((t) => has(t.slug));
   const qc = useQueryClient();
   const del = useServerFn(deleteLead);
   const detail = useServerFn(getLeadDetail);
+  const saveTags = useServerFn(setLeadTags);
+  const tagMut = useMutation({
+    mutationFn: (next: string[]) => saveTags({ data: { leadId: lead.id, tags: next } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
+    onError: (e: Error) => {
+      setSel(leadTags.map(String));
+      toast.error(e.message);
+    },
+  });
+  const toggleTag = (slug: string) => {
+    const next = has(slug)
+      ? sel.filter((s) => s.toLowerCase() !== slug.toLowerCase())
+      : [...sel, slug];
+    setSel(next);
+    tagMut.mutate(next);
+  };
   const remove = useMutation({
     mutationFn: () => del({ data: { id: lead.id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
