@@ -55,6 +55,8 @@ const EVENT_ICON: Record<string, typeof Activity> = {
   task_done: CheckCircle2,
   file_added: Paperclip,
   email_sent: Mail,
+  tag_added: Tag,
+  tag_removed: Tag,
 };
 
 const TASK_KINDS = [
