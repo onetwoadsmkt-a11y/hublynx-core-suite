@@ -115,6 +115,29 @@ export function LeadDrawer({
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  const leadTags = ((lead as any)?.tags as string[] | null) ?? [];
+  const [selTags, setSelTags] = useState<string[]>(leadTags.map(String));
+  useEffect(() => {
+    setSelTags((((lead as any)?.tags as string[] | null) ?? []).map(String));
+  }, [lead]);
+  const hasTag = (slug: string) => selTags.some((s) => s.toLowerCase() === slug.toLowerCase());
+  const shownTags = tags.filter((t) => hasTag(t.slug));
+  const saveTagsFn = useServerFn(setLeadTags);
+  const tagMut = useMutation({
+    mutationFn: (next: string[]) => saveTagsFn({ data: { leadId: lead!.id, tags: next } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
+    onError: (e: Error) => {
+      setSelTags(leadTags.map(String));
+      toast.error(e.message);
+    },
+  });
+  const toggleTag = (slug: string) => {
+    const next = hasTag(slug) ? selTags.filter((s) => s.toLowerCase() !== slug.toLowerCase()) : [...selTags, slug];
+    setSelTags(next);
+    tagMut.mutate(next);
+  };
+
+
   const { data } = useQuery({
     queryKey: ["lead-detail", lead?.id],
     queryFn: () => detailFn({ data: { leadId: lead!.id } }),
