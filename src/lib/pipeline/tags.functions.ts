@@ -58,10 +58,60 @@ export const setLeadTags = createServerFn({ method: "POST" })
     z.object({ leadId: uuid, tags: z.array(z.string().max(40)).max(20) }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { supabase, userId } = context as any;
+
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("id, owner_id, pipeline_id, tags")
+      .eq("id", data.leadId)
+      .maybeSingle();
+
+    const before = ((lead?.tags as string[] | null) ?? []).map(String);
+
+    const { error } = await supabase
       .from("leads")
       .update({ tags: data.tags })
       .eq("id", data.leadId);
     if (error) throw new Error(error.message);
+
+    // registra no histórico da jornada
+    const lower = (a: string[]) => a.map((s) => s.toLowerCase());
+    const added = data.tags.filter((t) => !lower(before).includes(t.toLowerCase()));
+    const removed = before.filter((t) => !lower(data.tags).includes(t.toLowerCase()));
+
+    if (lead && (added.length || removed.length)) {
+      let labels: Record<string, string> = {};
+      try {
+        if (lead.pipeline_id) {
+          const { readPipelineTags } = await import("./tags.server");
+          const cfg = await readPipelineTags(lead.pipeline_id);
+          labels = Object.fromEntries(cfg.map((t) => [t.slug.toLowerCase(), t.name]));
+        }
+      } catch { /* sem configuração de tags */ }
+      const label = (s: string) => labels[s.toLowerCase()] ?? s;
+
+      const rows = [
+        ...added.map((t) => ({
+          lead_id: data.leadId,
+          owner_id: lead.owner_id ?? userId,
+          actor_id: userId,
+          kind: "tag_added",
+          title: `Tag adicionada: ${label(t)}`,
+          description: null,
+          meta: { tag: t },
+        })),
+        ...removed.map((t) => ({
+          lead_id: data.leadId,
+          owner_id: lead.owner_id ?? userId,
+          actor_id: userId,
+          kind: "tag_removed",
+          title: `Tag removida: ${label(t)}`,
+          description: null,
+          meta: { tag: t },
+        })),
+      ];
+      await supabase.from("lead_events").insert(rows);
+    }
+
     return { ok: true as const, tags: data.tags };
   });

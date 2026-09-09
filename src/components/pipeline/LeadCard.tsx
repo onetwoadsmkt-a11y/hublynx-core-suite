@@ -71,7 +71,10 @@ export function LeadCard({
   const saveTags = useServerFn(setLeadTags);
   const tagMut = useMutation({
     mutationFn: (next: string[]) => saveTags({ data: { leadId: lead.id, tags: next } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipeline"] });
+      qc.invalidateQueries({ queryKey: ["lead-detail", lead.id] });
+    },
     onError: (e: Error) => {
       setSel(leadTags.map(String));
       toast.error(e.message);
