@@ -252,6 +252,37 @@ function ComercialDashboard() {
             <Rate label="% Taxa de conversão" value={m.taxaConversao} prev={prev.taxaConversao} />
           </div>
 
+          <section className="rounded-xl border p-4">
+            <h2 className="mb-1 text-sm font-semibold">Tags no período</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Leads marcados com cada tag configurada · a conversão acima considera o modo “{
+                mode === "both" ? "Tags + etapas" : mode === "tags" ? "Só tags" : "Só etapas"
+              }”.
+            </p>
+            {tags.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma tag configurada. Configure em Pipeline → Configurações → Tags de conversão.
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {tagCounts.map((t) => (
+                  <div key={t.slug} className="rounded-lg border p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                      <p className="truncate text-xs font-medium">{t.name}</p>
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <p className="font-mono text-[22px] leading-none tabular-nums">{t.count || "·"}</p>
+                      <span className="text-[11px] text-muted-foreground">
+                        {m.leads > 0 ? `${Math.round((t.count / m.leads) * 100)}%` : "0%"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded-xl border p-4">
               <h2 className="mb-1 text-sm font-semibold">Comparativo com período anterior</h2>
