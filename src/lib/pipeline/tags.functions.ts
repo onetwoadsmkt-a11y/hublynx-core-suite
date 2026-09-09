@@ -51,3 +51,17 @@ export const savePipelineTags = createServerFn({ method: "POST" })
     await writePipelineTags(data.pipelineId, tags);
     return { tags };
   });
+
+export const setLeadTags = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ leadId: uuid, tags: z.array(z.string().max(40)).max(20) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("leads")
+      .update({ tags: data.tags })
+      .eq("id", data.leadId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const, tags: data.tags };
+  });
