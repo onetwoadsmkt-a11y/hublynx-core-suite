@@ -76,6 +76,7 @@ function PipelinePage() {
   const [stagesOpen, setStagesOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const [targetStage, setTargetStage] = useState<string | undefined>();
   const [pipeDialog, setPipeDialog] = useState<"new" | "rename" | null>(null);
   const [pipeName, setPipeName] = useState("");
@@ -97,6 +98,19 @@ function PipelinePage() {
 
   const pipelines = (data?.pipelines ?? []) as PipelineRow[];
   const current = (data?.pipeline ?? null) as PipelineRow | null;
+
+  const tagsFn = useServerFn(listPipelineTags);
+  const { data: tagsData } = useQuery({
+    queryKey: ["pipeline-tags", current?.id ?? "none"],
+    queryFn: () => tagsFn({ data: { pipelineId: current!.id } }),
+    enabled: !!current?.id,
+    staleTime: 60_000,
+  });
+  const tags = useMemo(
+    () => (tagsData?.tags ?? []).filter((t) => t.active !== false),
+    [tagsData],
+  );
+
   const stages = (data?.stages ?? []) as PipelineStage[];
   const leads = useMemo(
     () =>
