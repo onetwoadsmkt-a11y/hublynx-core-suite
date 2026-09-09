@@ -8,7 +8,7 @@ import {
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
 import {
-  CalendarDays, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Trash2, Webhook,
+  CalendarDays, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Tags, Trash2, Webhook,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -273,6 +273,9 @@ function PipelinePage() {
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setLayoutOpen(true)}>
                 <LayoutTemplate className="mr-2 h-4 w-4" /> Layout do card
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!current} onSelect={() => setTagsOpen(true)}>
+                <Tags className="mr-2 h-4 w-4" /> Tags de conversão
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setHooksOpen(true)}>
                 <Webhook className="mr-2 h-4 w-4" /> Webhooks
