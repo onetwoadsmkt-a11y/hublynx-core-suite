@@ -93,6 +93,7 @@ export function LeadFormDialog({
           }
         : { ...EMPTY, stage_id: defaultStageId ?? stages[0]?.id ?? "" },
     );
+    setSelectedTags((((lead as any)?.tags as string[] | null) ?? []).map(String));
   }, [open, lead, defaultStageId, stages]);
 
   const mutation = useMutation({
@@ -115,6 +116,7 @@ export function LeadFormDialog({
           utm_campaign: form.utm_campaign || null,
           utm_term: form.utm_term || null,
           utm_content: form.utm_content || null,
+          tags: selectedTags,
           next_action: form.next_action || null,
           next_action_at: form.next_action_at
             ? new Date(`${form.next_action_at}T12:00:00`).toISOString()
