@@ -454,6 +454,7 @@ function StageColumn({
             onEdit={onEdit}
             draggable={!locked}
             locked={locked}
+            tags={tags}
             onLockedDrag={() =>
               toast.info(
                 stage.is_won
