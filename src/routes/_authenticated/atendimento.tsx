@@ -15,9 +15,9 @@ import {
 export const Route = createFileRoute("/_authenticated/atendimento")({
   head: () => ({
     meta: [
-      { title: "Atendimento — Hublynx Core Suite" },
+      { title: "Atendimento — Hublynx CRM" },
       { name: "description", content: "Central de atendimento multicanal: conversas, histórico e contexto do cliente em um só lugar." },
-      { property: "og:title", content: "Atendimento — Hublynx Core Suite" },
+      { property: "og:title", content: "Atendimento — Hublynx CRM" },
       { property: "og:description", content: "Central de atendimento multicanal: conversas, histórico e contexto do cliente." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

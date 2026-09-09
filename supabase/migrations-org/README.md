@@ -1,17 +1,17 @@
-# Migrations multi-tenant (organization_id)
+# Etapa 1 — Fundação multi-tenant Hublynx
 
-Aplicar **em ordem**, colando cada arquivo no SQL Editor do Supabase e conferindo a
-consulta de verificação no final de cada um antes de seguir.
+Aplicar **em ordem** no SQL Editor do Supabase (`gyxzrnoxzaraossrqyuc`), conferindo a
+consulta de verificação no final de cada arquivo antes de seguir.
 
-1. `01_organizations.sql` — cria `organizations` e `organization_members`, grants, RLS,
-   função `is_org_member` e copia os registros de `workspaces`/`workspace_members`
-   preservando os mesmos IDs.
-2. `02_add_organization_id.sql` — adiciona a coluna `organization_id` (nullable), FK e índices.
-3. `03_backfill.sql` — preenche `organization_id`. Só avance quando todos os
-   `pendentes` do bloco final forem 0.
-4. `04_rls_org.sql` — policies adicionais por organização (as antigas continuam ativas).
+| # | Arquivo | O que faz |
+|---|---|---|
+| 1 | `01_foundation.sql` | `organizations`, `organization_members`, `platform_admins`, `modules`, `organization_modules`, `user_module_permissions`; funções `is_super_admin`, `is_org_member`, `org_role`, `is_org_admin`, `has_module`; copia `workspaces` (mesmos IDs); seed dos módulos (crm, projects, finance-interno); Hublynx = crm+projects+finance, Valesafe = crm; super admin `hublynx.dev@gmail.com`. |
+| 2 | `02_organization_id.sql` | `organization_id` (nullable) + FK + índices em 24 tabelas; colunas extras em `clients`, `subscriptions`, `projects`. |
+| 3 | `03_backfill.sql` | Preenche `organization_id`. **Todos os `pendentes` do bloco final precisam ser 0** antes do arquivo 4. |
+| 4 | `04_rls_org.sql` | Policies adicionais por organização (as antigas por `owner_id` continuam), bucket privado `org-files` com policy por pasta `{organization_id}/`. |
+| 5 | `05_platform.sql` | `pricing_config`, `resource_tiers`, `commercial_simulations`, `subscription_modules`, `project_templates(+stages)`, `project_stages`, `organization_usage`, `external_files`, RPC `measure_organization_usage`; migra o roadmap JSONB para `project_stages`. |
 
-Fase 5 (posterior, após validação em produção): `NOT NULL`, remoção das policies
-antigas por `owner_id` e descontinuação de `workspaces`. Não incluída aqui de propósito.
+Nenhum arquivo faz DROP de tabela, DELETE de dados ou alteração de colunas existentes.
 
-Nenhum arquivo aqui faz DROP de tabela, DELETE de dados ou alteração de colunas existentes.
+Fase final (aprovação separada, após validação): `NOT NULL` em `organization_id`, remoção das
+policies por `owner_id`, descontinuação de `workspaces` e `subscriptions.capabilities`.
