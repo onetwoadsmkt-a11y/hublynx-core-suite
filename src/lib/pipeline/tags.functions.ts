@@ -62,7 +62,7 @@ export const setLeadTags = createServerFn({ method: "POST" })
 
     const { data: lead, error: leadError } = await supabase
       .from("leads")
-      .select("id, owner_id, pipeline_id, tags")
+      .select("id, owner_id, stage_id, tags")
       .eq("id", data.leadId)
       .maybeSingle();
     if (leadError) throw new Error(leadError.message);
@@ -84,9 +84,16 @@ export const setLeadTags = createServerFn({ method: "POST" })
     if (added.length || removed.length) {
       let labels: Record<string, string> = {};
       try {
-        if (lead.pipeline_id) {
+        const { data: stage } = lead.stage_id
+          ? await supabase
+              .from("pipeline_stages")
+              .select("pipeline_id")
+              .eq("id", lead.stage_id)
+              .maybeSingle()
+          : { data: null };
+        if (stage?.pipeline_id) {
           const { readPipelineTags } = await import("./tags.server");
-          const cfg = await readPipelineTags(lead.pipeline_id);
+          const cfg = await readPipelineTags(stage.pipeline_id);
           labels = Object.fromEntries(cfg.map((t) => [t.slug.toLowerCase(), t.name]));
         }
       } catch { /* sem configuração de tags */ }
