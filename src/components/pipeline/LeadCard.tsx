@@ -1,16 +1,20 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Mail, MapPin, Phone, Tag, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
+import { Building2, Mail, MapPin, Phone, Tag, TagIcon, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { setLeadTags } from "@/lib/pipeline/tags.functions";
 import { deleteLead, getLeadDetail } from "@/lib/pipeline/pipeline.functions";
 import { exportLeadJourneyToExcel } from "@/lib/pipeline/export-leads";
 import { cn } from "@/lib/utils";
