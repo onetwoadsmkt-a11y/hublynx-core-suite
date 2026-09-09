@@ -197,6 +197,39 @@ export function LeadFormDialog({
             <Input value={form.value} onChange={set("value")} inputMode="decimal" />
           </div>
 
+          {tags.length > 0 && (
+            <div className="sm:col-span-2 pt-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Tags de conversão
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {tags.map((t) => {
+                  const on = selectedTags.some((s) => s.toLowerCase() === t.slug.toLowerCase());
+                  return (
+                    <button
+                      key={t.slug}
+                      type="button"
+                      onClick={() =>
+                        setSelectedTags((prev) =>
+                          on
+                            ? prev.filter((s) => s.toLowerCase() !== t.slug.toLowerCase())
+                            : [...prev, t.slug],
+                        )
+                      }
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs transition",
+                        on ? "border-transparent font-medium text-white" : "text-muted-foreground hover:bg-muted",
+                      )}
+                      style={on ? { backgroundColor: t.color } : undefined}
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="sm:col-span-2 pt-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Próxima ação
