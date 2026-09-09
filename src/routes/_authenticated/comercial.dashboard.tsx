@@ -71,9 +71,13 @@ function ComercialDashboard() {
   const previousLeads = useMemo(() => data?.previousLeads ?? [], [data]);
   const allLeads = useMemo(() => data?.allLeads ?? [], [data]);
 
-  const m = useMemo(() => computeFunnel(stages, leads), [stages, leads]);
-  const prev = useMemo(() => computeFunnel(stages, previousLeads), [stages, previousLeads]);
-  const total = useMemo(() => computeFunnel(stages, allLeads), [stages, allLeads]);
+  const tags = useMemo(() => (data?.tags ?? []).filter((t) => t.active !== false), [data]);
+  const opts = useMemo(() => ({ tags, mode }), [tags, mode]);
+
+  const m = useMemo(() => computeFunnel(stages, leads, opts), [stages, leads, opts]);
+  const prev = useMemo(() => computeFunnel(stages, previousLeads, opts), [stages, previousLeads, opts]);
+  const total = useMemo(() => computeFunnel(stages, allLeads, opts), [stages, allLeads, opts]);
+  const tagCounts = useMemo(() => countByTag(leads, tags), [leads, tags]);
 
   const emAberto = total.leads - total.ganhos - total.perdidos - total.nutricao;
   const valorAberto = useMemo(() => {
