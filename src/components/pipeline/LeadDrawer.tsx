@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -20,6 +20,10 @@ import {
   addLeadNote, deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
+import { setLeadTags } from "@/lib/pipeline/tags.functions";
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { currency } from "./LeadCard";
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
@@ -82,11 +86,13 @@ function findNoteFromEvent(ev: LeadEvent, notes: LeadNote[]): LeadNote | undefin
 export function LeadDrawer({
   lead,
   stages,
+  tags = [],
   onOpenChange,
   onEdit,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
+  tags?: { slug: string; name: string; color: string }[];
   onOpenChange: (v: boolean) => void;
   onEdit: (lead: Lead) => void;
 }) {
@@ -112,6 +118,29 @@ export function LeadDrawer({
   const [inviteLead, setInviteLead] = useState(true);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  const leadTags = ((lead as any)?.tags as string[] | null) ?? [];
+  const [selTags, setSelTags] = useState<string[]>(leadTags.map(String));
+  useEffect(() => {
+    setSelTags((((lead as any)?.tags as string[] | null) ?? []).map(String));
+  }, [lead]);
+  const hasTag = (slug: string) => selTags.some((s) => s.toLowerCase() === slug.toLowerCase());
+  const shownTags = tags.filter((t) => hasTag(t.slug));
+  const saveTagsFn = useServerFn(setLeadTags);
+  const tagMut = useMutation({
+    mutationFn: (next: string[]) => saveTagsFn({ data: { leadId: lead!.id, tags: next } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
+    onError: (e: Error) => {
+      setSelTags(leadTags.map(String));
+      toast.error(e.message);
+    },
+  });
+  const toggleTag = (slug: string) => {
+    const next = hasTag(slug) ? selTags.filter((s) => s.toLowerCase() !== slug.toLowerCase()) : [...selTags, slug];
+    setSelTags(next);
+    tagMut.mutate(next);
+  };
+
 
   const { data } = useQuery({
     queryKey: ["lead-detail", lead?.id],
@@ -233,6 +262,45 @@ export function LeadDrawer({
                 <div className="flex items-center gap-2">
                   <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
                   <TemperatureBadge value={lead.temperature} />
+                  {tags.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Adicionar tag"
+                          className="h-7 w-7 shrink-0 text-white hover:bg-white/10 hover:text-white"
+                        >
+                          <Tag className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuLabel className="text-xs">Tags</DropdownMenuLabel>
+                        {tags.map((t) => (
+                          <DropdownMenuCheckboxItem
+                            key={t.slug}
+                            checked={hasTag(t.slug)}
+                            onSelect={(e) => e.preventDefault()}
+                            onCheckedChange={() => toggleTag(t.slug)}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                              {t.name}
+                            </span>
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  {shownTags.map((t) => (
+                    <Badge
+                      key={t.slug}
+                      className="border-0 text-white"
+                      style={{ backgroundColor: t.color }}
+                    >
+                      {t.name}
+                    </Badge>
+                  ))}
                 </div>
                 <p className="text-xs text-white/70">
                   Criado em {fmt(lead.created_at)}
