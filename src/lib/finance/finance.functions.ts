@@ -744,20 +744,12 @@ export const getDRE = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const sc = await scopeFilter(supabase, userId);
     const { from, to } = monthRange(data.month, data.year);
-    const { data: fin } = await supabase
-      .from("finances")
-      .select("kind, amount, status")
-      .eq(sc.col, sc.val)
-      .gte("due_date", from)
-      .lte("due_date", to)
-      .eq("status", "quitado");
-    let receita_bruta = 0,
-      despesas = 0;
-    for (const r of fin ?? []) {
-      const amt = Number(r.amount) || 0;
-      if (r.kind === "receber") receita_bruta += amt;
-      else despesas += amt;
-    }
+    // Regime de competência: o DRE usa a mesma fonte dos indicadores.
+    const { receitaDoMes, despesasDoMes } = await import("./metrics.server");
+    const [receita_bruta, despesas] = await Promise.all([
+      receitaDoMes(supabase, userId, data.month, data.year),
+      despesasDoMes(supabase, userId, data.month, data.year),
+    ]);
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount")
