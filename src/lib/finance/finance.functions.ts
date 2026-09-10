@@ -711,18 +711,31 @@ export const getCashflowSeries = createServerFn({ method: "POST" })
       byDate.set(b.data, slot);
     }
 
-    // Projeção futura = lançamentos ainda em aberto pelo vencimento.
+    // Projeção futura = SALDO ainda em aberto dos lançamentos, pelo vencimento.
     const { data: rows } = await supabase
       .from("finances")
-      .select("kind, amount, due_date, status")
+      .select("id, kind, amount, due_date, status")
       .eq(sc.col, sc.val)
       .in("status", ["aberto", "parcial"])
       .gt("due_date", today)
       .lte("due_date", toISO);
+    const pagoFuturo = new Map<string, number>();
+    if ((rows ?? []).length) {
+      const { data: parciais } = await supabase
+        .from("baixas")
+        .select("receita_id, despesa_id, valor")
+        .eq(sc.cashCol, sc.val);
+      for (const b of parciais ?? []) {
+        const fid = (b.receita_id ?? b.despesa_id) as string | null;
+        if (!fid) continue;
+        pagoFuturo.set(fid, (pagoFuturo.get(fid) ?? 0) + (Number(b.valor) || 0));
+      }
+    }
     for (const r of rows ?? []) {
       if (!r.due_date) continue;
       const slot = byDate.get(r.due_date) ?? { in: 0, out: 0 };
-      const amt = Number(r.amount) || 0;
+      const amt = Math.max(0, (Number(r.amount) || 0) - (pagoFuturo.get(r.id) ?? 0));
+      if (amt <= 0) continue;
       if (r.kind === "receber") slot.in += amt;
       else slot.out += amt;
       byDate.set(r.due_date, slot);
@@ -881,6 +894,20 @@ export const getForecast = createServerFn({ method: "GET" })
       .lte("due_date", horizonISO)
       .order("due_date", { ascending: true });
 
+    // Só o saldo ainda em aberto entra na previsão (baixas parciais descontadas).
+    const pagoPorId = new Map<string, number>();
+    if ((rows ?? []).length) {
+      const { data: baixasPrev } = await supabase
+        .from("baixas")
+        .select("receita_id, despesa_id, valor")
+        .eq(sc.cashCol, sc.val);
+      for (const b of baixasPrev ?? []) {
+        const fid = (b.receita_id ?? b.despesa_id) as string | null;
+        if (!fid) continue;
+        pagoPorId.set(fid, (pagoPorId.get(fid) ?? 0) + (Number(b.valor) || 0));
+      }
+    }
+
     const buckets: ForecastBucket[] = [
       { label: "Próximos 30 dias", days: 30, receivables: 0, payables: 0, saldo: 0, items: [] },
       { label: "Próximos 60 dias", days: 60, receivables: 0, payables: 0, saldo: 0, items: [] },
@@ -888,7 +915,8 @@ export const getForecast = createServerFn({ method: "GET" })
     ];
     for (const r of rows ?? []) {
       const days = Math.ceil((new Date(r.due_date).getTime() - today.getTime()) / 86400000);
-      const amt = Number(r.amount) || 0;
+      const amt = Math.max(0, (Number(r.amount) || 0) - (pagoPorId.get(r.id) ?? 0));
+      if (amt <= 0) continue;
       for (const b of buckets) {
         if (days <= b.days) {
           if (r.kind === "receber") b.receivables += amt;
