@@ -48,7 +48,7 @@ function DashboardPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard label="Receita Prevista" amount={k?.receita_mes ?? 0} icon={ArrowUpCircle} regime="competencia" hint="competência do mês" />
         <KpiCard label="Recebido" amount={k?.recebido_mes ?? 0} icon={Wallet} tone="positive" regime="caixa" hint="baixas do mês" />
-        <KpiCard label="A Receber" amount={k?.a_receber_aberto ?? 0} icon={CircleDollarSign} tone="warning" regime="caixa" hint="em aberto no período" />
+        <KpiCard label="A Receber" amount={k?.a_receber_competencia ?? 0} icon={CircleDollarSign} tone="warning" regime="competencia" hint="saldo em aberto da competência" />
         <KpiCard label="Despesas" amount={k?.despesas_mes ?? 0} icon={ArrowDownCircle} tone="negative" regime="competencia" hint="sem repasse de mídia" />
       </div>
 
