@@ -43,9 +43,7 @@ begin
     if to_regclass('public.' || t) is null then continue; end if;
     if exists (select 1 from information_schema.columns
                where table_schema='public' and table_name=t
-                 and column_name='organization_id' and is_nullable='YES')
-       and not exists (select 1 from pg_class c join pg_namespace ns on ns.oid=c.relnamespace
-                       where ns.nspname='public' and c.relname=t) is false then
+                 and column_name='organization_id' and is_nullable='YES') then
       execute format('alter table public.%I alter column organization_id set not null', t);
     end if;
   end loop;
