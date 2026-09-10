@@ -28,6 +28,8 @@ import { InstallModuleButton } from "@/components/modules/InstallModuleButton";
 import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
 import { useAccess } from "@/hooks/useAccess";
 import { capabilityForPath } from "@/lib/subscriptions/capabilities";
+import { useOrgAccess } from "@/hooks/useOrgAccess";
+import { orgModuleForPath } from "@/lib/org/modules-map";
 import { CreditCard } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 
@@ -96,6 +98,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
     staleTime: 60_000,
   });
   const { can } = useAccess();
+  const org = useOrgAccess();
   const groups: NavGroup[] = NAV_GROUPS.map((g) =>
     g.section === "Administração" && isAdmin
       ? {
@@ -111,6 +114,9 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
     .map((g) => ({
       ...g,
       items: g.items.filter((item) => {
+        // Módulos contratados pela empresa ativa (Financeiro fica oculto para quem não tem).
+        const mod = orgModuleForPath(item.to);
+        if (mod && !org.hasModule(mod)) return false;
         if (isAdmin) return true;
         const cap = capabilityForPath(item.to);
         return !cap || can(cap);

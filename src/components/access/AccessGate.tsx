@@ -2,16 +2,28 @@ import { type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
+import { useOrgAccess } from "@/hooks/useOrgAccess";
 import { capabilityForPath, CAPABILITY_LABELS } from "@/lib/subscriptions/capabilities";
+import { orgModuleForPath, ORG_MODULE_LABELS } from "@/lib/org/modules-map";
 import { Button } from "@/components/ui/button";
 
 export function AccessGate({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isLoading, isAdmin, can, status } = useAccess();
+  const org = useOrgAccess();
+
+  // Módulos contratados pela empresa valem também para administradores da conta;
+  // apenas o super admin da plataforma passa direto.
+  const orgModule = orgModuleForPath(pathname);
+  if (orgModule && !org.hasModule(orgModule)) {
+    return <Denied title={`${ORG_MODULE_LABELS[orgModule]} não está incluído no plano da sua empresa`} />;
+  }
 
   if (isLoading || isAdmin) return <>{children}</>;
 
   if (pathname.startsWith("/admin")) return <Denied title="Área restrita a administradores" />;
+
+
 
   const cap = capabilityForPath(pathname);
   if (!cap || can(cap)) return <>{children}</>;
