@@ -5,6 +5,16 @@
  */
 import type { Db } from "./metrics.server";
 import { todayISO, OPEN_STATUSES } from "./metrics.server";
+import { financeScope } from "./scope";
+
+async function scopeFilter(sb: unknown, userId: string) {
+  const sc = await financeScope(sb, userId);
+  return {
+    col: (sc.orgId ? "organization_id" : "owner_id") as "owner_id",
+    cashCol: (sc.orgId ? "organization_id" : "empresa_id") as "empresa_id",
+    val: sc.orgId ?? userId,
+  };
+}
 
 const num = (v: unknown) => Number(v) || 0;
 const MEDIA_CATEGORY_RE = /(repasse|verba|m[ií]dia|ads|investimento em tr[aá]fego)/i;
@@ -51,6 +61,7 @@ export async function serviceLinesPanel(
   userId: string,
   year: number,
 ): Promise<ServiceLinesPanel> {
+  const sc = await scopeFilter(sb, userId);
   const from = `${year}-01`;
   const to = `${year}-12`;
   const today = todayISO();
@@ -226,6 +237,7 @@ export async function serviceLinesPanel(
 
 /** Composição da receita (fee, competência) do mês por linha de serviço. */
 export async function revenueByServiceLine(sb: Db, userId: string, month: number, year: number) {
+  const sc = await scopeFilter(sb, userId);
   const key = `${year}-${String(month).padStart(2, "0")}`;
   const [{ data: rows }, { data: servicos }] = await Promise.all([
     sb

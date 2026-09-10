@@ -14,6 +14,7 @@ import {
   financeMetrics,
 } from "./metrics.server";
 import { serviceLinesPanel } from "./servicos.server";
+import { financeScope } from "./scope";
 
 const num = (v: unknown) => Number(v) || 0;
 const EPS = 0.01;
@@ -60,6 +61,12 @@ export async function reconciliationReport(
   month: number,
   year: number,
 ): Promise<ReconciliationReport> {
+  const scope = await financeScope(sb, userId);
+  const sc = {
+    col: (scope.orgId ? "organization_id" : "owner_id") as "owner_id",
+    cashCol: (scope.orgId ? "organization_id" : "empresa_id") as "empresa_id",
+    val: scope.orgId ?? userId,
+  };
   const comp = competenciaKey(month, year);
   const { from, to } = monthBounds(month, year);
   const today = todayISO();
