@@ -28,6 +28,8 @@ import { InstallModuleButton } from "@/components/modules/InstallModuleButton";
 import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
 import { useAccess } from "@/hooks/useAccess";
 import { capabilityForPath } from "@/lib/subscriptions/capabilities";
+import { useOrgAccess } from "@/hooks/useOrgAccess";
+import { orgModuleForPath } from "@/lib/org/modules-map";
 import { CreditCard } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 
