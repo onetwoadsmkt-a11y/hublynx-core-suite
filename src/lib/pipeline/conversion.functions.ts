@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { applyTemplateStages } from "@/lib/projects/stages.functions";
 
 const uuid = z.string().uuid();
 
@@ -43,6 +44,8 @@ const schema = z.object({
     start_date: z.string().nullable().optional(),
     due_date: z.string().nullable().optional(),
   }),
+  /** Modelo de roadmap aplicado ao novo projeto. */
+  templateId: uuid.nullable().optional(),
   finance: z
     .object({
       generate: z.boolean(),
