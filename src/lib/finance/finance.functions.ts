@@ -410,6 +410,7 @@ async function syncRepasseMirror(
   },
 ) {
   const isRepasse = origem.kind === "receber" && (origem.natureza === "repasse" || origem.natureza === "reembolso");
+  const sc = await scopeFilter(supabase, userId);
   const { data: existing } = await supabase
     .from("finances")
     .select("id")
