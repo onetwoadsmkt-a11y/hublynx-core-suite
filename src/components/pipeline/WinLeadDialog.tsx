@@ -231,6 +231,20 @@ export function WinLeadDialog({
                 <Label>Início</Label>
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
+              {!recurring && templates.length > 0 && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Modelo de roadmap</Label>
+                  <Select value={templateId} onValueChange={setTemplateId}>
+                    <SelectTrigger><SelectValue placeholder="Sem modelo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem modelo</SelectItem>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </section>
 
