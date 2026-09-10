@@ -110,6 +110,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
           ...g,
           items: [
             ...g.items,
+            { to: "/admin", label: "Central Administrativa", icon: Shield },
             { to: "/admin/assinaturas", label: "Assinaturas (Admin)", icon: CreditCard },
             { to: "/admin/usuarios", label: "Usuários (Admin)", icon: Shield },
           ],
