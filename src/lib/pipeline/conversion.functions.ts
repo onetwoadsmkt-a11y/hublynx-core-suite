@@ -99,6 +99,7 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
       const { data: created, error } = await supabase
         .from("clients")
         .insert({
+          ...orgFields,
           owner_id: userId,
           name: c.name,
           company: c.company ?? null,
