@@ -29,9 +29,11 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminArmazenamentoRouteImport } from './routes/_authenticated/admin.armazenamento'
 import { Route as AuthenticatedAdminAssinaturasRouteImport } from './routes/_authenticated/admin.assinaturas'
 import { Route as AuthenticatedAdminEmpresasRouteImport } from './routes/_authenticated/admin.empresas'
 import { Route as AuthenticatedAdminPrecosRouteImport } from './routes/_authenticated/admin.precos'
+import { Route as AuthenticatedAdminSimuladorRouteImport } from './routes/_authenticated/admin.simulador'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppHojeRouteImport } from './routes/_authenticated/app.hoje'
@@ -166,6 +168,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminArmazenamentoRoute =
+  AuthenticatedAdminArmazenamentoRouteImport.update({
+    id: '/armazenamento',
+    path: '/armazenamento',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAssinaturasRoute =
   AuthenticatedAdminAssinaturasRouteImport.update({
     id: '/assinaturas',
@@ -182,6 +190,12 @@ const AuthenticatedAdminPrecosRoute =
   AuthenticatedAdminPrecosRouteImport.update({
     id: '/precos',
     path: '/precos',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSimuladorRoute =
+  AuthenticatedAdminSimuladorRouteImport.update({
+    id: '/simulador',
+    path: '/simulador',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminUsuariosRoute =
@@ -390,9 +404,11 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
   '/admin/precos': typeof AuthenticatedAdminPrecosRoute
+  '/admin/simulador': typeof AuthenticatedAdminSimuladorRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
   '/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -442,9 +458,11 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
   '/admin/precos': typeof AuthenticatedAdminPrecosRoute
+  '/admin/simulador': typeof AuthenticatedAdminSimuladorRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/app/hoje': typeof AuthenticatedAppHojeRoute
   '/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -500,9 +518,11 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/_authenticated/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/_authenticated/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/_authenticated/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
   '/_authenticated/admin/precos': typeof AuthenticatedAdminPrecosRoute
+  '/_authenticated/admin/simulador': typeof AuthenticatedAdminSimuladorRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/app/hoje': typeof AuthenticatedAppHojeRoute
   '/_authenticated/app/lembretes': typeof AuthenticatedAppLembretesRoute
@@ -558,9 +578,11 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/tarefas'
     | '/auth/callback'
+    | '/admin/armazenamento'
     | '/admin/assinaturas'
     | '/admin/empresas'
     | '/admin/precos'
+    | '/admin/simulador'
     | '/admin/usuarios'
     | '/app/hoje'
     | '/app/lembretes'
@@ -610,9 +632,11 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/tarefas'
     | '/auth/callback'
+    | '/admin/armazenamento'
     | '/admin/assinaturas'
     | '/admin/empresas'
     | '/admin/precos'
+    | '/admin/simulador'
     | '/admin/usuarios'
     | '/app/hoje'
     | '/app/lembretes'
@@ -667,9 +691,11 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/tarefas'
     | '/auth/callback'
+    | '/_authenticated/admin/armazenamento'
     | '/_authenticated/admin/assinaturas'
     | '/_authenticated/admin/empresas'
     | '/_authenticated/admin/precos'
+    | '/_authenticated/admin/simulador'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/app/hoje'
     | '/_authenticated/app/lembretes'
@@ -858,6 +884,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/armazenamento': {
+      id: '/_authenticated/admin/armazenamento'
+      path: '/armazenamento'
+      fullPath: '/admin/armazenamento'
+      preLoaderRoute: typeof AuthenticatedAdminArmazenamentoRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/assinaturas': {
       id: '/_authenticated/admin/assinaturas'
       path: '/assinaturas'
@@ -877,6 +910,13 @@ declare module '@tanstack/react-router' {
       path: '/precos'
       fullPath: '/admin/precos'
       preLoaderRoute: typeof AuthenticatedAdminPrecosRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/simulador': {
+      id: '/_authenticated/admin/simulador'
+      path: '/simulador'
+      fullPath: '/admin/simulador'
+      preLoaderRoute: typeof AuthenticatedAdminSimuladorRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/usuarios': {
@@ -1107,17 +1147,21 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminArmazenamentoRoute: typeof AuthenticatedAdminArmazenamentoRoute
   AuthenticatedAdminAssinaturasRoute: typeof AuthenticatedAdminAssinaturasRoute
   AuthenticatedAdminEmpresasRoute: typeof AuthenticatedAdminEmpresasRoute
   AuthenticatedAdminPrecosRoute: typeof AuthenticatedAdminPrecosRoute
+  AuthenticatedAdminSimuladorRoute: typeof AuthenticatedAdminSimuladorRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminArmazenamentoRoute: AuthenticatedAdminArmazenamentoRoute,
   AuthenticatedAdminAssinaturasRoute: AuthenticatedAdminAssinaturasRoute,
   AuthenticatedAdminEmpresasRoute: AuthenticatedAdminEmpresasRoute,
   AuthenticatedAdminPrecosRoute: AuthenticatedAdminPrecosRoute,
+  AuthenticatedAdminSimuladorRoute: AuthenticatedAdminSimuladorRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
