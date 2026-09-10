@@ -90,6 +90,7 @@ export function WinLeadDialog({
     setGenFinance(true);
     setInstallments("1");
     setFirstDue(today());
+    setTemplateId("none");
   }, [lead]);
 
   const num = (s: string) => {
@@ -111,6 +112,7 @@ export function WinLeadDialog({
         data: {
           leadId: lead.id,
           clientId: lead.client_id ?? null,
+          templateId: templateId !== "none" ? templateId : null,
           client: {
             name: clientName.trim(),
             company: company || null,
