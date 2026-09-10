@@ -15,6 +15,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { convertLeadToClient } from "@/lib/pipeline/conversion.functions";
+import { listProjectTemplates } from "@/lib/projects/stages.functions";
+import { useQuery } from "@tanstack/react-query";
 import type { Lead } from "./types";
 
 const MODELS = [
@@ -63,6 +65,16 @@ export function WinLeadDialog({
   const [genFinance, setGenFinance] = useState(true);
   const [installments, setInstallments] = useState("1");
   const [firstDue, setFirstDue] = useState(today());
+  const [templateId, setTemplateId] = useState<string>("none");
+
+  const templatesFn = useServerFn(listProjectTemplates);
+  const templatesQ = useQuery({
+    queryKey: ["project-templates"],
+    queryFn: () => templatesFn(),
+    enabled: !!lead,
+    staleTime: 5 * 60_000,
+  });
+  const templates = templatesQ.data ?? [];
 
   useEffect(() => {
     if (!lead) return;
@@ -78,6 +90,7 @@ export function WinLeadDialog({
     setGenFinance(true);
     setInstallments("1");
     setFirstDue(today());
+    setTemplateId("none");
   }, [lead]);
 
   const num = (s: string) => {
@@ -99,6 +112,7 @@ export function WinLeadDialog({
         data: {
           leadId: lead.id,
           clientId: lead.client_id ?? null,
+          templateId: templateId !== "none" ? templateId : null,
           client: {
             name: clientName.trim(),
             company: company || null,
@@ -217,6 +231,20 @@ export function WinLeadDialog({
                 <Label>Início</Label>
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
+              {!recurring && templates.length > 0 && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Modelo de roadmap</Label>
+                  <Select value={templateId} onValueChange={setTemplateId}>
+                    <SelectTrigger><SelectValue placeholder="Sem modelo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem modelo</SelectItem>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </section>
 

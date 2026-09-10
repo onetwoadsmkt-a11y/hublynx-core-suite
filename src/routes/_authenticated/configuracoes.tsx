@@ -9,6 +9,7 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
 const TABS = [
   { to: "/configuracoes", label: "Geral", adminOnly: false },
   { to: "/configuracoes/integracoes", label: "Integrações", adminOnly: false },
+  { to: "/configuracoes/modelos", label: "Modelos de projeto", adminOnly: false },
   { to: "/configuracoes/modulos", label: "Módulos", adminOnly: true },
 ];
 

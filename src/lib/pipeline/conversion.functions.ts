@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { applyTemplateStages } from "@/lib/projects/stages.functions";
 
 const uuid = z.string().uuid();
 
@@ -43,6 +44,8 @@ const schema = z.object({
     start_date: z.string().nullable().optional(),
     due_date: z.string().nullable().optional(),
   }),
+  /** Modelo de roadmap aplicado ao novo projeto. */
+  templateId: uuid.nullable().optional(),
   finance: z
     .object({
       generate: z.boolean(),
@@ -81,6 +84,10 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
       throw new Error("Este lead já foi convertido em cliente/projeto.");
     }
 
+    const db = supabase as any;
+    const organizationId = ((lead as any).organization_id ?? null) as string | null;
+    const orgFields = organizationId ? { organization_id: organizationId } : {};
+
     // 1) Cliente
     let clientId = data.clientId ?? (lead as any).client_id ?? null;
     if (!clientId) {
@@ -90,9 +97,10 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
         email?: string | null;
         phone?: string | null;
       } = data.client ?? { name: String((lead as any).name) };
-      const { data: created, error } = await supabase
+      const { data: created, error } = await db
         .from("clients")
         .insert({
+          ...orgFields,
           owner_id: userId,
           name: c.name,
           company: c.company ?? null,
@@ -109,9 +117,10 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
 
     // 2) Projeto
     const p = data.project;
-    const { data: project, error: projErr } = await supabase
+    const { data: project, error: projErr } = await db
       .from("projects")
       .insert({
+        ...orgFields,
         owner_id: userId,
         client_id: clientId,
         name: p.name,
@@ -129,6 +138,20 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
       .single();
     if (projErr) throw new Error(projErr.message);
     const projectId = (project as any).id as string;
+
+    // 2b) Roadmap a partir do modelo escolhido
+    if (data.templateId && organizationId) {
+      try {
+        await applyTemplateStages(db, {
+          projectId,
+          organizationId,
+          templateId: data.templateId,
+          startDate: p.start_date ?? new Date().toISOString().slice(0, 10),
+        });
+      } catch {
+        // roadmap é complementar: não impede a conversão
+      }
+    }
 
     // 3) Financeiro (contas a receber)
     let created = 0;
