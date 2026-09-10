@@ -219,9 +219,10 @@ export const upsertStage = createServerFn({ method: "POST" })
       }
     }
 
+    const orgId = await resolveOrganizationId(supabase as never, userId);
     const { error } = await supabase
       .from("pipeline_stages")
-      .upsert({ ...data, owner_id: userId });
+      .upsert({ ...data, owner_id: userId, ...organizationFields(orgId) } as never);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
@@ -294,11 +295,14 @@ export const upsertLead = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { organizationId, ...lead } = data;
-    // Lead existente: preserva id/owner_id/workspace_id. Lead novo: recebe o workspace ativo
-    // e o owner_id do usuário (compatibilidade com o RLS atual).
+    // Lead existente: preserva id, empresa e owner_id. Lead novo: recebe a empresa
+    // ativa (validada no servidor) e o owner_id do usuário autenticado.
+    const orgId = lead.id
+      ? null
+      : await resolveOrganizationId(supabase as never, userId, organizationId);
     const payload = lead.id
       ? { ...lead, owner_id: userId }
-      : { ...lead, owner_id: userId, ...organizationFields(organizationId) };
+      : { ...lead, owner_id: userId, ...organizationFields(orgId) };
     const { data: row, error } = await supabase
       .from("leads")
       .upsert(payload as never)
