@@ -63,22 +63,22 @@ export async function serviceLinesPanel(
     { data: allFinances },
     { data: categories },
   ] = await Promise.all([
-    sb.from("servicos").select("id, nome, cor, ativo").eq("empresa_id", userId).order("nome"),
+    sb.from("servicos").select("id, nome, cor, ativo").eq(sc.cashCol, sc.val).order("nome"),
     sb
       .from("projects")
       .select("id, name, client_id, servico_id, status, commercial_model, monthly_value")
-      .eq("owner_id", userId),
-    sb.from("clients").select("id, name").eq("owner_id", userId),
+      .eq(sc.col, sc.val),
+    sb.from("clients").select("id, name").eq(sc.col, sc.val),
     sb
       .from("finances")
       .select(
         "id, kind, amount, natureza, competencia, status, servico_id, project_id, client_id, category_id, repasse_origem_id, recurrence, parent_id",
       )
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .gte("competencia", from)
       .lte("competencia", to),
-    sb.from("finances").select("id, kind, amount, servico_id, status, due_date").eq("owner_id", userId),
-    sb.from("finance_categories").select("id, name").or(`owner_id.eq.${userId},owner_id.is.null`),
+    sb.from("finances").select("id, kind, amount, servico_id, status, due_date").eq(sc.col, sc.val),
+    sb.from("finance_categories").select("id, name").or(`${sc.col}.eq.${sc.val},${sc.col}.is.null`),
   ]);
 
   const media = new Set(
@@ -91,7 +91,7 @@ export async function serviceLinesPanel(
   const { data: baixas } = await sb
     .from("baixas")
     .select("receita_id, valor, data")
-    .eq("empresa_id", userId)
+    .eq(sc.cashCol, sc.val)
     .not("receita_id", "is", null)
     .gte("data", `${year}-01-01`)
     .lte("data", `${year}-12-31`);
@@ -108,7 +108,7 @@ export async function serviceLinesPanel(
     const { data: paid } = await sb
       .from("baixas")
       .select("receita_id, valor")
-      .eq("empresa_id", userId)
+      .eq(sc.cashCol, sc.val)
       .in(
         "receita_id",
         overdue.map((f) => f.id),
@@ -231,12 +231,12 @@ export async function revenueByServiceLine(sb: Db, userId: string, month: number
     sb
       .from("finances")
       .select("amount, servico_id")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .eq("kind", "receber")
       .eq("natureza", "fee")
       .eq("competencia", key)
       .neq("status", "cancelado"),
-    sb.from("servicos").select("id, nome, cor").eq("empresa_id", userId),
+    sb.from("servicos").select("id, nome, cor").eq(sc.cashCol, sc.val),
   ]);
   const meta = new Map((servicos ?? []).map((s) => [s.id, s]));
   const acc = new Map<string, number>();

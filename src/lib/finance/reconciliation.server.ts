@@ -75,9 +75,9 @@ export async function reconciliationReport(
       .select(
         "id, kind, amount, status, natureza, competencia, due_date, category_id, repasse_origem_id",
       )
-      .eq("owner_id", userId),
-    sb.from("baixas").select("receita_id, despesa_id, valor, data").eq("empresa_id", userId),
-    sb.from("contas").select("saldo_inicial, ativo").eq("empresa_id", userId).eq("ativo", true),
+      .eq(sc.col, sc.val),
+    sb.from("baixas").select("receita_id, despesa_id, valor, data").eq(sc.cashCol, sc.val),
+    sb.from("contas").select("saldo_inicial, ativo").eq(sc.cashCol, sc.val).eq("ativo", true),
   ]);
 
   const rows = finances ?? [];
