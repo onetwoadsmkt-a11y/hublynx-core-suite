@@ -94,8 +94,13 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
   const listMods = useServerFn(listUserModules);
   const { data: modules } = useQuery({
     queryKey: ["user-modules"],
-    queryFn: () => listMods(),
+    queryFn: async () => {
+      const { data: s } = await supabase.auth.getSession();
+      if (!s.session?.access_token) return [];
+      return listMods();
+    },
     staleTime: 60_000,
+    retry: false,
   });
   const { can } = useAccess();
   const org = useOrgAccess();
