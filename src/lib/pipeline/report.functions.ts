@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { scopeWorkspace } from "@/lib/workspaces/filter";
+import { scopeOrganization } from "@/lib/org/filter";
 
 export const getLeadsReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -11,7 +11,7 @@ export const getLeadsReport = createServerFn({ method: "GET" })
         pipelineId: z.string().uuid().nullable().optional(),
         from: z.string().nullable().optional(),
         to: z.string().nullable().optional(),
-        workspaceId: z.string().uuid().optional(),
+        organizationId: z.string().uuid().optional(),
       })
       .parse(d ?? {}),
   )
@@ -23,9 +23,9 @@ export const getLeadsReport = createServerFn({ method: "GET" })
       supabase.from("pipeline_stages").select("*").order("position"),
     ]);
 
-    let q = scopeWorkspace(
+    let q = scopeOrganization(
       supabase.from("leads").select("*").order("created_at", { ascending: false }),
-      data.workspaceId,
+      data.organizationId,
     );
     if (data.from) q = q.gte("created_at", `${data.from}T00:00:00`);
     if (data.to) q = q.lte("created_at", `${data.to}T23:59:59`);

@@ -81,15 +81,15 @@ function PipelinePage() {
   const [pipeDialog, setPipeDialog] = useState<"new" | "rename" | null>(null);
   const [pipeName, setPipeName] = useState("");
 
-  const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
+  const { activeOrganizationId, isLoading: wsLoading } = useWorkspace();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline", pipelineId ?? "default", activeWorkspaceId ?? "none"],
+    queryKey: ["pipeline", pipelineId ?? "default", activeOrganizationId ?? "none"],
     queryFn: () =>
       listFn({
         data: {
           ...(pipelineId ? { pipelineId } : {}),
-          ...(activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}),
+          ...(activeOrganizationId ? { organizationId: activeOrganizationId } : {}),
         },
       }),
     enabled: !wsLoading,

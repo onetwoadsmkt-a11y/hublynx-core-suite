@@ -55,16 +55,16 @@ function RelatoriosComerciaisPage() {
   const [exporting, setExporting] = useState(false);
 
   const reportFn = useServerFn(getLeadsReport);
-  const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
+  const { activeOrganizationId, isLoading: wsLoading } = useWorkspace();
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ["leads-report", pipelineId, from, to, activeWorkspaceId ?? "none"],
+    queryKey: ["leads-report", pipelineId, from, to, activeOrganizationId ?? "none"],
     queryFn: () =>
       reportFn({
         data: {
           pipelineId: pipelineId === "all" ? null : pipelineId,
           from: from || null,
           to: to || null,
-          ...(activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}),
+          ...(activeOrganizationId ? { organizationId: activeOrganizationId } : {}),
         },
       }),
     enabled: !wsLoading,

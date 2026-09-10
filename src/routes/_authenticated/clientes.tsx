@@ -77,10 +77,10 @@ function LeadsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
 
-  const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
+  const { activeOrganizationId, isLoading: wsLoading } = useWorkspace();
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline", "all-leads", activeWorkspaceId ?? "none"],
-    queryFn: () => listFn({ data: activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {} }),
+    queryKey: ["pipeline", "all-leads", activeOrganizationId ?? "none"],
+    queryFn: () => listFn({ data: activeOrganizationId ? { organizationId: activeOrganizationId } : {} }),
     enabled: !wsLoading,
   });
 

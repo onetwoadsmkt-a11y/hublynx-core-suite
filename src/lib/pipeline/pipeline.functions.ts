@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DEFAULT_STAGES } from "./defaults";
-import { scopeWorkspace, workspaceFields } from "@/lib/workspaces/filter";
+import { scopeOrganization, organizationFields } from "@/lib/org/filter";
 
 const uuid = z.string().uuid();
 
@@ -85,7 +85,7 @@ export const deletePipeline = createServerFn({ method: "POST" })
 export const listPipeline = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ pipelineId: uuid.optional(), workspaceId: uuid.optional() }).parse(d ?? {}),
+    z.object({ pipelineId: uuid.optional(), organizationId: uuid.optional() }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -144,9 +144,9 @@ export const listPipeline = createServerFn({ method: "GET" })
     }
 
     const stageIds = (stages ?? []).map((s) => s.id);
-    const query = scopeWorkspace(
+    const query = scopeOrganization(
       supabase.from("leads").select("*").order("created_at", { ascending: false }),
-      data.workspaceId,
+      data.organizationId,
     );
     const { data: leads, error: lerr } = await (isFirst
       ? query.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
@@ -263,15 +263,15 @@ const leadSchema = z.object({
 
 export const upsertLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => leadSchema.extend({ workspaceId: uuid.optional() }).parse(d))
+  .inputValidator((d: unknown) => leadSchema.extend({ organizationId: uuid.optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { workspaceId, ...lead } = data;
+    const { organizationId, ...lead } = data;
     // Lead existente: preserva id/owner_id/workspace_id. Lead novo: recebe o workspace ativo
     // e o owner_id do usuário (compatibilidade com o RLS atual).
     const payload = lead.id
       ? { ...lead, owner_id: userId }
-      : { ...lead, owner_id: userId, ...workspaceFields(workspaceId) };
+      : { ...lead, owner_id: userId, ...organizationFields(organizationId) };
     const { data: row, error } = await supabase
       .from("leads")
       .upsert(payload as never)
@@ -492,7 +492,7 @@ export const updateWebhookMapping = createServerFn({ method: "POST" })
 export const reprocessLastPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ id: uuid, create: z.boolean().optional(), workspaceId: uuid.optional() }).parse(d),
+    z.object({ id: uuid, create: z.boolean().optional(), organizationId: uuid.optional() }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -514,7 +514,7 @@ export const reprocessLastPayload = createServerFn({ method: "POST" })
     if (data.create && preview["name"]) {
       await supabase.from("leads").insert({
         owner_id: userId,
-        ...workspaceFields(data.workspaceId),
+        ...organizationFields(data.organizationId),
         stage_id: hook.default_stage_id,
         ...preview,
         value: preview["value"] ? Number(preview["value"]) : null,
@@ -698,15 +698,15 @@ export const deleteLeadFile = createServerFn({ method: "POST" })
 
 export const listAllLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ workspaceId: uuid.optional() }).parse(d ?? {}))
+  .inputValidator((d: unknown) => z.object({ organizationId: uuid.optional() }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const [{ data: pipelines }, { data: stages }, { data: leads, error }] = await Promise.all([
       supabase.from("pipelines").select("*").order("position"),
       supabase.from("pipeline_stages").select("*").order("position"),
-      scopeWorkspace(
+      scopeOrganization(
         supabase.from("leads").select("*").order("created_at", { ascending: false }),
-        data.workspaceId,
+        data.organizationId,
       ),
     ]);
     if (error) throw new Error(error.message);
