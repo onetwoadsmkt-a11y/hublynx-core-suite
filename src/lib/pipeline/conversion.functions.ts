@@ -84,6 +84,7 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
       throw new Error("Este lead já foi convertido em cliente/projeto.");
     }
 
+    const db = supabase as any;
     const organizationId = ((lead as any).organization_id ?? null) as string | null;
     const orgFields = organizationId ? { organization_id: organizationId } : {};
 
@@ -96,7 +97,7 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
         email?: string | null;
         phone?: string | null;
       } = data.client ?? { name: String((lead as any).name) };
-      const { data: created, error } = await supabase
+      const { data: created, error } = await db
         .from("clients")
         .insert({
           ...orgFields,
@@ -116,9 +117,10 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
 
     // 2) Projeto
     const p = data.project;
-    const { data: project, error: projErr } = await supabase
+    const { data: project, error: projErr } = await db
       .from("projects")
       .insert({
+        ...orgFields,
         owner_id: userId,
         client_id: clientId,
         name: p.name,
