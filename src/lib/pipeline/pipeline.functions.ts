@@ -410,12 +410,14 @@ export const addLeadNote = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await leadOrganizationId(supabase, data.leadId);
     const { error } = await supabase.from("lead_notes").insert({
       lead_id: data.leadId,
       owner_id: userId,
+      ...organizationFields(orgId),
       author_id: userId,
       body: data.body,
-    });
+    } as never);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
@@ -468,9 +470,10 @@ export const createWebhook = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await resolveOrganizationId(supabase as never, userId);
     const { data: row, error } = await supabase
       .from("lead_webhooks")
-      .insert({ ...data, owner_id: userId })
+      .insert({ ...data, owner_id: userId, ...organizationFields(orgId) } as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -543,9 +546,10 @@ export const reprocessLastPayload = createServerFn({ method: "POST" })
     };
 
     if (data.create && preview["name"]) {
+      const orgId = await resolveOrganizationId(supabase as never, userId, data.organizationId);
       await supabase.from("leads").insert({
         owner_id: userId,
-        ...organizationFields(data.organizationId),
+        ...organizationFields(orgId),
         stage_id: hook.default_stage_id,
         ...preview,
         value: preview["value"] ? Number(preview["value"]) : null,
@@ -704,14 +708,16 @@ export const registerLeadFile = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await leadOrganizationId(supabase, data.leadId);
     const { error } = await supabase.from("lead_files").insert({
       lead_id: data.leadId,
       owner_id: userId,
+      ...organizationFields(orgId),
       name: data.name,
       storage_path: data.storage_path,
       mime_type: data.mime_type ?? null,
       size_bytes: data.size_bytes ?? null,
-    });
+    } as never);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
