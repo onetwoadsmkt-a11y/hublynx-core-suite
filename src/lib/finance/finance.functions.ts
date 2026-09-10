@@ -113,6 +113,7 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
         if (cursor > lookaheadISO) break;
         const { error } = await supabase.from("finances").insert({
           owner_id: userId,
+          ...(await orgFields(supabase as never, userId)),
           kind: c.kind as FinanceKind,
           client_id: c.client_id,
           project_id: c.project_id,
@@ -416,7 +417,12 @@ async function syncRepasseMirror(
   if (existing?.id) {
     await supabase.from("finances").update(payload).eq("id", existing.id).eq("owner_id", userId);
   } else {
-    await supabase.from("finances").insert({ owner_id: userId, status: "aberto", ...payload });
+    await supabase.from("finances").insert({
+      owner_id: userId,
+      ...(await orgFields(supabase as never, userId)),
+      status: "aberto",
+      ...payload,
+    } as never);
   }
 }
 
@@ -464,6 +470,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
         .from("finances")
         .insert({
           owner_id: userId,
+          ...(await orgFields(supabase as never, userId)),
           kind: data.kind,
           description: data.description ?? null,
           amount: each,
@@ -485,6 +492,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
       for (let i = 2; i <= total; i++) {
         rest.push({
           owner_id: userId,
+          ...(await orgFields(supabase as never, userId)),
           kind: data.kind,
           description: data.description ?? null,
           amount: each,
@@ -531,6 +539,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
       .from("finances")
       .insert({
         owner_id: userId,
+        ...(await orgFields(supabase as never, userId)),
         kind: data.kind,
         description: data.description ?? null,
         amount: data.amount,
