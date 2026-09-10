@@ -64,8 +64,8 @@ const MEDIA_CATEGORY_RE = /(repasse|verba|m[ií]dia|ads|investimento em tr[aá]f
 async function mediaCategoryIds(sb: Db, scope: FinanceScope): Promise<Set<string>> {
   const { data } = await sb
     .from("finance_categories")
-    .select("id, name, organization_id, owner_id");
-  const rows = (data ?? []) as Array<{
+    .select("id, name, organization_id, owner_id" as "id, name, owner_id");
+  const rows = (data ?? []) as unknown as Array<{
     id: string;
     name: string;
     organization_id?: string | null;
