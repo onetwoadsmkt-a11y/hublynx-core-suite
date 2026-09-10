@@ -132,6 +132,8 @@ function AdminCompanies() {
                   </label>
                 ))}
               </div>
+
+              <OrgMembers org={o} modules={modules} />
             </Card>
           ))}
         </div>
