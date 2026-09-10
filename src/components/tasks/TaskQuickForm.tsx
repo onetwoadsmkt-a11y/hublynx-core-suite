@@ -129,7 +129,7 @@ export function TaskQuickForm({ open, onOpenChange, defaults, onCreated }: Props
         due_date: dueIso,
         position: 0,
         briefing: { type: kind === "reuniao" ? "reuniao" : "tarefa", deadline: dueDate || null } as any,
-      }).select("id").single();
+      } as never).select("id").single();
       if (error) throw error;
       const taskId = inserted.id as string;
 

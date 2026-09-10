@@ -72,7 +72,7 @@ export function NewTaskSheet({
         due_date: dueIso,
         position: 0,
         briefing: { type: taskType } as any,
-      }).select("id").single();
+      } as never).select("id").single();
       if (error) throw error;
       return inserted.id as string;
     },
