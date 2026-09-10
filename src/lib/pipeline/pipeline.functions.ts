@@ -7,6 +7,12 @@ import { resolveOrganizationId } from "@/lib/org/resolve";
 
 const uuid = z.string().uuid();
 
+/** Empresa herdada do lead (notas, tarefas e arquivos seguem o lead). */
+async function leadOrganizationId(db: any, leadId: string): Promise<string | null> {
+  const { data } = await db.from("leads").select("organization_id").eq("id", leadId).maybeSingle();
+  return (data?.organization_id as string | undefined) ?? null;
+}
+
 /* ---------------- Pipelines ---------------- */
 
 export const listPipelines = createServerFn({ method: "GET" })
