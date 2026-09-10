@@ -109,12 +109,18 @@ export const listPipeline = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await resolveOrganizationId(supabase as never, userId, data.organizationId);
 
     let { data: pipelines } = await supabase.from("pipelines").select("*").order("position");
     if (!pipelines || pipelines.length === 0) {
       const { data: created, error } = await supabase
         .from("pipelines")
-        .insert({ owner_id: userId, name: "Pipeline principal", position: 0 })
+        .insert({
+          owner_id: userId,
+          ...organizationFields(orgId),
+          name: "Pipeline principal",
+          position: 0,
+        } as never)
         .select("*");
       if (error) throw new Error(error.message);
       pipelines = created ?? [];
