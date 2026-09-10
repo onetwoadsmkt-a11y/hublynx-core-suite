@@ -153,6 +153,7 @@ export const listPipeline = createServerFn({ method: "GET" })
       if (!stages || stages.length === 0) {
         const rows = DEFAULT_STAGES.map((s, i) => ({
           owner_id: userId,
+          ...organizationFields(orgId),
           pipeline_id: current.id,
           name: s.name,
           color: s.color,
@@ -162,7 +163,7 @@ export const listPipeline = createServerFn({ method: "GET" })
         }));
         const { data: created, error } = await supabase
           .from("pipeline_stages")
-          .insert(rows)
+          .insert(rows as never)
           .select("*");
         if (error) throw new Error(error.message);
         stages = created ?? [];
