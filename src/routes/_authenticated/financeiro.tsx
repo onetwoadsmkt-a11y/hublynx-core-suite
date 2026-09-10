@@ -24,22 +24,49 @@ export const Route = createFileRoute("/_authenticated/financeiro")({
   component: FinanceLayout,
 });
 
-const TABS = [
-  { to: "/financeiro", label: "Visão Geral" },
-  { to: "/financeiro/previsao", label: "Previsão de Faturamento" },
-  { to: "/financeiro/recebiveis", label: "Recebíveis" },
-  { to: "/financeiro/pagar", label: "Contas a Pagar" },
-  { to: "/financeiro/servicos", label: "Linhas de serviço" },
-  { to: "/financeiro/conciliacao", label: "Conciliação" },
-] as const;
+type SubTab = { to: string; label: string };
+type Tab = { to: string; label: string; sub?: SubTab[] };
 
-const MORE_TABS = [
-  { to: "/financeiro/receber", label: "Contas a Receber (lista)" },
-  { to: "/financeiro/calendario", label: "Calendário" },
-  { to: "/financeiro/recorrencias", label: "Recorrências" },
-  { to: "/financeiro/dre", label: "DRE + Lucratividade" },
-  { to: "/financeiro/categorias", label: "Categorias" },
-] as const;
+/** Seis subáreas: visão geral, receber, pagar, fluxo de caixa, fiscal e configurações. */
+const TABS: Tab[] = [
+  { to: "/financeiro", label: "Visão Geral" },
+  {
+    to: "/financeiro/recebiveis",
+    label: "Receber",
+    sub: [
+      { to: "/financeiro/recebiveis", label: "Recebíveis" },
+      { to: "/financeiro/receber", label: "Contas a receber (lista)" },
+      { to: "/financeiro/previsao", label: "Previsão de faturamento" },
+    ],
+  },
+  {
+    to: "/financeiro/pagar",
+    label: "Pagar",
+    sub: [
+      { to: "/financeiro/pagar", label: "Contas a pagar" },
+      { to: "/financeiro/recorrencias", label: "Recorrências" },
+    ],
+  },
+  {
+    to: "/financeiro/calendario",
+    label: "Fluxo de Caixa",
+    sub: [
+      { to: "/financeiro/calendario", label: "Calendário" },
+      { to: "/financeiro/dre", label: "DRE + Lucratividade" },
+      { to: "/financeiro/conciliacao", label: "Conciliação" },
+    ],
+  },
+  { to: "/financeiro/fiscal", label: "Fiscal" },
+  {
+    to: "/financeiro/categorias",
+    label: "Configurações",
+    sub: [
+      { to: "/financeiro/categorias", label: "Categorias" },
+      { to: "/financeiro/servicos", label: "Linhas de serviço" },
+    ],
+  },
+];
+
 
 
 function FinanceLayout() {
