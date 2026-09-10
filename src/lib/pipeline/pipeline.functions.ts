@@ -15,9 +15,15 @@ export const listPipelines = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     let { data } = await supabase.from("pipelines").select("*").order("position");
     if (!data || data.length === 0) {
+      const orgId = await resolveOrganizationId(supabase as never, userId);
       const { data: created, error } = await supabase
         .from("pipelines")
-        .insert({ owner_id: userId, name: "Pipeline principal", position: 0 })
+        .insert({
+          owner_id: userId,
+          ...organizationFields(orgId),
+          name: "Pipeline principal",
+          position: 0,
+        } as never)
         .select("*");
       if (error) throw new Error(error.message);
       data = created ?? [];
@@ -28,16 +34,28 @@ export const listPipelines = createServerFn({ method: "GET" })
 export const createPipeline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ name: z.string().min(1).max(80), seedStages: z.boolean().optional() }).parse(d),
+    z
+      .object({
+        name: z.string().min(1).max(80),
+        seedStages: z.boolean().optional(),
+        organizationId: uuid.optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await resolveOrganizationId(supabase as never, userId, data.organizationId);
     const { count } = await supabase
       .from("pipelines")
       .select("id", { count: "exact", head: true });
     const { data: row, error } = await supabase
       .from("pipelines")
-      .insert({ owner_id: userId, name: data.name, position: count ?? 0 })
+      .insert({
+        owner_id: userId,
+        ...organizationFields(orgId),
+        name: data.name,
+        position: count ?? 0,
+      } as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -46,13 +64,14 @@ export const createPipeline = createServerFn({ method: "POST" })
       await supabase.from("pipeline_stages").insert(
         DEFAULT_STAGES.map((s, i) => ({
           owner_id: userId,
+          ...organizationFields(orgId),
           pipeline_id: row.id,
           name: s.name,
           color: s.color,
           position: i,
           is_won: s.is_won ?? false,
           is_lost: s.is_lost ?? false,
-        })),
+        })) as never,
       );
     }
     return row;
