@@ -82,7 +82,8 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
     queryFn: () => metricsFn({ data: { month: search.month, year: search.year } }),
   });
   // Fonte única: nunca recalcular receita/despesa nesta tela.
-  const total = kind === "receber" ? (metrics?.receita_mes ?? 0) : (metrics?.despesas_mes ?? 0);
+  const total =
+    kind === "receber" ? (metrics?.receita_bruta_mes ?? 0) : (metrics?.despesas_brutas_mes ?? 0);
   const realizado = kind === "receber" ? (metrics?.recebido_mes ?? 0) : (metrics?.pago_mes ?? 0);
 
   const byDay = useMemo(() => {

@@ -1,6 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { financeScope } from "./scope";
+
+/** Escopo por empresa (organização) — mesmo critério do resto do financeiro. */
+async function scopeFilter(supabase: unknown, userId: string) {
+  const sc = await financeScope(supabase, userId);
+  return {
+    col: (sc.orgId ? "organization_id" : "owner_id") as "owner_id",
+    cashCol: (sc.orgId ? "organization_id" : "empresa_id") as "empresa_id",
+    val: sc.orgId ?? userId,
+  };
+}
 
 export type ReceivableMatrixRow = {
   key: string;
@@ -40,6 +51,7 @@ export const getReceivablesPanel = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<ReceivablesPanel> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const start = new Date(Date.UTC(data.startYear, data.startMonth - 1, 1));
     const end = new Date(Date.UTC(data.startYear, data.startMonth - 1 + data.months, 0));
     const from = start.toISOString().slice(0, 10);
@@ -60,9 +72,10 @@ export const getReceivablesPanel = createServerFn({ method: "POST" })
 
     let q = supabase
       .from("finances")
-      .select("amount, due_date, status, client_id, project_id, description, category_id")
-      .eq("owner_id", userId)
+      .select("id, amount, due_date, competencia, status, client_id, project_id, description, category_id")
+      .eq(sc.col, sc.val)
       .eq("kind", data.kind)
+      .neq("status", "cancelado")
       .gte("due_date", from)
       .lte("due_date", to);
     if (data.clientId) q = q.eq("client_id", data.clientId);
@@ -72,8 +85,8 @@ export const getReceivablesPanel = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const [{ data: clients }, { data: projects }] = await Promise.all([
-      supabase.from("clients").select("id, name").eq("owner_id", userId),
-      supabase.from("projects").select("id, name").eq("owner_id", userId),
+      supabase.from("clients").select("id, name").eq(sc.col, sc.val),
+      supabase.from("projects").select("id, name").eq(sc.col, sc.val),
     ]);
     const clientName = new Map((clients ?? []).map((c) => [c.id, c.name]));
     const projectName = new Map((projects ?? []).map((p) => [p.id, p.name]));
@@ -83,8 +96,23 @@ export const getReceivablesPanel = createServerFn({ method: "POST" })
     const recebido = new Array(data.months).fill(0) as number[];
     const count = new Array(data.months).fill(0) as number[];
 
+    // Regime de caixa: o realizado vem das baixas, não do status.
+    const pagoPorId = new Map<string, number>();
+    if ((rows ?? []).length) {
+      const { data: baixas } = await supabase
+        .from("baixas")
+        .select("receita_id, despesa_id, valor")
+        .eq(sc.cashCol, sc.val);
+      for (const b of baixas ?? []) {
+        const fid = (b.receita_id ?? b.despesa_id) as string | null;
+        if (!fid) continue;
+        pagoPorId.set(fid, (pagoPorId.get(fid) ?? 0) + (Number(b.valor) || 0));
+      }
+    }
+
     for (const r of rows ?? []) {
-      const mk = String(r.due_date).slice(0, 7);
+      // Competência manda; o vencimento é só o fallback.
+      const mk = String(r.competencia ?? String(r.due_date).slice(0, 7)).slice(0, 7);
       const i = idx.get(mk);
       if (i === undefined) continue;
       const amount = Number(r.amount) || 0;
@@ -109,13 +137,14 @@ export const getReceivablesPanel = createServerFn({ method: "POST" })
       row.total += amount;
       previsto[i] = (previsto[i] ?? 0) + amount;
       count[i] = (count[i] ?? 0) + 1;
-      if (r.status === "quitado") {
-        row.received[i] = (row.received[i] ?? 0) + amount;
-        recebido[i] = (recebido[i] ?? 0) + amount;
+      const pago = Math.min(amount, pagoPorId.get(r.id) ?? 0);
+      if (pago > 0) {
+        row.received[i] = (row.received[i] ?? 0) + pago;
+        recebido[i] = (recebido[i] ?? 0) + pago;
       }
     }
 
-    const aberto = previsto.map((v, i) => v - (recebido[i] ?? 0));
+    const aberto = previsto.map((v, i) => Math.max(0, v - (recebido[i] ?? 0)));
     const list = [...map.values()].sort(
       (a, b) => a.client.localeCompare(b.client) || a.project.localeCompare(b.project),
     );
@@ -189,6 +218,7 @@ export const getBillingForecast = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<BillingForecast> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { keys, labels } = monthGrid(data.startYear, data.startMonth, data.months);
     const idx = new Map(keys.map((k, i) => [k, i]));
     const from = `${keys[0]}-01`;
@@ -200,13 +230,14 @@ export const getBillingForecast = createServerFn({ method: "POST" })
       supabase
         .from("projects")
         .select("id, name, client_id, monthly_value, billing_day, commercial_model, status")
-        .eq("owner_id", userId),
-      supabase.from("clients").select("id, name").eq("owner_id", userId),
+        .eq(sc.col, sc.val),
+      supabase.from("clients").select("id, name").eq(sc.col, sc.val),
       supabase
         .from("finances")
-        .select("amount, due_date, project_id")
-        .eq("owner_id", userId)
+        .select("amount, due_date, competencia, project_id")
+        .eq(sc.col, sc.val)
         .eq("kind", "receber")
+        .neq("status", "cancelado")
         .gte("due_date", from)
         .lte("due_date", to),
     ]);
@@ -215,7 +246,7 @@ export const getBillingForecast = createServerFn({ method: "POST" })
     const bookedByProject = new Map<string, number[]>();
     for (const f of finances ?? []) {
       if (!f.project_id) continue;
-      const i = idx.get(String(f.due_date).slice(0, 7));
+      const i = idx.get(String(f.competencia ?? String(f.due_date).slice(0, 7)).slice(0, 7));
       if (i === undefined) continue;
       let arr = bookedByProject.get(f.project_id);
       if (!arr) {
@@ -283,11 +314,12 @@ export const generateForecastCharges = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ created: number }> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data: project, error: pErr } = await supabase
       .from("projects")
       .select("id, name, client_id, monthly_value, billing_day")
       .eq("id", data.projectId)
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .maybeSingle();
     if (pErr) throw new Error(pErr.message);
     if (!project) throw new Error("Projeto não encontrado.");
@@ -300,7 +332,7 @@ export const generateForecastCharges = createServerFn({ method: "POST" })
     const { data: existing } = await supabase
       .from("finances")
       .select("due_date")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .eq("kind", "receber")
       .eq("project_id", project.id)
       .gte("due_date", `${data.monthKeys[0]}-01`);
