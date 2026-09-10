@@ -631,7 +631,7 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
         valor: saldo,
         forma_pagamento: fin.payment_method,
         conta_id: conta?.id ?? null,
-      });
+      } as never);
       if (error) throw new Error(error.message);
       return { ok: true };
     }
@@ -1114,7 +1114,7 @@ export const registrarBaixa = createServerFn({ method: "POST" })
       valor: data.valor,
       forma_pagamento: data.forma_pagamento ?? null,
       conta_id: conta?.id ?? null,
-    });
+    } as never);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
