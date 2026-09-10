@@ -7,27 +7,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspace, setActiveWorkspace } = useWorkspace();
+  const { organizations, activeOrganization, setActiveOrganization } = useWorkspace();
 
   // Discreto: só aparece quando o usuário participa de mais de uma empresa.
-  if (workspaces.length < 2 || !activeWorkspace) return null;
+  if (organizations.length < 2 || !activeOrganization) return null;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
           <Building2 className="h-4 w-4" />
-          <span className="max-w-[160px] truncate">{activeWorkspace.name}</span>
+          <span className="max-w-[160px] truncate">{activeOrganization.name}</span>
           <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel>Empresa</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {workspaces.map((w) => (
-          <DropdownMenuItem key={w.id} onClick={() => setActiveWorkspace(w.id)} className="gap-2">
-            <Check className={`h-4 w-4 ${w.id === activeWorkspace.id ? "opacity-100" : "opacity-0"}`} />
-            <span className="truncate">{w.name}</span>
+        {organizations.map((o) => (
+          <DropdownMenuItem key={o.id} onClick={() => setActiveOrganization(o.id)} className="gap-2">
+            <Check className={`h-4 w-4 ${o.id === activeOrganization.id ? "opacity-100" : "opacity-0"}`} />
+            <span className="truncate">{o.name}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
