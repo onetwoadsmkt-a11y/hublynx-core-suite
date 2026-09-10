@@ -84,6 +84,9 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
       throw new Error("Este lead já foi convertido em cliente/projeto.");
     }
 
+    const organizationId = ((lead as any).organization_id ?? null) as string | null;
+    const orgFields = organizationId ? { organization_id: organizationId } : {};
+
     // 1) Cliente
     let clientId = data.clientId ?? (lead as any).client_id ?? null;
     if (!clientId) {
