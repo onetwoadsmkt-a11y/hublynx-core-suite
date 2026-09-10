@@ -15,6 +15,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { convertLeadToClient } from "@/lib/pipeline/conversion.functions";
+import { listProjectTemplates } from "@/lib/projects/stages.functions";
+import { useQuery } from "@tanstack/react-query";
 import type { Lead } from "./types";
 
 const MODELS = [
@@ -63,6 +65,16 @@ export function WinLeadDialog({
   const [genFinance, setGenFinance] = useState(true);
   const [installments, setInstallments] = useState("1");
   const [firstDue, setFirstDue] = useState(today());
+  const [templateId, setTemplateId] = useState<string>("none");
+
+  const templatesFn = useServerFn(listProjectTemplates);
+  const templatesQ = useQuery({
+    queryKey: ["project-templates"],
+    queryFn: () => templatesFn(),
+    enabled: !!lead,
+    staleTime: 5 * 60_000,
+  });
+  const templates = templatesQ.data ?? [];
 
   useEffect(() => {
     if (!lead) return;
