@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Users, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,6 +20,10 @@ import {
   listOrganizations,
   saveOrganization,
   setOrganizationModule,
+  listOrgMembers,
+  addOrgMemberByEmail,
+  setUserModulePermission,
+  setOrgMembership,
   type AdminOrg,
   type ModuleRow,
 } from "@/lib/platform/platform.functions";
