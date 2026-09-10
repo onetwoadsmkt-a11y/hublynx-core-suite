@@ -98,6 +98,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
     staleTime: 60_000,
   });
   const { can } = useAccess();
+  const org = useOrgAccess();
   const groups: NavGroup[] = NAV_GROUPS.map((g) =>
     g.section === "Administração" && isAdmin
       ? {
