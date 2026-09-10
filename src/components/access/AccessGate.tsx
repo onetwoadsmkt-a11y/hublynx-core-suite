@@ -12,14 +12,18 @@ export function AccessGate({ children }: { children: ReactNode }) {
   const { isLoading, isAdmin, can, status } = useAccess();
   const org = useOrgAccess();
 
-  if (isLoading || isAdmin) return <>{children}</>;
-
-  if (pathname.startsWith("/admin")) return <Denied title="Área restrita a administradores" />;
-
+  // Módulos contratados pela empresa valem também para administradores da conta;
+  // apenas o super admin da plataforma passa direto.
   const orgModule = orgModuleForPath(pathname);
   if (orgModule && !org.hasModule(orgModule)) {
     return <Denied title={`${ORG_MODULE_LABELS[orgModule]} não está incluído no plano da sua empresa`} />;
   }
+
+  if (isLoading || isAdmin) return <>{children}</>;
+
+  if (pathname.startsWith("/admin")) return <Denied title="Área restrita a administradores" />;
+
+
 
   const cap = capabilityForPath(pathname);
   if (!cap || can(cap)) return <>{children}</>;
