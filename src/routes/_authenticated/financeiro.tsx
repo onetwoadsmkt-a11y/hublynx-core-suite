@@ -106,7 +106,8 @@ function FinanceLayout() {
     );
   }
 
-  const moreActive = MORE_TABS.some((t) => pathname === t.to);
+  const isActive = (t: Tab) =>
+    pathname === t.to || (t.sub ?? []).some((s) => pathname === s.to);
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
@@ -124,46 +125,46 @@ function FinanceLayout() {
       <div className="border-b overflow-x-auto">
         <nav className="flex gap-1 items-center">
           {TABS.map((t) => {
-            const active = pathname === t.to;
+            const active = isActive(t);
+            const cls = `px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              active
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`;
+            if (!t.sub) {
+              return (
+                <Link key={t.to} to={t.to as "/financeiro"} search={search} className={cls}>
+                  {t.label}
+                </Link>
+              );
+            }
+            const current = t.sub.find((s) => s.to === pathname);
             return (
-              <Link
-                key={t.to}
-                to={t.to}
-                search={search}
-                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  active
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </Link>
+              <DropdownMenu key={t.to}>
+                <DropdownMenuTrigger asChild>
+                  <button className={`${cls} inline-flex items-center gap-1`}>
+                    {t.label}
+                    {current && current.to !== t.to ? (
+                      <span className="text-muted-foreground">· {current.label}</span>
+                    ) : null}
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {t.sub.map((s) => (
+                    <DropdownMenuItem key={s.to} asChild>
+                      <Link to={s.to as "/financeiro"} search={search}>
+                        {s.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             );
           })}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  moreActive
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Mais
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {MORE_TABS.map((t) => (
-                <DropdownMenuItem key={t.to} asChild>
-                  <Link to={t.to} search={search}>
-                    {t.label}
-                  </Link>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </nav>
       </div>
+
       <Outlet />
     </div>
   );
