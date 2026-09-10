@@ -2,9 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DEFAULT_STAGES } from "./defaults";
-import { scopeWorkspace, workspaceFields } from "@/lib/workspaces/filter";
+import { scopeOrganization, organizationFields } from "@/lib/org/filter";
+import { resolveOrganizationId } from "@/lib/org/resolve";
 
 const uuid = z.string().uuid();
+
+/** Empresa herdada do lead (notas, tarefas e arquivos seguem o lead). */
+async function leadOrganizationId(db: any, leadId: string): Promise<string | null> {
+  const { data } = await db.from("leads").select("organization_id").eq("id", leadId).maybeSingle();
+  return (data?.organization_id as string | undefined) ?? null;
+}
 
 /* ---------------- Pipelines ---------------- */
 
@@ -14,9 +21,15 @@ export const listPipelines = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     let { data } = await supabase.from("pipelines").select("*").order("position");
     if (!data || data.length === 0) {
+      const orgId = await resolveOrganizationId(supabase as never, userId);
       const { data: created, error } = await supabase
         .from("pipelines")
-        .insert({ owner_id: userId, name: "Pipeline principal", position: 0 })
+        .insert({
+          owner_id: userId,
+          ...organizationFields(orgId),
+          name: "Pipeline principal",
+          position: 0,
+        } as never)
         .select("*");
       if (error) throw new Error(error.message);
       data = created ?? [];
@@ -27,16 +40,28 @@ export const listPipelines = createServerFn({ method: "GET" })
 export const createPipeline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ name: z.string().min(1).max(80), seedStages: z.boolean().optional() }).parse(d),
+    z
+      .object({
+        name: z.string().min(1).max(80),
+        seedStages: z.boolean().optional(),
+        organizationId: uuid.optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await resolveOrganizationId(supabase as never, userId, data.organizationId);
     const { count } = await supabase
       .from("pipelines")
       .select("id", { count: "exact", head: true });
     const { data: row, error } = await supabase
       .from("pipelines")
-      .insert({ owner_id: userId, name: data.name, position: count ?? 0 })
+      .insert({
+        owner_id: userId,
+        ...organizationFields(orgId),
+        name: data.name,
+        position: count ?? 0,
+      } as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -45,13 +70,14 @@ export const createPipeline = createServerFn({ method: "POST" })
       await supabase.from("pipeline_stages").insert(
         DEFAULT_STAGES.map((s, i) => ({
           owner_id: userId,
+          ...organizationFields(orgId),
           pipeline_id: row.id,
           name: s.name,
           color: s.color,
           position: i,
           is_won: s.is_won ?? false,
           is_lost: s.is_lost ?? false,
-        })),
+        })) as never,
       );
     }
     return row;
@@ -85,16 +111,22 @@ export const deletePipeline = createServerFn({ method: "POST" })
 export const listPipeline = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ pipelineId: uuid.optional(), workspaceId: uuid.optional() }).parse(d ?? {}),
+    z.object({ pipelineId: uuid.optional(), organizationId: uuid.optional() }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await resolveOrganizationId(supabase as never, userId, data.organizationId);
 
     let { data: pipelines } = await supabase.from("pipelines").select("*").order("position");
     if (!pipelines || pipelines.length === 0) {
       const { data: created, error } = await supabase
         .from("pipelines")
-        .insert({ owner_id: userId, name: "Pipeline principal", position: 0 })
+        .insert({
+          owner_id: userId,
+          ...organizationFields(orgId),
+          name: "Pipeline principal",
+          position: 0,
+        } as never)
         .select("*");
       if (error) throw new Error(error.message);
       pipelines = created ?? [];
@@ -127,6 +159,7 @@ export const listPipeline = createServerFn({ method: "GET" })
       if (!stages || stages.length === 0) {
         const rows = DEFAULT_STAGES.map((s, i) => ({
           owner_id: userId,
+          ...organizationFields(orgId),
           pipeline_id: current.id,
           name: s.name,
           color: s.color,
@@ -136,7 +169,7 @@ export const listPipeline = createServerFn({ method: "GET" })
         }));
         const { data: created, error } = await supabase
           .from("pipeline_stages")
-          .insert(rows)
+          .insert(rows as never)
           .select("*");
         if (error) throw new Error(error.message);
         stages = created ?? [];
@@ -144,9 +177,9 @@ export const listPipeline = createServerFn({ method: "GET" })
     }
 
     const stageIds = (stages ?? []).map((s) => s.id);
-    const query = scopeWorkspace(
+    const query = scopeOrganization(
       supabase.from("leads").select("*").order("created_at", { ascending: false }),
-      data.workspaceId,
+      orgId,
     );
     const { data: leads, error: lerr } = await (isFirst
       ? query.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
@@ -192,9 +225,10 @@ export const upsertStage = createServerFn({ method: "POST" })
       }
     }
 
+    const orgId = await resolveOrganizationId(supabase as never, userId);
     const { error } = await supabase
       .from("pipeline_stages")
-      .upsert({ ...data, owner_id: userId });
+      .upsert({ ...data, owner_id: userId, ...organizationFields(orgId) } as never);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
@@ -263,15 +297,18 @@ const leadSchema = z.object({
 
 export const upsertLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => leadSchema.extend({ workspaceId: uuid.optional() }).parse(d))
+  .inputValidator((d: unknown) => leadSchema.extend({ organizationId: uuid.optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { workspaceId, ...lead } = data;
-    // Lead existente: preserva id/owner_id/workspace_id. Lead novo: recebe o workspace ativo
-    // e o owner_id do usuário (compatibilidade com o RLS atual).
+    const { organizationId, ...lead } = data;
+    // Lead existente: preserva id, empresa e owner_id. Lead novo: recebe a empresa
+    // ativa (validada no servidor) e o owner_id do usuário autenticado.
+    const orgId = lead.id
+      ? null
+      : await resolveOrganizationId(supabase as never, userId, organizationId);
     const payload = lead.id
       ? { ...lead, owner_id: userId }
-      : { ...lead, owner_id: userId, ...workspaceFields(workspaceId) };
+      : { ...lead, owner_id: userId, ...organizationFields(orgId) };
     const { data: row, error } = await supabase
       .from("leads")
       .upsert(payload as never)
@@ -379,12 +416,14 @@ export const addLeadNote = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await leadOrganizationId(supabase, data.leadId);
     const { error } = await supabase.from("lead_notes").insert({
       lead_id: data.leadId,
       owner_id: userId,
+      ...organizationFields(orgId),
       author_id: userId,
       body: data.body,
-    });
+    } as never);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
@@ -437,9 +476,10 @@ export const createWebhook = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await resolveOrganizationId(supabase as never, userId);
     const { data: row, error } = await supabase
       .from("lead_webhooks")
-      .insert({ ...data, owner_id: userId })
+      .insert({ ...data, owner_id: userId, ...organizationFields(orgId) } as never)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -492,7 +532,7 @@ export const updateWebhookMapping = createServerFn({ method: "POST" })
 export const reprocessLastPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ id: uuid, create: z.boolean().optional(), workspaceId: uuid.optional() }).parse(d),
+    z.object({ id: uuid, create: z.boolean().optional(), organizationId: uuid.optional() }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -512,9 +552,10 @@ export const reprocessLastPayload = createServerFn({ method: "POST" })
     };
 
     if (data.create && preview["name"]) {
+      const orgId = await resolveOrganizationId(supabase as never, userId, data.organizationId);
       await supabase.from("leads").insert({
         owner_id: userId,
-        ...workspaceFields(data.workspaceId),
+        ...organizationFields(orgId),
         stage_id: hook.default_stage_id,
         ...preview,
         value: preview["value"] ? Number(preview["value"]) : null,
@@ -673,14 +714,16 @@ export const registerLeadFile = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const orgId = await leadOrganizationId(supabase, data.leadId);
     const { error } = await supabase.from("lead_files").insert({
       lead_id: data.leadId,
       owner_id: userId,
+      ...organizationFields(orgId),
       name: data.name,
       storage_path: data.storage_path,
       mime_type: data.mime_type ?? null,
       size_bytes: data.size_bytes ?? null,
-    });
+    } as never);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
@@ -698,15 +741,15 @@ export const deleteLeadFile = createServerFn({ method: "POST" })
 
 export const listAllLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ workspaceId: uuid.optional() }).parse(d ?? {}))
+  .inputValidator((d: unknown) => z.object({ organizationId: uuid.optional() }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const [{ data: pipelines }, { data: stages }, { data: leads, error }] = await Promise.all([
       supabase.from("pipelines").select("*").order("position"),
       supabase.from("pipeline_stages").select("*").order("position"),
-      scopeWorkspace(
+      scopeOrganization(
         supabase.from("leads").select("*").order("created_at", { ascending: false }),
-        data.workspaceId,
+        data.organizationId,
       ),
     ]);
     if (error) throw new Error(error.message);

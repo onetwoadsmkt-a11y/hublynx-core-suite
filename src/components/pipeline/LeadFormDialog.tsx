@@ -62,7 +62,7 @@ export function LeadFormDialog({
 }) {
   const qc = useQueryClient();
   const save = useServerFn(upsertLead);
-  const { activeWorkspaceId } = useWorkspace();
+  const { activeOrganizationId } = useWorkspace();
   const [form, setForm] = useState<Form>(EMPTY);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -100,7 +100,7 @@ export function LeadFormDialog({
     mutationFn: () =>
       save({
         data: {
-          ...(lead ? { id: lead.id } : activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}),
+          ...(lead ? { id: lead.id } : activeOrganizationId ? { organizationId: activeOrganizationId } : {}),
           name: form.name.trim(),
           company: form.company || null,
           email: form.email || null,

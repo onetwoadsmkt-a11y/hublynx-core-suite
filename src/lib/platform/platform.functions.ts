@@ -616,3 +616,119 @@ export const getPlatformOverview = createServerFn({ method: "GET" })
       storageTotalMb: [...latest.values()].reduce((a, b) => a + b, 0),
     };
   });
+
+// ------------------------------------------------ usuários por empresa
+
+export type OrgMemberRow = {
+  user_id: string;
+  email: string | null;
+  role: string;
+  status: string;
+  /** Ids dos módulos liberados individualmente para o usuário nesta empresa. */
+  module_ids: string[];
+};
+
+export const listOrgMembers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ organization_id: uuid }).parse(d))
+  .handler(async ({ data, context }): Promise<OrgMemberRow[]> => {
+    const db = await adminDb(context.userId);
+
+    const [{ data: members }, { data: perms }, users] = await Promise.all([
+      db
+        .from("organization_members")
+        .select("user_id, role, status")
+        .eq("organization_id", data.organization_id),
+      db
+        .from("user_module_permissions")
+        .select("user_id, module_id, can_access")
+        .eq("organization_id", data.organization_id),
+      db.auth.admin.listUsers({ page: 1, perPage: 500 }),
+    ]);
+
+    const emailById = new Map<string, string | null>(
+      ((users?.data?.users ?? []) as any[]).map((u) => [u.id, u.email ?? null]),
+    );
+
+    return ((members ?? []) as any[]).map((m) => ({
+      user_id: m.user_id,
+      email: emailById.get(m.user_id) ?? null,
+      role: m.role ?? "user",
+      status: m.status ?? "active",
+      module_ids: ((perms ?? []) as any[])
+        .filter((p) => p.user_id === m.user_id && p.can_access)
+        .map((p) => p.module_id as string),
+    }));
+  });
+
+export const addOrgMemberByEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        organization_id: uuid,
+        email: z.string().trim().email().max(160),
+        role: z.enum(["org_admin", "user", "guest"]).default("user"),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = await adminDb(context.userId);
+    const { data: list, error } = await db.auth.admin.listUsers({ page: 1, perPage: 500 });
+    if (error) throw new Error(error.message);
+    const target = ((list?.users ?? []) as any[]).find(
+      (u) => (u.email ?? "").toLowerCase() === data.email.toLowerCase(),
+    );
+    if (!target) throw new Error("Nenhum usuário cadastrado com esse e-mail.");
+
+    const { error: upErr } = await db.from("organization_members").upsert(
+      {
+        organization_id: data.organization_id,
+        user_id: target.id,
+        role: data.role,
+        status: "active",
+      },
+      { onConflict: "organization_id,user_id" },
+    );
+    if (upErr) throw new Error(upErr.message);
+    return { user_id: target.id as string };
+  });
+
+export const setUserModulePermission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        organization_id: uuid,
+        user_id: uuid,
+        module_id: uuid,
+        can_access: z.boolean(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = await adminDb(context.userId);
+
+    // Só é possível liberar módulos que a empresa realmente contratou.
+    if (data.can_access) {
+      const { data: contracted } = await db
+        .from("organization_modules")
+        .select("enabled")
+        .eq("organization_id", data.organization_id)
+        .eq("module_id", data.module_id)
+        .maybeSingle();
+      if (!contracted?.enabled) throw new Error("Módulo não contratado por esta empresa.");
+    }
+
+    const { error } = await db.from("user_module_permissions").upsert(
+      {
+        organization_id: data.organization_id,
+        user_id: data.user_id,
+        module_id: data.module_id,
+        can_access: data.can_access,
+      },
+      { onConflict: "organization_id,user_id,module_id" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });

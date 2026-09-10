@@ -53,12 +53,12 @@ function ComercialDashboard() {
   const [to, setTo] = useState(iso(today));
   const [mode, setMode] = useState<FunnelMode>("both");
 
-  const { activeWorkspaceId, isLoading: wsLoading } = useWorkspace();
+  const { activeOrganizationId, isLoading: wsLoading } = useWorkspace();
   const { data, isLoading } = useQuery({
-    queryKey: ["comercial-dashboard", pipelineId ?? "default", from, to, activeWorkspaceId ?? "none"],
+    queryKey: ["comercial-dashboard", pipelineId ?? "default", from, to, activeOrganizationId ?? "none"],
     queryFn: () =>
       dashFn({
-        data: { pipelineId, from, to, ...(activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}) },
+        data: { pipelineId, from, to, ...(activeOrganizationId ? { organizationId: activeOrganizationId } : {}) },
       }),
     staleTime: 30_000,
     enabled: !wsLoading,

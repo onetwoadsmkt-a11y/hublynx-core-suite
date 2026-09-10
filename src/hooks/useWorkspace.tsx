@@ -1,91 +1,122 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { listMyWorkspaces } from "@/lib/workspaces/workspaces.functions";
-import type { Workspace, WorkspaceMembership } from "@/lib/workspaces/types";
+import { getMyOrgAccess, type OrgSummary } from "@/lib/org/org.functions";
 
-const STORAGE_KEY = "hublynx-active-workspace";
+const STORAGE_KEY = "hublynx-active-organization";
+
+export type OrganizationOption = {
+  id: string;
+  name: string;
+  slug: string | null;
+  status: string;
+  role: string;
+  modules: string[];
+};
 
 type WorkspaceContextValue = {
-  workspaces: Workspace[];
-  activeWorkspace: Workspace | null;
+  /** Empresas (organizações) que o usuário pode acessar. */
+  organizations: OrganizationOption[];
+  /** Alias legado — mesma lista de organizações. */
+  workspaces: OrganizationOption[];
+  activeOrganization: OrganizationOption | null;
+  activeOrganizationId: string | null;
+  /** Alias legado. */
+  activeWorkspace: OrganizationOption | null;
   activeWorkspaceId: string | null;
-  membership: WorkspaceMembership | null;
   role: string | null;
+  isSuperAdmin: boolean;
+  setActiveOrganization: (id: string) => void;
+  /** Alias legado. */
   setActiveWorkspace: (id: string) => void;
   isLoading: boolean;
 };
 
-const Ctx = createContext<WorkspaceContextValue>({
+const EMPTY: WorkspaceContextValue = {
+  organizations: [],
   workspaces: [],
+  activeOrganization: null,
+  activeOrganizationId: null,
   activeWorkspace: null,
   activeWorkspaceId: null,
-  membership: null,
   role: null,
+  isSuperAdmin: false,
+  setActiveOrganization: () => {},
   setActiveWorkspace: () => {},
   isLoading: true,
-});
+};
+
+const Ctx = createContext<WorkspaceContextValue>(EMPTY);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
-  const fn = useServerFn(listMyWorkspaces);
+  const fn = useServerFn(getMyOrgAccess);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(STORAGE_KEY);
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["my-workspaces"],
+    queryKey: ["my-org-access"],
     queryFn: async () => {
       const { data: s } = await supabase.auth.getSession();
       if (!s.session?.access_token) return null;
       return fn();
     },
-    staleTime: 10 * 60_000,
+    staleTime: 5 * 60_000,
+    retry: 1,
   });
 
-  const workspaces = useMemo(() => data?.workspaces ?? [], [data]);
-  const memberships = useMemo(() => data?.memberships ?? [], [data]);
+  const organizations = useMemo<OrganizationOption[]>(
+    () =>
+      ((data?.organizations ?? []) as OrgSummary[]).map((o) => ({
+        id: o.id,
+        name: o.name,
+        slug: o.slug,
+        status: o.status,
+        role: o.role,
+        modules: o.modules,
+      })),
+    [data],
+  );
 
-  // Valida o workspace persistido; se o usuário não pertence mais, escolhe um válido.
-  const activeWorkspace = useMemo(() => {
-    if (workspaces.length === 0) return null;
-    return workspaces.find((w) => w.id === selectedId) ?? workspaces[0]!;
-  }, [workspaces, selectedId]);
+  // Valida a empresa persistida; se o usuário não pertence mais, escolhe uma válida.
+  const activeOrganization = useMemo(() => {
+    if (organizations.length === 0) return null;
+    return organizations.find((o) => o.id === selectedId) ?? organizations[0]!;
+  }, [organizations, selectedId]);
 
   useEffect(() => {
-    if (!activeWorkspace) return;
-    if (activeWorkspace.id !== selectedId) setSelectedId(activeWorkspace.id);
-    if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, activeWorkspace.id);
-  }, [activeWorkspace, selectedId]);
+    if (!activeOrganization) return;
+    if (activeOrganization.id !== selectedId) setSelectedId(activeOrganization.id);
+    if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, activeOrganization.id);
+  }, [activeOrganization, selectedId]);
 
-  const setActiveWorkspace = useCallback(
+  const setActiveOrganization = useCallback(
     (id: string) => {
       if (id === selectedId) return;
       setSelectedId(id);
       if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, id);
-      // Refaz apenas as consultas dependentes do workspace.
-      qc.invalidateQueries({ queryKey: ["pipeline"] });
-      qc.invalidateQueries({ queryKey: ["all-leads"] });
-      qc.invalidateQueries({ queryKey: ["pipeline-dashboard"] });
-      qc.invalidateQueries({ queryKey: ["lead-detail"] });
+      // Troca de empresa refaz todas as telas dependentes de dados da empresa.
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "my-org-access" });
     },
     [qc, selectedId],
   );
 
-  const membership = useMemo(
-    () => memberships.find((m) => m.workspace_id === activeWorkspace?.id) ?? null,
-    [memberships, activeWorkspace],
-  );
-
   const value: WorkspaceContextValue = {
-    workspaces,
-    activeWorkspace,
-    activeWorkspaceId: activeWorkspace?.id ?? null,
-    membership,
-    role: membership?.role ?? null,
-    setActiveWorkspace,
+    organizations,
+    workspaces: organizations,
+    activeOrganization,
+    activeOrganizationId: activeOrganization?.id ?? null,
+    activeWorkspace: activeOrganization,
+    activeWorkspaceId: activeOrganization?.id ?? null,
+    role: activeOrganization?.role ?? null,
+    isSuperAdmin: !!data?.isSuperAdmin,
+    setActiveOrganization,
+    setActiveWorkspace: setActiveOrganization,
     isLoading,
   };
 
@@ -95,3 +126,5 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 export function useWorkspace() {
   return useContext(Ctx);
 }
+
+export const useOrganization = useWorkspace;

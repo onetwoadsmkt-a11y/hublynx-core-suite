@@ -104,6 +104,15 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
   });
   const { can } = useAccess();
   const org = useOrgAccess();
+  if (org.isLoading) {
+    return (
+      <nav className={`flex flex-col gap-2 ${collapsed ? "px-2" : "px-3"} py-4`} aria-busy="true">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-8 rounded-lg bg-muted/60 animate-pulse" />
+        ))}
+      </nav>
+    );
+  }
   const groups: NavGroup[] = NAV_GROUPS.map((g) =>
     g.section === "Administração" && isAdmin
       ? {

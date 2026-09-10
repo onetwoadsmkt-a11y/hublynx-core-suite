@@ -98,6 +98,11 @@ export const upsertProject = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => projectInput.parse(d))
   .handler(async ({ data, context }) => {
     const payload: any = { ...data, owner_id: context.userId };
+    if (!data.id) {
+      const { resolveOrganizationId } = await import("@/lib/org/resolve");
+      const orgId = await resolveOrganizationId(context.supabase as never, context.userId);
+      if (orgId) payload.organization_id = orgId;
+    }
     const q = data.id
       ? context.supabase.from("projects").update(payload).eq("id", data.id).select().single()
       : context.supabase.from("projects").insert(payload).select().single();

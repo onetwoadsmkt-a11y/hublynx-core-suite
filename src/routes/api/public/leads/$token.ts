@@ -33,10 +33,10 @@ export const Route = createFileRoute("/api/public/leads/$token")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        const { data: hook } = await supabaseAdmin
+        const { data: hook } = await (supabaseAdmin as any)
           .from("lead_webhooks")
           .select(
-            "id, owner_id, active, direction, default_stage_id, default_source, call_count, field_map",
+            "id, owner_id, organization_id, active, direction, default_stage_id, default_source, call_count, field_map",
           )
           .eq("token", token)
           .maybeSingle();
@@ -108,18 +108,19 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           stageId = firstStage?.id ?? null;
         }
 
-        // Fase 2: resolve o workspace a partir do dono do webhook (workspaces.legacy_owner_id).
-        // Best-effort: se não encontrar, o lead continua entrando apenas com owner_id.
-        let workspaceId: string | null = null;
-        try {
-          const { data: ws } = await (supabaseAdmin as unknown as { from: (t: string) => any })
-            .from("workspaces")
-            .select("id")
-            .eq("legacy_owner_id", hook.owner_id)
-            .maybeSingle();
-          workspaceId = (ws?.id as string | undefined) ?? null;
-        } catch {
-          workspaceId = null;
+        // A empresa vem do próprio cadastro do webhook; se faltar, resolve pelo dono.
+        let organizationId: string | null = (hook.organization_id as string | null) ?? null;
+        if (!organizationId) {
+          try {
+            const { data: org } = await (supabaseAdmin as unknown as { from: (t: string) => any })
+              .from("organizations")
+              .select("id")
+              .eq("legacy_owner_id", hook.owner_id)
+              .maybeSingle();
+            organizationId = (org?.id as string | undefined) ?? null;
+          } catch {
+            organizationId = null;
+          }
         }
 
         const { data: lead, error } = await supabaseAdmin
@@ -127,7 +128,7 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           .insert({
             ...parsed.data,
             owner_id: hook.owner_id,
-            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+            ...(organizationId ? { organization_id: organizationId } : {}),
             stage_id: stageId,
             metadata: raw as never,
           } as never)
