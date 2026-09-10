@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { orgFields } from "@/lib/org/resolve";
+import { financeScope } from "./scope";
 import type {
   AlertItem,
   CashflowPoint,
@@ -35,6 +36,21 @@ const DEFAULT_EXPENSE_CATS = [
   "Outros",
 ];
 
+/**
+ * Filtro de escopo: o financeiro é da empresa, não do usuário.
+ * Quando a empresa é resolvida, filtramos por `organization_id`; caso
+ * contrário, mantemos o comportamento antigo (owner_id / empresa_id).
+ */
+async function scopeFilter(supabase: unknown, userId: string) {
+  const s = await financeScope(supabase, userId);
+  return {
+    col: (s.orgId ? "organization_id" : "owner_id") as "owner_id",
+    cashCol: (s.orgId ? "organization_id" : "empresa_id") as "empresa_id",
+    val: s.orgId ?? userId,
+    organizationId: s.orgId,
+  };
+}
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -65,10 +81,11 @@ export const ensureDefaultCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data: existing } = await supabase
       .from("finance_categories")
       .select("kind, name")
-      .eq("owner_id", userId);
+      .eq(sc.col, sc.val);
     const have = new Set((existing ?? []).map((c) => `${c.kind}:${c.name}`));
     const rows: Array<{ owner_id: string; kind: FinanceKind; name: string; is_default: boolean }> = [];
     for (const n of DEFAULT_INCOME_CATS)
@@ -86,10 +103,11 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data: contracts } = await supabase
       .from("finances")
       .select("*")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .eq("recurrence", "monthly")
       .is("parent_id", null);
 
@@ -140,11 +158,12 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => monthSchema.parse(d))
   .handler(async ({ data, context }): Promise<DashboardKpis> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { from, to } = monthRange(data.month, data.year);
     const { data: rows } = await supabase
       .from("finances")
       .select("kind, amount, status, due_date, paid_at")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .gte("due_date", from)
       .lte("due_date", to);
 
@@ -172,9 +191,9 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
       supabase
         .from("baixas")
         .select("receita_id, despesa_id, valor")
-        .eq("empresa_id", userId)
+        .eq(sc.cashCol, sc.val)
         .lte("data", today),
-      supabase.from("contas").select("saldo_inicial").eq("empresa_id", userId).eq("ativo", true),
+      supabase.from("contas").select("saldo_inicial").eq(sc.cashCol, sc.val).eq("ativo", true),
     ]);
     let saldo_caixa = (contas ?? []).reduce((s, c) => s + (Number(c.saldo_inicial) || 0), 0);
     for (const b of allPaid ?? []) {
@@ -185,7 +204,7 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
     const { data: overdue } = await supabase
       .from("finances")
       .select("amount")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .eq("kind", "receber")
       .in("status", ["aberto", "parcial"])
       .lt("due_date", today);
@@ -194,13 +213,13 @@ export const getFinanceDashboard = createServerFn({ method: "POST" })
     const { data: clientsActive } = await supabase
       .from("clients")
       .select("monthly_value, status")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .eq("status", "ativo");
     let mrr = (clientsActive ?? []).reduce((s, c) => s + (Number(c.monthly_value) || 0), 0);
     const { data: recurringFin } = await supabase
       .from("finances")
       .select("amount, kind")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .eq("recurrence", "monthly")
       .is("parent_id", null);
     for (const r of recurringFin ?? []) {
@@ -236,6 +255,7 @@ export const listFinances = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => listSchema.parse(d))
   .handler(async ({ data, context }): Promise<FinanceRow[]> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { from, to } = monthRange(data.month, data.year);
     const today = todayISO();
     let q = supabase
@@ -243,7 +263,7 @@ export const listFinances = createServerFn({ method: "POST" })
       .select(
         "id, kind, description, amount, due_date, paid_at, status, competencia, natureza, client_id, project_id, category_id, supplier, payment_method, recurrence, recurrence_day, recurrence_until, parent_id, installment_no, installment_total, clients(name), projects(name), finance_categories(name)",
       )
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .eq("kind", data.kind)
       .gte("due_date", from)
       .lte("due_date", to)
@@ -269,7 +289,7 @@ export const listFinances = createServerFn({ method: "POST" })
       const { data: baixas } = await supabase
         .from("baixas")
         .select("receita_id, despesa_id, valor")
-        .eq("empresa_id", userId);
+        .eq(sc.cashCol, sc.val);
       for (const b of baixas ?? []) {
         const fid = b.receita_id ?? b.despesa_id;
         if (!fid) continue;
@@ -393,12 +413,12 @@ async function syncRepasseMirror(
   const { data: existing } = await supabase
     .from("finances")
     .select("id")
-    .eq("owner_id", userId)
+    .eq(sc.col, sc.val)
     .eq("repasse_origem_id", origem.id)
     .maybeSingle();
 
   if (!isRepasse) {
-    if (existing?.id) await supabase.from("finances").delete().eq("id", existing.id).eq("owner_id", userId);
+    if (existing?.id) await supabase.from("finances").delete().eq("id", existing.id).eq(sc.col, sc.val);
     return;
   }
 
@@ -415,7 +435,7 @@ async function syncRepasseMirror(
   };
 
   if (existing?.id) {
-    await supabase.from("finances").update(payload).eq("id", existing.id).eq("owner_id", userId);
+    await supabase.from("finances").update(payload).eq("id", existing.id).eq(sc.col, sc.val);
   } else {
     await supabase.from("finances").insert({
       owner_id: userId,
@@ -431,6 +451,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => upsertSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
 
 
     if (data.id) {
@@ -451,7 +472,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           natureza: data.natureza,
         })
         .eq("id", data.id)
-        .eq("owner_id", userId);
+        .eq(sc.col, sc.val);
       if (error) {
         if (error.message.includes("uq_finances_parent_due")) {
           throw new Error("Já existe um lançamento desta recorrência nesta data de vencimento.");
@@ -572,11 +593,12 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data: fin, error: fErr } = await supabase
       .from("finances")
       .select("id, kind, amount, payment_method")
       .eq("id", data.id)
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .maybeSingle();
     if (fErr) throw new Error(fErr.message);
     if (!fin) throw new Error("Lançamento não encontrado.");
@@ -586,7 +608,7 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
       const { data: pagas } = await supabase
         .from("baixas")
         .select("valor")
-        .eq("empresa_id", userId)
+        .eq(sc.cashCol, sc.val)
         .or(`receita_id.eq.${fin.id},despesa_id.eq.${fin.id}`);
       const jaPago = (pagas ?? []).reduce((s, b) => s + (Number(b.valor) || 0), 0);
       const saldo = (Number(fin.amount) || 0) - jaPago;
@@ -594,7 +616,7 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
       const { data: conta } = await supabase
         .from("contas")
         .select("id")
-        .eq("empresa_id", userId)
+        .eq(sc.cashCol, sc.val)
         .eq("ativo", true)
         .order("created_at", { ascending: true })
         .limit(1)
@@ -617,14 +639,14 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
       const { error } = await supabase
         .from("baixas")
         .delete()
-        .eq("empresa_id", userId)
+        .eq(sc.cashCol, sc.val)
         .or(`receita_id.eq.${fin.id},despesa_id.eq.${fin.id}`);
       if (error) throw new Error(error.message);
       await supabase
         .from("finances")
         .update({ status: "aberto", paid_at: null })
         .eq("id", fin.id)
-        .eq("owner_id", userId);
+        .eq(sc.col, sc.val);
       return { ok: true };
     }
 
@@ -632,7 +654,7 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
       .from("finances")
       .update({ status: data.status })
       .eq("id", data.id)
-      .eq("owner_id", userId);
+      .eq(sc.col, sc.val);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -642,11 +664,12 @@ export const deleteFinance = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { error } = await supabase
       .from("finances")
       .delete()
       .eq("id", data.id)
-      .eq("owner_id", userId);
+      .eq(sc.col, sc.val);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -659,6 +682,7 @@ export const getCashflowSeries = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<CashflowPoint[]> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const days = data.range === "30d" ? 30 : data.range === "60d" ? 60 : data.range === "90d" ? 90 : 365;
     const start = new Date();
     start.setDate(start.getDate() - Math.floor(days / 3));
@@ -674,7 +698,7 @@ export const getCashflowSeries = createServerFn({ method: "POST" })
     const { data: baixas } = await supabase
       .from("baixas")
       .select("receita_id, despesa_id, valor, data")
-      .eq("empresa_id", userId)
+      .eq(sc.cashCol, sc.val)
       .gte("data", fromISO)
       .lte("data", toISO);
     for (const b of baixas ?? []) {
@@ -689,7 +713,7 @@ export const getCashflowSeries = createServerFn({ method: "POST" })
     const { data: rows } = await supabase
       .from("finances")
       .select("kind, amount, due_date, status")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .in("status", ["aberto", "parcial"])
       .gt("due_date", today)
       .lte("due_date", toISO);
@@ -716,11 +740,12 @@ export const getDRE = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => monthSchema.parse(d))
   .handler(async ({ data, context }): Promise<DREData> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { from, to } = monthRange(data.month, data.year);
     const { data: fin } = await supabase
       .from("finances")
       .select("kind, amount, status")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .gte("due_date", from)
       .lte("due_date", to)
       .eq("status", "quitado");
@@ -734,7 +759,7 @@ export const getDRE = createServerFn({ method: "POST" })
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .gte("incurred_at", from)
       .lte("incurred_at", to);
     const custos_operacionais = (costs ?? []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
@@ -750,21 +775,22 @@ export const getProfitabilityByClient = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => profitSchema.parse(d))
   .handler(async ({ data, context }): Promise<ProfitabilityRow[]> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data: clients } = await supabase
       .from("clients")
       .select("id, name")
-      .eq("owner_id", userId);
+      .eq(sc.col, sc.val);
     const { data: fin } = await supabase
       .from("finances")
       .select("kind, amount, status, client_id")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .gte("due_date", data.from)
       .lte("due_date", data.to)
       .eq("status", "quitado");
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount, projects(client_id)")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .gte("incurred_at", data.from)
       .lte("incurred_at", data.to);
 
@@ -798,21 +824,22 @@ export const getProfitabilityByProject = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => profitSchema.parse(d))
   .handler(async ({ data, context }): Promise<ProfitabilityRow[]> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data: projects } = await supabase
       .from("projects")
       .select("id, name")
-      .eq("owner_id", userId);
+      .eq(sc.col, sc.val);
     const { data: fin } = await supabase
       .from("finances")
       .select("kind, amount, status, project_id")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .gte("due_date", data.from)
       .lte("due_date", data.to)
       .eq("status", "quitado");
     const { data: costs } = await supabase
       .from("project_costs")
       .select("amount, project_id")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .gte("incurred_at", data.from)
       .lte("incurred_at", data.to);
 
@@ -845,6 +872,7 @@ export const getForecast = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ForecastBucket[]> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const today = new Date();
     const horizon = new Date();
     horizon.setDate(horizon.getDate() + 90);
@@ -853,7 +881,7 @@ export const getForecast = createServerFn({ method: "GET" })
     const { data: rows } = await supabase
       .from("finances")
       .select("id, kind, description, amount, due_date, status")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .in("status", ["aberto", "parcial"])
       .gte("due_date", todayISOv)
       .lte("due_date", horizonISO)
@@ -893,6 +921,7 @@ export const getAlerts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AlertItem[]> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const today = todayISO();
     const alerts: AlertItem[] = [];
 
@@ -905,7 +934,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       .select(
         "id, amount, description, due_date, kind, installment_no, installment_total, client_id, project_id, category_id",
       )
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .in("status", ["aberto", "parcial"])
       .lte("due_date", soonISO);
 
@@ -918,7 +947,7 @@ export const getAlerts = createServerFn({ method: "GET" })
       const { data: baixas } = await supabase
         .from("baixas")
         .select("valor, receita_id, despesa_id")
-        .eq("empresa_id", userId);
+        .eq(sc.cashCol, sc.val);
       for (const b of baixas ?? []) {
         const fid = (b.receita_id ?? b.despesa_id) as string | null;
         if (!fid) continue;
@@ -992,7 +1021,7 @@ export const getAlerts = createServerFn({ method: "GET" })
     const { data: contracts } = await supabase
       .from("clients")
       .select("id, name, contract_renewal")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .not("contract_renewal", "is", null)
       .gte("contract_renewal", today)
       .lte("contract_renewal", renewSoon.toISOString().slice(0, 10));
@@ -1018,17 +1047,18 @@ export const getFinanceBaixaInfo = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data: fin } = await supabase
       .from("finances")
       .select("id, kind, amount, due_date, description, payment_method")
       .eq("id", data.id)
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .maybeSingle();
     if (!fin) throw new Error("Lançamento não encontrado.");
     const { data: baixas } = await supabase
       .from("baixas")
       .select("valor")
-      .eq("empresa_id", userId)
+      .eq(sc.cashCol, sc.val)
       .or(`receita_id.eq.${fin.id},despesa_id.eq.${fin.id}`);
     const pago = (baixas ?? []).reduce((s, b) => s + (Number(b.valor) || 0), 0);
     return {
@@ -1057,17 +1087,18 @@ export const registrarBaixa = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data: fin } = await supabase
       .from("finances")
       .select("id, kind")
       .eq("id", data.id)
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .maybeSingle();
     if (!fin) throw new Error("Lançamento não encontrado.");
     const { data: conta } = await supabase
       .from("contas")
       .select("id")
-      .eq("empresa_id", userId)
+      .eq(sc.cashCol, sc.val)
       .eq("ativo", true)
       .order("created_at", { ascending: true })
       .limit(1)
@@ -1090,6 +1121,7 @@ export const listCategories = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<FinanceCategory[]> => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data } = await supabase
       .from("finance_categories")
       .select("id, kind, name, is_default")
@@ -1111,12 +1143,13 @@ export const upsertCategory = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     if (data.id) {
       await supabase
         .from("finance_categories")
         .update({ name: data.name, kind: data.kind })
         .eq("id", data.id)
-        .eq("owner_id", userId);
+        .eq(sc.col, sc.val);
     } else {
       await supabase
         .from("finance_categories")
@@ -1130,12 +1163,13 @@ export const deleteCategory = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { count } = await supabase
       .from("finances")
       .select("id", { count: "exact", head: true })
       .eq("category_id", data.id);
     if ((count ?? 0) > 0) throw new Error("Categoria possui lançamentos vinculados");
-    await supabase.from("finance_categories").delete().eq("id", data.id).eq("owner_id", userId);
+    await supabase.from("finance_categories").delete().eq("id", data.id).eq(sc.col, sc.val);
     return { ok: true };
   });
 
@@ -1144,10 +1178,11 @@ export const listRecurringContracts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const { data } = await supabase
       .from("finances")
       .select("id, kind, amount, description, recurrence_day, recurrence_until, due_date, clients(name), projects(name)")
-      .eq("owner_id", userId)
+      .eq(sc.col, sc.val)
       .eq("recurrence", "monthly")
       .is("parent_id", null)
       .order("due_date", { ascending: true });
@@ -1169,9 +1204,10 @@ export const getFinanceFormLookups = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const sc = await scopeFilter(supabase, userId);
     const [clientsRes, projectsRes, catsRes] = await Promise.all([
-      supabase.from("clients").select("id, name").eq("owner_id", userId).order("name"),
-      supabase.from("projects").select("id, name, client_id").eq("owner_id", userId).order("name"),
+      supabase.from("clients").select("id, name").eq(sc.col, sc.val).order("name"),
+      supabase.from("projects").select("id, name, client_id").eq(sc.col, sc.val).order("name"),
       supabase
         .from("finance_categories")
         .select("id, kind, name")
