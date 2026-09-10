@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
+import { supabase } from "@/integrations/supabase/client";
 import {
   listProjectTemplates,
   saveProjectTemplate,
@@ -54,8 +55,13 @@ function TemplatesPage() {
 
   const q = useQuery({
     queryKey: ["project-templates"],
-    queryFn: () => listFn(),
+    queryFn: async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) return [] as ProjectTemplate[];
+      return listFn();
+    },
     staleTime: 60_000,
+    retry: false,
   });
 
   const delM = useMutation({
