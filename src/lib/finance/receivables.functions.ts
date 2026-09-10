@@ -306,10 +306,14 @@ export const generateForecastCharges = createServerFn({ method: "POST" })
       .gte("due_date", `${data.monthKeys[0]}-01`);
     const existingMonths = new Set((existing ?? []).map((r) => String(r.due_date).slice(0, 7)));
 
+    const { orgFieldsFromRow } = await import("@/lib/org/resolve");
+    const orgFromProject = await orgFieldsFromRow(supabase as never, "projects", project.id);
+
     const rows = dues
       .filter((d) => !existingMonths.has(d.slice(0, 7)))
       .map((due_date) => ({
         owner_id: userId,
+        ...orgFromProject,
         kind: "receber" as const,
         client_id: project.client_id,
         project_id: project.id,
@@ -320,7 +324,7 @@ export const generateForecastCharges = createServerFn({ method: "POST" })
       }));
 
     if (rows.length === 0) return { created: 0 };
-    const { error } = await supabase.from("finances").insert(rows);
+    const { error } = await supabase.from("finances").insert(rows as never);
     if (error) throw new Error(error.message);
     return { created: rows.length };
   });
