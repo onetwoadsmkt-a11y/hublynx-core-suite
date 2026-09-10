@@ -473,9 +473,11 @@ export const upsertMilestone = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => milestoneInput.parse(d))
   .handler(async ({ data, context }) => {
+    const { orgFieldsFromRow } = await import("@/lib/org/resolve");
     const payload: any = {
       ...data,
       owner_id: context.userId,
+      ...(await orgFieldsFromRow(context.supabase as never, "projects", data.project_id)),
       completed_at: data.status === "done" ? new Date().toISOString() : null,
     };
     const q = data.id
@@ -515,7 +517,12 @@ export const upsertMember = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const payload: any = { ...data, owner_id: context.userId };
+    const { orgFieldsFromRow } = await import("@/lib/org/resolve");
+    const payload: any = {
+      ...data,
+      owner_id: context.userId,
+      ...(await orgFieldsFromRow(context.supabase as never, "projects", data.project_id)),
+    };
     const q = data.id
       ? context.supabase.from("project_members").update(payload).eq("id", data.id).select().single()
       : context.supabase.from("project_members").insert(payload).select().single();
@@ -549,7 +556,12 @@ export const upsertRisk = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const payload: any = { ...data, owner_id: context.userId };
+    const { orgFieldsFromRow } = await import("@/lib/org/resolve");
+    const payload: any = {
+      ...data,
+      owner_id: context.userId,
+      ...(await orgFieldsFromRow(context.supabase as never, "projects", data.project_id)),
+    };
     const q = data.id
       ? context.supabase.from("project_risks").update(payload).eq("id", data.id).select().single()
       : context.supabase.from("project_risks").insert(payload).select().single();
@@ -584,7 +596,12 @@ export const upsertCost = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const payload: any = { ...data, owner_id: context.userId };
+    const { orgFieldsFromRow } = await import("@/lib/org/resolve");
+    const payload: any = {
+      ...data,
+      owner_id: context.userId,
+      ...(await orgFieldsFromRow(context.supabase as never, "projects", data.project_id)),
+    };
     const q = data.id
       ? context.supabase.from("project_costs").update(payload).eq("id", data.id).select().single()
       : context.supabase.from("project_costs").insert(payload).select().single();
@@ -650,8 +667,10 @@ export const generateRecurringInvoice = createServerFn({ method: "POST" })
     const base = isRecurring && p.next_billing_date ? new Date(p.next_billing_date) : today;
     const dueIso = base.toISOString().slice(0, 10);
 
+    const { orgFieldsFromRow: orgFromProj } = await import("@/lib/org/resolve");
     const { error: fErr } = await context.supabase.from("finances").insert({
       owner_id: context.userId,
+      ...(await orgFromProj(context.supabase as never, "projects", p.id)),
       project_id: p.id,
       client_id: p.client_id,
       kind: "receber",
@@ -723,8 +742,10 @@ export const upsertProjectFinance = createServerFn({ method: "POST" })
       .single();
     if (pErr) throw new Error(pErr.message);
 
+    const { orgFieldsFromRow } = await import("@/lib/org/resolve");
     const basePayload: any = {
       owner_id: context.userId,
+      ...(await orgFieldsFromRow(context.supabase as never, "projects", data.project_id)),
       project_id: data.project_id,
       client_id: (proj as any).client_id,
       kind: data.kind,
