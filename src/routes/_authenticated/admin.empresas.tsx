@@ -153,6 +153,133 @@ function AdminCompanies() {
   );
 }
 
+/** Usuários da empresa e liberação individual de módulos. */
+function OrgMembers({ org, modules }: { org: AdminOrg; modules: ModuleRow[] }) {
+  const qc = useQueryClient();
+  const [show, setShow] = useState(false);
+  const [email, setEmail] = useState("");
+
+  const listFn = useServerFn(listOrgMembers);
+  const addFn = useServerFn(addOrgMemberByEmail);
+  const permFn = useServerFn(setUserModulePermission);
+  const memberFn = useServerFn(setOrgMembership);
+
+  const { data: members = [], isLoading } = useQuery({
+    queryKey: ["admin-org-members", org.id],
+    queryFn: () => listFn({ data: { organization_id: org.id } }),
+    enabled: show,
+    staleTime: 30_000,
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-org-members", org.id] });
+
+  const addMut = useMutation({
+    mutationFn: (e: string) =>
+      addFn({ data: { organization_id: org.id, email: e, role: "user" } }),
+    onSuccess: () => { setEmail(""); invalidate(); toast.success("Usuário vinculado à empresa"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const permMut = useMutation({
+    mutationFn: (v: { user_id: string; module_id: string; can_access: boolean }) =>
+      permFn({ data: { organization_id: org.id, ...v } }),
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (user_id: string) =>
+      memberFn({ data: { organization_id: org.id, user_id, role: "user", status: "inactive" } }),
+    onSuccess: () => { invalidate(); toast.success("Acesso removido"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const contracted = modules.filter((m) => org.modules.includes(m.code));
+
+  return (
+    <div className="border-t pt-3">
+      <Button variant="ghost" size="sm" className="gap-2" onClick={() => setShow((s) => !s)}>
+        <Users className="h-4 w-4" />
+        {show ? "Ocultar usuários" : "Usuários da empresa"}
+      </Button>
+
+      {show && (
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e-mail do usuário já cadastrado"
+              className="max-w-xs"
+            />
+            <Button
+              size="sm"
+              disabled={!email.trim() || addMut.isPending}
+              onClick={() => addMut.mutate(email.trim())}
+            >
+              Vincular
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando usuários…</p>
+          ) : members.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum usuário vinculado.</p>
+          ) : (
+            <div className="space-y-2">
+              {members.map((m) => (
+                <div key={m.user_id} className="rounded-lg border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{m.email ?? m.user_id}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {m.role} • {m.status}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Remover acesso"
+                      onClick={() => removeMut.mutate(m.user_id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {contracted.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        Nenhum módulo contratado pela empresa.
+                      </span>
+                    ) : (
+                      contracted.map((mod) => (
+                        <label key={mod.id} className="flex items-center gap-2 text-xs">
+                          <Switch
+                            checked={m.module_ids.includes(mod.id)}
+                            onCheckedChange={(v) =>
+                              permMut.mutate({
+                                user_id: m.user_id,
+                                module_id: mod.id,
+                                can_access: v,
+                              })
+                            }
+                          />
+                          {mod.name}
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function OrgDialog({
   open, onOpenChange, org, onSaved, save,
 }: {
