@@ -126,7 +126,7 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
           payment_method: c.payment_method,
           recurrence: "none",
           parent_id: c.id,
-        });
+        } as never);
         if (!error) created.push(cursor);
         cursor = addMonths(cursor, 1);
       }
@@ -484,7 +484,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           natureza: data.natureza,
           installment_no: 1,
           installment_total: total,
-        })
+        } as never)
         .select("id")
         .single();
       if (e1 || !first) throw new Error(e1?.message ?? "insert failed");
@@ -555,7 +555,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
         recurrence: data.recurrence,
         recurrence_day: data.recurrence_day ?? null,
         recurrence_until: data.recurrence_until ?? null,
-      })
+      } as never)
       .select("id")
       .single();
     if (error) throw new Error(error.message);
