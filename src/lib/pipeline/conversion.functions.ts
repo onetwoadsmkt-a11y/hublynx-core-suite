@@ -139,6 +139,20 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
     if (projErr) throw new Error(projErr.message);
     const projectId = (project as any).id as string;
 
+    // 2b) Roadmap a partir do modelo escolhido
+    if (data.templateId && organizationId) {
+      try {
+        await applyTemplateStages(db, {
+          projectId,
+          organizationId,
+          templateId: data.templateId,
+          startDate: p.start_date ?? new Date().toISOString().slice(0, 10),
+        });
+      } catch {
+        // roadmap é complementar: não impede a conversão
+      }
+    }
+
     // 3) Financeiro (contas a receber)
     let created = 0;
     const f = data.finance;
