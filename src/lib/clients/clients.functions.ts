@@ -66,13 +66,13 @@ export const upsertClient = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => clientInput.parse(d))
   .handler(async ({ data, context }) => {
     const { resolveOrganizationId } = await import("@/lib/org/resolve");
-    const payload: Record<string, unknown> = {
+    const payload: any = {
       ...data,
       owner_id: context.userId,
     };
     if (!data.id) {
       const orgId = await resolveOrganizationId(context.supabase as never, context.userId);
-      if (orgId) payload["organization_id"] = orgId;
+      if (orgId) payload.organization_id = orgId;
     }
     const query = data.id
       ? context.supabase.from("clients").update(payload).eq("id", data.id).select().single()
