@@ -15,8 +15,12 @@ export function AccessGate({ children }: { children: ReactNode }) {
   // Módulos contratados pela empresa valem também para administradores da conta;
   // apenas o super admin da plataforma passa direto.
   const orgModule = orgModuleForPath(pathname);
-  if (orgModule && !org.hasModule(orgModule)) {
-    return <Denied title={`${ORG_MODULE_LABELS[orgModule]} não está incluído no plano da sua empresa`} />;
+  if (orgModule) {
+    if (!org.hasModule(orgModule)) {
+      return <Denied title={`${ORG_MODULE_LABELS[orgModule]} não está incluído no plano da sua empresa`} />;
+    }
+    // Módulo contratado pela empresa libera a área, mesmo sem a capability legada.
+    if (!org.isLoading) return <>{children}</>;
   }
 
   if (isLoading || isAdmin) return <>{children}</>;
