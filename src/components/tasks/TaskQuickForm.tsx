@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ type ChecklistDraft = { id: string; label: string };
 export function TaskQuickForm({ open, onOpenChange, defaults, onCreated }: Props) {
   const isMobile = useIsMobile();
   const qc = useQueryClient();
+  const { activeOrganizationId } = useWorkspace();
   const syncSheet = useServerFn(syncEntityToSheets);
   const syncCalendar = useServerFn(syncTaskToCalendar);
 
@@ -117,6 +119,7 @@ export function TaskQuickForm({ open, onOpenChange, defaults, onCreated }: Props
 
       const { data: inserted, error } = await supabase.from("tasks").insert({
         owner_id: u.user.id,
+        ...(activeOrganizationId ? { organization_id: activeOrganizationId } : {}),
         title: title.trim(),
         description: description.trim() || null,
         priority,
@@ -126,7 +129,7 @@ export function TaskQuickForm({ open, onOpenChange, defaults, onCreated }: Props
         due_date: dueIso,
         position: 0,
         briefing: { type: kind === "reuniao" ? "reuniao" : "tarefa", deadline: dueDate || null } as any,
-      }).select("id").single();
+      } as never).select("id").single();
       if (error) throw error;
       const taskId = inserted.id as string;
 

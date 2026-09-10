@@ -62,6 +62,7 @@ export const upsertServico = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { orgFields } = await import("@/lib/org/resolve");
     const payload = {
       empresa_id: context.userId,
       nome: data.nome.trim(),
@@ -70,7 +71,12 @@ export const upsertServico = createServerFn({ method: "POST" })
     };
     const q = data.id
       ? context.supabase.from("servicos").update(payload).eq("id", data.id).eq("empresa_id", context.userId)
-      : context.supabase.from("servicos").insert(payload);
+      : context.supabase
+          .from("servicos")
+          .insert({
+            ...payload,
+            ...(await orgFields(context.supabase as never, context.userId)),
+          } as never);
     const { error } = await q;
     if (error) throw new Error(error.message);
     return { ok: true };

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { orgFields } from "@/lib/org/resolve";
 import type {
   AlertItem,
   CashflowPoint,
@@ -112,6 +113,7 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
         if (cursor > lookaheadISO) break;
         const { error } = await supabase.from("finances").insert({
           owner_id: userId,
+          ...(await orgFields(supabase as never, userId)),
           kind: c.kind as FinanceKind,
           client_id: c.client_id,
           project_id: c.project_id,
@@ -124,7 +126,7 @@ export const runRecurringRollover = createServerFn({ method: "POST" })
           payment_method: c.payment_method,
           recurrence: "none",
           parent_id: c.id,
-        });
+        } as never);
         if (!error) created.push(cursor);
         cursor = addMonths(cursor, 1);
       }
@@ -415,7 +417,12 @@ async function syncRepasseMirror(
   if (existing?.id) {
     await supabase.from("finances").update(payload).eq("id", existing.id).eq("owner_id", userId);
   } else {
-    await supabase.from("finances").insert({ owner_id: userId, status: "aberto", ...payload });
+    await supabase.from("finances").insert({
+      owner_id: userId,
+      ...(await orgFields(supabase as never, userId)),
+      status: "aberto",
+      ...payload,
+    } as never);
   }
 }
 
@@ -463,6 +470,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
         .from("finances")
         .insert({
           owner_id: userId,
+          ...(await orgFields(supabase as never, userId)),
           kind: data.kind,
           description: data.description ?? null,
           amount: each,
@@ -476,7 +484,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
           natureza: data.natureza,
           installment_no: 1,
           installment_total: total,
-        })
+        } as never)
         .select("id")
         .single();
       if (e1 || !first) throw new Error(e1?.message ?? "insert failed");
@@ -484,6 +492,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
       for (let i = 2; i <= total; i++) {
         rest.push({
           owner_id: userId,
+          ...(await orgFields(supabase as never, userId)),
           kind: data.kind,
           description: data.description ?? null,
           amount: each,
@@ -530,6 +539,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
       .from("finances")
       .insert({
         owner_id: userId,
+        ...(await orgFields(supabase as never, userId)),
         kind: data.kind,
         description: data.description ?? null,
         amount: data.amount,
@@ -545,7 +555,7 @@ export const upsertFinance = createServerFn({ method: "POST" })
         recurrence: data.recurrence,
         recurrence_day: data.recurrence_day ?? null,
         recurrence_until: data.recurrence_until ?? null,
-      })
+      } as never)
       .select("id")
       .single();
     if (error) throw new Error(error.message);

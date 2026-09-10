@@ -33,3 +33,20 @@ export async function resolveOrganizationId(
 
   return ids[0] ?? null;
 }
+
+/** Campos de empresa prontos para INSERT, resolvidos no servidor. */
+export async function orgFields(db: Db, userId: string, provided?: string | null) {
+  const id = await resolveOrganizationId(db, userId, provided);
+  return id ? { organization_id: id } : {};
+}
+
+/** Empresa herdada de um registro pai (projeto, cliente, lead...). */
+export async function orgFieldsFromRow(
+  db: Db,
+  table: string,
+  id: string,
+): Promise<Record<string, string>> {
+  const { data } = await db.from(table).select("organization_id").eq("id", id).maybeSingle();
+  const org = (data?.organization_id as string | undefined) ?? null;
+  return org ? { organization_id: org } : {};
+}

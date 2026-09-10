@@ -8,3 +8,4 @@
 - [x] Etapa 5 — Uso por organização (`recalcUsage`/`listUsage`) e tela `/admin/armazenamento` com limites por faixa
 - [x] Etapa 6 — Endurecimento aplicado e validado manualmente no Supabase (organization_id obrigatório, gatilhos, 4 policies por tabela, super admin global)
 - [x] Etapa 7 — Aplicativo alinhado a organizações: contexto/seletor de empresa via `getMyOrgAccess`, filtros e inserts por `organization_id` (pipeline, leads, notas, tarefas, arquivos, webhooks, clientes, projetos), webhook público grava a empresa, menu com carregamento e Central Administrativa com usuários e permissões por módulo
+- [x] Etapa 8 — Empresa aplicada nas criações dos demais módulos: financeiro (lançamentos, recorrências, parcelas, repasse), recebíveis por projeto, linhas de serviço, marcos/equipe/riscos/custos/cobranças de projeto e tarefas (empresa ativa)
