@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Link, useRouterState } from "@tanstack/react-r
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Lock } from "lucide-react";
+import { ChevronDown, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureDefaultCategories, runRecurringRollover } from "@/lib/finance/finance.functions";
 import { FinanceLockScreen } from "@/components/finance/FinanceLockScreen";
