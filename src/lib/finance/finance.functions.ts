@@ -624,6 +624,7 @@ export const markFinanceStatus = createServerFn({ method: "POST" })
         .maybeSingle();
       const { error } = await supabase.from("baixas").insert({
         empresa_id: userId,
+        ...(sc.organizationId ? { organization_id: sc.organizationId } : {}),
         receita_id: fin.kind === "receber" ? fin.id : null,
         despesa_id: fin.kind === "pagar" ? fin.id : null,
         data: data.paid_at ?? todayISO(),
@@ -1106,6 +1107,7 @@ export const registrarBaixa = createServerFn({ method: "POST" })
       .maybeSingle();
     const { error } = await supabase.from("baixas").insert({
       empresa_id: userId,
+      ...(sc.organizationId ? { organization_id: sc.organizationId } : {}),
       receita_id: fin.kind === "receber" ? fin.id : null,
       despesa_id: fin.kind === "pagar" ? fin.id : null,
       data: data.data,
