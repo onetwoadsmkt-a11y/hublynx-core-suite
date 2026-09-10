@@ -234,9 +234,10 @@ export const getBillingForecast = createServerFn({ method: "POST" })
       supabase.from("clients").select("id, name").eq(sc.col, sc.val),
       supabase
         .from("finances")
-        .select("amount, due_date, project_id")
+        .select("amount, due_date, competencia, project_id")
         .eq(sc.col, sc.val)
         .eq("kind", "receber")
+        .neq("status", "cancelado")
         .gte("due_date", from)
         .lte("due_date", to),
     ]);
@@ -245,7 +246,7 @@ export const getBillingForecast = createServerFn({ method: "POST" })
     const bookedByProject = new Map<string, number[]>();
     for (const f of finances ?? []) {
       if (!f.project_id) continue;
-      const i = idx.get(String(f.due_date).slice(0, 7));
+      const i = idx.get(String(f.competencia ?? String(f.due_date).slice(0, 7)).slice(0, 7));
       if (i === undefined) continue;
       let arr = bookedByProject.get(f.project_id);
       if (!arr) {
