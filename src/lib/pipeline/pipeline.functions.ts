@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DEFAULT_STAGES } from "./defaults";
 import { scopeOrganization, organizationFields } from "@/lib/org/filter";
+import { resolveOrganizationId } from "@/lib/org/resolve";
 
 const uuid = z.string().uuid();
 
