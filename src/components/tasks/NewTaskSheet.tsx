@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ export function NewTaskSheet({
   open, onOpenChange, defaultProjectId, defaultClientId, projectName, clientName, onCreated,
 }: Props) {
   const qc = useQueryClient();
+  const { activeOrganizationId } = useWorkspace();
   const syncSheet = useServerFn(syncEntityToSheets);
   const syncCalendar = useServerFn(syncTaskToCalendar);
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
@@ -60,6 +62,7 @@ export function NewTaskSheet({
       }
       const { data: inserted, error } = await supabase.from("tasks").insert({
         owner_id: u.user.id,
+        ...(activeOrganizationId ? { organization_id: activeOrganizationId } : {}),
         title,
         description: description || null,
         priority,
