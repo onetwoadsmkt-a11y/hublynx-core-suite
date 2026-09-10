@@ -114,6 +114,9 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
     .map((g) => ({
       ...g,
       items: g.items.filter((item) => {
+        // Módulos contratados pela empresa ativa (Financeiro fica oculto para quem não tem).
+        const mod = orgModuleForPath(item.to);
+        if (mod && !org.hasModule(mod)) return false;
         if (isAdmin) return true;
         const cap = capabilityForPath(item.to);
         return !cap || can(cap);
