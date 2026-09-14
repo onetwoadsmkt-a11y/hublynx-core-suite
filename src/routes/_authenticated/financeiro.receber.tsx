@@ -86,6 +86,15 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
     kind === "receber" ? (metrics?.receita_bruta_mes ?? 0) : (metrics?.despesas_brutas_mes ?? 0);
   const realizado = kind === "receber" ? (metrics?.recebido_mes ?? 0) : (metrics?.pago_mes ?? 0);
 
+  // Indicação de NFS-e por título (origem: fiscal_document_finances).
+  const nfseFn = useServerFn(getNfseStateForFinances);
+  const financeIds = useMemo(() => (rows ?? []).map((r) => r.id), [rows]);
+  const { data: nfseState } = useQuery({
+    queryKey: ["fiscal", "nfse-state", financeIds],
+    queryFn: () => nfseFn({ data: { financeIds } }),
+    enabled: kind === "receber" && financeIds.length > 0,
+  });
+
   const byDay = useMemo(() => {
     const map = new Map<string, FinanceRow[]>();
     for (const r of rows ?? []) {
