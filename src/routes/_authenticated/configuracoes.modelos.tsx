@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { addDays, format } from "date-fns";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -307,6 +308,17 @@ function TemplateDialog({
                   </div>
 
                   <div className="space-y-1.5 pl-1">
+                    {(() => {
+                      const startOffset = stages
+                        .slice(0, i)
+                        .reduce((n, x) => n + (x.duration_days ?? 0), 0);
+                      return s.tasks.length > 0 ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Se o projeto começasse hoje, esta etapa iniciaria em{" "}
+                          {format(addDays(new Date(), startOffset), "dd/MM/yyyy")}.
+                        </p>
+                      ) : null;
+                    })()}
                     {s.tasks.map((t, k) => (
                       <div key={k} className="flex items-center gap-2">
                         <Input
@@ -351,6 +363,16 @@ function TemplateDialog({
                             )
                           }
                         />
+                        <span className="text-[11px] text-muted-foreground shrink-0 w-[68px] tabular-nums">
+                          {format(
+                            addDays(
+                              new Date(),
+                              stages.slice(0, i).reduce((n, x) => n + (x.duration_days ?? 0), 0) +
+                                (t.due_offset_days || 0),
+                            ),
+                            "dd/MM/yyyy",
+                          )}
+                        </span>
                         <Button
                           variant="ghost"
                           size="icon"
