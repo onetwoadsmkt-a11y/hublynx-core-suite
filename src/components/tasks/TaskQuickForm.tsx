@@ -153,6 +153,7 @@ export function TaskQuickForm({ open, onOpenChange, defaults, onCreated }: Props
       qc.invalidateQueries({ queryKey: ["project-dashboard"] });
       qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
       qc.invalidateQueries({ queryKey: ["hub-today"] });
+      qc.invalidateQueries({ queryKey: ["agenda"] });
       onCreated?.(taskId);
       onOpenChange(false);
       syncSheet({ data: { entityType: "task", recordId: taskId } }).catch(() => {});

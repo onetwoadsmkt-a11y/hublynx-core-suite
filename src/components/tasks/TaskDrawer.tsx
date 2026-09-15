@@ -121,6 +121,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
       qc.invalidateQueries({ queryKey: ["project-dashboard"] });
       qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
       qc.invalidateQueries({ queryKey: ["hub-today"] });
+      qc.invalidateQueries({ queryKey: ["agenda"] });
       syncSheet({ data: { entityType: "task", recordId: taskId } }).catch(() => {});
     },
     onError: (e: any) => toast.error(e.message),
@@ -137,6 +138,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
       qc.invalidateQueries({ queryKey: ["project-dashboard"] });
       qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
       qc.invalidateQueries({ queryKey: ["hub-today"] });
+      qc.invalidateQueries({ queryKey: ["agenda"] });
       onClose();
       deleteSheetRow({ data: { entityType: "task", recordId: taskId } }).catch(() => {});
     },
@@ -167,6 +169,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
       qc.invalidateQueries({ queryKey: ["hub-today"] });
+      qc.invalidateQueries({ queryKey: ["agenda"] });
       if (id) syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
   });
