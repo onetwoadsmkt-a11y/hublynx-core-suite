@@ -161,6 +161,7 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
       const n = Math.max(1, f.installments);
       const rows = Array.from({ length: n }, (_, i) => ({
         owner_id: userId,
+        ...orgFields,
         kind: "receber" as const,
         client_id: clientId,
         project_id: projectId,
