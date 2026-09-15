@@ -91,12 +91,14 @@ export function LeadDrawer({
   tags = [],
   onOpenChange,
   onEdit,
+  onConfigureTags,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
   tags?: { slug: string; name: string; color: string }[];
   onOpenChange: (v: boolean) => void;
   onEdit: (lead: Lead) => void;
+  onConfigureTags?: () => void;
 }) {
   const qc = useQueryClient();
   const detailFn = useServerFn(getLeadDetail);
