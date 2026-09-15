@@ -363,6 +363,16 @@ function TemplateDialog({
                             )
                           }
                         />
+                        <span className="text-[11px] text-muted-foreground shrink-0 w-[68px] tabular-nums">
+                          {format(
+                            addDays(
+                              new Date(),
+                              stages.slice(0, i).reduce((n, x) => n + (x.duration_days ?? 0), 0) +
+                                (t.due_offset_days || 0),
+                            ),
+                            "dd/MM/yyyy",
+                          )}
+                        </span>
                         <Button
                           variant="ghost"
                           size="icon"
