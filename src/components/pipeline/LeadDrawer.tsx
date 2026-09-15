@@ -153,6 +153,8 @@ export function LeadDrawer({
     queryKey: ["lead-detail", lead?.id],
     queryFn: () => detailFn({ data: { leadId: lead!.id } }),
     enabled: !!lead,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["lead-detail", lead?.id] });
