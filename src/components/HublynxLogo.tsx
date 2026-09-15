@@ -1,4 +1,4 @@
-import logoAsset from "@/assets/core-suite-logo.png.asset.json";
+import logoAsset from "@/assets/core-suite-logo-horizontal.png.asset.json";
 import iconAsset from "@/assets/core-suite-icon.png.asset.json";
 
 export function HublynxLogo({ className = "", collapsed = false }: { className?: string; collapsed?: boolean }) {
