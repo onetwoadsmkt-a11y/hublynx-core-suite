@@ -453,3 +453,75 @@ export const applyTemplateToProject = createServerFn({ method: "POST" })
     });
     return { ok: true as const, count };
   });
+
+// ---------- Tarefas por etapa do roadmap ----------
+
+export type StageTask = {
+  id: string;
+  stage_id: string | null;
+  title: string;
+  status: string;
+  due_date: string | null;
+  priority: string;
+};
+
+export const listProjectStageTasks = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ project_id: uuid }).parse(d))
+  .handler(async ({ data, context }): Promise<StageTask[]> => {
+    const db = context.supabase as any;
+    const { data: rows, error } = await db
+      .from("tasks")
+      .select("id, stage_id, title, status, due_date, priority")
+      .eq("project_id", data.project_id)
+      .not("stage_id", "is", null)
+      .order("due_date", { ascending: true, nullsFirst: false });
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as StageTask[];
+  });
+
+export const addProjectStageTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        project_id: uuid,
+        stage_id: uuid,
+        title: z.string().trim().min(1).max(200),
+        due_date: z.string().nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
+    const organization_id = await orgOfProject(db, data.project_id);
+    const { error } = await db.from("tasks").insert({
+      owner_id: context.userId,
+      organization_id,
+      project_id: data.project_id,
+      stage_id: data.stage_id,
+      title: data.title,
+      status: "a_fazer",
+      priority: "media",
+      due_date: data.due_date ? new Date(data.due_date).toISOString() : null,
+      position: 0,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export const setProjectStageTaskDone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ task_id: uuid, done: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
+    const { error } = await db
+      .from("tasks")
+      .update({
+        status: data.done ? "concluido" : "a_fazer",
+        completed_at: data.done ? new Date().toISOString() : null,
+      })
+      .eq("id", data.task_id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });

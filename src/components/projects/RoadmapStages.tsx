@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Circle, Pencil, Plus, Trash2, GripVertical, LayoutTemplate } from "lucide-react";
+import { Check, Circle, Pencil, Plus, Trash2, GripVertical, LayoutTemplate, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,18 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   listProjectStages,
   saveProjectStages,
   setStageProgress,
   listProjectTemplates,
   applyTemplateToProject,
+  listProjectStageTasks,
+  addProjectStageTask,
+  setProjectStageTaskDone,
   type ProjectStage,
+  type StageTask,
 } from "@/lib/projects/stages.functions";
 
 type Draft = {
@@ -54,7 +59,11 @@ export function RoadmapStagesPanel({
   const progressFn = useServerFn(setStageProgress);
   const templatesFn = useServerFn(listProjectTemplates);
   const applyFn = useServerFn(applyTemplateToProject);
+  const stageTasksFn = useServerFn(listProjectStageTasks);
+  const addTaskFn = useServerFn(addProjectStageTask);
+  const doneTaskFn = useServerFn(setProjectStageTaskDone);
   const [editing, setEditing] = useState(false);
+  const [openStage, setOpenStage] = useState<ProjectStage | null>(null);
 
   const stagesQ = useQuery({
     queryKey: ["project-stages", projectId],
@@ -70,10 +79,32 @@ export function RoadmapStagesPanel({
     staleTime: 5 * 60_000,
   });
 
+  const stageTasksQ = useQuery({
+    queryKey: ["project-stage-tasks", projectId],
+    queryFn: () => stageTasksFn({ data: { project_id: projectId } }),
+    enabled: !disabled,
+    staleTime: 60_000,
+  });
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["project-stages", projectId] });
     qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] });
+    qc.invalidateQueries({ queryKey: ["project-stage-tasks", projectId] });
+    qc.invalidateQueries({ queryKey: ["tasks"] });
   };
+
+  const addTaskM = useMutation({
+    mutationFn: (v: { stage_id: string; title: string; due_date: string | null }) =>
+      addTaskFn({ data: { project_id: projectId, ...v } }),
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const doneTaskM = useMutation({
+    mutationFn: (v: { task_id: string; done: boolean }) => doneTaskFn({ data: v }),
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const saveM = useMutation({
     mutationFn: (next: Draft[]) =>
@@ -130,6 +161,17 @@ export function RoadmapStagesPanel({
     total > 0 ? Math.round(stages.reduce((a, s) => a + (s.percent ?? 0), 0) / total) : 0;
   const currentIdx = stages.findIndex((s) => s.status !== "done");
   const templates = templatesQ.data ?? [];
+  const allStageTasks: StageTask[] = stageTasksQ.data ?? [];
+  const tasksByStage = new Map<string, StageTask[]>();
+  for (const t of allStageTasks) {
+    if (!t.stage_id) continue;
+    tasksByStage.set(t.stage_id, [...(tasksByStage.get(t.stage_id) ?? []), t]);
+  }
+  const stageProgress = (stageId: string) => {
+    const list = tasksByStage.get(stageId) ?? [];
+    const done = list.filter((t) => t.status === "concluido").length;
+    return { total: list.length, done, pct: list.length ? Math.round((done / list.length) * 100) : 0 };
+  };
 
   return (
     <Card className="rounded-2xl p-5">
@@ -224,6 +266,33 @@ export function RoadmapStagesPanel({
                       {s.due_date.split("-").reverse().join("/")}
                     </p>
                   )}
+                  {(() => {
+                    const p = stageProgress(s.id);
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setOpenStage(s)}
+                        className="mt-1.5 w-full rounded-lg border px-1.5 py-1 text-[10px] leading-tight hover:bg-accent/50 transition"
+                        title={`Tarefas da etapa ${s.name}`}
+                      >
+                        <span className="flex items-center justify-center gap-1 font-semibold">
+                          <ListChecks className="h-3 w-3" />
+                          {p.total > 0 ? `${p.pct}%` : "Tarefas"}
+                        </span>
+                        <span className="block text-muted-foreground">
+                          {p.total > 0 ? `${p.done}/${p.total} tarefas` : "adicionar"}
+                        </span>
+                        {p.total > 0 && (
+                          <span className="mt-1 block h-1 w-full rounded-full bg-muted">
+                            <span
+                              className="block h-1 rounded-full bg-primary transition-all"
+                              style={{ width: `${p.pct}%` }}
+                            />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </li>
               );
             })}
@@ -234,6 +303,18 @@ export function RoadmapStagesPanel({
       <p className="text-[11px] text-muted-foreground mt-4">
         Clique numa etapa para avançar até ela. Clique numa etapa concluída para retroceder.
       </p>
+
+      <StageTasksDialog
+        stage={openStage}
+        onOpenChange={(o) => !o && setOpenStage(null)}
+        tasks={openStage ? (tasksByStage.get(openStage.id) ?? []) : []}
+        loading={stageTasksQ.isLoading}
+        onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
+        onAdd={(title, due_date) =>
+          openStage && addTaskM.mutate({ stage_id: openStage.id, title, due_date })
+        }
+        adding={addTaskM.isPending}
+      />
 
       <EditStagesDialog
         open={editing}
@@ -362,6 +443,121 @@ function EditStagesDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={save}>Salvar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StageTasksDialog({
+  stage,
+  onOpenChange,
+  tasks,
+  loading,
+  onToggle,
+  onAdd,
+  adding,
+}: {
+  stage: ProjectStage | null;
+  onOpenChange: (o: boolean) => void;
+  tasks: StageTask[];
+  loading: boolean;
+  onToggle: (taskId: string, done: boolean) => void;
+  onAdd: (title: string, dueDate: string | null) => void;
+  adding: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("");
+
+  const done = tasks.filter((t) => t.status === "concluido").length;
+  const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+
+  function submit() {
+    const t = title.trim();
+    if (!t) {
+      toast.error("Informe o título da tarefa");
+      return;
+    }
+    onAdd(t, due || null);
+    setTitle("");
+    setDue("");
+  }
+
+  return (
+    <Dialog open={!!stage} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Tarefas — {stage?.name}</DialogTitle>
+        </DialogHeader>
+
+        <div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+            <span>
+              {done} de {tasks.length} concluídas
+            </span>
+            <span className="font-semibold text-foreground">{pct}%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted">
+            <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+
+        <div className="space-y-1 max-h-[45vh] overflow-y-auto py-1">
+          {loading ? (
+            <p className="text-xs text-muted-foreground">Carregando tarefas...</p>
+          ) : tasks.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Nenhuma tarefa nesta etapa. Adicione abaixo — ela aparece também na Central de Execuções.
+            </p>
+          ) : (
+            tasks.map((t) => {
+              const isDone = t.status === "concluido";
+              return (
+                <label
+                  key={t.id}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/40 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={isDone}
+                    onCheckedChange={(v) => onToggle(t.id, v === true)}
+                  />
+                  <span className={["flex-1 text-sm", isDone ? "line-through text-muted-foreground" : ""].join(" ")}>
+                    {t.title}
+                  </span>
+                  {t.due_date && (
+                    <span className="text-[11px] text-muted-foreground shrink-0">
+                      {new Date(t.due_date).toLocaleDateString("pt-BR")}
+                    </span>
+                  )}
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 border-t pt-3">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            placeholder="Nova tarefa desta etapa"
+          />
+          <Input
+            type="date"
+            className="w-[9.5rem] shrink-0"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            aria-label="Prazo da tarefa"
+          />
+          <Button onClick={submit} disabled={adding} size="icon" aria-label="Adicionar tarefa">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
