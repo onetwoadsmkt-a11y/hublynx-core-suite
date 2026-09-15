@@ -93,6 +93,8 @@ export function RoadmapStagesPanel({
     qc.invalidateQueries({ queryKey: ["tasks"] });
     // "Seu dia" do Hub Central também mostra estas tarefas
     qc.invalidateQueries({ queryKey: ["hub-today"] });
+    // Agenda também exibe estas tarefas quando têm data
+    qc.invalidateQueries({ queryKey: ["agenda"] });
   };
 
   const addTaskM = useMutation({
@@ -313,7 +315,13 @@ export function RoadmapStagesPanel({
         loading={stageTasksQ.isLoading}
         onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
         onAdd={(title, due_date) =>
-          openStage && addTaskM.mutate({ stage_id: openStage.id, title, due_date })
+          openStage &&
+          addTaskM.mutate({
+            stage_id: openStage.id,
+            title,
+            // sem data informada, usa a data da etapa para aparecer na Agenda
+            due_date: due_date ?? openStage.due_date ?? null,
+          })
         }
         adding={addTaskM.isPending}
       />
