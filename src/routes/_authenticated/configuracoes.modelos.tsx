@@ -255,7 +255,13 @@ function TemplateDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label>Etapas</Label>
+            <div className="space-y-1">
+              <Label>Etapas</Label>
+              <p className="text-xs text-muted-foreground">
+                Cada etapa é uma fase do projeto e acontece na ordem da lista. O número ao lado do
+                nome é o prazo da fase, em dias.
+              </p>
+            </div>
             <div className="space-y-2 max-h-[40vh] overflow-y-auto">
               {stages.map((s, i) => (
                 <div key={i} className="rounded-xl border p-2 space-y-2">
@@ -267,22 +273,28 @@ function TemplateDialog({
                     }
                     placeholder="Nome da etapa"
                   />
-                  <Input
-                    type="number"
-                    min={0}
-                    className="w-24 shrink-0"
-                    value={s.duration_days ?? ""}
-                    onChange={(e) =>
-                      setStages((d) =>
-                        d.map((x, j) =>
-                          j === i
-                            ? { ...x, duration_days: e.target.value ? Number(e.target.value) : null }
-                            : x,
-                        ),
-                      )
-                    }
-                    aria-label="Dias"
-                  />
+                  <div
+                    className="flex items-center gap-1 shrink-0"
+                    title="Prazo previsto desta etapa, em dias, contado a partir do início do projeto"
+                  >
+                    <Input
+                      type="number"
+                      min={0}
+                      className="w-16"
+                      value={s.duration_days ?? ""}
+                      onChange={(e) =>
+                        setStages((d) =>
+                          d.map((x, j) =>
+                            j === i
+                              ? { ...x, duration_days: e.target.value ? Number(e.target.value) : null }
+                              : x,
+                          ),
+                        )
+                      }
+                      aria-label="Prazo da etapa em dias"
+                    />
+                    <span className="text-xs text-muted-foreground">dias</span>
+                  </div>
                   <Button
                     variant="ghost"
                     size="icon"
