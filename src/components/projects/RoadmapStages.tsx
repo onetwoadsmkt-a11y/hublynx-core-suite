@@ -59,7 +59,11 @@ export function RoadmapStagesPanel({
   const progressFn = useServerFn(setStageProgress);
   const templatesFn = useServerFn(listProjectTemplates);
   const applyFn = useServerFn(applyTemplateToProject);
+  const stageTasksFn = useServerFn(listProjectStageTasks);
+  const addTaskFn = useServerFn(addProjectStageTask);
+  const doneTaskFn = useServerFn(setProjectStageTaskDone);
   const [editing, setEditing] = useState(false);
+  const [openStage, setOpenStage] = useState<ProjectStage | null>(null);
 
   const stagesQ = useQuery({
     queryKey: ["project-stages", projectId],
