@@ -448,3 +448,118 @@ function EditStagesDialog({
     </Dialog>
   );
 }
+
+function StageTasksDialog({
+  stage,
+  onOpenChange,
+  tasks,
+  loading,
+  onToggle,
+  onAdd,
+  adding,
+}: {
+  stage: ProjectStage | null;
+  onOpenChange: (o: boolean) => void;
+  tasks: StageTask[];
+  loading: boolean;
+  onToggle: (taskId: string, done: boolean) => void;
+  onAdd: (title: string, dueDate: string | null) => void;
+  adding: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("");
+
+  const done = tasks.filter((t) => t.status === "concluido").length;
+  const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+
+  function submit() {
+    const t = title.trim();
+    if (!t) {
+      toast.error("Informe o título da tarefa");
+      return;
+    }
+    onAdd(t, due || null);
+    setTitle("");
+    setDue("");
+  }
+
+  return (
+    <Dialog open={!!stage} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Tarefas — {stage?.name}</DialogTitle>
+        </DialogHeader>
+
+        <div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+            <span>
+              {done} de {tasks.length} concluídas
+            </span>
+            <span className="font-semibold text-foreground">{pct}%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted">
+            <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+
+        <div className="space-y-1 max-h-[45vh] overflow-y-auto py-1">
+          {loading ? (
+            <p className="text-xs text-muted-foreground">Carregando tarefas...</p>
+          ) : tasks.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Nenhuma tarefa nesta etapa. Adicione abaixo — ela aparece também na Central de Execuções.
+            </p>
+          ) : (
+            tasks.map((t) => {
+              const isDone = t.status === "concluido";
+              return (
+                <label
+                  key={t.id}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/40 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={isDone}
+                    onCheckedChange={(v) => onToggle(t.id, v === true)}
+                  />
+                  <span className={["flex-1 text-sm", isDone ? "line-through text-muted-foreground" : ""].join(" ")}>
+                    {t.title}
+                  </span>
+                  {t.due_date && (
+                    <span className="text-[11px] text-muted-foreground shrink-0">
+                      {new Date(t.due_date).toLocaleDateString("pt-BR")}
+                    </span>
+                  )}
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 border-t pt-3">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            placeholder="Nova tarefa desta etapa"
+          />
+          <Input
+            type="date"
+            className="w-[9.5rem] shrink-0"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            aria-label="Prazo da tarefa"
+          />
+          <Button onClick={submit} disabled={adding} size="icon" aria-label="Adicionar tarefa">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
