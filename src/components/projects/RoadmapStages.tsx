@@ -79,10 +79,32 @@ export function RoadmapStagesPanel({
     staleTime: 5 * 60_000,
   });
 
+  const stageTasksQ = useQuery({
+    queryKey: ["project-stage-tasks", projectId],
+    queryFn: () => stageTasksFn({ data: { project_id: projectId } }),
+    enabled: !disabled,
+    staleTime: 60_000,
+  });
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["project-stages", projectId] });
     qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] });
+    qc.invalidateQueries({ queryKey: ["project-stage-tasks", projectId] });
+    qc.invalidateQueries({ queryKey: ["tasks"] });
   };
+
+  const addTaskM = useMutation({
+    mutationFn: (v: { stage_id: string; title: string; due_date: string | null }) =>
+      addTaskFn({ data: { project_id: projectId, ...v } }),
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const doneTaskM = useMutation({
+    mutationFn: (v: { task_id: string; done: boolean }) => doneTaskFn({ data: v }),
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const saveM = useMutation({
     mutationFn: (next: Draft[]) =>
