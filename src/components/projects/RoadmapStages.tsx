@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Circle, Pencil, Plus, Trash2, GripVertical, LayoutTemplate } from "lucide-react";
+import { Check, Circle, Pencil, Plus, Trash2, GripVertical, LayoutTemplate, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
