@@ -147,6 +147,7 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
           organizationId,
           templateId: data.templateId,
           startDate: p.start_date ?? new Date().toISOString().slice(0, 10),
+          ownerId: context.userId,
         });
       } catch {
         // roadmap é complementar: não impede a conversão
