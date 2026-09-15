@@ -12,13 +12,18 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   listProjectStages,
   saveProjectStages,
   setStageProgress,
   listProjectTemplates,
   applyTemplateToProject,
+  listProjectStageTasks,
+  addProjectStageTask,
+  setProjectStageTaskDone,
   type ProjectStage,
+  type StageTask,
 } from "@/lib/projects/stages.functions";
 
 type Draft = {
