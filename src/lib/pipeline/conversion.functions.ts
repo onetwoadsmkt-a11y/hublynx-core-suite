@@ -178,7 +178,7 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
         installment_no: n > 1 ? i + 1 : null,
         installment_total: n > 1 ? n : null,
       }));
-      const { error } = await supabase.from("finances").insert(rows);
+      const { error } = await db.from("finances").insert(rows);
       if (error) throw new Error(error.message);
       created = rows.length;
     }
