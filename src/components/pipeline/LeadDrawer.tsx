@@ -22,7 +22,7 @@ import {
 } from "@/lib/pipeline/pipeline.functions";
 import { setLeadTags } from "@/lib/pipeline/tags.functions";
 import {
-  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { currency } from "./LeadCard";
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
