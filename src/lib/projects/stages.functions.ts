@@ -449,6 +449,7 @@ export const applyTemplateToProject = createServerFn({ method: "POST" })
       organizationId: organization_id,
       templateId: data.template_id,
       startDate,
+      ownerId: context.userId,
     });
     return { ok: true as const, count };
   });
