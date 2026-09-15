@@ -150,7 +150,9 @@ export function TaskQuickForm({ open, onOpenChange, defaults, onCreated }: Props
       toast.success(kind === "reuniao" ? "Reunião criada." : "Tarefa criada.");
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["agenda"] });
-      qc.invalidateQueries({ queryKey: ["project-detail"] });
+      qc.invalidateQueries({ queryKey: ["project-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
+      qc.invalidateQueries({ queryKey: ["hub-today"] });
       onCreated?.(taskId);
       onOpenChange(false);
       syncSheet({ data: { entityType: "task", recordId: taskId } }).catch(() => {});

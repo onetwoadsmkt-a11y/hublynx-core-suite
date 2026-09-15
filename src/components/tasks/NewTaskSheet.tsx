@@ -79,7 +79,9 @@ export function NewTaskSheet({
     onSuccess: (id) => {
       toast.success("Tarefa criada.");
       qc.invalidateQueries({ queryKey: ["tasks"] });
-      qc.invalidateQueries({ queryKey: ["project-detail"] });
+      qc.invalidateQueries({ queryKey: ["project-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
+      qc.invalidateQueries({ queryKey: ["hub-today"] });
       onCreated?.(id);
       onOpenChange(false);
       syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
