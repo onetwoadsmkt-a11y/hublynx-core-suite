@@ -30,7 +30,7 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock,
   TrendingUp, DollarSign, Users as UsersIcon, Calendar as CalIcon, AlertCircle,
   Activity as ActivityIcon, FileText, Target, Briefcase, Flag, Hourglass,
-  UserCheck, ListChecks, ArrowRight, Sparkles, Wallet,
+  ListChecks, ArrowRight, Sparkles, Wallet,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
