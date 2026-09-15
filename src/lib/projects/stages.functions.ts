@@ -192,9 +192,30 @@ export const listProjectTemplates = createServerFn({ method: "GET" })
       .in("template_id", ids)
       .order("sort_order");
     if (sErr) throw new Error(sErr.message);
+    const stageList = (stages ?? []) as any[];
+    let tasks: any[] = [];
+    if (stageList.length) {
+      const { data: tRows } = await db
+        .from("project_template_tasks")
+        .select("stage_id, title, description, due_offset_days, sort_order")
+        .in("stage_id", stageList.map((s) => s.id as string))
+        .order("sort_order");
+      tasks = (tRows ?? []) as any[];
+    }
     return ((tpls ?? []) as any[]).map((t) => ({
       ...t,
-      stages: ((stages ?? []) as any[]).filter((s) => s.template_id === t.id),
+      stages: stageList
+        .filter((s) => s.template_id === t.id)
+        .map((s) => ({
+          ...s,
+          tasks: tasks
+            .filter((k) => k.stage_id === s.id)
+            .map((k) => ({
+              title: k.title as string,
+              description: (k.description ?? null) as string | null,
+              due_offset_days: Number(k.due_offset_days ?? 0),
+            })),
+        })),
     })) as ProjectTemplate[];
   });
 
