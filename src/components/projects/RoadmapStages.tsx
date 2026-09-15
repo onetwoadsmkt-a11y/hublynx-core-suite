@@ -266,6 +266,33 @@ export function RoadmapStagesPanel({
                       {s.due_date.split("-").reverse().join("/")}
                     </p>
                   )}
+                  {(() => {
+                    const p = stageProgress(s.id);
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setOpenStage(s)}
+                        className="mt-1.5 w-full rounded-lg border px-1.5 py-1 text-[10px] leading-tight hover:bg-accent/50 transition"
+                        title={`Tarefas da etapa ${s.name}`}
+                      >
+                        <span className="flex items-center justify-center gap-1 font-semibold">
+                          <ListChecks className="h-3 w-3" />
+                          {p.total > 0 ? `${p.pct}%` : "Tarefas"}
+                        </span>
+                        <span className="block text-muted-foreground">
+                          {p.total > 0 ? `${p.done}/${p.total} tarefas` : "adicionar"}
+                        </span>
+                        {p.total > 0 && (
+                          <span className="mt-1 block h-1 w-full rounded-full bg-muted">
+                            <span
+                              className="block h-1 rounded-full bg-primary transition-all"
+                              style={{ width: `${p.pct}%` }}
+                            />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </li>
               );
             })}
