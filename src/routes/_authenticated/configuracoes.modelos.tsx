@@ -41,7 +41,8 @@ export const Route = createFileRoute("/_authenticated/configuracoes/modelos")({
   component: TemplatesPage,
 });
 
-type StageDraft = { name: string; duration_days: number | null };
+type TaskDraft = { title: string; due_offset_days: number };
+type StageDraft = { name: string; duration_days: number | null; tasks: TaskDraft[] };
 
 function TemplatesPage() {
   const qc = useQueryClient();
@@ -113,6 +114,11 @@ function TemplatesPage() {
                 <p className="text-xs text-muted-foreground mt-2">
                   {t.stages.map((s) => s.name).join(" → ") || "Sem etapas"}
                 </p>
+                {t.stages.some((s) => s.tasks?.length) && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {t.stages.reduce((n, s) => n + (s.tasks?.length ?? 0), 0)} tarefa(s) padrão
+                  </p>
+                )}
               </div>
               {isOrgAdmin && (
                 <div className="flex gap-1 shrink-0">
@@ -185,13 +191,20 @@ function TemplateDialog({
     setDescription(template?.description ?? "");
     setStages(
       template && template.stages.length
-        ? template.stages.map((s) => ({ name: s.name, duration_days: s.duration_days }))
+        ? template.stages.map((s) => ({
+            name: s.name,
+            duration_days: s.duration_days,
+            tasks: (s.tasks ?? []).map((t) => ({
+              title: t.title,
+              due_offset_days: t.due_offset_days ?? 0,
+            })),
+          }))
         : [
-            { name: "Briefing", duration_days: 3 },
-            { name: "Planejamento", duration_days: 5 },
-            { name: "Produção", duration_days: 14 },
-            { name: "Aprovação", duration_days: 3 },
-            { name: "Entrega", duration_days: 2 },
+            { name: "Briefing", duration_days: 3, tasks: [] },
+            { name: "Planejamento", duration_days: 5, tasks: [] },
+            { name: "Produção", duration_days: 14, tasks: [] },
+            { name: "Aprovação", duration_days: 3, tasks: [] },
+            { name: "Entrega", duration_days: 2, tasks: [] },
           ],
     );
   }, [open, template]);
@@ -204,7 +217,13 @@ function TemplateDialog({
         name: name.trim(),
         description: description.trim() || null,
         stages: stages
-          .map((s) => ({ name: s.name.trim(), duration_days: s.duration_days }))
+          .map((s) => ({
+            name: s.name.trim(),
+            duration_days: s.duration_days,
+            tasks: s.tasks
+              .map((t) => ({ title: t.title.trim(), due_offset_days: t.due_offset_days || 0 }))
+              .filter((t) => t.title.length > 0),
+          }))
           .filter((s) => s.name.length > 0),
       }),
     onSuccess: () => {
@@ -237,7 +256,8 @@ function TemplateDialog({
             <Label>Etapas</Label>
             <div className="space-y-2 max-h-[40vh] overflow-y-auto">
               {stages.map((s, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="rounded-xl border p-2 space-y-2">
+                  <div className="flex items-center gap-2">
                   <Input
                     value={s.name}
                     onChange={(e) =>
@@ -270,19 +290,101 @@ function TemplateDialog({
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                  </div>
+
+                  <div className="space-y-1.5 pl-1">
+                    {s.tasks.map((t, k) => (
+                      <div key={k} className="flex items-center gap-2">
+                        <Input
+                          value={t.title}
+                          placeholder="Tarefa padrão"
+                          className="h-8 text-sm"
+                          onChange={(e) =>
+                            setStages((d) =>
+                              d.map((x, j) =>
+                                j === i
+                                  ? {
+                                      ...x,
+                                      tasks: x.tasks.map((y, m) =>
+                                        m === k ? { ...y, title: e.target.value } : y,
+                                      ),
+                                    }
+                                  : x,
+                              ),
+                            )
+                          }
+                        />
+                        <Input
+                          type="number"
+                          min={0}
+                          className="h-8 w-20 shrink-0 text-sm"
+                          aria-label="Prazo em dias após o início da etapa"
+                          value={t.due_offset_days}
+                          onChange={(e) =>
+                            setStages((d) =>
+                              d.map((x, j) =>
+                                j === i
+                                  ? {
+                                      ...x,
+                                      tasks: x.tasks.map((y, m) =>
+                                        m === k
+                                          ? { ...y, due_offset_days: Number(e.target.value || 0) }
+                                          : y,
+                                      ),
+                                    }
+                                  : x,
+                              ),
+                            )
+                          }
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-rose-600 shrink-0"
+                          aria-label="Remover tarefa padrão"
+                          onClick={() =>
+                            setStages((d) =>
+                              d.map((x, j) =>
+                                j === i ? { ...x, tasks: x.tasks.filter((_, m) => m !== k) } : x,
+                              ),
+                            )
+                          }
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-muted-foreground"
+                      onClick={() =>
+                        setStages((d) =>
+                          d.map((x, j) =>
+                            j === i
+                              ? { ...x, tasks: [...x.tasks, { title: "", due_offset_days: 0 }] }
+                              : x,
+                          ),
+                        )
+                      }
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Tarefa padrão
+                    </Button>
+                  </div>
                 </div>
               ))}
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => setStages((d) => [...d, { name: "", duration_days: 7 }])}
+                onClick={() => setStages((d) => [...d, { name: "", duration_days: 7, tasks: [] }])}
               >
                 <Plus className="h-4 w-4" /> Adicionar etapa
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Os dias definem o prazo previsto de cada etapa a partir do início do projeto.
+              Os dias definem o prazo previsto de cada etapa a partir do início do projeto. Nas
+              tarefas padrão, os dias contam a partir do início da própria etapa.
             </p>
           </div>
         </div>
