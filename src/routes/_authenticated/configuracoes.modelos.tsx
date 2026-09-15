@@ -307,6 +307,17 @@ function TemplateDialog({
                   </div>
 
                   <div className="space-y-1.5 pl-1">
+                    {(() => {
+                      const startOffset = stages
+                        .slice(0, i)
+                        .reduce((n, x) => n + (x.duration_days ?? 0), 0);
+                      return s.tasks.length > 0 ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Se o projeto começasse hoje, esta etapa iniciaria em{" "}
+                          {format(addDays(new Date(), startOffset), "dd/MM/yyyy")}.
+                        </p>
+                      ) : null;
+                    })()}
                     {s.tasks.map((t, k) => (
                       <div key={k} className="flex items-center gap-2">
                         <Input
