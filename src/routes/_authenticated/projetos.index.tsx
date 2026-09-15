@@ -247,7 +247,9 @@ function ProjectsList() {
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
                     <span>{progress}% concluído</span>
                     <span>
-                      {stats.done}/{stats.total} tarefas
+                      {stageStats.total
+                        ? `${stageStats.done}/${stageStats.total} etapas`
+                        : "sem etapas"}
                     </span>
                   </div>
                   <Progress value={progress} className="h-1.5" />
