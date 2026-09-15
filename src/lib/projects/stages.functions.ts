@@ -345,6 +345,7 @@ export async function applyTemplateStages(
   if (list.length === 0) return 0;
 
   let cursor = opts.startDate ? new Date(`${opts.startDate}T12:00:00`) : null;
+  const startByOrder = new Map<number, string | null>();
   const rows = list.map((s, i) => {
     let start: string | null = null;
     let due: string | null = null;
@@ -355,6 +356,7 @@ export async function applyTemplateStages(
       due = d.toISOString().slice(0, 10);
       cursor = d;
     }
+    startByOrder.set(i, start);
     return {
       project_id: opts.projectId,
       organization_id: opts.organizationId,
@@ -367,8 +369,56 @@ export async function applyTemplateStages(
       percent: 0,
     };
   });
-  const { error: iErr } = await db.from("project_stages").insert(rows);
+  const { data: createdStages, error: iErr } = await db
+    .from("project_stages")
+    .insert(rows)
+    .select("id, sort_order");
   if (iErr) throw new Error(iErr.message);
+
+  // Tarefas padrão de cada etapa do modelo (complementares: não quebram o roadmap)
+  try {
+    const { data: tplTasks } = await db
+      .from("project_template_tasks")
+      .select("stage_id, title, description, due_offset_days, sort_order")
+      .in("stage_id", list.map((s) => s.id as string))
+      .order("sort_order");
+    const tasks = (tplTasks ?? []) as any[];
+    if (tasks.length) {
+      const projectStageByOrder = new Map<number, string>(
+        ((createdStages ?? []) as any[]).map((s) => [Number(s.sort_order), s.id as string]),
+      );
+      const taskRows = list.flatMap((tplStage, i) => {
+        const projectStageId = projectStageByOrder.get(i);
+        if (!projectStageId) return [];
+        const stageStart = startByOrder.get(i) ?? null;
+        return tasks
+          .filter((t) => t.stage_id === tplStage.id)
+          .map((t) => {
+            let dueIso: string | null = null;
+            if (stageStart) {
+              const d = new Date(`${stageStart}T12:00:00`);
+              d.setDate(d.getDate() + Number(t.due_offset_days ?? 0));
+              dueIso = d.toISOString();
+            }
+            return {
+              ...(opts.ownerId ? { owner_id: opts.ownerId } : {}),
+              organization_id: opts.organizationId,
+              project_id: opts.projectId,
+              stage_id: projectStageId,
+              title: t.title,
+              description: t.description ?? null,
+              status: "a_fazer",
+              priority: "media",
+              due_date: dueIso,
+              position: 0,
+            };
+          });
+      });
+      if (taskRows.length) await db.from("tasks").insert(taskRows);
+    }
+  } catch {
+    // tarefas padrão são complementares
+  }
   return rows.length;
 }
 
