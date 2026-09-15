@@ -161,6 +161,7 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
       const n = Math.max(1, f.installments);
       const rows = Array.from({ length: n }, (_, i) => ({
         owner_id: userId,
+        ...orgFields,
         kind: "receber" as const,
         client_id: clientId,
         project_id: projectId,
@@ -177,7 +178,7 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
         installment_no: n > 1 ? i + 1 : null,
         installment_total: n > 1 ? n : null,
       }));
-      const { error } = await supabase.from("finances").insert(rows);
+      const { error } = await db.from("finances").insert(rows);
       if (error) throw new Error(error.message);
       created = rows.length;
     }
