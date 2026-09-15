@@ -67,10 +67,23 @@ function HubCentral() {
   const orgId = activeOrganizationId;
   const todayFn = useServerFn(getTodayTasks);
 
+  const [hasSession, setHasSession] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (alive) setHasSession(!!data.session?.access_token);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setHasSession(!!session?.access_token);
+    });
+    return () => { alive = false; sub.subscription.unsubscribe(); };
+  }, []);
+
   const todayQ = useQuery({
     queryKey: ["hub-today", orgId],
     queryFn: () => todayFn({ data: { organizationId: orgId } }),
     staleTime: 60_000,
+    enabled: hasSession,
   });
 
   const { data } = useQuery({
