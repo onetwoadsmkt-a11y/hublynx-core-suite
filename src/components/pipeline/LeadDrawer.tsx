@@ -22,7 +22,7 @@ import {
 } from "@/lib/pipeline/pipeline.functions";
 import { setLeadTags } from "@/lib/pipeline/tags.functions";
 import {
-  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { currency } from "./LeadCard";
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
@@ -91,12 +91,14 @@ export function LeadDrawer({
   tags = [],
   onOpenChange,
   onEdit,
+  onConfigureTags,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
   tags?: { slug: string; name: string; color: string }[];
   onOpenChange: (v: boolean) => void;
   onEdit: (lead: Lead) => void;
+  onConfigureTags?: () => void;
 }) {
   const qc = useQueryClient();
   const detailFn = useServerFn(getLeadDetail);
@@ -151,6 +153,8 @@ export function LeadDrawer({
     queryKey: ["lead-detail", lead?.id],
     queryFn: () => detailFn({ data: { leadId: lead!.id } }),
     enabled: !!lead,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["lead-detail", lead?.id] });
@@ -267,7 +271,7 @@ export function LeadDrawer({
                 <div className="flex items-center gap-2">
                   <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
                   <TemperatureBadge value={lead.temperature} />
-                  {tags.length > 0 && (
+                  {(
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -294,6 +298,21 @@ export function LeadDrawer({
                             </span>
                           </DropdownMenuCheckboxItem>
                         ))}
+                        {tags.length === 0 && (
+                          <>
+                            <DropdownMenuItem disabled>Nenhuma tag configurada</DropdownMenuItem>
+                            {onConfigureTags && (
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  onOpenChange(false);
+                                  onConfigureTags();
+                                }}
+                              >
+                                Configurar tags…
+                              </DropdownMenuItem>
+                            )}
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

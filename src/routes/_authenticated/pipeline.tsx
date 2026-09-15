@@ -390,6 +390,7 @@ function PipelinePage() {
         tags={tags}
         onOpenChange={(v) => !v && setOpenLead(null)}
         onEdit={(l) => { setOpenLead(null); setEditing(l); setFormOpen(true); }}
+        onConfigureTags={() => setTagsOpen(true)}
       />
     </div>
   );

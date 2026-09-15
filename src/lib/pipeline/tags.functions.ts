@@ -23,9 +23,17 @@ export const listPipelineTags = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ pipelineId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertPipelineAccess(context.supabase, data.pipelineId);
+    // Leitura é tolerante: se o pipeline não estiver visível para o usuário
+    // (RLS por organização), devolvemos lista vazia em vez de quebrar a tela.
+    const { data: pipeline, error } = await context.supabase
+      .from("pipelines")
+      .select("id")
+      .eq("id", data.pipelineId)
+      .maybeSingle();
+    if (error) console.error("[pipeline-tags] acesso ao pipeline:", error.message);
+    if (!pipeline) return { tags: [], accessible: false as const };
     const { readPipelineTags } = await import("./tags.server");
-    return { tags: await readPipelineTags(data.pipelineId) };
+    return { tags: await readPipelineTags(data.pipelineId), accessible: true as const };
   });
 
 export const savePipelineTags = createServerFn({ method: "POST" })
