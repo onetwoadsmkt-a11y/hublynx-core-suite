@@ -236,7 +236,7 @@ function HubCentral() {
           ))}
         </motion.section>
 
-        {/* SEÇÃO 3 — Próxima ação */}
+        {/* SEÇÃO 3 — Seu dia */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -244,30 +244,64 @@ function HubCentral() {
           className="mt-14"
         >
           <p className="text-xs uppercase tracking-[0.2em] text-[#00A86A] dark:text-[#00D084]/80 mb-4">
-            Próxima Ação
+            Seu dia
           </p>
-          {nextAction ? (
-            <div className="group flex flex-col sm:flex-row sm:items-center gap-6 rounded-2xl border border-[#071A3D]/10 dark:border-white/10 bg-white/60 dark:bg-white/[0.03] p-6 backdrop-blur-sm transition-colors hover:border-[#00D084]/40">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#00D084]/15 text-[#00A86A] dark:text-[#00D084]">
-                <nextAction.icon className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-lg font-medium truncate">{nextAction.title}</p>
-                <p className="text-sm text-[#071A3D]/60 dark:text-white/60 truncate">
-                  {nextAction.subtitle} · {nextAction.when}
-                </p>
-              </div>
-              <Link
-                to={nextAction.to}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#00D084] px-4 py-2 text-sm font-medium text-[#071A3D] transition-transform hover:scale-[1.02]"
-              >
-                {nextAction.cta} <ArrowRight className="h-4 w-4" />
-              </Link>
+
+          <div className="rounded-2xl border border-[#071A3D]/10 dark:border-white/10 bg-white/60 dark:bg-white/[0.03] p-6 backdrop-blur-sm">
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: "Vencidas", value: overdue.length, danger: overdue.length > 0 },
+                { label: "Hoje", value: todayTasks.length, danger: false },
+                { label: "Próximos 7 dias", value: upcoming.length, danger: false },
+              ].map((s) => (
+                <div key={s.label}>
+                  <p
+                    className={`text-3xl font-semibold tabular-nums ${
+                      s.danger ? "text-rose-600 dark:text-rose-400" : ""
+                    }`}
+                  >
+                    {s.value}
+                  </p>
+                  <p className="mt-1 text-xs text-[#071A3D]/55 dark:text-white/50">{s.label}</p>
+                </div>
+              ))}
             </div>
-          ) : (
-            <p className="text-[#071A3D]/60 dark:text-white/60">Nenhuma pendência crítica encontrada.</p>
-          )}
+
+            {topTasks.length > 0 ? (
+              <ul className="mt-6 space-y-3 border-t border-[#071A3D]/10 dark:border-white/10 pt-5">
+                {topTasks.map((t) => (
+                  <li key={t.id} className="flex items-baseline justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{t.title}</p>
+                      <p className="text-xs text-[#071A3D]/55 dark:text-white/50 truncate">
+                        {[t.project_name, t.client_name].filter(Boolean).join(" · ") ||
+                          "Sem projeto ou cliente"}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-[#071A3D]/60 dark:text-white/55 tabular-nums">
+                      {new Date(t.due_date).toLocaleDateString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-6 border-t border-[#071A3D]/10 dark:border-white/10 pt-5 text-sm text-[#071A3D]/60 dark:text-white/60">
+                Tudo em dia. Nada pendente por agora.
+              </p>
+            )}
+
+            <Link
+              to="/tarefas"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm text-[#00A86A] dark:text-[#00D084] hover:underline"
+            >
+              Ver todas as tarefas <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         </motion.section>
+
 
         {/* SEÇÃO 4 — Insight Hublynx */}
         <motion.section
