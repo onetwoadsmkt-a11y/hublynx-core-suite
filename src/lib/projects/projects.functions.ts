@@ -57,7 +57,7 @@ export const listProjects = createServerFn({ method: "GET" })
 
     let stageCounts: Record<string, { total: number; done: number; percent: number }> = {};
     if (ids.length) {
-      const { data: stages } = await context.supabase
+      const { data: stages } = await (context.supabase as any)
         .from("project_stages")
         .select("project_id, status, percent")
         .in("project_id", ids);
