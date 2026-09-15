@@ -160,6 +160,7 @@ function AgendaPage() {
   const backfill = useMutation({
     mutationFn: () => backfillFn({ data: undefined as any }),
     onSuccess: (r: any) => {
+      if (r?.ok === false) return; // Google não conectado: silencioso
       if (r.failed > 0) {
         toast.warning(`Sincronizado: ${r.created} novos, ${r.updated} atualizados, ${r.failed} falhas.${r.errors?.length ? " " + r.errors[0] : ""}`);
       } else if (r.created + r.updated > 0) {
