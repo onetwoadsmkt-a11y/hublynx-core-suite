@@ -298,6 +298,21 @@ export function LeadDrawer({
                             </span>
                           </DropdownMenuCheckboxItem>
                         ))}
+                        {tags.length === 0 && (
+                          <>
+                            <DropdownMenuItem disabled>Nenhuma tag configurada</DropdownMenuItem>
+                            {onConfigureTags && (
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  onOpenChange(false);
+                                  onConfigureTags();
+                                }}
+                              >
+                                Configurar tags…
+                              </DropdownMenuItem>
+                            )}
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
