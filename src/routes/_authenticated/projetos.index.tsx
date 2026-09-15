@@ -217,9 +217,8 @@ function ProjectsList() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {projects.map((p: any) => {
             const stats = p.task_stats ?? { total: 0, done: 0, overdue: 0 };
-            const progress = stats.total
-              ? Math.round((stats.done / stats.total) * 100)
-              : p.progress ?? 0;
+            const stageStats = p.stage_stats ?? { total: 0, done: 0, percent: 0 };
+            const progress = stageStats.total ? stageStats.percent : p.progress ?? 0;
             return (
               <Card
                 key={p.id}
@@ -248,7 +247,9 @@ function ProjectsList() {
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
                     <span>{progress}% concluído</span>
                     <span>
-                      {stats.done}/{stats.total} tarefas
+                      {stageStats.total
+                        ? `${stageStats.done}/${stageStats.total} etapas`
+                        : "sem etapas"}
                     </span>
                   </div>
                   <Progress value={progress} className="h-1.5" />
@@ -292,10 +293,8 @@ function ProjectsList() {
             </TableHeader>
             <TableBody>
               {projects.map((p: any) => {
-                const stats = p.task_stats ?? { total: 0, done: 0, overdue: 0 };
-                const progress = stats.total
-                  ? Math.round((stats.done / stats.total) * 100)
-                  : p.progress ?? 0;
+                const stageStats = p.stage_stats ?? { total: 0, done: 0, percent: 0 };
+                const progress = stageStats.total ? stageStats.percent : p.progress ?? 0;
                 return (
                   <TableRow
                     key={p.id}

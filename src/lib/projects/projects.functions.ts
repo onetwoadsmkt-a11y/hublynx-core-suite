@@ -55,11 +55,34 @@ export const listProjects = createServerFn({ method: "GET" })
       });
     }
 
+    let stageCounts: Record<string, { total: number; done: number; percent: number }> = {};
+    if (ids.length) {
+      const { data: stages } = await (context.supabase as any)
+        .from("project_stages")
+        .select("project_id, status, percent")
+        .in("project_id", ids);
+      const acc: Record<string, { total: number; done: number; sum: number }> = {};
+      (stages ?? []).forEach((s: any) => {
+        const pid = s.project_id as string;
+        if (!acc[pid]) acc[pid] = { total: 0, done: 0, sum: 0 };
+        acc[pid].total += 1;
+        if (s.status === "done") acc[pid].done += 1;
+        acc[pid].sum += Number(s.percent ?? 0);
+      });
+      stageCounts = Object.fromEntries(
+        Object.entries(acc).map(([pid, v]) => [
+          pid,
+          { total: v.total, done: v.done, percent: v.total ? Math.round(v.sum / v.total) : 0 },
+        ]),
+      );
+    }
+
     return {
       projects: (projects ?? []).map((p: any) => ({
         ...p,
         client: p.clients,
         task_stats: taskCounts[p.id] ?? { total: 0, done: 0, overdue: 0 },
+        stage_stats: stageCounts[p.id] ?? { total: 0, done: 0, percent: 0 },
       })),
     };
   });
