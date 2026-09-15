@@ -91,6 +91,8 @@ export function RoadmapStagesPanel({
     qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] });
     qc.invalidateQueries({ queryKey: ["project-stage-tasks", projectId] });
     qc.invalidateQueries({ queryKey: ["tasks"] });
+    // "Seu dia" do Hub Central também mostra estas tarefas
+    qc.invalidateQueries({ queryKey: ["hub-today"] });
   };
 
   const addTaskM = useMutation({

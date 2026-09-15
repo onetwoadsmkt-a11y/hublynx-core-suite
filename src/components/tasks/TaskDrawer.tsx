@@ -114,6 +114,9 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task", taskId] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["project-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
+      qc.invalidateQueries({ queryKey: ["hub-today"] });
       syncSheet({ data: { entityType: "task", recordId: taskId } }).catch(() => {});
     },
     onError: (e: any) => toast.error(e.message),
@@ -127,6 +130,9 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
     onSuccess: () => {
       toast.success("Tarefa excluída.");
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["project-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
+      qc.invalidateQueries({ queryKey: ["hub-today"] });
       onClose();
       deleteSheetRow({ data: { entityType: "task", recordId: taskId } }).catch(() => {});
     },
@@ -138,21 +144,25 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
       const { data: u } = await supabase.auth.getUser();
       const { data: inserted, error } = await supabase.from("tasks").insert({
         owner_id: u.user!.id,
+        organization_id: (task as any).organization_id ?? null,
         title: task.title + " (cópia)",
         description: task.description,
         priority: task.priority,
         status: "backlog",
         project_id: task.project_id,
+        stage_id: (task as any).stage_id ?? null,
         client_id: task.client_id,
         assignee_id: task.assignee_id,
         position: 0,
-      }).select("id").single();
+      } as never).select("id").single();
       if (error) throw error;
       return inserted.id as string;
     },
     onSuccess: (id) => {
       toast.success("Tarefa duplicada.");
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
+      qc.invalidateQueries({ queryKey: ["hub-today"] });
       if (id) syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
   });
