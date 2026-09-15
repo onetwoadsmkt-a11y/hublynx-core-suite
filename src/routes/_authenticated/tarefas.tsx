@@ -8,15 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Trash2, X, Mail, Video, CalendarPlus, Pencil, Target, User as UserIcon, MoreVertical, SlidersHorizontal, Settings2, LayoutGrid, List as ListIcon, Calendar as CalendarIcon, CalendarCheck, ListTodo } from "lucide-react";
+import { Plus, Search, Trash2, X, Mail, Video, CalendarPlus, Pencil, Target, User as UserIcon, MoreVertical, SlidersHorizontal, Settings2, LayoutGrid, List as ListIcon, Calendar as CalendarIcon, CalendarCheck, ListTodo, Clock } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -27,7 +21,7 @@ import {
   type DragEndEvent, type DragStartEvent, closestCorners,
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { format, differenceInCalendarDays, parseISO } from "date-fns";
+import { format, differenceInCalendarDays, parseISO, startOfDay, addDays, isSameDay } from "date-fns";
 import {
   TaskDrawer, PRIORITY_LABEL, PRIORITY_TONE,
   type TaskStatus, type Priority,
@@ -41,7 +35,6 @@ import { createInstantMeet } from "@/lib/google/calendar.functions";
 import { syncEntityToSheets } from "@/lib/google/sheets-sync.functions";
 import { TaskQuickForm, type TaskQuickFormDefaults } from "@/components/tasks/TaskQuickForm";
 import { TaskCalendarView } from "@/components/tasks/TaskCalendarView";
-import { TaskListMobile } from "@/components/tasks/TaskListMobile";
 import { TaskFiltersSheet } from "@/components/tasks/TaskFiltersSheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -76,7 +69,7 @@ function TarefasPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const search = useSearch({ from: "/_authenticated/tarefas" });
-  const view: ViewMode = (search.view as ViewMode) ?? "kanban";
+  const view: ViewMode = (search.view as ViewMode) ?? "lista";
   const setView = (v: ViewMode) =>
     navigate({ to: "/tarefas", search: { task: search.task, view: v }, replace: true });
 
@@ -106,6 +99,7 @@ function TarefasPage() {
       if (error) throw error;
       return data as Task[];
     },
+    staleTime: 60_000,
   });
 
   const { data: labelsIndex = {} } = useQuery({
@@ -224,12 +218,12 @@ function TarefasPage() {
 
   return (
     <div className="space-y-4 md:space-y-6 pb-24 md:pb-6">
-      {/* Header responsivo */}
+      {/* Header */}
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 md:flex md:items-center md:justify-between md:flex-wrap">
         <div className="min-w-0">
           <h1 className="truncate text-2xl md:text-3xl font-semibold tracking-tight">Tarefas</h1>
           <p className="hidden md:block text-muted-foreground mt-1 text-sm">
-            Agende tarefas ou reuniões e visualize em Kanban, Lista ou Calendário.
+            Lista de prioridades. Alterne para Kanban ou Calendário quando precisar.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -263,7 +257,7 @@ function TarefasPage() {
         </div>
       </header>
 
-      {/* Filtros: inline no desktop, botão + sheet no mobile */}
+      {/* Barra de ações: busca, filtros, visualização, total */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[180px] md:max-w-md">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -274,66 +268,62 @@ function TarefasPage() {
             onChange={(e) => setSearchText(e.target.value)}
           />
         </div>
-        {isMobile ? (
-          <Button variant="outline" onClick={() => setOpenFilters(true)} className="relative">
-            <SlidersHorizontal className="h-4 w-4" />
-            {activeFiltersCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-[#00D084] text-white text-[10px] font-bold flex items-center justify-center">
-                {activeFiltersCount}
-              </span>
-            )}
-          </Button>
-        ) : (
-          <>
-            <Select value={filterPriority} onValueChange={setFilterPriority}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas prioridades</SelectItem>
-                {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => (
-                  <SelectItem key={p} value={p}>{PRIORITY_LABEL[p]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterProject} onValueChange={setFilterProject}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Projeto" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos projetos</SelectItem>
-                {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filterClient} onValueChange={setFilterClient}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Cliente" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos clientes</SelectItem>
-                {clients.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {(searchText || activeFiltersCount > 0) && (
-              <Button variant="ghost" size="sm" onClick={() => { setSearchText(""); clearFilters(); }}>
-                <X className="h-4 w-4 mr-1" /> Limpar
-              </Button>
-            )}
-          </>
-        )}
-        <div className="ml-auto text-xs md:text-sm font-medium text-muted-foreground tabular-nums">
+
+        <Button variant="outline" onClick={() => setOpenFilters(true)} className="relative">
+          <SlidersHorizontal className="h-4 w-4 mr-2" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-[#00D084] text-white text-[10px] font-bold flex items-center justify-center">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+
+        <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)} className="ml-auto">
+          <TabsList className="h-9">
+            <TabsTrigger value="lista" className="gap-1.5 px-3">
+              <ListIcon className="h-4 w-4" /> <span className="hidden sm:inline">Lista</span>
+            </TabsTrigger>
+            <TabsTrigger value="kanban" className="gap-1.5 px-3">
+              <LayoutGrid className="h-4 w-4" /> <span className="hidden sm:inline">Kanban</span>
+            </TabsTrigger>
+            <TabsTrigger value="calendario" className="gap-1.5 px-3">
+              <CalendarIcon className="h-4 w-4" /> <span className="hidden sm:inline">Calendário</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="text-xs md:text-sm font-medium text-muted-foreground tabular-nums hidden sm:block">
           {filtered.length} {filtered.length === 1 ? "tarefa" : "tarefas"}
         </div>
       </div>
 
-      <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
-        <TabsList className="grid grid-cols-3 md:inline-flex md:w-auto w-full">
-          <TabsTrigger value="kanban" className="gap-1.5">
-            <LayoutGrid className="h-4 w-4" /> <span className="hidden sm:inline">Kanban</span>
-          </TabsTrigger>
-          <TabsTrigger value="lista" className="gap-1.5">
-            <ListIcon className="h-4 w-4" /> <span className="hidden sm:inline">Lista</span>
-          </TabsTrigger>
-          <TabsTrigger value="calendario" className="gap-1.5">
-            <CalendarIcon className="h-4 w-4" /> <span className="hidden sm:inline">Calendário</span>
-          </TabsTrigger>
-        </TabsList>
+      {(searchText || activeFiltersCount > 0) && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Filtros ativos:</span>
+          <Button variant="ghost" size="sm" onClick={() => { setSearchText(""); clearFilters(); }}>
+            <X className="h-4 w-4 mr-1" /> Limpar
+          </Button>
+        </div>
+      )}
 
-        <TabsContent value="kanban" className="mt-4">
+      <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
+        <TabsContent value="lista" className="mt-2">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando…</p>
+          ) : (
+            <TaskListGrouped
+              tasks={filtered}
+              kanbanCols={kanbanCols}
+              labelsIndex={labelsIndex}
+              clientsById={clientsById}
+              projectsById={projectsById}
+              onSelect={setSelectedId}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="kanban" className="mt-2">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Carregando…</p>
           ) : (
@@ -376,70 +366,7 @@ function TarefasPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="lista" className="mt-4">
-          {isMobile ? (
-            <TaskListMobile tasks={filtered as any} kanbanCols={kanbanCols} onSelect={setSelectedId} />
-          ) : (
-            <Card className="shadow-[var(--shadow-soft)]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tarefa</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Prioridade</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Prazo</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">Nenhuma tarefa.</TableCell></TableRow>
-                  )}
-                  {filtered.map((t) => {
-                    const col = kanbanCols.find((c) => c.key === t.status);
-                    const meeting = (t.briefing as any)?.type === "reuniao";
-                    const deadline = (t.briefing as any)?.deadline as string | null | undefined;
-                    return (
-                      <TableRow key={t.id} className="cursor-pointer" onClick={() => setSelectedId(t.id)}>
-                        <TableCell className="font-medium">{t.title}</TableCell>
-                        <TableCell>
-                          {meeting ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-indigo-600">
-                              <CalendarCheck className="h-3.5 w-3.5" /> Reunião
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
-                              <ListTodo className="h-3.5 w-3.5" /> Tarefa
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>{col && <Badge variant="secondary" className={col.tone}>{col.label}</Badge>}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={PRIORITY_TONE[t.priority]}>
-                            {PRIORITY_LABEL[t.priority]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {t.due_date ? format(parseISO(t.due_date), "dd/MM/yyyy HH:mm") : "—"}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {deadline ? format(parseISO(deadline), "dd/MM/yyyy") : "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DeleteTaskBtn id={t.id} />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="calendario" className="mt-4">
+        <TabsContent value="calendario" className="mt-2">
           <TaskCalendarView
             tasks={filtered as any}
             onSelectTask={setSelectedId}
@@ -476,6 +403,263 @@ function TarefasPage() {
         onClear={clearFilters}
       />
     </div>
+  );
+}
+
+function TaskListGrouped({
+  tasks, kanbanCols, labelsIndex, clientsById, projectsById, onSelect,
+}: {
+  tasks: Task[];
+  kanbanCols: KanbanColumn[];
+  labelsIndex: Record<string, LabelItem[]>;
+  clientsById: Map<string, ClientMini>;
+  projectsById: Map<string, { id: string; name: string }>;
+  onSelect: (id: string) => void;
+}) {
+  const today = startOfDay(new Date());
+  const tomorrow = addDays(today, 1);
+  const nextWeek = addDays(today, 7);
+
+  const groups = useMemo(() => {
+    const g: Record<string, Task[]> = { vencidas: [], hoje: [], semana: [], depois: [], semData: [] };
+    tasks.forEach((t) => {
+      if (!t.due_date) {
+        g.semData.push(t);
+        return;
+      }
+      const d = parseISO(t.due_date);
+      if (d < today) g.vencidas.push(t);
+      else if (d >= today && d < tomorrow) g.hoje.push(t);
+      else if (d >= tomorrow && d < nextWeek) g.semana.push(t);
+      else g.depois.push(t);
+    });
+    const sorter = (a: Task, b: Task) => {
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    };
+    g.vencidas.sort(sorter);
+    g.hoje.sort(sorter);
+    g.semana.sort(sorter);
+    g.depois.sort(sorter);
+    g.semData.sort((a, b) => a.title.localeCompare(b.title));
+    return g;
+  }, [tasks, today, tomorrow, nextWeek]);
+
+  if (tasks.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+          <ListTodo className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <p className="text-muted-foreground">Nada por aqui. Aproveite para focar no que importa.</p>
+        <p className="text-sm text-muted-foreground mt-1">Crie uma nova tarefa quando quiser.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <TaskGroup
+        title="Vencidas"
+        tone="rose"
+        tasks={groups.vencidas}
+        kanbanCols={kanbanCols}
+        labelsIndex={labelsIndex}
+        clientsById={clientsById}
+        projectsById={projectsById}
+        onSelect={onSelect}
+        dueFormatter={(d) => `Venceu há ${differenceInCalendarDays(today, d)} dia${differenceInCalendarDays(today, d) === 1 ? "" : "s"}`}
+      />
+      <TaskGroup
+        title="Hoje"
+        tone="amber"
+        tasks={groups.hoje}
+        kanbanCols={kanbanCols}
+        labelsIndex={labelsIndex}
+        clientsById={clientsById}
+        projectsById={projectsById}
+        onSelect={onSelect}
+        dueFormatter={() => "Hoje"}
+      />
+      <TaskGroup
+        title="Esta semana"
+        tone="brand-blue"
+        tasks={groups.semana}
+        kanbanCols={kanbanCols}
+        labelsIndex={labelsIndex}
+        clientsById={clientsById}
+        projectsById={projectsById}
+        onSelect={onSelect}
+        dueFormatter={(d) => format(d, "EEEE, dd/MM", { locale: undefined })}
+      />
+      <TaskGroup
+        title="Depois"
+        tone="slate"
+        tasks={groups.depois}
+        kanbanCols={kanbanCols}
+        labelsIndex={labelsIndex}
+        clientsById={clientsById}
+        projectsById={projectsById}
+        onSelect={onSelect}
+        dueFormatter={(d) => format(d, "dd/MM/yyyy")}
+      />
+      {groups.semData.length > 0 && (
+        <TaskGroup
+          title="Sem data"
+          tone="muted"
+          tasks={groups.semData}
+          kanbanCols={kanbanCols}
+          labelsIndex={labelsIndex}
+          clientsById={clientsById}
+          projectsById={projectsById}
+          onSelect={onSelect}
+          dueFormatter={() => "—"}
+        />
+      )}
+    </div>
+  );
+}
+
+const TONE_BAR: Record<string, string> = {
+  rose: "bg-rose-500",
+  amber: "bg-amber-500",
+  "brand-blue": "bg-[#00A8E8]",
+  slate: "bg-slate-400",
+  muted: "bg-muted-foreground/40",
+};
+
+function TaskGroup({
+  title, tone, tasks, kanbanCols, labelsIndex, clientsById, projectsById, onSelect, dueFormatter,
+}: {
+  title: string;
+  tone: string;
+  tasks: Task[];
+  kanbanCols: KanbanColumn[];
+  labelsIndex: Record<string, LabelItem[]>;
+  clientsById: Map<string, ClientMini>;
+  projectsById: Map<string, { id: string; name: string }>;
+  onSelect: (id: string) => void;
+  dueFormatter: (d: Date) => string;
+}) {
+  if (tasks.length === 0) return null;
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <div className={cn("h-2 w-2 rounded-full", TONE_BAR[tone] ?? TONE_BAR.muted)} />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">{title}</h2>
+        <span className="text-xs text-muted-foreground tabular-nums">({tasks.length})</span>
+      </div>
+      <div className="space-y-2">
+        {tasks.map((t) => (
+          <TaskListItem
+            key={t.id}
+            task={t}
+            labels={labelsIndex[t.id] ?? []}
+            client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
+            project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
+            kanbanCols={kanbanCols}
+            onClick={() => onSelect(t.id)}
+            dueFormatter={dueFormatter}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TaskListItem({
+  task, labels = [], client, project, kanbanCols, onClick, dueFormatter,
+}: {
+  task: Task;
+  labels?: LabelItem[];
+  client?: ClientMini | null;
+  project?: { id: string; name: string } | null;
+  kanbanCols?: KanbanColumn[];
+  onClick?: () => void;
+  dueFormatter: (d: Date) => string;
+}) {
+  const col = kanbanCols?.find((c) => c.key === task.status);
+  const meeting = (task.briefing as any)?.type === "reuniao";
+  const deadline = (task.briefing as any)?.deadline as string | null | undefined;
+  const dueDate = task.due_date ? parseISO(task.due_date) : null;
+
+  return (
+    <Card
+      onClick={onClick}
+      className="group cursor-pointer border-border hover:border-brand-blue/40 hover:shadow-sm transition-all"
+    >
+      <div className="px-4 py-3 flex items-start gap-3">
+        <div className="mt-1 shrink-0">
+          {meeting ? (
+            <CalendarCheck className="h-4 w-4 text-indigo-500" />
+          ) : (
+            <ListTodo className="h-4 w-4 text-emerald-500" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{task.title}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                {client && (
+                  <span className="inline-flex items-center gap-1 truncate max-w-[180px]">
+                    <UserIcon className="h-3 w-3 shrink-0" />
+                    {client.name}
+                  </span>
+                )}
+                {project && (
+                  <span className="inline-flex items-center gap-1 truncate max-w-[180px]">
+                    <Target className="h-3 w-3 shrink-0" />
+                    {project.name}
+                  </span>
+                )}
+                {deadline && (
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3 shrink-0" />
+                    Prazo {format(parseISO(deadline), "dd/MM/yyyy")}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              {dueDate && (
+                <p className={cn(
+                  "text-xs font-medium tabular-nums",
+                  dueDate < startOfDay(new Date()) ? "text-rose-500" : "text-muted-foreground"
+                )}>
+                  {dueFormatter(dueDate)}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {dueDate ? format(dueDate, "HH:mm") : "—"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {col && (
+              <Badge variant="secondary" className={cn("text-[10px]", col.tone)}>
+                {col.label}
+              </Badge>
+            )}
+            <Badge variant="outline" className={cn("text-[10px]", PRIORITY_TONE[task.priority])}>
+              {PRIORITY_LABEL[task.priority]}
+            </Badge>
+            {labels.map((l) => (
+              <span
+                key={l.id}
+                className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded text-white"
+                style={{ backgroundColor: l.color || "#2563EB" }}
+              >
+                {l.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
