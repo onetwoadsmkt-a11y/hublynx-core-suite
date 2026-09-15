@@ -23,6 +23,8 @@ import { brl } from "@/components/finance/KpiCard";
 import { getFinanceMetrics } from "@/lib/finance/metrics.functions";
 import { formatDateBR } from "@/lib/finance/format";
 import { listServicos } from "@/lib/finance/servicos.functions";
+import { getNfseStateForFinances } from "@/lib/fiscal/fiscal.functions";
+import { NfseStateBadge } from "@/components/fiscal/NfseStateBadge";
 import type { FinanceKind, FinanceRow } from "@/lib/finance/types";
 
 export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string }) {
@@ -173,12 +175,13 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
                 <TableHead>Vencimento</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
+                {kind === "receber" && <TableHead>NFS-e</TableHead>}
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(rows ?? []).length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum lançamento neste mês.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={kind === "receber" ? 8 : 7} className="text-center text-muted-foreground py-8">Nenhum lançamento neste mês.</TableCell></TableRow>
               )}
               {(rows ?? []).map((r) => (
                 <TableRow key={r.id}>
@@ -197,6 +200,11 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
                       {r.status === "quitado" ? (kind === "receber" ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
                     </Badge>
                   </TableCell>
+                  {kind === "receber" && (
+                    <TableCell>
+                      <NfseStateBadge state={nfseState?.[r.id] ?? "nao_emitir"} />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="flex items-center gap-1 justify-end">
                       {r.status !== "quitado" && (
