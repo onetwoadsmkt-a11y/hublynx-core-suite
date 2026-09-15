@@ -284,7 +284,17 @@ export const syncAllPendingTasksToCalendar = createServerFn({ method: "POST" })
       .limit(500);
     if (error) throw new Error(error.message);
 
-    const headers = await googleHeaders(userId);
+    let headers: Record<string, string>;
+    try {
+      headers = await googleHeaders(userId);
+    } catch (e: any) {
+      // Conta Google não conectada / token revogado: não quebra a Agenda.
+      return {
+        ok: false as const,
+        reason: (e?.message as string) ?? "Conta Google não conectada.",
+        created: 0, updated: 0, failed: 0, total: 0, errors: [] as string[],
+      };
+    }
     let created = 0, updated = 0, failed = 0;
     const errors: string[] = [];
 
