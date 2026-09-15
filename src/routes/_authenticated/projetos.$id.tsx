@@ -30,7 +30,7 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock,
   TrendingUp, DollarSign, Users as UsersIcon, Calendar as CalIcon, AlertCircle,
   Activity as ActivityIcon, FileText, Target, Briefcase, Flag, Hourglass,
-  UserCheck, ListChecks, ArrowRight, Sparkles, Wallet,
+  ListChecks, ArrowRight, Sparkles, Wallet,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
@@ -179,7 +179,6 @@ function ProjectCommandCenter() {
           disabled={p.commercial_model === "mensal_recorrente"}
           disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente."
         />
-        <ExecutionPanel execution={d.execution} onOpenTask={(tid: string) => navigate({ to: "/tarefas", search: { task: tid } as any })} />
         <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
         
         <FinanceSummary kpis={d.kpis} monthly={d.financeMonthly} />
@@ -352,65 +351,6 @@ function KpiRow({ d }: any) {
       <KpiTile icon={TrendingUp} label="Lucro" value={brl(d.kpis.profit)} sub={`${d.kpis.margin.toFixed(1)}%`} tone={d.kpis.profit >= 0 ? "text-emerald-600" : "text-rose-600"} />
       <KpiTile icon={UsersIcon} label="Equipe" value={d.kpis.memberCount} sub="membros" />
       <KpiTile icon={AlertCircle} label="Riscos" value={d.kpis.openIssues} sub="abertos" tone={d.kpis.openIssues > 0 ? "text-rose-600" : ""} />
-    </div>
-  );
-}
-
-// 4. Execution panel
-function ExecutionPanel({ execution, onOpenTask }: { execution: { today: any[]; overdue: any[]; waitingClient: any[] }; onOpenTask: (id: string) => void }) {
-  const Col = ({ title, icon: Icon, color, items, render }: any) => (
-    <Card className="rounded-2xl p-4 flex flex-col min-h-[200px]">
-      <div className="flex items-center gap-2 mb-3">
-        <div className={`h-7 w-7 rounded-lg grid place-items-center ${color}`}><Icon className="h-3.5 w-3.5" /></div>
-        <h3 className="font-semibold text-sm">{title}</h3>
-        <Badge variant="outline" className="ml-auto text-[10px]">{items.length}</Badge>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground my-auto text-center py-6">Nada por aqui ✨</p>
-      ) : (
-        <ul className="space-y-1.5">
-          {items.slice(0, 6).map((t: any) => (
-            <li key={t.id}>
-              <button onClick={() => onOpenTask(t.id)} className="w-full text-left p-2 rounded-lg hover:bg-muted/60 transition-colors">
-                {render(t)}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return (
-    <div>
-      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Central de Execução</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Col title="Fazer hoje" icon={Target} color="bg-blue-50 text-blue-600" items={execution.today}
-          render={(t: any) => (
-            <>
-              <p className="text-sm font-medium truncate">{t.title}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">{t.priority ?? "—"}</p>
-            </>
-          )} />
-        <Col title="Atrasadas" icon={AlertCircle} color="bg-rose-50 text-rose-600" items={execution.overdue}
-          render={(t: any) => {
-            const days = t.due_date ? Math.floor((today.getTime() - new Date(t.due_date).getTime()) / 86400000) : 0;
-            return (
-              <>
-                <p className="text-sm font-medium truncate">{t.title}</p>
-                <p className="text-[11px] text-rose-600 mt-0.5">{days} dia(s) de atraso</p>
-              </>
-            );
-          }} />
-        <Col title="Aguardando cliente" icon={UserCheck} color="bg-amber-50 text-amber-600" items={execution.waitingClient}
-          render={(t: any) => (
-            <>
-              <p className="text-sm font-medium truncate">{t.title}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Solicitado: {fmtDate(t.updated_at ?? t.created_at)}</p>
-            </>
-          )} />
-      </div>
     </div>
   );
 }
