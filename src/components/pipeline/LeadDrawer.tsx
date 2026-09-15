@@ -271,7 +271,7 @@ export function LeadDrawer({
                 <div className="flex items-center gap-2">
                   <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
                   <TemperatureBadge value={lead.temperature} />
-                  {tags.length > 0 && (
+                  {(
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
