@@ -200,6 +200,11 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
                       {r.status === "quitado" ? (kind === "receber" ? "Recebido" : "Pago") : r.status === "atrasado" ? "Atrasado" : "Pendente"}
                     </Badge>
                   </TableCell>
+                  {kind === "receber" && (
+                    <TableCell>
+                      <NfseStateBadge state={nfseState?.[r.id] ?? "nao_emitir"} />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="flex items-center gap-1 justify-end">
                       {r.status !== "quitado" && (
