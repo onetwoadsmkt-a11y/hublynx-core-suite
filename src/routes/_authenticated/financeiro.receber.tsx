@@ -23,6 +23,8 @@ import { brl } from "@/components/finance/KpiCard";
 import { getFinanceMetrics } from "@/lib/finance/metrics.functions";
 import { formatDateBR } from "@/lib/finance/format";
 import { listServicos } from "@/lib/finance/servicos.functions";
+import { getNfseStateForFinances } from "@/lib/fiscal/fiscal.functions";
+import { NfseStateBadge } from "@/components/fiscal/NfseStateBadge";
 import type { FinanceKind, FinanceRow } from "@/lib/finance/types";
 
 export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string }) {
