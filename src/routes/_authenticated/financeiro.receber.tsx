@@ -175,12 +175,13 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
                 <TableHead>Vencimento</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
+                {kind === "receber" && <TableHead>NFS-e</TableHead>}
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(rows ?? []).length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum lançamento neste mês.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={kind === "receber" ? 8 : 7} className="text-center text-muted-foreground py-8">Nenhum lançamento neste mês.</TableCell></TableRow>
               )}
               {(rows ?? []).map((r) => (
                 <TableRow key={r.id}>
