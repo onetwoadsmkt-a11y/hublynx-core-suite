@@ -161,6 +161,17 @@ export function RoadmapStagesPanel({
     total > 0 ? Math.round(stages.reduce((a, s) => a + (s.percent ?? 0), 0) / total) : 0;
   const currentIdx = stages.findIndex((s) => s.status !== "done");
   const templates = templatesQ.data ?? [];
+  const allStageTasks: StageTask[] = stageTasksQ.data ?? [];
+  const tasksByStage = new Map<string, StageTask[]>();
+  for (const t of allStageTasks) {
+    if (!t.stage_id) continue;
+    tasksByStage.set(t.stage_id, [...(tasksByStage.get(t.stage_id) ?? []), t]);
+  }
+  const stageProgress = (stageId: string) => {
+    const list = tasksByStage.get(stageId) ?? [];
+    const done = list.filter((t) => t.status === "concluido").length;
+    return { total: list.length, done, pct: list.length ? Math.round((done / list.length) * 100) : 0 };
+  };
 
   return (
     <Card className="rounded-2xl p-5">
