@@ -487,12 +487,12 @@ function StageTasksDialog({
 
   return (
     <Dialog open={!!stage} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] flex-col gap-4 overflow-hidden p-5">
         <DialogHeader>
-          <DialogTitle>Tarefas — {stage?.name}</DialogTitle>
+          <DialogTitle className="pr-8">Tarefas — {stage?.name}</DialogTitle>
         </DialogHeader>
 
-        <div>
+        <div className="shrink-0">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
             <span>
               {done} de {tasks.length} concluídas
@@ -504,7 +504,7 @@ function StageTasksDialog({
           </div>
         </div>
 
-        <div className="space-y-1 max-h-[45vh] overflow-y-auto py-1">
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto py-1">
           {loading ? (
             <p className="text-xs text-muted-foreground">Carregando tarefas...</p>
           ) : tasks.length === 0 ? (
@@ -537,7 +537,7 @@ function StageTasksDialog({
           )}
         </div>
 
-        <div className="flex items-center gap-2 border-t pt-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t pt-3">
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -545,6 +545,7 @@ function StageTasksDialog({
               if (e.key === "Enter") submit();
             }}
             placeholder="Nova tarefa desta etapa"
+            className="min-w-[10rem] flex-1"
           />
           <Input
             type="date"
@@ -558,7 +559,7 @@ function StageTasksDialog({
           </Button>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
