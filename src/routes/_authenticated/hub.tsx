@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Calendar, CheckSquare, FolderKanban, Users, DollarSign,
@@ -10,6 +11,10 @@ import {
 import hubDarkBg from "@/assets/hub-dark-bg.png.asset.json";
 import hubLightBg from "@/assets/hub-light-bg.png.asset.json";
 import { maskBRL } from "@/lib/security/value-lock";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { scopeOrganization } from "@/lib/org/filter";
+import { getTodayTasks } from "@/lib/today/today.functions";
+
 
 export const Route = createFileRoute("/_authenticated/hub")({
   head: () => ({ meta: [{ title: "Hub Central — Hublynx Core" }] }),
@@ -58,37 +63,39 @@ function HubCentral() {
     },
   });
 
+  const { activeOrganizationId } = useWorkspace();
+  const orgId = activeOrganizationId;
+  const todayFn = useServerFn(getTodayTasks);
+
+  const todayQ = useQuery({
+    queryKey: ["hub-today", orgId],
+    queryFn: () => todayFn({ data: { organizationId: orgId } }),
+    staleTime: 60_000,
+  });
+
   const { data } = useQuery({
-    queryKey: ["hub-central"],
+    queryKey: ["hub-central", orgId],
     queryFn: async () => {
       const start = new Date(); start.setHours(0, 0, 0, 0);
       const weekStart = new Date(start); weekStart.setDate(start.getDate() - 7);
-      const in14 = new Date(start); in14.setDate(start.getDate() + 14);
 
       const [tasksDone, projectsActive, clientsActive, proposals,
-        nextEvent, nextTask,
         weekTasks, weekProjects, weekClients, weekEvents,
       ] = await Promise.all([
-        supabase.from("tasks").select("id", { count: "exact", head: true })
-          .eq("status", "concluido").gte("completed_at", weekStart.toISOString()),
-        supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "ativo"),
-        supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "ativo"),
-        supabase.from("finances").select("amount")
-          .eq("kind", "receber").eq("status", "aberto"),
-        supabase.from("events").select("id,title,start_at,clients(name)")
-          .gte("start_at", now.toISOString()).lte("start_at", in14.toISOString())
-          .order("start_at").limit(1).maybeSingle(),
-        supabase.from("tasks").select("id,title,due_date,clients(name)")
-          .neq("status", "concluido").gte("due_date", now.toISOString())
-          .order("due_date").limit(1).maybeSingle(),
-        supabase.from("tasks").select("id", { count: "exact", head: true })
-          .eq("status", "concluido").gte("completed_at", weekStart.toISOString()),
-        supabase.from("projects").select("id", { count: "exact", head: true })
-          .gte("created_at", weekStart.toISOString()),
-        supabase.from("clients").select("id", { count: "exact", head: true })
-          .gte("created_at", weekStart.toISOString()),
-        supabase.from("events").select("id", { count: "exact", head: true })
-          .gte("start_at", weekStart.toISOString()).lte("start_at", start.toISOString()),
+        scopeOrganization(supabase.from("tasks").select("id", { count: "exact", head: true })
+          .eq("status", "concluido").gte("completed_at", weekStart.toISOString()), orgId),
+        scopeOrganization(supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "ativo"), orgId),
+        scopeOrganization(supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "ativo"), orgId),
+        scopeOrganization(supabase.from("finances").select("amount")
+          .eq("kind", "receber").eq("status", "aberto"), orgId),
+        scopeOrganization(supabase.from("tasks").select("id", { count: "exact", head: true })
+          .eq("status", "concluido").gte("completed_at", weekStart.toISOString()), orgId),
+        scopeOrganization(supabase.from("projects").select("id", { count: "exact", head: true })
+          .gte("created_at", weekStart.toISOString()), orgId),
+        scopeOrganization(supabase.from("clients").select("id", { count: "exact", head: true })
+          .gte("created_at", weekStart.toISOString()), orgId),
+        scopeOrganization(supabase.from("events").select("id", { count: "exact", head: true })
+          .gte("start_at", weekStart.toISOString()).lte("start_at", start.toISOString()), orgId),
       ]);
 
       const proposalsTotal = (proposals.data ?? []).reduce(
@@ -100,8 +107,6 @@ function HubCentral() {
         projectsActive: projectsActive.count ?? 0,
         clientsActive: clientsActive.count ?? 0,
         proposalsTotal,
-        nextEvent: nextEvent.data,
-        nextTask: nextTask.data,
         week: {
           tasks: weekTasks.count ?? 0,
           projects: weekProjects.count ?? 0,
@@ -111,6 +116,7 @@ function HubCentral() {
       };
     },
   });
+
 
   const insight = useMemo(() => {
     if (!data) return "Carregando seus dados...";
@@ -128,33 +134,11 @@ function HubCentral() {
   });
   const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-  const nextAction = data?.nextEvent
-    ? {
-        icon: Calendar,
-        title: data.nextEvent.title,
-        subtitle: (data.nextEvent as any).clients?.name ?? "Sem cliente",
-        when: new Date(data.nextEvent.start_at).toLocaleString("pt-BR", {
-          weekday: "short", day: "2-digit", month: "short",
-          hour: "2-digit", minute: "2-digit",
-        }),
-        to: "/agenda" as const,
-        cta: "Ver Agenda",
-      }
-    : data?.nextTask
-    ? {
-        icon: CheckSquare,
-        title: data.nextTask.title,
-        subtitle: (data.nextTask as any).clients?.name ?? "Sem cliente",
-        when: data.nextTask.due_date
-          ? new Date(data.nextTask.due_date).toLocaleString("pt-BR", {
-              weekday: "short", day: "2-digit", month: "short",
-              hour: "2-digit", minute: "2-digit",
-            })
-          : "Sem prazo",
-        to: "/tarefas" as const,
-        cta: "Ver Tarefas",
-      }
-    : null;
+  const overdue = todayQ.data?.overdue ?? [];
+  const todayTasks = todayQ.data?.today ?? [];
+  const upcoming = todayQ.data?.upcoming ?? [];
+  const topTasks = [...overdue, ...todayTasks, ...upcoming].slice(0, 5);
+
 
   const quickLinks = [
     { to: "/projetos", label: "Projetos", icon: FolderKanban },
@@ -236,7 +220,7 @@ function HubCentral() {
           ))}
         </motion.section>
 
-        {/* SEÇÃO 3 — Próxima ação */}
+        {/* SEÇÃO 3 — Seu dia */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -244,30 +228,64 @@ function HubCentral() {
           className="mt-14"
         >
           <p className="text-xs uppercase tracking-[0.2em] text-[#00A86A] dark:text-[#00D084]/80 mb-4">
-            Próxima Ação
+            Seu dia
           </p>
-          {nextAction ? (
-            <div className="group flex flex-col sm:flex-row sm:items-center gap-6 rounded-2xl border border-[#071A3D]/10 dark:border-white/10 bg-white/60 dark:bg-white/[0.03] p-6 backdrop-blur-sm transition-colors hover:border-[#00D084]/40">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#00D084]/15 text-[#00A86A] dark:text-[#00D084]">
-                <nextAction.icon className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-lg font-medium truncate">{nextAction.title}</p>
-                <p className="text-sm text-[#071A3D]/60 dark:text-white/60 truncate">
-                  {nextAction.subtitle} · {nextAction.when}
-                </p>
-              </div>
-              <Link
-                to={nextAction.to}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#00D084] px-4 py-2 text-sm font-medium text-[#071A3D] transition-transform hover:scale-[1.02]"
-              >
-                {nextAction.cta} <ArrowRight className="h-4 w-4" />
-              </Link>
+
+          <div className="rounded-2xl border border-[#071A3D]/10 dark:border-white/10 bg-white/60 dark:bg-white/[0.03] p-6 backdrop-blur-sm">
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: "Vencidas", value: overdue.length, danger: overdue.length > 0 },
+                { label: "Hoje", value: todayTasks.length, danger: false },
+                { label: "Próximos 7 dias", value: upcoming.length, danger: false },
+              ].map((s) => (
+                <div key={s.label}>
+                  <p
+                    className={`text-3xl font-semibold tabular-nums ${
+                      s.danger ? "text-rose-600 dark:text-rose-400" : ""
+                    }`}
+                  >
+                    {s.value}
+                  </p>
+                  <p className="mt-1 text-xs text-[#071A3D]/55 dark:text-white/50">{s.label}</p>
+                </div>
+              ))}
             </div>
-          ) : (
-            <p className="text-[#071A3D]/60 dark:text-white/60">Nenhuma pendência crítica encontrada.</p>
-          )}
+
+            {topTasks.length > 0 ? (
+              <ul className="mt-6 space-y-3 border-t border-[#071A3D]/10 dark:border-white/10 pt-5">
+                {topTasks.map((t) => (
+                  <li key={t.id} className="flex items-baseline justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{t.title}</p>
+                      <p className="text-xs text-[#071A3D]/55 dark:text-white/50 truncate">
+                        {[t.project_name, t.client_name].filter(Boolean).join(" · ") ||
+                          "Sem projeto ou cliente"}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-[#071A3D]/60 dark:text-white/55 tabular-nums">
+                      {new Date(t.due_date).toLocaleDateString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-6 border-t border-[#071A3D]/10 dark:border-white/10 pt-5 text-sm text-[#071A3D]/60 dark:text-white/60">
+                Tudo em dia. Nada pendente por agora.
+              </p>
+            )}
+
+            <Link
+              to="/tarefas"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm text-[#00A86A] dark:text-[#00D084] hover:underline"
+            >
+              Ver todas as tarefas <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         </motion.section>
+
 
         {/* SEÇÃO 4 — Insight Hublynx */}
         <motion.section
