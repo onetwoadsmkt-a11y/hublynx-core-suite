@@ -327,11 +327,17 @@ export const deleteProjectTemplate = createServerFn({ method: "POST" })
 /** Cria as etapas de um projeto a partir de um modelo. */
 export async function applyTemplateStages(
   db: any,
-  opts: { projectId: string; organizationId: string; templateId: string; startDate?: string | null },
+  opts: {
+    projectId: string;
+    organizationId: string;
+    templateId: string;
+    startDate?: string | null;
+    ownerId?: string | null;
+  },
 ) {
   const { data: stages, error } = await db
     .from("project_template_stages")
-    .select("name, description, sort_order, duration_days")
+    .select("id, name, description, sort_order, duration_days")
     .eq("template_id", opts.templateId)
     .order("sort_order");
   if (error) throw new Error(error.message);
