@@ -18,13 +18,26 @@ export type ProjectStage = {
   notes: string | null;
 };
 
+export type TemplateTask = {
+  title: string;
+  description: string | null;
+  due_offset_days: number;
+};
+
 export type ProjectTemplate = {
   id: string;
   organization_id: string;
   name: string;
   description: string | null;
   active: boolean;
-  stages: { id: string; name: string; description: string | null; sort_order: number; duration_days: number | null }[];
+  stages: {
+    id: string;
+    name: string;
+    description: string | null;
+    sort_order: number;
+    duration_days: number | null;
+    tasks: TemplateTask[];
+  }[];
 };
 
 const uuid = z.string().uuid();
