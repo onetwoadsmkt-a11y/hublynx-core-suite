@@ -53,7 +53,6 @@ type NavGroup = { section?: string; items: NavItem[] };
 const NAV_GROUPS: NavGroup[] = [
   {
     items: [
-      { to: "/hoje", label: "Hoje", icon: Sun },
       { to: "/hub", label: "Hub Central", icon: Sparkles, moduleSlug: "hub" },
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     ],
