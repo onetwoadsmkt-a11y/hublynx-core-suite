@@ -304,6 +304,18 @@ export function RoadmapStagesPanel({
         Clique numa etapa para avançar até ela. Clique numa etapa concluída para retroceder.
       </p>
 
+      <StageTasksDialog
+        stage={openStage}
+        onOpenChange={(o) => !o && setOpenStage(null)}
+        tasks={openStage ? (tasksByStage.get(openStage.id) ?? []) : []}
+        loading={stageTasksQ.isLoading}
+        onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
+        onAdd={(title, due_date) =>
+          openStage && addTaskM.mutate({ stage_id: openStage.id, title, due_date })
+        }
+        adding={addTaskM.isPending}
+      />
+
       <EditStagesDialog
         open={editing}
         onOpenChange={setEditing}
