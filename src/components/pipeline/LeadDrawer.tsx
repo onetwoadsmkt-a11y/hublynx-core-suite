@@ -92,13 +92,15 @@ export function LeadDrawer({
   onOpenChange,
   onEdit,
   onConfigureTags,
+  onWin,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
-  tags?: { slug: string; name: string; color: string }[];
+  tags?: { slug: string; name: string; color: string; funnel_key?: string }[];
   onOpenChange: (v: boolean) => void;
   onEdit: (lead: Lead) => void;
   onConfigureTags?: () => void;
+  onWin?: (lead: Lead) => void;
 }) {
   const qc = useQueryClient();
   const detailFn = useServerFn(getLeadDetail);
