@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Calendar, CheckSquare, FolderKanban, Users, DollarSign,
@@ -10,6 +11,10 @@ import {
 import hubDarkBg from "@/assets/hub-dark-bg.png.asset.json";
 import hubLightBg from "@/assets/hub-light-bg.png.asset.json";
 import { maskBRL } from "@/lib/security/value-lock";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { scopeOrganization } from "@/lib/org/filter";
+import { getTodayTasks } from "@/lib/today/today.functions";
+
 
 export const Route = createFileRoute("/_authenticated/hub")({
   head: () => ({ meta: [{ title: "Hub Central — Hublynx Core" }] }),
@@ -58,37 +63,39 @@ function HubCentral() {
     },
   });
 
+  const { activeOrganizationId } = useWorkspace();
+  const orgId = activeOrganizationId;
+  const todayFn = useServerFn(getTodayTasks);
+
+  const todayQ = useQuery({
+    queryKey: ["hub-today", orgId],
+    queryFn: () => todayFn({ data: { organizationId: orgId } }),
+    staleTime: 60_000,
+  });
+
   const { data } = useQuery({
-    queryKey: ["hub-central"],
+    queryKey: ["hub-central", orgId],
     queryFn: async () => {
       const start = new Date(); start.setHours(0, 0, 0, 0);
       const weekStart = new Date(start); weekStart.setDate(start.getDate() - 7);
-      const in14 = new Date(start); in14.setDate(start.getDate() + 14);
 
       const [tasksDone, projectsActive, clientsActive, proposals,
-        nextEvent, nextTask,
         weekTasks, weekProjects, weekClients, weekEvents,
       ] = await Promise.all([
-        supabase.from("tasks").select("id", { count: "exact", head: true })
-          .eq("status", "concluido").gte("completed_at", weekStart.toISOString()),
-        supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "ativo"),
-        supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "ativo"),
-        supabase.from("finances").select("amount")
-          .eq("kind", "receber").eq("status", "aberto"),
-        supabase.from("events").select("id,title,start_at,clients(name)")
-          .gte("start_at", now.toISOString()).lte("start_at", in14.toISOString())
-          .order("start_at").limit(1).maybeSingle(),
-        supabase.from("tasks").select("id,title,due_date,clients(name)")
-          .neq("status", "concluido").gte("due_date", now.toISOString())
-          .order("due_date").limit(1).maybeSingle(),
-        supabase.from("tasks").select("id", { count: "exact", head: true })
-          .eq("status", "concluido").gte("completed_at", weekStart.toISOString()),
-        supabase.from("projects").select("id", { count: "exact", head: true })
-          .gte("created_at", weekStart.toISOString()),
-        supabase.from("clients").select("id", { count: "exact", head: true })
-          .gte("created_at", weekStart.toISOString()),
-        supabase.from("events").select("id", { count: "exact", head: true })
-          .gte("start_at", weekStart.toISOString()).lte("start_at", start.toISOString()),
+        scopeOrganization(supabase.from("tasks").select("id", { count: "exact", head: true })
+          .eq("status", "concluido").gte("completed_at", weekStart.toISOString()), orgId),
+        scopeOrganization(supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "ativo"), orgId),
+        scopeOrganization(supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "ativo"), orgId),
+        scopeOrganization(supabase.from("finances").select("amount")
+          .eq("kind", "receber").eq("status", "aberto"), orgId),
+        scopeOrganization(supabase.from("tasks").select("id", { count: "exact", head: true })
+          .eq("status", "concluido").gte("completed_at", weekStart.toISOString()), orgId),
+        scopeOrganization(supabase.from("projects").select("id", { count: "exact", head: true })
+          .gte("created_at", weekStart.toISOString()), orgId),
+        scopeOrganization(supabase.from("clients").select("id", { count: "exact", head: true })
+          .gte("created_at", weekStart.toISOString()), orgId),
+        scopeOrganization(supabase.from("events").select("id", { count: "exact", head: true })
+          .gte("start_at", weekStart.toISOString()).lte("start_at", start.toISOString()), orgId),
       ]);
 
       const proposalsTotal = (proposals.data ?? []).reduce(
@@ -100,8 +107,6 @@ function HubCentral() {
         projectsActive: projectsActive.count ?? 0,
         clientsActive: clientsActive.count ?? 0,
         proposalsTotal,
-        nextEvent: nextEvent.data,
-        nextTask: nextTask.data,
         week: {
           tasks: weekTasks.count ?? 0,
           projects: weekProjects.count ?? 0,
@@ -111,6 +116,7 @@ function HubCentral() {
       };
     },
   });
+
 
   const insight = useMemo(() => {
     if (!data) return "Carregando seus dados...";
@@ -128,33 +134,11 @@ function HubCentral() {
   });
   const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-  const nextAction = data?.nextEvent
-    ? {
-        icon: Calendar,
-        title: data.nextEvent.title,
-        subtitle: (data.nextEvent as any).clients?.name ?? "Sem cliente",
-        when: new Date(data.nextEvent.start_at).toLocaleString("pt-BR", {
-          weekday: "short", day: "2-digit", month: "short",
-          hour: "2-digit", minute: "2-digit",
-        }),
-        to: "/agenda" as const,
-        cta: "Ver Agenda",
-      }
-    : data?.nextTask
-    ? {
-        icon: CheckSquare,
-        title: data.nextTask.title,
-        subtitle: (data.nextTask as any).clients?.name ?? "Sem cliente",
-        when: data.nextTask.due_date
-          ? new Date(data.nextTask.due_date).toLocaleString("pt-BR", {
-              weekday: "short", day: "2-digit", month: "short",
-              hour: "2-digit", minute: "2-digit",
-            })
-          : "Sem prazo",
-        to: "/tarefas" as const,
-        cta: "Ver Tarefas",
-      }
-    : null;
+  const overdue = todayQ.data?.overdue ?? [];
+  const todayTasks = todayQ.data?.today ?? [];
+  const upcoming = todayQ.data?.upcoming ?? [];
+  const topTasks = [...overdue, ...todayTasks, ...upcoming].slice(0, 5);
+
 
   const quickLinks = [
     { to: "/projetos", label: "Projetos", icon: FolderKanban },
