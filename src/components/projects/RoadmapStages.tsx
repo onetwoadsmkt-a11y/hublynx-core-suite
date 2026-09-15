@@ -537,7 +537,7 @@ function StageTasksDialog({
           )}
         </div>
 
-        <div className="flex items-center gap-2 border-t pt-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t pt-3">
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -545,6 +545,7 @@ function StageTasksDialog({
               if (e.key === "Enter") submit();
             }}
             placeholder="Nova tarefa desta etapa"
+            className="min-w-[10rem] flex-1"
           />
           <Input
             type="date"
@@ -558,7 +559,7 @@ function StageTasksDialog({
           </Button>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
