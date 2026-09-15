@@ -149,7 +149,7 @@ function TodayPage() {
 
   const meetings = useMemo(
     () =>
-      ((agendaQ.data ?? []) as AgendaEvent[])
+      (agendaQ.data?.events ?? [])
         .filter((e) => e.source !== "task")
         .sort((a, b) => a.start.localeCompare(b.start)),
     [agendaQ.data],
