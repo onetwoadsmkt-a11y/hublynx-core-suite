@@ -307,6 +307,16 @@ export const applyTemplateToProject = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
     const organization_id = await orgOfProject(db, data.project_id);
+
+    const { data: project, error: projectErr } = await db
+      .from("projects")
+      .select("start_date")
+      .eq("id", data.project_id)
+      .single();
+    if (projectErr) throw new Error(projectErr.message);
+
+    const startDate = (project?.start_date as string | null) ?? new Date().toISOString().slice(0, 10);
+
     if (data.replace) {
       const { error } = await db.from("project_stages").delete().eq("project_id", data.project_id);
       if (error) throw new Error(error.message);
@@ -315,6 +325,7 @@ export const applyTemplateToProject = createServerFn({ method: "POST" })
       projectId: data.project_id,
       organizationId: organization_id,
       templateId: data.template_id,
+      startDate,
     });
     return { ok: true as const, count };
   });
