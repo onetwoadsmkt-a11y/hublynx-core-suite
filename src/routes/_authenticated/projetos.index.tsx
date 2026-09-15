@@ -293,10 +293,8 @@ function ProjectsList() {
             </TableHeader>
             <TableBody>
               {projects.map((p: any) => {
-                const stats = p.task_stats ?? { total: 0, done: 0, overdue: 0 };
-                const progress = stats.total
-                  ? Math.round((stats.done / stats.total) * 100)
-                  : p.progress ?? 0;
+                const stageStats = p.stage_stats ?? { total: 0, done: 0, percent: 0 };
+                const progress = stageStats.total ? stageStats.percent : p.progress ?? 0;
                 return (
                   <TableRow
                     key={p.id}
