@@ -183,7 +183,9 @@ function TemplateDialog({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [stages, setStages] = useState<StageDraft[]>([{ name: "Briefing", duration_days: 7 }]);
+  const [stages, setStages] = useState<StageDraft[]>([
+    { name: "Briefing", duration_days: 7, tasks: [] },
+  ]);
 
   useEffect(() => {
     if (!open) return;
