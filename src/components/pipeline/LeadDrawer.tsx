@@ -92,13 +92,15 @@ export function LeadDrawer({
   onOpenChange,
   onEdit,
   onConfigureTags,
+  onWin,
 }: {
   lead: Lead | null;
   stages: PipelineStage[];
-  tags?: { slug: string; name: string; color: string }[];
+  tags?: { slug: string; name: string; color: string; funnel_key?: string }[];
   onOpenChange: (v: boolean) => void;
   onEdit: (lead: Lead) => void;
   onConfigureTags?: () => void;
+  onWin?: (lead: Lead) => void;
 }) {
   const qc = useQueryClient();
   const detailFn = useServerFn(getLeadDetail);
@@ -143,9 +145,19 @@ export function LeadDrawer({
     },
   });
   const toggleTag = (slug: string) => {
-    const next = hasTag(slug) ? selTags.filter((s) => s.toLowerCase() !== slug.toLowerCase()) : [...selTags, slug];
+    const marking = !hasTag(slug);
+    const next = marking ? [...selTags, slug] : selTags.filter((s) => s.toLowerCase() !== slug.toLowerCase());
     setSelTags(next);
-    tagMut.mutate(next);
+    // ao MARCAR uma tag de ganho (funnel_key), abre a conversão em cliente/projeto
+    const cfg = tags.find((t) => t.slug.toLowerCase() === slug.toLowerCase());
+    const isWinTag = marking && cfg?.funnel_key === "ganho";
+    const alreadyConverted = !!(lead as any)?.converted_project_id;
+    const current = lead;
+    tagMut.mutate(next, {
+      onSuccess: () => {
+        if (isWinTag && !alreadyConverted && current && onWin) onWin(current);
+      },
+    });
   };
 
 

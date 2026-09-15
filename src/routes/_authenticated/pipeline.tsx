@@ -391,6 +391,7 @@ function PipelinePage() {
         onOpenChange={(v) => !v && setOpenLead(null)}
         onEdit={(l) => { setOpenLead(null); setEditing(l); setFormOpen(true); }}
         onConfigureTags={() => setTagsOpen(true)}
+        onWin={(l) => setWinLead(l)}
       />
     </div>
   );
