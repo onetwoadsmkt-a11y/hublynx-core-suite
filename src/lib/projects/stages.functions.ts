@@ -234,6 +234,16 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
               name: z.string().trim().min(1).max(120),
               description: z.string().trim().max(500).nullable().optional(),
               duration_days: z.number().int().min(0).max(365).nullable().optional(),
+              tasks: z
+                .array(
+                  z.object({
+                    title: z.string().trim().min(1).max(200),
+                    description: z.string().trim().max(1000).nullable().optional(),
+                    due_offset_days: z.number().int().min(0).max(365).default(0),
+                  }),
+                )
+                .max(30)
+                .optional(),
             }),
           )
           .min(1)
