@@ -286,8 +286,31 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
       sort_order: i,
       duration_days: s.duration_days ?? null,
     }));
-    const { error: iErr } = await db.from("project_template_stages").insert(rows);
+    const { data: insertedStages, error: iErr } = await db
+      .from("project_template_stages")
+      .insert(rows)
+      .select("id, sort_order");
     if (iErr) throw new Error(iErr.message);
+
+    const stageIdByOrder = new Map<number, string>(
+      ((insertedStages ?? []) as any[]).map((s) => [Number(s.sort_order), s.id as string]),
+    );
+    const taskRows = data.stages.flatMap((s, i) => {
+      const stageId = stageIdByOrder.get(i);
+      if (!stageId) return [];
+      return (s.tasks ?? []).map((t, j) => ({
+        stage_id: stageId,
+        organization_id: data.organization_id,
+        title: t.title,
+        description: t.description ?? null,
+        due_offset_days: t.due_offset_days ?? 0,
+        sort_order: j,
+      }));
+    });
+    if (taskRows.length) {
+      const { error: tErr } = await db.from("project_template_tasks").insert(taskRows);
+      if (tErr) throw new Error(tErr.message);
+    }
     return { id: templateId as string };
   });
 
