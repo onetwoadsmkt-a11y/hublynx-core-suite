@@ -24,7 +24,7 @@ import { setLeadTags } from "@/lib/pipeline/tags.functions";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { currency } from "./LeadCard";
+import { currency, leadScorePresentation } from "./LeadCard";
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 
@@ -83,6 +83,43 @@ function findNoteFromEvent(ev: LeadEvent, notes: LeadNote[]): LeadNote | undefin
   if (noteId) return notes.find((n) => n.id === noteId);
   const body = ev.description ?? "";
   return notes.find((n) => n.body.startsWith(body) || body.startsWith(n.body));
+}
+
+function formResponses(metadata: unknown): { label: string; value: string }[] {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return [];
+  const responses = (metadata as Record<string, unknown>)["respostas"];
+  if (!responses) return [];
+
+  const display = (value: unknown) => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+
+  if (Array.isArray(responses)) {
+    return responses.map((item, index) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        const row = item as Record<string, unknown>;
+        const label = display(row["pergunta"] ?? row["label"] ?? row["campo"] ?? `Resposta ${index + 1}`);
+        const value = display(row["resposta"] ?? row["value"] ?? row["valor"] ?? item);
+        return { label, value };
+      }
+      return { label: `Resposta ${index + 1}`, value: display(item) };
+    }).filter((item) => item.value !== "");
+  }
+
+  if (typeof responses === "object") {
+    return Object.entries(responses as Record<string, unknown>)
+      .map(([label, value]) => ({ label, value: display(value) }))
+      .filter((item) => item.value !== "");
+  }
+
+  return [{ label: "Resposta", value: display(responses) }].filter((item) => item.value !== "");
 }
 
 export function LeadDrawer({
@@ -269,6 +306,9 @@ export function LeadDrawer({
 
   const events = data?.events ?? [];
   const visibleEvents = showAllEvents ? events : events.slice(0, 3);
+  const leadScore = lead?.lead_score != null ? Number(lead.lead_score) : null;
+  const scorePresentation = leadScorePresentation(lead?.lead_classification);
+  const responses = formResponses(lead?.metadata);
 
   return (
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
@@ -419,7 +459,29 @@ export function LeadDrawer({
                       <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-white/80" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
                     )}
                     {lead.source && <p className="flex items-center gap-2"><Tag className="h-4 w-4 text-white/80" />{lead.source}</p>}
+                    {leadScore != null && (
+                      <div className="flex items-center gap-2 sm:col-span-2">
+                        <span className="text-xs text-white/70">Pontuação e classificação</span>
+                        <Badge variant="outline" className={scorePresentation.className}>
+                          {Number.isInteger(leadScore) ? leadScore : leadScore.toLocaleString("pt-BR")} · {scorePresentation.label}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
+
+                  {responses.length > 0 && (
+                    <details className="mt-4 rounded-lg border bg-card px-4 py-3">
+                      <summary className="cursor-pointer text-sm font-semibold">Respostas do formulário</summary>
+                      <dl className="mt-3 divide-y">
+                        {responses.map((response, index) => (
+                          <div key={`${response.label}-${index}`} className="grid gap-1 py-2 text-sm sm:grid-cols-[minmax(0,180px)_1fr]">
+                            <dt className="font-medium text-muted-foreground">{response.label}</dt>
+                            <dd className="whitespace-pre-wrap break-words">{response.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </details>
+                  )}
 
                   <p className="mb-3 mt-5 flex items-center gap-2 text-sm font-semibold">
                     <Activity className="h-4 w-4 text-primary" /> Histórico da jornada

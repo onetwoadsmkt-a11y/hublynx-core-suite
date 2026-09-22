@@ -11,6 +11,8 @@ const payloadSchema = z.object({
   state: z.string().max(60).optional().nullable(),
   source: z.string().max(120).optional().nullable(),
   value: z.coerce.number().nonnegative().optional().nullable(),
+  lead_score: z.coerce.number().optional().nullable(),
+  lead_classification: z.string().max(40).optional().nullable(),
   utm_source: z.string().max(200).optional().nullable(),
   utm_medium: z.string().max(200).optional().nullable(),
   utm_campaign: z.string().max(200).optional().nullable(),

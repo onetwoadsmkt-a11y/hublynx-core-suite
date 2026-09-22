@@ -10,3 +10,4 @@
 - [x] Etapa 7 — Aplicativo alinhado a organizações: contexto/seletor de empresa via `getMyOrgAccess`, filtros e inserts por `organization_id` (pipeline, leads, notas, tarefas, arquivos, webhooks, clientes, projetos), webhook público grava a empresa, menu com carregamento e Central Administrativa com usuários e permissões por módulo
 - [x] Etapa 8 — Empresa aplicada nas criações dos demais módulos: financeiro (lançamentos, recorrências, parcelas, repasse), recebíveis por projeto, linhas de serviço, marcos/equipe/riscos/custos/cobranças de projeto e tarefas (empresa ativa)
 - [ ] Etapa 9 — Estrutura fiscal (NFS-e): `supabase/migrations-org/07_fiscal.sql` gerado e aprovado; aguardando execução manual no Supabase pelo usuário. Sem emissão real nesta fase.
+- [x] Pipeline — captação, mapeamento e destaque de pontuação/classificação de leads; respostas do formulário no detalhe

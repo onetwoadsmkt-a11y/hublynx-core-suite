@@ -559,6 +559,10 @@ export const reprocessLastPayload = createServerFn({ method: "POST" })
         stage_id: hook.default_stage_id,
         ...preview,
         value: preview["value"] ? Number(preview["value"]) : null,
+        lead_score:
+          preview["lead_score"] !== undefined && preview["lead_score"] !== ""
+            ? Number(preview["lead_score"])
+            : null,
         metadata: hook.last_payload as never,
       } as never);
       return { preview, created: true as const };
