@@ -5,6 +5,7 @@ export type LeadCardField =
   | "location"
   | "phone"
   | "email"
+  | "score"
   | "value"
   | "source"
   | "utm"
@@ -15,6 +16,7 @@ export const LEAD_CARD_FIELDS: { key: LeadCardField; label: string }[] = [
   { key: "location", label: "Cidade / Estado" },
   { key: "phone", label: "Telefone" },
   { key: "email", label: "E-mail" },
+  { key: "score", label: "Pontuação e classificação" },
   { key: "value", label: "Valor" },
   { key: "source", label: "Origem / fonte" },
   { key: "utm", label: "UTMs (mídia e campanha)" },
@@ -28,6 +30,7 @@ export const DEFAULT_LEAD_CARD_LAYOUT: LeadCardLayout = {
   location: true,
   phone: true,
   email: true,
+  score: true,
   value: true,
   source: true,
   utm: true,

@@ -41,6 +41,30 @@ export function currency(v: number | null) {
   return maskBRL(v, { maximumFractionDigits: 0 });
 }
 
+type ScoreTone = "hot" | "warm" | "cold" | "nutrition" | "neutral";
+
+export function leadScorePresentation(classification: string | null | undefined) {
+  const normalized = classification?.trim().toLowerCase() ?? "";
+  const tone: ScoreTone = ["hot", "warm", "cold", "nutrition"].includes(normalized)
+    ? (normalized as ScoreTone)
+    : "neutral";
+  const labels: Record<ScoreTone, string> = {
+    hot: "Hot",
+    warm: "Warm",
+    cold: "Cold",
+    nutrition: "Nutrition",
+    neutral: classification?.trim() || "Sem classificação",
+  };
+  const classes: Record<ScoreTone, string> = {
+    hot: "border-score-hot/25 bg-score-hot/15 text-score-hot",
+    warm: "border-score-warm/25 bg-score-warm/15 text-score-warm",
+    cold: "border-score-cold/25 bg-score-cold/15 text-score-cold",
+    nutrition: "border-score-nutrition/25 bg-score-nutrition/15 text-score-nutrition",
+    neutral: "border-border bg-muted text-muted-foreground",
+  };
+  return { label: labels[tone], className: classes[tone] };
+}
+
 export function LeadCard({
   lead,
   onOpen,
@@ -112,6 +136,8 @@ export function LeadCard({
   const nextAction = (lead as any).next_action as string | null;
   const nextActionAt = (lead as any).next_action_at as string | null;
   const nextActionOverdue = !!nextActionAt && new Date(nextActionAt).getTime() < Date.now();
+  const leadScore = lead.lead_score != null ? Number(lead.lead_score) : null;
+  const scorePresentation = leadScorePresentation(lead.lead_classification);
 
   return (
     <div
@@ -249,6 +275,12 @@ export function LeadCard({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {layout.score && leadScore != null && (
+          <Badge variant="outline" className={cn("h-5 gap-1 px-1.5 text-[10px] font-semibold", scorePresentation.className)}>
+            {Number.isInteger(leadScore) ? leadScore : leadScore.toLocaleString("pt-BR")}
+            <span className="font-medium">· {scorePresentation.label}</span>
+          </Badge>
+        )}
         {layout.value && value && (
           <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
             {value}
