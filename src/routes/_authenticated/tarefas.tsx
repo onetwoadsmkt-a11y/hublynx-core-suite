@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Trash2, X, Mail, Video, CalendarPlus, Pencil, Target, User as UserIcon, MoreVertical, SlidersHorizontal, Settings2, LayoutGrid, List as ListIcon, Calendar as CalendarIcon, CalendarCheck, ListTodo, Clock } from "lucide-react";
+import { Plus, Search, Trash2, X, Mail, Video, CalendarPlus, Pencil, Target, User as UserIcon, MoreVertical, AlarmClock, Building2, SlidersHorizontal, Settings2, LayoutGrid, List as ListIcon, Calendar as CalendarIcon, CalendarCheck, ListTodo, Clock } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -331,7 +331,7 @@ function TarefasPage() {
               <div
                 ref={kanbanScrollRef}
                 onMouseDown={onKanbanPanStart}
-                className="flex gap-3 md:gap-4 overflow-x-auto pb-4 cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                className="flex flex-1 gap-4 overflow-x-auto pb-4 cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
                 {kanbanCols.map((col) => {
                   const colTasks = filtered.filter((t) => t.status === col.key);
@@ -352,6 +352,7 @@ function TarefasPage() {
               </div>
               <DragOverlay>
                 {activeTask ? (
+                  <div className="w-72 rotate-2">
                   <TaskCard
                     task={activeTask}
                     labels={labelsIndex[activeTask.id] ?? []}
@@ -360,6 +361,7 @@ function TarefasPage() {
                     kanbanCols={kanbanCols}
                     dragging
                   />
+                  </div>
                 ) : null}
               </DragOverlay>
             </DndContext>
@@ -707,46 +709,44 @@ function KanbanColumn({
   onAddInColumn: (statusKey: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
+  // Mesmo layout das colunas do Pipeline de Vendas.
   return (
     <div
       ref={setNodeRef}
-      className={`w-[280px] md:w-80 shrink-0 rounded-xl bg-card border border-border overflow-hidden transition-colors ${isOver ? "ring-2 ring-primary/40" : ""}`}
+      className={`flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 transition ${isOver ? "border-primary/60 bg-primary/5" : ""}`}
     >
-      <div className={`h-1 w-full ${accentForTone(col.tone)}`} />
-      <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
+      <div className={`h-1.5 rounded-t-xl ${accentForTone(col.tone)}`} />
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5">
         <div className="min-w-0">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground truncate">{col.label}</h3>
-          <p className="text-[11px] text-muted-foreground mt-0.5 tabular-nums">
+          <p className="truncate text-sm font-semibold">{col.label}</p>
+          <p className="text-[11px] text-muted-foreground tabular-nums">
             {tasks.length} {tasks.length === 1 ? "tarefa" : "tarefas"}
           </p>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-foreground -mr-1"
+          className="h-7 w-7"
           onClick={() => onAddInColumn(col.key)}
           title="Adicionar tarefa nesta coluna"
         >
           <Plus className="h-4 w-4" />
         </Button>
       </div>
-      <div className="px-3 pb-3 space-y-2.5 min-h-[120px]">
-        {tasks.length === 0 ? (
-          <div className="flex items-center justify-center h-24 rounded-lg border border-dashed border-border text-xs text-muted-foreground">
-            Arraste tarefas aqui
-          </div>
-        ) : (
-          tasks.map((t) => (
-            <DraggableCard
-              key={t.id}
-              task={t}
-              labels={labelsIndex[t.id] ?? []}
-              client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
-              project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
-              kanbanCols={kanbanCols}
-              onSelect={onSelect}
-            />
-          ))
+      <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-3">
+        {tasks.map((t) => (
+          <DraggableCard
+            key={t.id}
+            task={t}
+            labels={labelsIndex[t.id] ?? []}
+            client={t.client_id ? clientsById.get(t.client_id) ?? null : null}
+            project={t.project_id ? projectsById.get(t.project_id) ?? null : null}
+            kanbanCols={kanbanCols}
+            onSelect={onSelect}
+          />
+        ))}
+        {tasks.length === 0 && (
+          <p className="px-2 py-6 text-center text-xs text-muted-foreground">Arraste tarefas para cá</p>
         )}
       </div>
     </div>
@@ -756,12 +756,10 @@ function KanbanColumn({
 function DraggableCard({
   task, labels, client, project, kanbanCols, onSelect,
 }: { task: Task; labels: LabelItem[]; client: ClientMini | null; project: { id: string; name: string } | null; kanbanCols: KanbanColumn[]; onSelect: (id: string) => void }) {
-  const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({ id: task.id });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.4 : 1 }
-    : { opacity: isDragging ? 0.4 : 1 };
+  // Como no Pipeline: o card inteiro é arrastável e quem se move é o DragOverlay.
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: task.id });
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} className={isDragging ? "opacity-40" : undefined}>
       <TaskCard task={task} labels={labels} client={client} project={project} kanbanCols={kanbanCols} onClick={() => onSelect(task.id)} dragHandle={{ ...attributes, ...listeners }} />
     </div>
   );
@@ -785,6 +783,18 @@ function TaskCard({
   const instantMeet = useServerFn(createInstantMeet);
   const qc = useQueryClient();
   const meeting = (task.briefing as any)?.type === "reuniao";
+  const done = kanbanCols?.find((c) => c.key === task.status)?.key === "concluido" || task.status === "concluido";
+  // Datas à meia-noite UTC são "dia inteiro": mostra a data gravada, sem converter fuso.
+  const due = task.due_date ? new Date(task.due_date) : null;
+  const allDay = !!due && due.getUTCHours() === 0 && due.getUTCMinutes() === 0;
+  const dueLabel = due
+    ? allDay
+      ? due.toLocaleDateString("pt-BR", { timeZone: "UTC" })
+      : `${due.toLocaleDateString("pt-BR")} · ${due.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+    : null;
+  const todayKey = format(new Date(), "yyyy-MM-dd");
+  const dueKey = due ? (allDay ? due.toISOString().slice(0, 10) : format(due, "yyyy-MM-dd")) : null;
+  const overdue = !!dueKey && dueKey < todayKey && !done;
 
   const del = useMutation({
     mutationFn: async () => {
@@ -815,86 +825,104 @@ function TaskCard({
     onError: (e: any) => toast.error(e.message ?? "Erro ao criar Meet"),
   });
 
-  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
   return (
     <>
       <div
         data-task-card
+        {...(dragHandle ?? {})}
         onClick={onClick}
-        className={`group relative bg-card rounded-lg border border-border shadow-sm hover:shadow-md hover:border-brand-blue/40 transition-all cursor-pointer ${dragging ? "shadow-lg ring-2 ring-brand-blue/30" : ""}`}
+        className={`group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md ${dragging ? "shadow-lg ring-2 ring-primary/30" : ""}`}
       >
-        <div className="px-3 py-3">
-          <div className="flex items-start gap-2">
-            <button
-              {...dragHandle}
-              className="shrink-0 h-7 w-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center cursor-grab"
-              onClick={stop}
-              title="Arrastar"
-            >
-              {meeting ? <CalendarCheck className="h-3.5 w-3.5" /> : <UserIcon className="h-3.5 w-3.5" />}
-            </button>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold leading-snug text-foreground truncate">{task.title}</p>
-            </div>
-            {task.due_date && (
-              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums mt-0.5">
-                {format(new Date(task.due_date), "dd/MM")}
-              </span>
-            )}
-          </div>
+        <div className="flex items-start justify-between gap-2">
+          <p className={`line-clamp-2 flex items-center gap-1.5 text-sm font-semibold leading-tight ${done ? "text-muted-foreground line-through" : ""}`}>
+            {meeting && <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-primary" />}
+            {task.title}
+          </p>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={stop} onPointerDown={stop}>
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100" title="Ações">
+                <MoreVertical className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={stop} onPointerDown={stop}>
+              <DropdownMenuItem onSelect={() => onClick?.()}>
+                <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setEmailOpen(true)}>
+                <Mail className="mr-2 h-3.5 w-3.5" /> Enviar e-mail
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setMeetOpen(true)}>
+                <CalendarPlus className="mr-2 h-3.5 w-3.5" /> Agendar reunião
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={quickMeet.isPending} onSelect={() => quickMeet.mutate()}>
+                <Video className="mr-2 h-3.5 w-3.5" /> Criar link Meet
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive" onSelect={() => setConfirmDel(true)}>
+                <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-          {client?.email && (
-            <div className="mt-2 ml-9 flex items-center gap-1.5 text-xs text-brand-blue truncate">
-              <Mail className="h-3 w-3 shrink-0" />
-              <span className="truncate">{client.email}</span>
-            </div>
-          )}
-          {client && !client.email && (
-            <div className="mt-2 ml-9 text-xs text-muted-foreground truncate">{client.name}</div>
-          )}
-          {project && (
-            <div className="mt-1 ml-9 flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
-              <Target className="h-3 w-3 shrink-0" />
-              <span className="truncate">{project.name}</span>
-            </div>
-          )}
+        {client && (
+          <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <Building2 className="h-3 w-3 shrink-0" /> <span className="truncate">{client.name}</span>
+          </p>
+        )}
+        {project && (
+          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <Target className="h-3 w-3 shrink-0" /> <span className="truncate">{project.name}</span>
+          </p>
+        )}
+        {client?.email && (
+          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <Mail className="h-3 w-3 shrink-0" /> <span className="truncate">{client.email}</span>
+          </p>
+        )}
 
-          <div className="mt-2 ml-9 flex items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-1 min-w-0">
-              {labels.map((l) => (
+        {dueLabel && (
+          <p
+            className={`mt-1.5 flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-[11px] ${
+              overdue ? "bg-destructive/10 font-medium text-destructive" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            <AlarmClock className="h-3 w-3 shrink-0" />
+            <span className="truncate">
+              {dueLabel}
+              {overdue ? " (atrasada)" : ""}
+            </span>
+          </p>
+        )}
+
+        {labels.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {labels.map((l) => {
+              const c = l.color || "#2563EB";
+              return (
                 <span
                   key={l.id}
-                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded text-white"
-                  style={{ backgroundColor: l.color || "#2563EB" }}
+                  className="rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{ backgroundColor: `${c}1f`, color: c }}
                 >
                   {l.name}
                 </span>
-              ))}
-            </div>
-            <span
-              className={`shrink-0 h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority]}`}
-              title={PRIORITY_LABEL[task.priority]}
-            />
+              );
+            })}
           </div>
+        )}
 
-          <div className="mt-2 ml-9 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { stop(e); onClick?.(); }} title="Editar">
-              <Pencil className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { stop(e); setEmailOpen(true); }} title="E-mail">
-              <Mail className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { stop(e); setMeetOpen(true); }} title="Agendar reunião">
-              <CalendarPlus className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={quickMeet.isPending} onClick={(e) => { stop(e); quickMeet.mutate(); }} title="Link Meet">
-              <Video className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive ml-auto" onClick={(e) => { stop(e); setConfirmDel(true); }} title="Excluir">
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px] font-semibold">
+            <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[task.priority]}`} />
+            {PRIORITY_LABEL[task.priority]}
+          </Badge>
+          {meeting && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
+              Reunião
+            </Badge>
+          )}
         </div>
       </div>
 
