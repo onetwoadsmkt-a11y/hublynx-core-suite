@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Calendar, CheckSquare, FolderKanban, Users, DollarSign,
-  FolderArchive, Sparkles, ArrowRight, Clock,
+  Sparkles, ArrowRight, Clock,
 } from "lucide-react";
 import hubDarkBg from "@/assets/hub-dark-bg.png.asset.json";
 import hubLightBg from "@/assets/hub-light-bg.png.asset.json";
@@ -158,7 +158,6 @@ function HubCentral() {
     { to: "/clientes", label: "Clientes", icon: Users },
     { to: "/agenda", label: "Agenda", icon: Calendar },
     { to: "/financeiro", label: "Financeiro", icon: DollarSign },
-    { to: "/arquivos", label: "Arquivos", icon: FolderArchive },
     { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
   ] as const;
 

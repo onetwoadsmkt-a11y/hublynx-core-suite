@@ -33,7 +33,6 @@ const ROUTE_MAP: { prefix: string; cap: Capability }[] = [
   { prefix: "/tarefas", cap: "operacao" },
   { prefix: "/projetos", cap: "operacao" },
   { prefix: "/agenda", cap: "operacao" },
-  { prefix: "/arquivos", cap: "operacao" },
   { prefix: "/gestao", cap: "operacao" },
   { prefix: "/relatorios", cap: "operacao" },
   { prefix: "/financeiro", cap: "financeiro" },

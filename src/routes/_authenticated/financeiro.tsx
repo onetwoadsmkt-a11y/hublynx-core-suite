@@ -8,6 +8,7 @@ import { ensureDefaultCategories, runRecurringRollover } from "@/lib/finance/fin
 import { FinanceLockScreen } from "@/components/finance/FinanceLockScreen";
 import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
 import { Button } from "@/components/ui/button";
+import { useOrgAccess } from "@/hooks/useOrgAccess";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +47,8 @@ function FinanceLayout() {
   const rollover = useServerFn(runRecurringRollover);
   const search = Route.useSearch();
   const unlocked = useValuesUnlocked();
+  const org = useOrgAccess();
+  const tabs: Tab[] = org.hasModule("fiscal") ? [...TABS, { to: "/financeiro/fiscal", label: "Fiscal" }] : TABS;
 
   useEffect(() => {
     if (!unlocked) return;
@@ -94,7 +97,7 @@ function FinanceLayout() {
       </div>
       <div className="border-b overflow-x-auto">
         <nav className="flex gap-1 items-center">
-          {TABS.map((t) => {
+          {tabs.map((t) => {
             const active = isActive(t);
             const cls = `px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               active

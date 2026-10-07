@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { ORG_MODULE_DEPENDS_ON, type OrgModuleCode } from "@/lib/org/modules-map";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -145,13 +146,31 @@ export const setOrganizationModule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const db = await adminDb(context.userId);
+    // Dependências: Projetos precisa de Tarefas; Fiscal precisa de Financeiro.
+    const { data: mods } = await db.from("modules").select("id, code");
+    const idByCode = new Map<string, string>(((mods ?? []) as any[]).map((m) => [m.code, m.id]));
+    const codeById = new Map<string, string>(((mods ?? []) as any[]).map((m) => [m.id, m.code]));
+    const code = codeById.get(data.module_id) as OrgModuleCode | undefined;
+    const affected = new Set<string>([data.module_id]);
+    if (code && data.enabled) {
+      for (const dep of ORG_MODULE_DEPENDS_ON[code] ?? []) {
+        const id = idByCode.get(dep);
+        if (id) affected.add(id);
+      }
+    } else if (code && !data.enabled) {
+      for (const [parent, deps] of Object.entries(ORG_MODULE_DEPENDS_ON)) {
+        const id = idByCode.get(parent);
+        if (id && deps?.includes(code)) affected.add(id);
+      }
+    }
+    const now = new Date().toISOString();
     const { error } = await db.from("organization_modules").upsert(
-      {
+      [...affected].map((module_id) => ({
         organization_id: data.organization_id,
-        module_id: data.module_id,
+        module_id,
         enabled: data.enabled,
-        deactivated_at: data.enabled ? null : new Date().toISOString(),
-      },
+        deactivated_at: data.enabled ? null : now,
+      })),
       { onConflict: "organization_id,module_id" },
     );
     if (error) throw new Error(error.message);

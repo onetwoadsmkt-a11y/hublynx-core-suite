@@ -2,7 +2,7 @@ import { type ReactNode, useState, useEffect } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users,
-  Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
+  Calendar, BarChart3, Settings, Search, LogOut, ChevronDown,
   PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter, MessageSquare, Building2, Wallet,
   CalendarCheck,
 } from "lucide-react";
@@ -75,7 +75,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" },
       { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" },
       { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" },
-      { to: "/arquivos", label: "Arquivos", icon: FolderArchive },
       { to: "/gestao/clientes", label: "Clientes", icon: Building2 },
       { to: "/financeiro", label: "Financeiro", icon: Wallet },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3 },

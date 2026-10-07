@@ -1,25 +1,38 @@
 /** Códigos de módulo cadastrados em public.modules. */
-export type OrgModuleCode = "crm" | "projects" | "finance";
+export type OrgModuleCode = "crm" | "tasks" | "projects" | "finance" | "fiscal";
 
 export const ORG_MODULE_LABELS: Record<OrgModuleCode, string> = {
-  crm: "Hublynx CRM",
+  crm: "Hublynx Comercial",
+  tasks: "Hublynx Tarefas & Agenda",
   projects: "Hublynx Projects",
   finance: "Hublynx Finance",
+  fiscal: "Hublynx Fiscal",
 };
 
-/** Prefixos de rota por módulo (o mais longo vence). Rotas ausentes são sempre liberadas. */
+/**
+ * Dependências entre módulos: ligar a chave liga também os valores;
+ * desligar um valor desliga quem depende dele.
+ */
+export const ORG_MODULE_DEPENDS_ON: Partial<Record<OrgModuleCode, OrgModuleCode[]>> = {
+  projects: ["tasks"],
+  fiscal: ["finance"],
+};
+
+/**
+ * Prefixos de rota por módulo (o mais longo vence). Rotas ausentes são a Base,
+ * sempre liberada: Hub, Minha semana, Clientes (/gestao/clientes) e Configurações.
+ */
 const ROUTE_MAP: { prefix: string; code: OrgModuleCode }[] = [
   { prefix: "/pipeline", code: "crm" },
   { prefix: "/comercial", code: "crm" },
   { prefix: "/clientes", code: "crm" },
   { prefix: "/atendimento", code: "crm" },
-  { prefix: "/gestao/clientes", code: "crm" },
+  { prefix: "/tarefas", code: "tasks" },
+  { prefix: "/agenda", code: "tasks" },
   { prefix: "/projetos", code: "projects" },
-  { prefix: "/tarefas", code: "projects" },
-  { prefix: "/agenda", code: "projects" },
-  { prefix: "/arquivos", code: "projects" },
   { prefix: "/relatorios", code: "projects" },
   { prefix: "/financeiro", code: "finance" },
+  { prefix: "/financeiro/fiscal", code: "fiscal" },
 ];
 
 export function orgModuleForPath(pathname: string): OrgModuleCode | null {
