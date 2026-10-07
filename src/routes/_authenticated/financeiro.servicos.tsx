@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/financeiro/servicos")({
       {
         name: "description",
         content:
-          "Receita, fee recorrente, mídia sob gestão e margem por linha de serviço, com contratos agrupados.",
+          "Lista das linhas de serviço com clientes, fee recorrente, receita e recebimentos, e contratos agrupados.",
       },
       { property: "og:title", content: "Linhas de Serviço — Hublynx Core" },
       {
@@ -37,9 +37,6 @@ export const Route = createFileRoute("/_authenticated/financeiro/servicos")({
 
 const UNASSIGNED = "__none__";
 
-function pctText(m: number | null) {
-  return m === null ? "—" : `${m.toFixed(1).replace(".", ",")}%`;
-}
 
 function ServicosPage() {
   const qc = useQueryClient();
@@ -125,66 +122,48 @@ function ServicosPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {lines.map((l) => (
-          <Card
-            key={l.id ?? UNASSIGNED}
-            className="rounded-[14px] p-4"
-            style={{ borderTop: `3px solid ${l.cor}` }}
-          >
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{l.nome}</p>
-            <p className="mt-1 text-[28px] font-semibold leading-tight tracking-[-0.03em]">
-              <Money value={l.receita_ano} zeroDash={false} />
-            </p>
-            <p className="text-[12.2px] text-muted-foreground">receita de {year} · competência</p>
-
-            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12.2px]">
-              <div className="flex items-center justify-between">
-                <dt className="text-muted-foreground">Clientes</dt>
-                <dd className="font-mono tabular-nums">{l.clientes}</dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-muted-foreground">Fee recorrente</dt>
-                <dd><Money value={l.fee_recorrente} /></dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-muted-foreground">Recebido</dt>
-                <dd className="text-emerald-600"><Money value={l.recebido} /></dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-muted-foreground">Em atraso</dt>
-                <dd className={l.em_atraso > 0 ? "text-red-600" : ""}>
-                  <Money value={l.em_atraso} />
-                </dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-muted-foreground">Mídia sob gestão</dt>
-                <dd><Money value={l.midia_sob_gestao} /></dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-muted-foreground">Custo direto</dt>
-                <dd><Money value={l.custo_direto} /></dd>
-              </div>
-            </dl>
-
-            <div className="mt-3 flex items-center justify-between border-t pt-2 text-[12.2px]">
-              <span className="text-muted-foreground">Margem da linha</span>
-              <span
-                className={`font-mono text-[14.5px] font-semibold tabular-nums ${
-                  l.margem !== null && l.margem < 0 ? "text-red-600" : "text-foreground"
-                }`}
-              >
-                {pctText(l.margem)}
-              </span>
-            </div>
-          </Card>
-        ))}
-        {lines.length === 0 && (
-          <Card className="rounded-[14px] p-6 text-center text-sm text-muted-foreground">
-            {isLoading ? "Carregando…" : "Nenhuma linha de serviço cadastrada."}
-          </Card>
-        )}
-      </div>
+      <Card className="overflow-hidden p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                <th className="px-4 py-2.5 font-semibold">Linha de serviço</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Clientes</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Fee recorrente</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Receita {year}</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Recebido</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Em atraso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l) => (
+                <tr key={l.id ?? UNASSIGNED} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="px-4 py-2.5">
+                    <span className="flex items-center gap-2 font-medium">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: l.cor }} />
+                      {l.nome}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{l.clientes}</td>
+                  <td className="px-4 py-2.5 text-right"><Money value={l.fee_recorrente} /></td>
+                  <td className="px-4 py-2.5 text-right font-semibold"><Money value={l.receita_ano} zeroDash={false} /></td>
+                  <td className="px-4 py-2.5 text-right text-emerald-600"><Money value={l.recebido} /></td>
+                  <td className={`px-4 py-2.5 text-right ${l.em_atraso > 0 ? "text-red-600" : ""}`}>
+                    <Money value={l.em_atraso} />
+                  </td>
+                </tr>
+              ))}
+              {lines.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                    {isLoading ? "Carregando…" : "Nenhuma linha de serviço cadastrada."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       <Card className="p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-primary">

@@ -1,12 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertTriangle, CalendarClock, FileText, Scale } from "lucide-react";
+import { AlertTriangle, CalendarClock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Money } from "@/components/finance/Money";
 import { getAlerts } from "@/lib/finance/finance.functions";
-import { getReconciliation } from "@/lib/finance/reconciliation.functions";
 
 type Tone = "danger" | "warning" | "neutral";
 
@@ -64,17 +63,13 @@ function AttentionItem({
   );
 }
 
-export function AttentionPanel({ month, year }: { month: number; year: number }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function AttentionPanel(_props: { month: number; year: number }) {
   const alertsFn = useServerFn(getAlerts);
-  const reconFn = useServerFn(getReconciliation);
 
   const { data: alerts } = useQuery({
     queryKey: ["finance", "alerts"],
     queryFn: () => alertsFn(),
-  });
-  const { data: recon } = useQuery({
-    queryKey: ["finance", "reconciliation", month, year],
-    queryFn: () => reconFn({ data: { month, year } }),
   });
 
   const items = alerts ?? [];
@@ -88,14 +83,14 @@ export function AttentionPanel({ month, year }: { month: number; year: number })
         <AlertTriangle className="h-4 w-4 text-amber-600" />
         <h2 className="text-sm font-semibold uppercase tracking-wide">Atenção Necessária</h2>
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <AttentionItem
           label="Vencidos"
           icon={AlertTriangle}
           tone={overdue.length > 0 ? "danger" : "neutral"}
           amount={sum(overdue)}
           note={`${overdue.length} ${overdue.length === 1 ? "lançamento" : "lançamentos"}`}
-          to="/financeiro/recebiveis"
+          to="/financeiro/receber"
         />
         <AttentionItem
           label="Vence hoje"
@@ -103,27 +98,7 @@ export function AttentionPanel({ month, year }: { month: number; year: number })
           tone={today.length > 0 ? "warning" : "neutral"}
           amount={sum(today)}
           note={`${today.length} ${today.length === 1 ? "lançamento" : "lançamentos"}`}
-          to="/financeiro/calendario"
-        />
-        <AttentionItem
-          label="NFS-e pendentes"
-          icon={FileText}
-          tone="neutral"
-          count={0}
-          note="emissão não configurada"
-          to="/financeiro/fiscal"
-        />
-        <AttentionItem
-          label="Conciliações pendentes"
-          icon={Scale}
-          tone={(recon?.falhou ?? 0) > 0 ? "danger" : "neutral"}
-          count={recon?.falhou ?? 0}
-          note={
-            recon
-              ? `${recon.passou} de ${recon.testes.length} verificações ok`
-              : "verificando..."
-          }
-          to="/financeiro/conciliacao"
+          to="/financeiro/receber"
         />
       </div>
     </section>

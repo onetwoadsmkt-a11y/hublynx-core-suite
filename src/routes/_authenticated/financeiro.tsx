@@ -27,44 +27,14 @@ export const Route = createFileRoute("/_authenticated/financeiro")({
 type SubTab = { to: string; label: string };
 type Tab = { to: string; label: string; sub?: SubTab[] };
 
-/** Seis subáreas: visão geral, receber, pagar, fluxo de caixa, fiscal e configurações. */
+/** Financeiro enxuto: dashboard, receber, pagar, previsão, serviços e categorias. */
 const TABS: Tab[] = [
-  { to: "/financeiro", label: "Visão Geral" },
-  {
-    to: "/financeiro/recebiveis",
-    label: "Receber",
-    sub: [
-      { to: "/financeiro/recebiveis", label: "Recebíveis" },
-      { to: "/financeiro/receber", label: "Contas a receber (lista)" },
-      { to: "/financeiro/previsao", label: "Previsão de faturamento" },
-    ],
-  },
-  {
-    to: "/financeiro/pagar",
-    label: "Pagar",
-    sub: [
-      { to: "/financeiro/pagar", label: "Contas a pagar" },
-      { to: "/financeiro/recorrencias", label: "Recorrências" },
-    ],
-  },
-  {
-    to: "/financeiro/calendario",
-    label: "Fluxo de Caixa",
-    sub: [
-      { to: "/financeiro/calendario", label: "Calendário" },
-      { to: "/financeiro/dre", label: "DRE + Lucratividade" },
-      { to: "/financeiro/conciliacao", label: "Conciliação" },
-    ],
-  },
-  { to: "/financeiro/fiscal", label: "Fiscal" },
-  {
-    to: "/financeiro/categorias",
-    label: "Configurações",
-    sub: [
-      { to: "/financeiro/categorias", label: "Categorias" },
-      { to: "/financeiro/servicos", label: "Linhas de serviço" },
-    ],
-  },
+  { to: "/financeiro", label: "Dashboard" },
+  { to: "/financeiro/receber", label: "Contas a receber" },
+  { to: "/financeiro/pagar", label: "Contas a pagar" },
+  { to: "/financeiro/previsao", label: "Previsão de faturamento" },
+  { to: "/financeiro/servicos", label: "Serviços" },
+  { to: "/financeiro/categorias", label: "Categorias" },
 ];
 
 
@@ -115,7 +85,7 @@ function FinanceLayout() {
         <div>
           <h1 className="text-2xl font-semibold">Financeiro</h1>
           <p className="text-sm text-muted-foreground">
-            Previsão de faturamento, recebíveis e contas a pagar.
+            Contas a receber e a pagar, previsão de faturamento, serviços e categorias.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => lockValues()}>

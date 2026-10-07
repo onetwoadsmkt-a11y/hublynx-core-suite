@@ -132,8 +132,8 @@ export function FinanceListPage({ kind }: { kind: FinanceKind; title?: string })
         />
         <div className="flex items-center gap-2">
           <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v as "list" | "calendar")}>
-            <ToggleGroupItem value="list" aria-label="Lista"><List className="h-4 w-4" /></ToggleGroupItem>
-            <ToggleGroupItem value="calendar" aria-label="Calendário"><CalendarDays className="h-4 w-4" /></ToggleGroupItem>
+            <ToggleGroupItem value="list" aria-label="Lista" className="gap-1.5 px-3"><List className="h-4 w-4" /> Lista</ToggleGroupItem>
+            <ToggleGroupItem value="calendar" aria-label="Calendário" className="gap-1.5 px-3"><CalendarDays className="h-4 w-4" /> Calendário</ToggleGroupItem>
           </ToggleGroup>
           {view === "list" && (
             <>
