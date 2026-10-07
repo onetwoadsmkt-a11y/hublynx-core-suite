@@ -4,6 +4,7 @@ import {
   LayoutDashboard, CheckSquare, FolderKanban, Users,
   Calendar, FolderArchive, BarChart3, Settings, Search, LogOut, ChevronDown,
   PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter, MessageSquare, Building2, Wallet,
+  CalendarCheck,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -47,45 +48,43 @@ type NavItem = {
   moduleSlug?: ModuleSlug;
 };
 
-type NavGroup = { section?: string; items: NavItem[] };
+type NavGroup = { section?: string; collapsible?: boolean; items: NavItem[] };
 
-// Financeiro segue existindo (rotas /financeiro/*), apenas oculto do menu.
+// Menu enxuto: 5 telas do dia a dia. Nenhuma rota foi removida — as demais
+// ficam no grupo recolhível "Mais" e continuam acessíveis por link direto.
 const NAV_GROUPS: NavGroup[] = [
   {
     items: [
+      { to: "/semana", label: "Minha semana", icon: CalendarCheck },
+      { to: "/pipeline", label: "Leads", icon: Filter },
+      { to: "/gestao/clientes", label: "Clientes", icon: Building2 },
+      { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" },
+      { to: "/financeiro", label: "Financeiro", icon: Wallet },
+    ],
+  },
+  {
+    section: "Mais",
+    collapsible: true,
+    items: [
+      { to: "/tarefas", label: "Tarefas (kanban)", icon: CheckSquare, moduleSlug: "tarefas" },
+      { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" },
+      { to: "/clientes", label: "Lista de leads", icon: Users, moduleSlug: "clientes" },
+      { to: "/comercial/dashboard", label: "Painel comercial", icon: LayoutDashboard },
+      { to: "/comercial/relatorios", label: "Relatórios comerciais", icon: BarChart3 },
+      { to: "/relatorios", label: "Relatórios de gestão", icon: BarChart3 },
       { to: "/hub", label: "Hub Central", icon: Sparkles, moduleSlug: "hub" },
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    section: "Comercial",
-    items: [
-      { to: "/comercial/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/pipeline", label: "Pipeline de Vendas", icon: Filter },
-      { to: "/clientes", label: "LEADS", icon: Users, moduleSlug: "clientes" },
       { to: "/atendimento", label: "Atendimento", icon: MessageSquare },
-      { to: "/comercial/relatorios", label: "Relatórios", icon: BarChart3 },
-    ],
-  },
-  {
-    section: "Operação & Gestão",
-    items: [
-      { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" },
-      { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" },
-      { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" },
       { to: "/arquivos", label: "Arquivos", icon: FolderArchive },
-      { to: "/gestao/clientes", label: "Clientes", icon: Building2 },
-      { to: "/financeiro", label: "Financeiro", icon: Wallet },
-      { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
     ],
   },
-
-
   {
     section: "Administração",
     items: [{ to: "/configuracoes", label: "Configurações", icon: Settings }],
   },
 ];
+
+const MORE_KEY = "sidebar-more-open";
 
 function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -104,6 +103,23 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
   });
   const { can } = useAccess();
   const org = useOrgAccess();
+  const [moreOpen, setMoreOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(MORE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleMore = () =>
+    setMoreOpen((v) => {
+      try {
+        localStorage.setItem(MORE_KEY, v ? "0" : "1");
+      } catch {
+        /* ignore */
+      }
+      return !v;
+    });
   if (org.isLoading) {
     return (
       <nav className={`flex flex-col gap-2 ${collapsed ? "px-2" : "px-3"} py-4`} aria-busy="true">
@@ -142,17 +158,42 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
   return (
     <TooltipProvider delayDuration={0}>
       <nav className={`flex flex-col gap-1 ${collapsed ? "px-2" : "px-3"} py-2`}>
-        {groups.map((group, gi) => (
+        {groups.map((group, gi) => {
+          // O grupo "Mais" abre sozinho quando a tela atual está dentro dele.
+          const hasActive = group.items.some(
+            (item) => pathname === item.to || pathname.startsWith(item.to + "/"),
+          );
+          const open = !group.collapsible || moreOpen || hasActive;
+          return (
           <div key={group.section ?? `g-${gi}`} className="flex flex-col gap-1">
             {group.section &&
-              (collapsed ? (
+              (group.collapsible ? (
+                <button
+                  type="button"
+                  onClick={toggleMore}
+                  aria-expanded={open}
+                  className={`flex items-center gap-2 rounded-lg text-muted-foreground/70 hover:text-foreground ${
+                    collapsed ? "mx-auto mt-3 justify-center p-2" : "px-3 pt-4 pb-1"
+                  }`}
+                  title={collapsed ? "Mais" : undefined}
+                >
+                  {collapsed ? (
+                    <ChevronDown className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`} />
+                  ) : (
+                    <>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider">{group.section}</span>
+                      <ChevronDown className={`h-3 w-3 transition-transform ${open ? "" : "-rotate-90"}`} />
+                    </>
+                  )}
+                </button>
+              ) : collapsed ? (
                 <div className="mx-2 my-2 border-t" />
               ) : (
                 <span className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                   {group.section}
                 </span>
               ))}
-            {group.items.map((item) => {
+            {open && group.items.map((item) => {
               const active = pathname === item.to || pathname.startsWith(item.to + "/");
               const Icon = item.icon;
               const slug = item.moduleSlug;
@@ -191,7 +232,8 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
               );
             })}
           </div>
-        ))}
+          );
+        })}
       </nav>
     </TooltipProvider>
   );
@@ -266,7 +308,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [collapsed]);
 
   return (
-    <div className="h-screen flex w-full bg-muted/30 overflow-hidden">
+    <div className="h-screen flex w-full bg-app-bg overflow-hidden">
       {/* Desktop sidebar */}
       <aside
         className={`hidden lg:flex flex-col border-r bg-sidebar shrink-0 transition-[width] duration-200 ${

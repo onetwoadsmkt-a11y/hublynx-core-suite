@@ -64,7 +64,10 @@
   --color-sidebar-ring: var(--sidebar-ring);
 
   --shadow-soft: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.05);
-  --shadow-card: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 4px 16px -4px rgb(15 23 42 / 0.06);
+  --shadow-card: 0 1px 2px 0 rgb(7 26 61 / 0.04), 0 10px 28px -14px rgb(7 26 61 / 0.14);
+
+  /* Fundo das telas internas: um tom abaixo dos cards, para eles se destacarem. */
+  --color-app-bg: var(--app-bg);
 }
 
 :root {
@@ -77,6 +80,7 @@
   --brand-green: oklch(0.72 0.20 155);  /* #00D084 */
 
   --background: oklch(0.985 0.004 160);             /* neutral warm-gray (brand green tint) */
+  --app-bg: oklch(0.968 0.006 165);                 /* #F3F6F5 — fundo atrás dos cards */
   --foreground: oklch(0.22 0.08 263);               /* brand-dark */
 
   --card: oklch(1 0 0);
@@ -134,6 +138,7 @@
 .dark {
   /* Deep navy base inspired by Hub Central */
   --background: oklch(0.15 0.06 263);               /* #050F24 */
+  --app-bg: oklch(0.15 0.06 263);
   --foreground: oklch(0.97 0.01 250);
 
   --card: oklch(0.22 0.08 263);                     /* #071A3D */

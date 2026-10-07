@@ -26,6 +26,7 @@ import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authentic
 import { Route as AuthenticatedHubRouteImport } from './routes/_authenticated/hub'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedSemanaRouteImport } from './routes/_authenticated/semana'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
@@ -152,6 +153,11 @@ const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSemanaRoute = AuthenticatedSemanaRouteImport.update({
+  id: '/semana',
+  path: '/semana',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedTarefasRoute = AuthenticatedTarefasRouteImport.update({
@@ -409,6 +415,7 @@ export interface FileRoutesByFullPath {
   '/hub': typeof AuthenticatedHubRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/semana': typeof AuthenticatedSemanaRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
@@ -464,6 +471,7 @@ export interface FileRoutesByTo {
   '/hub': typeof AuthenticatedHubRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/semana': typeof AuthenticatedSemanaRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
@@ -525,6 +533,7 @@ export interface FileRoutesById {
   '/_authenticated/hub': typeof AuthenticatedHubRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/_authenticated/semana': typeof AuthenticatedSemanaRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/_authenticated/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
@@ -586,6 +595,7 @@ export interface FileRouteTypes {
     | '/hub'
     | '/pipeline'
     | '/relatorios'
+    | '/semana'
     | '/tarefas'
     | '/auth/callback'
     | '/admin/armazenamento'
@@ -641,6 +651,7 @@ export interface FileRouteTypes {
     | '/hub'
     | '/pipeline'
     | '/relatorios'
+    | '/semana'
     | '/tarefas'
     | '/auth/callback'
     | '/admin/armazenamento'
@@ -701,6 +712,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hub'
     | '/_authenticated/pipeline'
     | '/_authenticated/relatorios'
+    | '/_authenticated/semana'
     | '/_authenticated/tarefas'
     | '/auth/callback'
     | '/_authenticated/admin/armazenamento'
@@ -874,6 +886,13 @@ declare module '@tanstack/react-router' {
       path: '/relatorios'
       fullPath: '/relatorios'
       preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/semana': {
+      id: '/_authenticated/semana'
+      path: '/semana'
+      fullPath: '/semana'
+      preLoaderRoute: typeof AuthenticatedSemanaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/tarefas': {
@@ -1304,6 +1323,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHubRoute: typeof AuthenticatedHubRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
+  AuthenticatedSemanaRoute: typeof AuthenticatedSemanaRoute
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedComercialDashboardRoute: typeof AuthenticatedComercialDashboardRoute
   AuthenticatedComercialRelatoriosRoute: typeof AuthenticatedComercialRelatoriosRoute
@@ -1325,6 +1345,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHubRoute: AuthenticatedHubRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
+  AuthenticatedSemanaRoute: AuthenticatedSemanaRoute,
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedComercialDashboardRoute: AuthenticatedComercialDashboardRoute,
   AuthenticatedComercialRelatoriosRoute: AuthenticatedComercialRelatoriosRoute,
