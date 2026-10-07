@@ -40,7 +40,7 @@ function AuthCallbackPage() {
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       if (data.session) {
-        navigate({ to: "/semana", replace: true });
+        navigate({ to: "/hub", replace: true });
       } else {
         setMessage("Sessão não encontrada. Tente entrar novamente.");
       }

@@ -32,10 +32,10 @@ function AuthPage() {
   useEffect(() => {
     // Listener registrado ANTES da checagem inicial de sessão.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) navigate({ to: "/semana", replace: true });
+      if (session) navigate({ to: "/hub", replace: true });
     });
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/semana", replace: true });
+      if (data.session) navigate({ to: "/hub", replace: true });
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
@@ -66,7 +66,7 @@ function AuthPage() {
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Bem-vindo de volta!");
-    navigate({ to: "/semana" });
+    navigate({ to: "/hub" });
   }
 
   async function handleSignup(e: React.FormEvent) {

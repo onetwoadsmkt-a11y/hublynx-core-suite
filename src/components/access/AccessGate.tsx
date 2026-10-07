@@ -55,7 +55,7 @@ function Denied({ title }: { title: string }) {
           Fale com o administrador da Hublynx para liberar o acesso a esta área.
         </p>
         <Button asChild className="mt-4">
-          <Link to="/semana">Voltar para Minha semana</Link>
+          <Link to="/hub">Voltar ao Hub Central</Link>
         </Button>
       </div>
     </div>
