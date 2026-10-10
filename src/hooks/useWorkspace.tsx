@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyOrgAccess, type OrgSummary } from "@/lib/org/org.functions";
+import { trialHasExpired } from "@/lib/org/trial-rules";
 
 const STORAGE_KEY = "hublynx-active-organization";
 /** Cache legado apagado ao sair; a marca exibida vem da empresa validada. */
@@ -27,6 +28,7 @@ export type OrganizationOption = {
   name: string;
   slug: string | null;
   status: string;
+  trialExpiresAt: string | null;
   role: string;
   modules: string[];
   /** White label da empresa. */
@@ -91,6 +93,7 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
       return fn();
     },
     staleTime: 5 * 60_000,
+    refetchInterval: 60_000,
     retry: 1,
   });
 
@@ -101,6 +104,7 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
         name: o.name,
         slug: o.slug,
         status: o.status,
+        trialExpiresAt: o.trialExpiresAt,
         role: o.role,
         modules: o.modules,
         logoUrl: o.logoUrl ?? null,
@@ -112,7 +116,10 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
   // Valida a empresa persistida; se o usuário não pertence mais, escolhe uma válida.
   const activeOrganization = useMemo(() => {
     if (organizations.length === 0) return null;
-    return organizations.find((o) => o.id === selectedId) ?? organizations[0] ?? null;
+    const org = organizations.find((o) => o.id === selectedId) ?? organizations[0];
+    if (!org) return null;
+    return org.status === "trial" && trialHasExpired(org.trialExpiresAt)
+      ? { ...org, status: "expired", modules: [] } : org;
   }, [organizations, selectedId]);
 
 

@@ -14,6 +14,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
   if (org.isError) return <div className="p-8 space-y-3"><p>Não foi possível carregar seu acesso.</p><Button onClick={org.retryAccess}>Tentar novamente</Button></div>;
   if (org.isSuperAdmin) return <>{children}</>;
   if (!org.activeOrg) return <Denied title="Aguardando liberação de acesso" />;
+  if (org.activeOrg.status === "expired") return <Denied title="Seu teste de 14 dias terminou" />;
   if (org.activeOrg.status !== "active" && org.activeOrg.status !== "trial") return <Denied title="Acesso da empresa suspenso" />;
   if (pathname.startsWith("/admin")) {
     const { isAdmin } = access;

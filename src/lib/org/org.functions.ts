@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { effectiveModules } from "./access-rules";
+import { trialHasExpired } from "./trial-rules";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type OrgSummary = {
@@ -7,6 +8,7 @@ export type OrgSummary = {
   name: string;
   slug: string | null;
   status: string;
+  trialExpiresAt: string | null;
   role: string;
   /** Códigos de módulo habilitados para a organização E liberados para o usuário. */
   modules: string[];
@@ -20,7 +22,8 @@ export type OrgAccess = {
   organizations: OrgSummary[];
 };
 
-const ORG_COLUMNS = "id, name, slug, status, logo_url, brand_color";
+// Read optional trial column without breaking installations awaiting the trial SQL.
+const ORG_COLUMNS = "*";
 
 /**
  * Acesso multi-tenant: organizações do usuário autenticado e módulos liberados
@@ -89,6 +92,7 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
 
     if (orgModError || permError) throw new Error("Não foi possível carregar permissões da empresa.");
     const organizations: OrgSummary[] = orgRows.map((o) => {
+      const status = o.status === "trial" && trialHasExpired(o.trial_expires_at) ? "expired" : o.status;
       const role = roleByOrg.get(o.id) ?? "user";
       const isOrgAdmin = role === "super_admin" || role === "org_admin";
       const enabled = ((orgModules ?? []) as any[])
@@ -110,9 +114,10 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
         id: o.id,
         name: o.name,
         slug: o.slug ?? null,
-        status: o.status ?? "active",
+        status: status ?? "active",
+        trialExpiresAt: o.trial_expires_at ?? null,
         role,
-        modules: effectiveModules(o.status, enabled, role, allowed),
+        modules: effectiveModules(status, enabled, role, allowed),
         logoUrl: o.logo_url ?? null,
         brandColor: o.brand_color ?? null,
       };
