@@ -29,7 +29,7 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
     if (!data) throw redirect({ to: "/dashboard" });
   },
   component: AdminUsers,
-  errorComponent: ({ error }) => <div className="p-6 text-destructive">{error.message}</div>,
+  errorComponent: ({ error }) => <div className="p-6 text-destructive">{error instanceof Error ? error.message : String(error)}</div>,
   notFoundComponent: () => <div className="p-6">Não encontrado.</div>,
 });
 
