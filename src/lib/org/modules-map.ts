@@ -20,19 +20,18 @@ export const ORG_MODULE_DEPENDS_ON: Partial<Record<OrgModuleCode, OrgModuleCode[
 
 /**
  * Prefixos de rota por módulo (o mais longo vence). Rotas ausentes são a Base,
- * sempre liberada: Hub, Minha semana, Clientes (/gestao/clientes) e Configurações.
+ * sempre liberada: Dashboard, Clientes e Configurações. O Financeiro saiu do CRM:
+ * os códigos "finance" e "fiscal" seguem no tipo porque existem no banco.
  */
 const ROUTE_MAP: { prefix: string; code: OrgModuleCode }[] = [
   { prefix: "/pipeline", code: "crm" },
   { prefix: "/comercial", code: "crm" },
-  { prefix: "/clientes", code: "crm" },
+  { prefix: "/leads", code: "crm" },
   { prefix: "/atendimento", code: "crm" },
   { prefix: "/tarefas", code: "tasks" },
   { prefix: "/agenda", code: "tasks" },
   { prefix: "/projetos", code: "projects" },
-  { prefix: "/relatorios", code: "projects" },
-  { prefix: "/financeiro", code: "finance" },
-  { prefix: "/financeiro/fiscal", code: "fiscal" },
+  { prefix: "/relatorios", code: "crm" },
 ];
 
 export function orgModuleForPath(pathname: string): OrgModuleCode | null {

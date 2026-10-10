@@ -5,8 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getProjectDashboard, upsertMilestone, deleteMilestone,
   upsertMember, deleteMember, upsertRisk, deleteRisk,
-  upsertCost, deleteCost, saveProjectNotes, deleteProject,
-  generateRecurringInvoice,
+  saveProjectNotes, deleteProject,
   type ProjectStatus,
 } from "@/lib/projects/projects.functions";
 
@@ -38,7 +37,6 @@ import {
 } from "recharts";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
-import { ProjectCommercialTable } from "@/components/projects/ProjectCommercialTable";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 import { supabase } from "@/integrations/supabase/client";
@@ -181,7 +179,6 @@ function ProjectCommandCenter() {
         />
         <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
         
-        <FinanceSummary kpis={d.kpis} monthly={d.financeMonthly} />
         <CommercialPanel commercial={d.commercial} projectId={id} />
 
         <UpcomingDeliveries upcoming={d.upcomingDeliveries} />
@@ -197,10 +194,6 @@ function ProjectCommandCenter() {
           <AccordionItem value="risks" className="border rounded-2xl px-4 bg-card">
             <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" /> Riscos & Bloqueios</span></AccordionTrigger>
             <AccordionContent><RisksSection risks={d.risks} projectId={id} /></AccordionContent>
-          </AccordionItem>
-          <AccordionItem value="costs" className="border rounded-2xl px-4 bg-card">
-            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><Wallet className="h-4 w-4" /> Custos</span></AccordionTrigger>
-            <AccordionContent><CostsSection costs={d.costs} projectId={id} /></AccordionContent>
           </AccordionItem>
           <AccordionItem value="files" className="border rounded-2xl px-4 bg-card">
             <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Arquivos</span></AccordionTrigger>
@@ -500,37 +493,6 @@ function RoadmapTimeline({ milestones, projectId }: { milestones: any[]; project
   );
 }
 
-// 7. Finance summary with sparkline
-function FinanceSummary({ kpis, monthly }: { kpis: any; monthly: any[] }) {
-  return (
-    <Card className="rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h3 className="font-semibold flex items-center gap-2"><DollarSign className="h-4 w-4" /> Resumo financeiro</h3>
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KpiTile icon={Briefcase} label="Contrato" value={brl(kpis.contractValue)} />
-        <KpiTile icon={DollarSign} label="Recebido" value={brl(kpis.revenueReceived)} tone="text-emerald-600" />
-        <KpiTile icon={Wallet} label="Custos" value={brl(kpis.totalCost)} />
-        <KpiTile icon={TrendingUp} label="Lucro" value={brl(kpis.profit)} tone={kpis.profit >= 0 ? "text-emerald-600" : "text-rose-600"} />
-        <KpiTile icon={Sparkles} label="Margem" value={`${kpis.margin.toFixed(1)}%`} tone={kpis.margin >= 0 ? "text-emerald-600" : "text-rose-600"} />
-      </div>
-      {monthly && monthly.length > 0 && (
-        <div className="mt-4">
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart data={monthly}>
-              <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-              <YAxis hide />
-              <RTooltip formatter={(v: any) => brl(Number(v))} />
-              <Bar dataKey="revenue" fill="#10b981" radius={[6, 6, 0, 0]} name="Receita" />
-              <Bar dataKey="cost" fill="#f43f5e" radius={[6, 6, 0, 0]} name="Custo" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </Card>
-  );
-}
-
 // 8. Upcoming deliveries
 function UpcomingDeliveries({ upcoming }: { upcoming: { in7: any[]; in15: any[]; in30: any[] } }) {
   const groups = [
@@ -820,73 +782,6 @@ function RisksSection({ risks, projectId }: { risks: any[]; projectId: string })
   );
 }
 
-function CostsSection({ costs, projectId }: { costs: any[]; projectId: string }) {
-  const qc = useQueryClient();
-  const upFn = useServerFn(upsertCost);
-  const delFn = useServerFn(deleteCost);
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ kind: "internal", category: "", description: "", amount: "", incurred_at: new Date().toISOString().slice(0, 10) });
-
-  const save = useMutation({
-    mutationFn: () => upFn({ data: { project_id: projectId, kind: form.kind as "internal" | "external", category: form.category || null, description: form.description || null, amount: Number(form.amount), incurred_at: form.incurred_at } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] }); setOpen(false); setForm({ kind: "internal", category: "", description: "", amount: "", incurred_at: new Date().toISOString().slice(0, 10) }); },
-  });
-  const del = useMutation({
-    mutationFn: (id: string) => delFn({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] }),
-  });
-
-  return (
-    <div className="pb-4">
-      <div className="flex justify-end mb-3"><Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Custo</Button></div>
-      {costs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum custo lançado.</p>
-      ) : (
-        <ul className="divide-y">
-          {costs.map((c: any) => (
-            <li key={c.id} className="flex items-center justify-between py-2 text-sm">
-              <div>
-                <p className="font-medium">{c.description || c.category || "(sem descrição)"}</p>
-                <p className="text-xs text-muted-foreground">{c.kind === "internal" ? "Interno" : "Externo"} · {c.category || "—"} · {fmtDate(c.incurred_at)}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">{brl(Number(c.amount))}</span>
-                <Button size="sm" variant="ghost" onClick={() => del.mutate(c.id)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Novo custo</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Tipo</Label>
-                <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="internal">Interno</SelectItem><SelectItem value="external">Externo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Valor</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-            </div>
-            <div><Label>Categoria</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
-            <div><Label>Descrição</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-            <div><Label>Data</Label><Input type="date" value={form.incurred_at} onChange={(e) => setForm({ ...form, incurred_at: e.target.value })} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={() => save.mutate()} disabled={!form.amount}>Salvar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
 function FilesSection({ files }: { files: any[] }) {
   return (
     <div className="pb-4">
@@ -945,22 +840,12 @@ function NotesSection({ notes, projectId }: { notes: any; projectId: string }) {
 
 // =====================================================
 // Commercial Panel
-function CommercialPanel({ commercial, projectId }: { commercial: any; projectId: string }) {
-  const qc = useQueryClient();
-  const genFn = useServerFn(generateRecurringInvoice);
-  const gen = useMutation({
-    mutationFn: () => genFn({ data: { project_id: projectId } }),
-    onSuccess: () => {
-      toast.success("Cobrança gerada");
-      qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] });
-    },
-    onError: (e: any) => toast.error(e.message ?? "Erro"),
-  });
-
+function CommercialPanel({ commercial }: { commercial: any; projectId: string }) {
   if (!commercial) return null;
   const c = commercial;
   const model = c.model as string;
 
+  // Somente dados do contrato: recebimentos, custos e margem saíram do CRM junto com o Financeiro.
   return (
     <Card className="rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -969,34 +854,17 @@ function CommercialPanel({ commercial, projectId }: { commercial: any; projectId
           <span className="text-xs font-normal text-muted-foreground">· {COMMERCIAL_LABEL[model] ?? model}</span>
           {c.serviceType && <span className="text-xs font-normal text-muted-foreground">· {SERVICE_LABEL[c.serviceType] ?? c.serviceType}</span>}
         </h3>
-        {(model === "mensal_recorrente" || model === "suporte_continuo") && (
-          <Button size="sm" variant="outline" onClick={() => gen.mutate()} disabled={gen.isPending}>
-            <Plus className="h-4 w-4" /> Gerar próxima cobrança
-          </Button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <KpiTile icon={DollarSign} label="Receita" value={brl(c.revenue)} tone="text-emerald-600" />
-        <KpiTile icon={Wallet} label="Custos" value={brl(c.costs)} />
-        <KpiTile icon={TrendingUp} label="Lucro" value={brl(c.profit)} tone={c.profit >= 0 ? "text-emerald-600" : "text-rose-600"} />
-        <KpiTile icon={Sparkles} label="Margem" value={`${c.margin.toFixed(1)}%`} tone={c.margin >= 0 ? "text-emerald-600" : "text-rose-600"} />
       </div>
 
       {model === "projeto_fechado" && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <KpiTile icon={Briefcase} label="Contratado" value={brl(c.contractValue)} />
-          <KpiTile icon={DollarSign} label="Recebido" value={brl(c.revenue)} tone="text-emerald-600" />
-          <KpiTile icon={Clock} label="Pendente" value={brl(c.pending)} tone="text-amber-600" />
+          <KpiTile icon={Briefcase} label="Valor do contrato" value={brl(c.contractValue)} />
         </div>
       )}
 
       {(model === "mensal_recorrente" || model === "suporte_continuo") && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiTile icon={DollarSign} label="Valor mensal" value={brl(c.monthlyValue)} />
-          <KpiTile icon={CalIcon} label="Próxima cobrança" value={fmtDate(c.nextBilling)} />
-          <KpiTile icon={CheckCircle2} label="Meses pagos" value={c.monthsPaid} tone="text-emerald-600" />
-          <KpiTile icon={AlertCircle} label="Meses pendentes" value={c.monthsPending} tone={c.monthsPending > 0 ? "text-amber-600" : ""} />
         </div>
       )}
 
@@ -1004,7 +872,6 @@ function CommercialPanel({ commercial, projectId }: { commercial: any; projectId
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <KpiTile icon={Clock} label="Valor/hora" value={brl(c.hourlyRate)} />
           <KpiTile icon={Hourglass} label="Horas registradas" value={`${c.hoursWorked}h`} />
-          <KpiTile icon={TrendingUp} label="Receita gerada" value={brl(c.billableValue)} tone="text-emerald-600" />
         </div>
       )}
 
@@ -1027,8 +894,6 @@ function CommercialPanel({ commercial, projectId }: { commercial: any; projectId
           )}
         </div>
       )}
-
-      <ProjectCommercialTable projectId={projectId} />
     </Card>
   );
 }

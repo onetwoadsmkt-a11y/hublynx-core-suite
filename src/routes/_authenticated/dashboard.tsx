@@ -8,16 +8,16 @@ import { CheckSquare, FolderKanban, Calendar as CalIcon, Users, Plus } from "luc
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { maskBRL } from "@/lib/security/value-lock";
+import { CommercialOverview } from "@/components/dashboard/CommercialOverview";
+import { useOrgAccess } from "@/hooks/useOrgAccess";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Hublynx Core" }] }),
   component: Dashboard,
-  errorComponent: ({ error }) => <div className="p-6 text-destructive">{error.message}</div>,
+  errorComponent: ({ error }) => <div className="p-6 text-destructive">{(error as Error).message}</div>,
   notFoundComponent: () => <div className="p-6">Não encontrado.</div>,
 });
 
-const fmtBRL = (n: number) => maskBRL(n);
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
@@ -25,10 +25,6 @@ function todayRange() {
   const start = new Date(); start.setHours(0, 0, 0, 0);
   const end = new Date(); end.setHours(23, 59, 59, 999);
   return { start: start.toISOString(), end: end.toISOString(), startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) };
-}
-function plusDays(n: number) {
-  const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
 }
 function greeting() {
   const h = new Date().getHours();
@@ -39,9 +35,8 @@ function greeting() {
 
 function Dashboard() {
   const qc = useQueryClient();
+  const org = useOrgAccess();
   const today = todayRange();
-  const in7 = plusDays(7);
-  const minus7 = plusDays(-7);
 
   const { data: me } = useQuery({
     queryKey: ["me-dash"],
@@ -59,10 +54,9 @@ function Dashboard() {
       const [
         tasksToday, tasksOverdue,
         projectsActive, projectsOverdue,
-        receivables7, eventsToday,
+        eventsToday,
         clientsActive,
         tasksTodayList, projectsList, eventsList,
-        finReceiveWeek, finPayWeek, finHistory,
       ] = await Promise.all([
         supabase.from("tasks").select("id", { count: "exact", head: true })
           .gte("due_date", today.start).lte("due_date", today.end).neq("status", "concluido"),
@@ -71,9 +65,6 @@ function Dashboard() {
         supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "ativo"),
         supabase.from("projects").select("id", { count: "exact", head: true })
           .lt("due_date", today.startDate).not("status", "in", "(concluido,cancelado)"),
-        supabase.from("finances").select("amount")
-          .eq("kind", "receber").eq("status", "aberto")
-          .gte("due_date", today.startDate).lte("due_date", in7),
         supabase.from("events").select("id,title,start_at,event_type")
           .gte("start_at", today.start).lte("start_at", today.end).order("start_at"),
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "ativo"),
@@ -86,33 +77,7 @@ function Dashboard() {
         supabase.from("events")
           .select("id,title,start_at,end_at,event_type")
           .gte("start_at", today.start).order("start_at").limit(4),
-        supabase.from("finances").select("amount,due_date,paid_at")
-          .eq("kind", "receber").gte("due_date", today.startDate).lte("due_date", in7),
-        supabase.from("finances").select("amount,due_date,paid_at")
-          .eq("kind", "pagar").gte("due_date", today.startDate).lte("due_date", in7),
-        supabase.from("finances").select("amount,kind,due_date")
-          .gte("due_date", minus7).lte("due_date", in7),
       ]);
-
-      const recvTotal = (receivables7.data ?? []).reduce((s, r: any) => s + Number(r.amount || 0), 0);
-      const recvWeek = (finReceiveWeek.data ?? []).reduce((s, r: any) => s + Number(r.amount || 0), 0);
-      const payWeek = (finPayWeek.data ?? []).reduce((s, r: any) => s + Number(r.amount || 0), 0);
-
-      // Build 7-day sparkline buckets
-      const buckets = (kind: "receber" | "pagar") => {
-        const days: { i: number; v: number }[] = [];
-        for (let i = -3; i <= 3; i++) {
-          const day = plusDays(i);
-          const v = (finHistory.data ?? [])
-            .filter((r: any) => r.kind === kind && r.due_date === day)
-            .reduce((s, r: any) => s + Number(r.amount || 0), 0);
-          days.push({ i: i + 3, v });
-        }
-        return days;
-      };
-      const seriesR = buckets("receber");
-      const seriesP = buckets("pagar");
-      const seriesS = seriesR.map((r, i) => ({ i: r.i, v: r.v - seriesP[i].v }));
 
       const nextEvent = (eventsToday.data ?? []).find((e: any) => new Date(e.start_at) >= new Date());
 
@@ -122,8 +87,6 @@ function Dashboard() {
           tasksOverdue: tasksOverdue.count ?? 0,
           projectsActive: projectsActive.count ?? 0,
           projectsOverdue: projectsOverdue.count ?? 0,
-          receivables: recvTotal,
-          receivablesCount: receivables7.data?.length ?? 0,
           eventsToday: eventsToday.data?.length ?? 0,
           nextEventTime: nextEvent ? fmtTime(nextEvent.start_at) : null,
           clientsActive: clientsActive.count ?? 0,
@@ -131,7 +94,6 @@ function Dashboard() {
         tasks: tasksTodayList.data ?? [],
         projects: projectsList.data ?? [],
         events: eventsList.data ?? [],
-        finance: { recvWeek, payWeek, balance: recvWeek - payWeek, seriesR, seriesP, seriesS },
       };
     },
   });
@@ -163,9 +125,17 @@ function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{greeting()}, {me ?? "por aí"}</h1>
+        <p className="text-sm text-muted-foreground">Visão geral do comercial e da operação.</p>
+      </div>
 
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+      {!org.isLoading && org.hasModule("crm") && <CommercialOverview />}
+
+      <section className="space-y-6">
+      <h2 className="text-xl font-semibold tracking-tight">Seu dia</h2>
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         {KPI.map((kp) => {
           const Icon = kp.icon;
           return (
@@ -275,6 +245,7 @@ function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      </section>
     </div>
   );
 }

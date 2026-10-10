@@ -5,7 +5,6 @@ import { getClientRelated } from "@/lib/clients/clients.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, FolderKanban } from "lucide-react";
-import { maskBRL } from "@/lib/security/value-lock";
 
 export function ClientProjectsTab({ clientId }: { clientId: string }) {
   const fn = useServerFn(getClientRelated);
@@ -17,40 +16,18 @@ export function ClientProjectsTab({ clientId }: { clientId: string }) {
   if (isLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
 
   const projects = data?.projects ?? [];
-  const finances = data?.finances ?? [];
-  const previsto = finances
-    .filter((f) => f.kind === "receber")
-    .reduce((a, f) => a + (Number(f.amount) || 0), 0);
-  const recebido = finances
-    .filter((f) => f.kind === "receber" && f.status === "quitado")
-    .reduce((a, f) => a + (Number(f.amount) || 0), 0);
-  const emAberto = previsto - recebido;
 
   if (projects.length === 0) {
     return (
       <div className="text-center py-12 border-2 border-dashed rounded-lg">
         <FolderKanban className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-        <p className="text-sm text-muted-foreground">Nenhum projeto vinculado a este lead.</p>
+        <p className="text-sm text-muted-foreground">Nenhum projeto vinculado a este cliente.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-lg border p-3">
-          <p className="text-[11px] uppercase text-muted-foreground">Previsto</p>
-          <p className="text-sm font-semibold tabular-nums">{maskBRL(previsto)}</p>
-        </div>
-        <div className="rounded-lg border p-3">
-          <p className="text-[11px] uppercase text-muted-foreground">Recebido</p>
-          <p className="text-sm font-semibold tabular-nums text-emerald-600">{maskBRL(recebido)}</p>
-        </div>
-        <div className="rounded-lg border p-3">
-          <p className="text-[11px] uppercase text-muted-foreground">Em aberto</p>
-          <p className="text-sm font-semibold tabular-nums text-amber-600">{maskBRL(emAberto)}</p>
-        </div>
-      </div>
       <h4 className="text-sm font-semibold">Projetos ({projects.length})</h4>
 
       <ul className="space-y-2">

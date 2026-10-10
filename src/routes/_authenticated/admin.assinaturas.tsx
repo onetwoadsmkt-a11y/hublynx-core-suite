@@ -49,7 +49,7 @@ export const Route = createFileRoute("/_authenticated/admin/assinaturas")({
     if (!u.user) throw redirect({ to: "/auth" });
     const { data } = await supabase
       .from("user_roles").select("role").eq("user_id", u.user.id).eq("role", "admin").maybeSingle();
-    if (!data) throw redirect({ to: "/hub" });
+    if (!data) throw redirect({ to: "/dashboard" });
   },
   component: SubscriptionsPage,
   errorComponent: ({ error }) => <div className="p-6 text-destructive">{error.message}</div>,

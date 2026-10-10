@@ -1,7 +1,6 @@
 import {
   CheckSquare,
   FolderKanban,
-  DollarSign,
   Users,
   Calendar,
   Sparkles,
@@ -29,6 +28,7 @@ export interface ModuleDef {
   appleIcon: string;
 }
 
+/** "financeiro" continua no tipo (vem do banco), mas saiu do CRM e não é mais instalável aqui. */
 export const MODULES: ModuleDef[] = [
   {
     slug: "tarefas",
@@ -55,24 +55,12 @@ export const MODULES: ModuleDef[] = [
     appleIcon: "/icons/projetos-192.png",
   },
   {
-    slug: "financeiro",
-    name: "Hublynx Financeiro",
-    shortName: "Financeiro",
-    description: "Receber, pagar, DRE, previsões.",
-    route: "/financeiro",
-    scope: "/financeiro/",
-    manifest: "/manifests/financeiro.webmanifest",
-    themeColor: "#0EA5E9",
-    icon: DollarSign,
-    appleIcon: "/icons/financeiro-192.png",
-  },
-  {
     slug: "clientes",
-    name: "Hublynx LEADS",
-    shortName: "LEADS",
+    name: "Hublynx Leads",
+    shortName: "Leads",
     description: "Base de leads e CRM.",
-    route: "/clientes",
-    scope: "/clientes/",
+    route: "/leads",
+    scope: "/leads/",
     manifest: "/manifests/clientes.webmanifest",
     themeColor: "#F59E0B",
     icon: Users,
@@ -95,7 +83,7 @@ export const MODULES: ModuleDef[] = [
     name: "Hublynx Hub",
     shortName: "Hub",
     description: "Painel unificado (pacote completo).",
-    route: "/hub",
+    route: "/dashboard",
     scope: "/",
     manifest: "/manifest.webmanifest",
     themeColor: "#0b1220",

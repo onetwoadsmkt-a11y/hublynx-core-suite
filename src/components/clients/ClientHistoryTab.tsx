@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { maskBRL } from "@/lib/security/value-lock";
 
 export function ClientHistoryTab({ clientId }: { clientId: string }) {
   const fn = useServerFn(getClientRelated);
@@ -19,7 +18,6 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
 
   const projects = data?.projects ?? [];
   const tasks = data?.tasks ?? [];
-  const finances = data?.finances ?? [];
 
   return (
     <div className="space-y-6">
@@ -31,7 +29,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
           <ul className="space-y-1">
             {projects.map((p) => (
               <li key={p.id} className="flex items-center justify-between p-2 rounded hover:bg-muted/50 text-sm">
-                <Link to="/projetos" className="hover:underline truncate">
+                <Link to="/projetos/$id" params={{ id: p.id }} className="hover:underline truncate">
                   {p.name}
                 </Link>
                 <Badge variant="outline">{p.status}</Badge>
@@ -58,26 +56,6 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
                 </Link>
                 <span className="text-xs text-muted-foreground">
                   {t.due_date ? format(new Date(t.due_date), "dd/MM", { locale: ptBR }) : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <Separator />
-      <section>
-        <h4 className="text-sm font-semibold mb-2">Lançamentos financeiros ({finances.length})</h4>
-        {finances.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Nenhum lançamento vinculado.</p>
-        ) : (
-          <ul className="space-y-1">
-            {finances.map((f) => (
-              <li key={f.id} className="flex items-center justify-between p-2 rounded hover:bg-muted/50 text-sm">
-                <Link to="/financeiro" className="hover:underline truncate">
-                  {f.description ?? "Lançamento"}
-                </Link>
-                <span className={f.kind === "receber" ? "text-emerald-600" : "text-rose-600"}>
-                  {maskBRL(f.amount)}
                 </span>
               </li>
             ))}

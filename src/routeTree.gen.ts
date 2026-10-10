@@ -23,6 +23,7 @@ import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authen
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedHubRouteImport } from './routes/_authenticated/hub'
+import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedSemanaRouteImport } from './routes/_authenticated/semana'
@@ -46,13 +47,7 @@ import { Route as AuthenticatedComercialRelatoriosRouteImport } from './routes/_
 import { Route as AuthenticatedConfiguracoesIndexRouteImport } from './routes/_authenticated/configuracoes.index'
 import { Route as AuthenticatedConfiguracoesModelosRouteImport } from './routes/_authenticated/configuracoes.modelos'
 import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
-import { Route as AuthenticatedFinanceiroIndexRouteImport } from './routes/_authenticated/financeiro.index'
-import { Route as AuthenticatedFinanceiroCategoriasRouteImport } from './routes/_authenticated/financeiro.categorias'
-import { Route as AuthenticatedFinanceiroFiscalRouteImport } from './routes/_authenticated/financeiro.fiscal'
-import { Route as AuthenticatedFinanceiroPagarRouteImport } from './routes/_authenticated/financeiro.pagar'
-import { Route as AuthenticatedFinanceiroPrevisaoRouteImport } from './routes/_authenticated/financeiro.previsao'
-import { Route as AuthenticatedFinanceiroReceberRouteImport } from './routes/_authenticated/financeiro.receber'
-import { Route as AuthenticatedFinanceiroServicosRouteImport } from './routes/_authenticated/financeiro.servicos'
+import { Route as AuthenticatedFinanceiroSplatRouteImport } from './routes/_authenticated/financeiro.$'
 import { Route as AuthenticatedGestaoClientesRouteImport } from './routes/_authenticated/gestao.clientes'
 import { Route as AuthenticatedProjetosIndexRouteImport } from './routes/_authenticated/projetos.index'
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
@@ -132,6 +127,11 @@ const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
 const AuthenticatedHubRoute = AuthenticatedHubRouteImport.update({
   id: '/hub',
   path: '/hub',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
@@ -262,46 +262,10 @@ const AuthenticatedConfiguracoesModulosRoute =
     path: '/modulos',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
-const AuthenticatedFinanceiroIndexRoute =
-  AuthenticatedFinanceiroIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedFinanceiroRoute,
-  } as any)
-const AuthenticatedFinanceiroCategoriasRoute =
-  AuthenticatedFinanceiroCategoriasRouteImport.update({
-    id: '/categorias',
-    path: '/categorias',
-    getParentRoute: () => AuthenticatedFinanceiroRoute,
-  } as any)
-const AuthenticatedFinanceiroFiscalRoute =
-  AuthenticatedFinanceiroFiscalRouteImport.update({
-    id: '/fiscal',
-    path: '/fiscal',
-    getParentRoute: () => AuthenticatedFinanceiroRoute,
-  } as any)
-const AuthenticatedFinanceiroPagarRoute =
-  AuthenticatedFinanceiroPagarRouteImport.update({
-    id: '/pagar',
-    path: '/pagar',
-    getParentRoute: () => AuthenticatedFinanceiroRoute,
-  } as any)
-const AuthenticatedFinanceiroPrevisaoRoute =
-  AuthenticatedFinanceiroPrevisaoRouteImport.update({
-    id: '/previsao',
-    path: '/previsao',
-    getParentRoute: () => AuthenticatedFinanceiroRoute,
-  } as any)
-const AuthenticatedFinanceiroReceberRoute =
-  AuthenticatedFinanceiroReceberRouteImport.update({
-    id: '/receber',
-    path: '/receber',
-    getParentRoute: () => AuthenticatedFinanceiroRoute,
-  } as any)
-const AuthenticatedFinanceiroServicosRoute =
-  AuthenticatedFinanceiroServicosRouteImport.update({
-    id: '/servicos',
-    path: '/servicos',
+const AuthenticatedFinanceiroSplatRoute =
+  AuthenticatedFinanceiroSplatRouteImport.update({
+    id: '/$',
+    path: '/$',
     getParentRoute: () => AuthenticatedFinanceiroRoute,
   } as any)
 const AuthenticatedGestaoClientesRoute =
@@ -371,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
   '/hub': typeof AuthenticatedHubRoute
+  '/leads': typeof AuthenticatedLeadsRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/semana': typeof AuthenticatedSemanaRoute
@@ -391,18 +356,12 @@ export interface FileRoutesByFullPath {
   '/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
   '/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
-  '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
-  '/financeiro/fiscal': typeof AuthenticatedFinanceiroFiscalRoute
-  '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
-  '/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
-  '/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
-  '/financeiro/servicos': typeof AuthenticatedFinanceiroServicosRoute
+  '/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
-  '/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
   '/projetos/': typeof AuthenticatedProjetosIndexRoute
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
@@ -420,7 +379,9 @@ export interface FileRoutesByTo {
   '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
   '/hub': typeof AuthenticatedHubRoute
+  '/leads': typeof AuthenticatedLeadsRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/semana': typeof AuthenticatedSemanaRoute
@@ -441,18 +402,12 @@ export interface FileRoutesByTo {
   '/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
   '/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
-  '/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
-  '/financeiro/fiscal': typeof AuthenticatedFinanceiroFiscalRoute
-  '/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
-  '/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
-  '/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
-  '/financeiro/servicos': typeof AuthenticatedFinanceiroServicosRoute
+  '/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesIndexRoute
-  '/financeiro': typeof AuthenticatedFinanceiroIndexRoute
   '/projetos': typeof AuthenticatedProjetosIndexRoute
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
@@ -477,6 +432,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRouteWithChildren
   '/_authenticated/hub': typeof AuthenticatedHubRoute
+  '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/semana': typeof AuthenticatedSemanaRoute
@@ -497,18 +453,12 @@ export interface FileRoutesById {
   '/_authenticated/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
   '/_authenticated/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
-  '/_authenticated/financeiro/categorias': typeof AuthenticatedFinanceiroCategoriasRoute
-  '/_authenticated/financeiro/fiscal': typeof AuthenticatedFinanceiroFiscalRoute
-  '/_authenticated/financeiro/pagar': typeof AuthenticatedFinanceiroPagarRoute
-  '/_authenticated/financeiro/previsao': typeof AuthenticatedFinanceiroPrevisaoRoute
-  '/_authenticated/financeiro/receber': typeof AuthenticatedFinanceiroReceberRoute
-  '/_authenticated/financeiro/servicos': typeof AuthenticatedFinanceiroServicosRoute
+  '/_authenticated/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
   '/_authenticated/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
-  '/_authenticated/financeiro/': typeof AuthenticatedFinanceiroIndexRoute
   '/_authenticated/projetos/': typeof AuthenticatedProjetosIndexRoute
   '/_authenticated/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/_authenticated/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
@@ -533,6 +483,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/financeiro'
     | '/hub'
+    | '/leads'
     | '/pipeline'
     | '/relatorios'
     | '/semana'
@@ -553,18 +504,12 @@ export interface FileRouteTypes {
     | '/comercial/relatorios'
     | '/configuracoes/modelos'
     | '/configuracoes/modulos'
-    | '/financeiro/categorias'
-    | '/financeiro/fiscal'
-    | '/financeiro/pagar'
-    | '/financeiro/previsao'
-    | '/financeiro/receber'
-    | '/financeiro/servicos'
+    | '/financeiro/$'
     | '/gestao/clientes'
     | '/projetos/$id'
     | '/admin/'
     | '/app/'
     | '/configuracoes/'
-    | '/financeiro/'
     | '/projetos/'
     | '/app/tarefas/$id'
     | '/configuracoes/integracoes/logs'
@@ -582,7 +527,9 @@ export interface FileRouteTypes {
     | '/atendimento'
     | '/clientes'
     | '/dashboard'
+    | '/financeiro'
     | '/hub'
+    | '/leads'
     | '/pipeline'
     | '/relatorios'
     | '/semana'
@@ -603,18 +550,12 @@ export interface FileRouteTypes {
     | '/comercial/relatorios'
     | '/configuracoes/modelos'
     | '/configuracoes/modulos'
-    | '/financeiro/categorias'
-    | '/financeiro/fiscal'
-    | '/financeiro/pagar'
-    | '/financeiro/previsao'
-    | '/financeiro/receber'
-    | '/financeiro/servicos'
+    | '/financeiro/$'
     | '/gestao/clientes'
     | '/projetos/$id'
     | '/admin'
     | '/app'
     | '/configuracoes'
-    | '/financeiro'
     | '/projetos'
     | '/app/tarefas/$id'
     | '/configuracoes/integracoes/logs'
@@ -638,6 +579,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/financeiro'
     | '/_authenticated/hub'
+    | '/_authenticated/leads'
     | '/_authenticated/pipeline'
     | '/_authenticated/relatorios'
     | '/_authenticated/semana'
@@ -658,18 +600,12 @@ export interface FileRouteTypes {
     | '/_authenticated/comercial/relatorios'
     | '/_authenticated/configuracoes/modelos'
     | '/_authenticated/configuracoes/modulos'
-    | '/_authenticated/financeiro/categorias'
-    | '/_authenticated/financeiro/fiscal'
-    | '/_authenticated/financeiro/pagar'
-    | '/_authenticated/financeiro/previsao'
-    | '/_authenticated/financeiro/receber'
-    | '/_authenticated/financeiro/servicos'
+    | '/_authenticated/financeiro/$'
     | '/_authenticated/gestao/clientes'
     | '/_authenticated/projetos/$id'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/configuracoes/'
-    | '/_authenticated/financeiro/'
     | '/_authenticated/projetos/'
     | '/_authenticated/app/tarefas/$id'
     | '/_authenticated/configuracoes/integracoes/logs'
@@ -788,6 +724,13 @@ declare module '@tanstack/react-router' {
       path: '/hub'
       fullPath: '/hub'
       preLoaderRoute: typeof AuthenticatedHubRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/leads': {
+      id: '/_authenticated/leads'
+      path: '/leads'
+      fullPath: '/leads'
+      preLoaderRoute: typeof AuthenticatedLeadsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/pipeline': {
@@ -951,53 +894,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesModulosRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
     }
-    '/_authenticated/financeiro/': {
-      id: '/_authenticated/financeiro/'
-      path: '/'
-      fullPath: '/financeiro/'
-      preLoaderRoute: typeof AuthenticatedFinanceiroIndexRouteImport
-      parentRoute: typeof AuthenticatedFinanceiroRoute
-    }
-    '/_authenticated/financeiro/categorias': {
-      id: '/_authenticated/financeiro/categorias'
-      path: '/categorias'
-      fullPath: '/financeiro/categorias'
-      preLoaderRoute: typeof AuthenticatedFinanceiroCategoriasRouteImport
-      parentRoute: typeof AuthenticatedFinanceiroRoute
-    }
-    '/_authenticated/financeiro/fiscal': {
-      id: '/_authenticated/financeiro/fiscal'
-      path: '/fiscal'
-      fullPath: '/financeiro/fiscal'
-      preLoaderRoute: typeof AuthenticatedFinanceiroFiscalRouteImport
-      parentRoute: typeof AuthenticatedFinanceiroRoute
-    }
-    '/_authenticated/financeiro/pagar': {
-      id: '/_authenticated/financeiro/pagar'
-      path: '/pagar'
-      fullPath: '/financeiro/pagar'
-      preLoaderRoute: typeof AuthenticatedFinanceiroPagarRouteImport
-      parentRoute: typeof AuthenticatedFinanceiroRoute
-    }
-    '/_authenticated/financeiro/previsao': {
-      id: '/_authenticated/financeiro/previsao'
-      path: '/previsao'
-      fullPath: '/financeiro/previsao'
-      preLoaderRoute: typeof AuthenticatedFinanceiroPrevisaoRouteImport
-      parentRoute: typeof AuthenticatedFinanceiroRoute
-    }
-    '/_authenticated/financeiro/receber': {
-      id: '/_authenticated/financeiro/receber'
-      path: '/receber'
-      fullPath: '/financeiro/receber'
-      preLoaderRoute: typeof AuthenticatedFinanceiroReceberRouteImport
-      parentRoute: typeof AuthenticatedFinanceiroRoute
-    }
-    '/_authenticated/financeiro/servicos': {
-      id: '/_authenticated/financeiro/servicos'
-      path: '/servicos'
-      fullPath: '/financeiro/servicos'
-      preLoaderRoute: typeof AuthenticatedFinanceiroServicosRouteImport
+    '/_authenticated/financeiro/$': {
+      id: '/_authenticated/financeiro/$'
+      path: '/$'
+      fullPath: '/financeiro/$'
+      preLoaderRoute: typeof AuthenticatedFinanceiroSplatRouteImport
       parentRoute: typeof AuthenticatedFinanceiroRoute
     }
     '/_authenticated/gestao/clientes': {
@@ -1151,25 +1052,12 @@ const AuthenticatedConfiguracoesRouteWithChildren =
   )
 
 interface AuthenticatedFinanceiroRouteChildren {
-  AuthenticatedFinanceiroCategoriasRoute: typeof AuthenticatedFinanceiroCategoriasRoute
-  AuthenticatedFinanceiroFiscalRoute: typeof AuthenticatedFinanceiroFiscalRoute
-  AuthenticatedFinanceiroPagarRoute: typeof AuthenticatedFinanceiroPagarRoute
-  AuthenticatedFinanceiroPrevisaoRoute: typeof AuthenticatedFinanceiroPrevisaoRoute
-  AuthenticatedFinanceiroReceberRoute: typeof AuthenticatedFinanceiroReceberRoute
-  AuthenticatedFinanceiroServicosRoute: typeof AuthenticatedFinanceiroServicosRoute
-  AuthenticatedFinanceiroIndexRoute: typeof AuthenticatedFinanceiroIndexRoute
+  AuthenticatedFinanceiroSplatRoute: typeof AuthenticatedFinanceiroSplatRoute
 }
 
 const AuthenticatedFinanceiroRouteChildren: AuthenticatedFinanceiroRouteChildren =
   {
-    AuthenticatedFinanceiroCategoriasRoute:
-      AuthenticatedFinanceiroCategoriasRoute,
-    AuthenticatedFinanceiroFiscalRoute: AuthenticatedFinanceiroFiscalRoute,
-    AuthenticatedFinanceiroPagarRoute: AuthenticatedFinanceiroPagarRoute,
-    AuthenticatedFinanceiroPrevisaoRoute: AuthenticatedFinanceiroPrevisaoRoute,
-    AuthenticatedFinanceiroReceberRoute: AuthenticatedFinanceiroReceberRoute,
-    AuthenticatedFinanceiroServicosRoute: AuthenticatedFinanceiroServicosRoute,
-    AuthenticatedFinanceiroIndexRoute: AuthenticatedFinanceiroIndexRoute,
+    AuthenticatedFinanceiroSplatRoute: AuthenticatedFinanceiroSplatRoute,
   }
 
 const AuthenticatedFinanceiroRouteWithChildren =
@@ -1187,6 +1075,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRouteWithChildren
   AuthenticatedHubRoute: typeof AuthenticatedHubRoute
+  AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedSemanaRoute: typeof AuthenticatedSemanaRoute
@@ -1208,6 +1097,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRouteWithChildren,
   AuthenticatedHubRoute: AuthenticatedHubRoute,
+  AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedSemanaRoute: AuthenticatedSemanaRoute,

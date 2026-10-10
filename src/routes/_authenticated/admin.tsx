@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
       supabase.from("user_roles").select("role").eq("user_id", u.user.id).eq("role", "admin").maybeSingle(),
       supabase.from("platform_admins" as any).select("user_id").eq("user_id", u.user.id).maybeSingle(),
     ]);
-    if (!role && !platform) throw redirect({ to: "/hub" });
+    if (!role && !platform) throw redirect({ to: "/dashboard" });
   },
   component: AdminLayout,
   errorComponent: ({ error }) => <div className="p-6 text-destructive">{error.message}</div>,

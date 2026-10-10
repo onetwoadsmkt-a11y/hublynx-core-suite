@@ -3,14 +3,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ArrowRight, Building2, FolderKanban, Wallet } from "lucide-react";
+import { ArrowRight, Building2, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -62,9 +61,6 @@ export function WinLeadDialog({
   const [model, setModel] = useState<Model>("projeto_fechado");
   const [value, setValue] = useState("");
   const [startDate, setStartDate] = useState(today());
-  const [genFinance, setGenFinance] = useState(true);
-  const [installments, setInstallments] = useState("1");
-  const [firstDue, setFirstDue] = useState(today());
   const [templateId, setTemplateId] = useState<string>("none");
 
   const templatesFn = useServerFn(listProjectTemplates);
@@ -87,9 +83,6 @@ export function WinLeadDialog({
     setModel("projeto_fechado");
     setValue(lead.value != null ? String(lead.value) : "");
     setStartDate(today());
-    setGenFinance(true);
-    setInstallments("1");
-    setFirstDue(today());
     setTemplateId("none");
   }, [lead]);
 
@@ -99,15 +92,12 @@ export function WinLeadDialog({
   };
   const recurring = model === "mensal_recorrente";
   const total = num(value);
-  const parts = Math.max(1, Number(installments) || 1);
-  const perInstallment = recurring ? total : parts > 1 ? total / parts : total;
 
   const run = useMutation({
     mutationFn: async () => {
       if (!lead) throw new Error("Lead inválido");
       if (!clientName.trim()) throw new Error("Informe o nome do cliente.");
       if (!projectName.trim()) throw new Error("Informe o nome do projeto.");
-      if (genFinance && total <= 0) throw new Error("Informe um valor para gerar o financeiro.");
       return convert({
         data: {
           leadId: lead.id,
@@ -127,15 +117,6 @@ export function WinLeadDialog({
             monthly_value: recurring ? total || null : null,
             start_date: startDate || null,
           },
-          finance: genFinance
-            ? {
-                generate: true,
-                amount: Math.round(perInstallment * 100) / 100,
-                first_due_date: firstDue,
-                installments: recurring ? 12 : parts,
-                recurring,
-              }
-            : undefined,
         },
       });
     },
@@ -156,8 +137,7 @@ export function WinLeadDialog({
         <DialogHeader>
           <DialogTitle>Converter lead em cliente</DialogTitle>
           <DialogDescription className="flex items-center gap-2 text-xs">
-            Lead <ArrowRight className="h-3 w-3" /> Cliente <ArrowRight className="h-3 w-3" /> Projeto{" "}
-            <ArrowRight className="h-3 w-3" /> Financeiro
+            Lead <ArrowRight className="h-3 w-3" /> Cliente <ArrowRight className="h-3 w-3" /> Projeto
           </DialogDescription>
         </DialogHeader>
 
@@ -248,42 +228,6 @@ export function WinLeadDialog({
             </div>
           </section>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Wallet className="h-4 w-4 text-primary" /> Financeiro
-              </h3>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Gerar contas a receber</Label>
-                <Switch checked={genFinance} onCheckedChange={setGenFinance} />
-              </div>
-            </div>
-            {genFinance && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Primeiro vencimento</Label>
-                  <Input type="date" value={firstDue} onChange={(e) => setFirstDue(e.target.value)} />
-                </div>
-                {!recurring && (
-                  <div className="space-y-1.5">
-                    <Label>Parcelas</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={60}
-                      value={installments}
-                      onChange={(e) => setInstallments(e.target.value)}
-                    />
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground sm:col-span-2">
-                  {recurring
-                    ? `Serão criados 12 recebíveis mensais de R$ ${perInstallment.toFixed(2)}.`
-                    : `Serão criados ${parts} recebível(is) de R$ ${perInstallment.toFixed(2)}.`}
-                </p>
-              </div>
-            )}
-          </section>
         </div>
 
         <DialogFooter>

@@ -14,15 +14,24 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Users, Pencil, Eye, FileSpreadsheet } from "lucide-react";
-import { listAllLeads } from "@/lib/pipeline/pipeline.functions";
-import { useWorkspace } from "@/hooks/useWorkspace";
-import { LeadViewDialog } from "@/components/pipeline/LeadViewDialog";
-import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
-import { exportLeadsToExcel } from "@/lib/pipeline/export-leads";
-import type { Lead } from "@/components/pipeline/types";
-import { maskBRL } from "@/lib/security/value-lock";
+import { Plus, Search, Building2, Pencil, Eye } from "lucide-react";
+import { listClients, type ClientRow } from "@/lib/clients/clients.functions";
+import { listProjects } from "@/lib/projects/projects.functions";
+import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
+import { ClientDrawer } from "@/components/clients/ClientDrawer";
 
+const STATUS_TONE: Record<ClientRow["status"], string> = {
+  ativo: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  prospecto: "bg-blue-100 text-blue-700 border-blue-200",
+  inadimplente: "bg-rose-100 text-rose-700 border-rose-200",
+  inativo: "bg-muted text-muted-foreground border-border",
+};
+const STATUS_LABEL: Record<ClientRow["status"], string> = {
+  ativo: "Ativo",
+  prospecto: "Prospecto",
+  inadimplente: "Inadimplente",
+  inativo: "Inativo",
+};
 
 function initials(name: string) {
   return (
@@ -35,105 +44,83 @@ function initials(name: string) {
   );
 }
 
-function currency(v: number | null) {
-  if (v == null) return "—";
-  return maskBRL(v, { maximumFractionDigits: 0 });
-}
-
 const searchSchema = z.object({
   q: z.string().catch("").default(""),
-  pipeline: z.string().catch("todos").default("todos"),
-  stage: z.string().catch("todos").default("todos"),
-  sort: z.enum(["recent", "name", "value"]).catch("recent").default("recent"),
-  view: z.string().uuid().optional(),
+  status: z.enum(["todos", "ativo", "prospecto", "inadimplente", "inativo"]).catch("todos").default("todos"),
+  sort: z.enum(["recent", "name"]).catch("recent").default("recent"),
+  view: z.string().uuid().optional().catch(undefined),
 });
-type LeadsSearch = z.infer<typeof searchSchema>;
+type ClientesSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   head: () => ({
     meta: [
-      { title: "LEADS — Hublynx Core" },
+      { title: "Clientes — Hublynx Core" },
       {
         name: "description",
-        content: "Lista completa dos leads do pipeline de vendas, com etapa, origem e valor.",
+        content: "Cadastro de clientes da gestão, com status, contato e projetos vinculados.",
       },
-      { property: "og:title", content: "LEADS — Hublynx Core" },
+      { property: "og:title", content: "Clientes — Hublynx Core" },
       {
         property: "og:description",
-        content: "Lista completa dos leads do pipeline de vendas, com etapa, origem e valor.",
+        content: "Cadastro de clientes da gestão, com status, contato e projetos vinculados.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  validateSearch: (s: Record<string, unknown>): Partial<LeadsSearch> => searchSchema.parse(s),
-  component: LeadsPage,
+  validateSearch: (s: Record<string, unknown>): Partial<ClientesSearch> => searchSchema.parse(s),
+  component: GestaoClientesPage,
 });
 
-function LeadsPage() {
+function GestaoClientesPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/clientes" });
-  const listFn = useServerFn(listAllLeads);
+  const listFn = useServerFn(listClients);
+  const listProjectsFn = useServerFn(listProjects);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<Lead | null>(null);
+  const [editing, setEditing] = useState<ClientRow | null>(null);
 
-  const { activeOrganizationId, isLoading: wsLoading } = useWorkspace();
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline", "all-leads", activeOrganizationId ?? "none"],
-    queryFn: () => listFn({ data: activeOrganizationId ? { organizationId: activeOrganizationId } : {} }),
-    enabled: !wsLoading,
+    queryKey: ["clients"],
+    queryFn: () => listFn(),
   });
+  const { data: projectsData } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => listProjectsFn(),
+  });
+  const all = data?.clients ?? [];
 
-  const pipelines = data?.pipelines ?? [];
-  const stages = data?.stages ?? [];
-  const all = (data?.leads ?? []) as Lead[];
-
-  const stageById = useMemo(() => new Map(stages.map((s) => [s.id, s])), [stages]);
-  const pipelineById = useMemo(() => new Map(pipelines.map((p) => [p.id, p])), [pipelines]);
-
-  const stageOptions = useMemo(
-    () =>
-      search.pipeline && search.pipeline !== "todos"
-        ? stages.filter((s) => s.pipeline_id === search.pipeline)
-        : stages,
-    [stages, search.pipeline],
-  );
+  const projectCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (projectsData?.projects ?? []).forEach((p: any) => {
+      if (p.client_id) counts[p.client_id] = (counts[p.client_id] ?? 0) + 1;
+    });
+    return counts;
+  }, [projectsData]);
 
   const filtered = useMemo(() => {
     const q = (search.q ?? "").trim().toLowerCase();
-    let rows = all.filter((l) => {
-      const stage = l.stage_id ? stageById.get(l.stage_id) : undefined;
-      if (search.pipeline && search.pipeline !== "todos" && stage?.pipeline_id !== search.pipeline)
-        return false;
-      if (search.stage && search.stage !== "todos" && l.stage_id !== search.stage) return false;
+    let rows = all.filter((c) => {
+      if (search.status && search.status !== "todos" && c.status !== search.status) return false;
       if (q) {
-        const hay = `${l.name} ${l.company ?? ""} ${l.email ?? ""} ${l.phone ?? ""}`.toLowerCase();
+        const hay = `${c.name} ${c.company ?? ""} ${c.email ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
     if (search.sort === "name") rows = [...rows].sort((a, b) => a.name.localeCompare(b.name));
-    if (search.sort === "value")
-      rows = [...rows].sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0));
     return rows;
-  }, [all, search, stageById]);
+  }, [all, search]);
 
   const viewing = useMemo(
-    () => (search.view ? all.find((l) => l.id === search.view) ?? null : null),
+    () => (search.view ? all.find((c) => c.id === search.view) ?? null : null),
     [all, search.view],
   );
 
-  const viewingStage = viewing?.stage_id ? stageById.get(viewing.stage_id) : undefined;
-  const viewingPipeline = viewingStage?.pipeline_id
-    ? pipelineById.get(viewingStage.pipeline_id)?.name
-    : undefined;
-
-
-  function setParam<K extends keyof LeadsSearch>(key: K, value: LeadsSearch[K]) {
-    navigate({ to: "/clientes", search: (prev: Partial<LeadsSearch>) => ({ ...prev, [key]: value }) });
+  function setParam<K extends keyof ClientesSearch>(key: K, value: ClientesSearch[K]) {
+    navigate({ to: "/clientes", search: (prev: Partial<ClientesSearch>) => ({ ...prev, [key]: value }) });
   }
-
-  const total = filtered.reduce((s, l) => s + Number(l.value ?? 0), 0);
 
   return (
     <>
@@ -141,31 +128,15 @@ function LeadsPage() {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Users className="h-6 w-6" /> LEADS
+              <Building2 className="h-6 w-6" /> Clientes
             </h1>
             <p className="text-sm text-muted-foreground">
-              Todos os leads do pipeline de vendas — {filtered.length} lead(s) · {currency(total)}
+              Cadastro e histórico de cada cliente.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              disabled={filtered.length === 0}
-              onClick={() =>
-                exportLeadsToExcel(
-                  filtered,
-                  stageById,
-                  new Map(pipelines.map((p) => [p.id, p.name])),
-                )
-              }
-            >
-              <FileSpreadsheet className="h-4 w-4 mr-1" /> Exportar Excel
-            </Button>
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Novo lead
-            </Button>
-          </div>
-
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Novo cliente
+          </Button>
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
@@ -174,57 +145,42 @@ function LeadsPage() {
             <Input
               value={search.q ?? ""}
               onChange={(e) => setParam("q", e.target.value)}
-              placeholder="Buscar nome, empresa, e-mail, telefone…"
+              placeholder="Buscar nome, empresa, e-mail…"
               className="pl-8"
             />
           </div>
-          <Select
-            value={search.pipeline ?? "todos"}
-            onValueChange={(v) => {
-              setParam("pipeline", v);
-              setParam("stage", "todos");
-            }}
-          >
-            <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
+          <Select value={search.status ?? "todos"} onValueChange={(v) => setParam("status", v as NonNullable<ClientesSearch["status"]>)}>
+            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos os pipelines</SelectItem>
-              {pipelines.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
+              <SelectItem value="todos">Todos os status</SelectItem>
+              <SelectItem value="ativo">Ativo</SelectItem>
+              <SelectItem value="prospecto">Prospecto</SelectItem>
+              <SelectItem value="inadimplente">Inadimplente</SelectItem>
+              <SelectItem value="inativo">Inativo</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={search.stage ?? "todos"} onValueChange={(v) => setParam("stage", v)}>
+          <Select value={search.sort ?? "recent"} onValueChange={(v) => setParam("sort", v as NonNullable<ClientesSearch["sort"]>)}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas as etapas</SelectItem>
-              {stageOptions.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={search.sort ?? "recent"} onValueChange={(v) => setParam("sort", v as LeadsSearch["sort"])}>
-            <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="recent">Mais recentes</SelectItem>
               <SelectItem value="name">Nome (A–Z)</SelectItem>
-              <SelectItem value="value">Maior valor</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando leads…</p>
+          <p className="text-sm text-muted-foreground">Carregando clientes…</p>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 border-2 border-dashed rounded-lg">
-            <Users className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+            <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
               {all.length === 0
-                ? "Nenhum lead no pipeline ainda."
-                : "Nenhum lead corresponde aos filtros."}
+                ? "Nenhum cliente cadastrado ainda."
+                : "Nenhum cliente corresponde aos filtros."}
             </p>
             {all.length === 0 && (
               <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Cadastrar primeiro lead
+                <Plus className="h-4 w-4 mr-1" /> Cadastrar primeiro cliente
               </Button>
             )}
           </div>
@@ -233,105 +189,80 @@ function LeadsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Lead</TableHead>
-                  <TableHead className="hidden md:table-cell">Etapa</TableHead>
-                  <TableHead className="hidden lg:table-cell">Pipeline</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden md:table-cell">Contato</TableHead>
-                  <TableHead className="hidden lg:table-cell">Origem</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Projetos</TableHead>
                   <TableHead className="w-[120px] text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((l) => {
-                  const stage = l.stage_id ? stageById.get(l.stage_id) : undefined;
-                  const pipe = stage?.pipeline_id ? pipelineById.get(stage.pipeline_id) : undefined;
-                  return (
-                    <TableRow
-                      key={l.id}
-                      className="cursor-pointer"
-                      onClick={() => setParam("view", l.id)}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Avatar className="h-9 w-9 shrink-0">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                              {initials(l.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">{l.name}</p>
-                            {l.company && (
-                              <p className="text-xs text-muted-foreground truncate">{l.company}</p>
-                            )}
-                          </div>
+                {filtered.map((c) => (
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer"
+                    onClick={() => setParam("view", c.id)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                            {initials(c.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{c.name}</p>
+                          {c.company && (
+                            <p className="text-xs text-muted-foreground truncate">{c.company}</p>
+                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {stage ? (
-                          <Badge
-                            variant="outline"
-                            style={{ borderColor: stage.color, color: stage.color }}
-                          >
-                            {stage.name}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Sem etapa</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                        {pipe?.name ?? "—"}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                        <div className="truncate max-w-[200px]">{l.email || "—"}</div>
-                        {l.phone && <div className="text-xs">{l.phone}</div>}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                        {l.utm_source ?? l.source ?? "—"}
-                        {l.utm_campaign && (
-                          <div className="truncate max-w-[140px]">{l.utm_campaign}</div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {currency(l.value != null ? Number(l.value) : null)}
-                      </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setEditing(l)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => setParam("view", l.id)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Badge variant="outline" className={STATUS_TONE[c.status]}>
+                        {STATUS_LABEL[c.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                      <div className="truncate max-w-[200px]">{c.email || "—"}</div>
+                      {(c.phone || c.whatsapp) && (
+                        <div className="text-xs">{c.phone || c.whatsapp}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant="outline" className="font-medium">
+                        {projectCounts[c.id] ?? 0}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setParam("view", c.id)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
         )}
       </div>
 
-      <LeadFormDialog open={createOpen} onOpenChange={setCreateOpen} stages={stages} />
-      <LeadFormDialog
+      <ClientFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <ClientFormDialog
         open={!!editing}
         onOpenChange={(o) => !o && setEditing(null)}
-        stages={stages}
-        lead={editing}
+        client={editing}
       />
-      <LeadViewDialog
-        lead={viewing}
-        stage={viewingStage}
-        pipelineName={viewingPipeline}
-        onOpenChange={(o: boolean) => !o && setParam("view", undefined as never)}
-        onEdit={(l: Lead) => {
-          setParam("view", undefined as never);
-          setEditing(l);
-        }}
+      <ClientDrawer
+        client={viewing}
+        open={!!viewing}
+        onOpenChange={(o) => !o && setParam("view", undefined as never)}
       />
-
     </>
   );
 }

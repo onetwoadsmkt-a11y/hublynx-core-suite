@@ -5,16 +5,16 @@ export type Capability =
   | "financeiro"
   | "configuracoes";
 
+/** "financeiro" segue no tipo (pode existir em assinaturas antigas), mas saiu do CRM. */
 export const ALL_CAPABILITIES: Capability[] = [
   "hub",
   "comercial",
   "operacao",
-  "financeiro",
   "configuracoes",
 ];
 
 export const CAPABILITY_LABELS: Record<Capability, string> = {
-  hub: "Hub Central",
+  hub: "Dashboard",
   comercial: "Comercial",
   operacao: "Operação & Gestão",
   financeiro: "Financeiro",
@@ -23,19 +23,17 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
 
 /** Prefixos de rota por capability (o mais longo vence). */
 const ROUTE_MAP: { prefix: string; cap: Capability }[] = [
-  { prefix: "/hub", cap: "hub" },
   { prefix: "/dashboard", cap: "hub" },
   { prefix: "/app", cap: "hub" },
   { prefix: "/comercial", cap: "comercial" },
   { prefix: "/pipeline", cap: "comercial" },
-  { prefix: "/clientes", cap: "comercial" },
+  { prefix: "/leads", cap: "comercial" },
   { prefix: "/atendimento", cap: "comercial" },
   { prefix: "/tarefas", cap: "operacao" },
   { prefix: "/projetos", cap: "operacao" },
   { prefix: "/agenda", cap: "operacao" },
-  { prefix: "/gestao", cap: "operacao" },
-  { prefix: "/relatorios", cap: "operacao" },
-  { prefix: "/financeiro", cap: "financeiro" },
+  { prefix: "/clientes", cap: "operacao" },
+  { prefix: "/relatorios", cap: "comercial" },
   { prefix: "/configuracoes", cap: "configuracoes" },
 ];
 

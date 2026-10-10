@@ -102,7 +102,7 @@ export const getClientRelated = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ clientId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const [projects, tasks, finances] = await Promise.all([
+    const [projects, tasks] = await Promise.all([
       context.supabase
         .from("projects")
         .select("id, name, status, created_at")
@@ -114,16 +114,9 @@ export const getClientRelated = createServerFn({ method: "GET" })
         .eq("client_id", data.clientId)
         .order("created_at", { ascending: false })
         .limit(50),
-      context.supabase
-        .from("finances")
-        .select("id, description, amount, kind, status, due_date")
-        .eq("client_id", data.clientId)
-        .order("due_date", { ascending: false })
-        .limit(50),
     ]);
     return {
       projects: projects.data ?? [],
       tasks: tasks.data ?? [],
-      finances: finances.data ?? [],
     };
   });

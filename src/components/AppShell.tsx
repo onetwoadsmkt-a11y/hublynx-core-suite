@@ -3,8 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users,
   Calendar, BarChart3, Settings, Search, LogOut, ChevronDown,
-  PanelLeftClose, PanelLeftOpen, Shield, Sparkles, Lock, Filter, MessageSquare, Building2, Wallet,
-  CalendarCheck,
+  PanelLeftClose, PanelLeftOpen, Shield, Lock, Filter, MessageSquare, Building2,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -26,7 +25,8 @@ import { Menu } from "lucide-react";
 import { listUserModules } from "@/lib/modules/modules.functions";
 import { moduleForPath, type ModuleSlug } from "@/lib/modules/registry";
 import { InstallModuleButton } from "@/components/modules/InstallModuleButton";
-import { useValuesUnlocked, lockValues } from "@/lib/security/value-lock";
+import { useValuesUnlocked } from "@/lib/security/value-lock";
+import { ValuesLockToggle } from "@/components/security/ValuesLockToggle";
 import { useAccess } from "@/hooks/useAccess";
 import { capabilityForPath } from "@/lib/subscriptions/capabilities";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
@@ -50,38 +50,22 @@ type NavItem = {
 
 type NavGroup = { section?: string; items: NavItem[] };
 
-// Financeiro segue existindo (rotas /financeiro/*), apenas oculto do menu.
+// CRM enxuto: a jornada é lead → cliente → projeto. O Financeiro saiu do app.
 const NAV_GROUPS: NavGroup[] = [
   {
+    section: "CRM",
     items: [
-      { to: "/hub", label: "Hub Central", icon: Sparkles, moduleSlug: "hub" },
-      { to: "/semana", label: "Minha semana", icon: CalendarCheck },
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    section: "Comercial",
-    items: [
-      { to: "/comercial/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/pipeline", label: "Pipeline de Vendas", icon: Filter },
-      { to: "/clientes", label: "LEADS", icon: Users, moduleSlug: "clientes" },
-      { to: "/atendimento", label: "Atendimento", icon: MessageSquare },
-      { to: "/comercial/relatorios", label: "Relatórios", icon: BarChart3 },
-    ],
-  },
-  {
-    section: "Operação & Gestão",
-    items: [
+      { to: "/pipeline", label: "Pipeline", icon: Filter },
+      { to: "/leads", label: "Leads", icon: Users, moduleSlug: "clientes" },
       { to: "/tarefas", label: "Tarefas", icon: CheckSquare, moduleSlug: "tarefas" },
-      { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" },
-      { to: "/agenda", label: "Agenda", icon: Calendar, moduleSlug: "agenda" },
-      { to: "/gestao/clientes", label: "Clientes", icon: Building2 },
-      { to: "/financeiro", label: "Financeiro", icon: Wallet },
+      { to: "/atendimento", label: "Atendimento", icon: MessageSquare },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
+      { to: "/clientes", label: "Clientes", icon: Building2 },
+      { to: "/agenda", label: "Calendário", icon: Calendar, moduleSlug: "agenda" },
+      { to: "/projetos", label: "Projetos", icon: FolderKanban, moduleSlug: "projetos" },
     ],
   },
-
-
   {
     section: "Administração",
     items: [{ to: "/configuracoes", label: "Configurações", icon: Settings }],
@@ -91,7 +75,6 @@ const NAV_GROUPS: NavGroup[] = [
 function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isAdmin } = useIsAdmin();
-  const valuesUnlocked = useValuesUnlocked();
   const listMods = useServerFn(listUserModules);
   const { data: modules } = useQuery({
     queryKey: ["user-modules"],
@@ -159,7 +142,6 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
               const slug = item.moduleSlug;
               const row = slug ? modules?.find((r) => r.module_slug === slug) : undefined;
               const disabled = slug && row ? !row.enabled : false;
-              const locked = item.to === "/financeiro" && !valuesUnlocked;
               const link = (
                 <Link
                   key={item.to}
@@ -177,7 +159,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                   {!collapsed && (
                     <span className="flex-1 flex items-center justify-between">
                       {item.label}
-                      {(disabled || locked) && <Lock className="h-3 w-3 opacity-60" />}
+                      {disabled && <Lock className="h-3 w-3 opacity-60" />}
                     </span>
                   )}
                 </Link>
@@ -332,17 +314,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2 ml-auto">
             <WorkspaceSwitcher />
             <HeaderInstallModule />
-            {valuesUnlocked && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => lockValues()}
-                aria-label="Bloquear valores"
-                title="Bloquear valores"
-              >
-                <Lock className="h-4 w-4" />
-              </Button>
-            )}
+            <ValuesLockToggle />
             <ThemeToggle />
             <NotificationsBell />
             <UserMenu />
