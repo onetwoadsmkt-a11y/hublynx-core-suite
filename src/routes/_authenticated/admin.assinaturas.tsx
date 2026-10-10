@@ -1,3 +1,6 @@
+import { listOrganizations } from "@/lib/platform/platform.functions";
+import { ORG_MODULE_LABELS } from "@/lib/org/modules-map";
+import type { NewSubscriberInput } from "@/lib/org/access-rules";
 import { useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -106,7 +109,7 @@ function SubscriptionsPage() {
             Controle os assinantes, planos, status e as áreas liberadas de cada conta.
           </p>
         </div>
-        <NewSubscriberDialog onCreate={(v) => createMut.mutate(v)} pending={createMut.isPending} />
+        <NewSubscriberDialog onCreate={(v) => createMut.mutateAsync(v)} pending={createMut.isPending} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -138,7 +141,7 @@ function SubscriptionsPage() {
               <TableBody>
                 {(data ?? []).map((r) => {
                   const s = r.subscription;
-                  const caps = (s?.capabilities ?? ALL_CAPABILITIES) as Capability[];
+                  const caps = (s?.capabilities ?? []) as Capability[];
                   return (
                     <TableRow key={r.userId}>
                       <TableCell className="font-medium">
@@ -236,10 +239,7 @@ function CapabilityPicker({
 function NewSubscriberDialog({
   onCreate, pending,
 }: {
-  onCreate: (v: {
-    email: string; password: string; accountName: string; plan: string;
-    priceMonthly: number; capabilities: string[];
-  }) => void;
+  onCreate: (v: NewSubscriberInput) => Promise<unknown>;
   pending: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -248,7 +248,15 @@ function NewSubscriberDialog({
   const [accountName, setAccountName] = useState("");
   const [plan, setPlan] = useState("comercial");
   const [price, setPrice] = useState("0");
-  const [caps, setCaps] = useState<string[]>(["hub", "comercial", "configuracoes"]);
+  const [caps, setCaps] = useState<NewSubscriberInput["capabilities"]>(["hub", "comercial", "configuracoes"]);
+  const [organizationId, setOrganizationId] = useState("new");
+  const [organizationName, setOrganizationName] = useState("");
+  const [role, setRole] = useState<NewSubscriberInput["role"]>("user");
+  const [moduleCodes, setModuleCodes] = useState<NewSubscriberInput["moduleCodes"]>([]);
+  const organizationsFn = useServerFn(listOrganizations);
+  const { data: companyData, isError: companyError } = useQuery({ queryKey: ["new-account-organizations"], queryFn: () => organizationsFn(), enabled: open, staleTime: 60_000 });
+  const selected = companyData?.organizations.find((o) => o.id === organizationId);
+  const available = (["crm", "tasks", "projects"] as const).filter((code) => organizationId === "new" || selected?.modules.includes(code));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -257,6 +265,19 @@ function NewSubscriberDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Novo assinante</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <Label>Empresa</Label>
+          <Select value={organizationId} onValueChange={(v) => { setOrganizationId(v); setModuleCodes([]); }}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="new">Criar nova empresa</SelectItem>{companyData?.organizations.filter((o) => ["active", "trial"].includes(o.status)).map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent>
+          </Select>
+          {companyError && <p className="text-sm text-destructive">Não foi possível carregar empresas. Tente novamente.</p>}
+          {organizationId === "new" && <Input aria-label="Nome da nova empresa" placeholder="Nome da nova empresa" value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} />}
+          <Label>Papel na empresa</Label>
+          <Select value={role} onValueChange={(v) => { if (v === "user" || v === "org_admin" || v === "guest") setRole(v); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="user">Usuário</SelectItem><SelectItem value="org_admin">Administrador da empresa</SelectItem><SelectItem value="guest">Convidado</SelectItem></SelectContent></Select>
+          <Label>{organizationId === "new" ? "Módulos da nova empresa" : "Módulos permitidos ao usuário"}</Label>
+          <div className="flex flex-wrap gap-3">{available.map((code) => <label key={code} className="flex items-center gap-2 text-sm"><Checkbox checked={moduleCodes.includes(code)} onCheckedChange={(checked) => setModuleCodes(checked === true ? [...moduleCodes, code] : moduleCodes.filter((c) => c !== code))} />{ORG_MODULE_LABELS[code]}</label>)}</div>
+        </div>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>Nome da conta</Label>
@@ -269,7 +290,7 @@ function NewSubscriberDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Senha</Label>
-              <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -284,18 +305,19 @@ function NewSubscriberDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Áreas liberadas</Label>
-            <CapabilityPicker value={caps} onChange={setCaps} />
+            <CapabilityPicker value={caps} onChange={(values) => setCaps(values as NewSubscriberInput["capabilities"])} />
           </div>
         </div>
         <DialogFooter>
           <Button
-            disabled={pending || !email || !password}
-            onClick={() => {
-              onCreate({
-                email, password, accountName: accountName || email,
-                plan, priceMonthly: Number(price) || 0, capabilities: caps,
-              });
-              setOpen(false);
+            disabled={pending || !email || password.length < 6 || !accountName || (organizationId === "new" && !organizationName) || companyError}
+            onClick={async () => {
+              try {
+                await onCreate({ email, password, accountName, plan, priceMonthly: Number(price) || 0, capabilities: caps,
+                  ...(organizationId === "new" ? { organizationName } : { organizationId }), role, moduleCodes,
+                });
+                setPassword(""); setEmail(""); setOpen(false);
+              } catch { /* Keep the form available on failure; mutation reports the error. */ }
             }}
           >
             Criar conta
@@ -334,7 +356,7 @@ function EditDialog({
   const [status, setStatus] = useState(s?.status ?? "ativo");
   const [price, setPrice] = useState(String(s?.price_monthly ?? 0));
   const [end, setEnd] = useState(s?.current_period_end ?? "");
-  const [caps, setCaps] = useState<string[]>(s?.capabilities ?? [...ALL_CAPABILITIES]);
+  const [caps, setCaps] = useState<string[]>(s?.capabilities ?? []);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

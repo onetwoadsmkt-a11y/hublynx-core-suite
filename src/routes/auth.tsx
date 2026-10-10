@@ -10,7 +10,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Entrar — Hublynx Core" }] }),
+  head: () => ({ meta: [{ title: "Entrar — Core Suite" }, { name: "description", content: "Acesse sua conta Core Suite ou solicite seu cadastro." }, { property: "og:title", content: "Entrar — Core Suite" }, { property: "og:description", content: "Acesso seguro à sua conta Core Suite." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: AuthPage,
 });
 
@@ -72,17 +72,17 @@ function AuthPage() {
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: { full_name: fullName },
       },
     });
     setLoading(false);
     if (error) return toast.error(error.message);
-    toast.success("Conta criada! Você já pode entrar.");
+    toast.success(data.session ? "Conta criada. Aguarde a liberação de acesso à empresa." : "Confira seu e-mail para confirmar o cadastro. O acesso à empresa depende de liberação.");
     setTab("login");
   }
 
@@ -146,7 +146,7 @@ function AuthPage() {
               <h2 className="font-display text-3xl font-semibold text-foreground">
                 Bem-vindo de volta!
               </h2>
-              <p className="mt-1 text-sm text-[#00D084]">Acesse o seu Hublynx Core.</p>
+              <p className="mt-1 text-sm text-[#00D084]">Acesse o seu Core Suite.</p>
 
               <Button
                 type="button"
