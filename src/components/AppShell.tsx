@@ -159,7 +159,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   {!collapsed && (
-                    <span className="flex-1 flex items-center justify-between">
+                    <span className={`flex-1 flex items-center justify-between ${item.to === "/dashboard" ? "text-nav-label-fixed" : ""}`}>
                       {item.label}
                       {disabled && <Lock className="h-3 w-3 opacity-60" />}
                     </span>
