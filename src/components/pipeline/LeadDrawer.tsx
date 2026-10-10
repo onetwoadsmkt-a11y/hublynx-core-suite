@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Activity, ArrowRightLeft, Building2, CalendarClock, CalendarDays, CheckCircle2, Download, FileUp,
-  Mail, MapPin, MessageSquare, Paperclip, Pencil, Phone, Plus, Tag, Trash2, X,
+  AlertTriangle, Mail, MapPin, MessageSquare, Paperclip, Pencil, Phone, Plus, Tag, Trash2, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,8 @@ import { setLeadTags } from "@/lib/pipeline/tags.functions";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { currency, leadScorePresentation } from "./LeadCard";
+import { currency, LeadQualificationBadge } from "./LeadCard";
+import { buildLeadAnswers, leadOrigins, useLeadAnswerLabels } from "./lead-answers";
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 
@@ -34,16 +35,6 @@ function WhatsAppIcon({ className }: { className?: string }) {
       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
     </svg>
   );
-}
-
-function TemperatureBadge({ value }: { value: Lead["temperature"] }) {
-  const config = {
-    quente: { label: "Quente", className: "bg-red-500/90 text-white hover:bg-red-500/90" },
-    morno: { label: "Morno", className: "bg-amber-500/90 text-white hover:bg-amber-500/90" },
-    frio: { label: "Frio", className: "bg-sky-500/90 text-white hover:bg-sky-500/90" },
-  };
-  const cfg = config[(value as keyof typeof config) ?? "morno"];
-  return <Badge className={cfg.className}>{cfg.label}</Badge>;
 }
 
 const EVENT_ICON: Record<string, typeof Activity> = {
@@ -83,43 +74,6 @@ function findNoteFromEvent(ev: LeadEvent, notes: LeadNote[]): LeadNote | undefin
   if (noteId) return notes.find((n) => n.id === noteId);
   const body = ev.description ?? "";
   return notes.find((n) => n.body.startsWith(body) || body.startsWith(n.body));
-}
-
-function formResponses(metadata: unknown): { label: string; value: string }[] {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return [];
-  const responses = (metadata as Record<string, unknown>)["respostas"];
-  if (!responses) return [];
-
-  const display = (value: unknown) => {
-    if (value === null || value === undefined) return "";
-    if (typeof value === "string") return value;
-    if (typeof value === "number" || typeof value === "boolean") return String(value);
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
-    }
-  };
-
-  if (Array.isArray(responses)) {
-    return responses.map((item, index) => {
-      if (item && typeof item === "object" && !Array.isArray(item)) {
-        const row = item as Record<string, unknown>;
-        const label = display(row["pergunta"] ?? row["label"] ?? row["campo"] ?? `Resposta ${index + 1}`);
-        const value = display(row["resposta"] ?? row["value"] ?? row["valor"] ?? item);
-        return { label, value };
-      }
-      return { label: `Resposta ${index + 1}`, value: display(item) };
-    }).filter((item) => item.value !== "");
-  }
-
-  if (typeof responses === "object") {
-    return Object.entries(responses as Record<string, unknown>)
-      .map(([label, value]) => ({ label, value: display(value) }))
-      .filter((item) => item.value !== "");
-  }
-
-  return [{ label: "Resposta", value: display(responses) }].filter((item) => item.value !== "");
 }
 
 export function LeadDrawer({
@@ -307,8 +261,18 @@ export function LeadDrawer({
   const events = data?.events ?? [];
   const visibleEvents = showAllEvents ? events : events.slice(0, 3);
   const leadScore = lead?.lead_score != null ? Number(lead.lead_score) : null;
-  const scorePresentation = leadScorePresentation(lead?.lead_classification);
-  const responses = formResponses(lead?.metadata);
+  const { data: answerLabels } = useLeadAnswerLabels(((lead as any)?.organization_id as string | undefined) ?? null);
+  const responses = buildLeadAnswers(lead?.metadata, answerLabels ?? []);
+  const origins = leadOrigins(lead?.metadata, lead?.source);
+  const missing = lead
+    ? ([
+        ["Telefone", lead.phone],
+        ["E-mail", lead.email],
+        ["Cidade", lead.city],
+        ["Estado", lead.state],
+        ["Qualificação", lead.lead_classification],
+      ] as const).filter(([, v]) => !v || !String(v).trim()).map(([k]) => k)
+    : [];
 
   return (
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
@@ -322,7 +286,11 @@ export function LeadDrawer({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
-                  <TemperatureBadge value={lead.temperature} />
+                  <LeadQualificationBadge
+                    classification={lead.lead_classification}
+                    score={leadScore}
+                    className="h-6 px-2.5 text-[11px] shadow-sm ring-1 ring-white/40 bg-white"
+                  />
                   {(
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -432,56 +400,116 @@ export function LeadDrawer({
               {/* Coluna principal: dados + jornada + anotações */}
               <div className="flex min-h-0 flex-col">
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
-                  <div className="lead-gradient-card grid gap-2 rounded-xl border p-3 text-sm sm:grid-cols-2">
-                    {lead.company && <p className="flex items-center gap-2"><Building2 className="h-4 w-4 text-white/80" />{lead.company}</p>}
-                    {lead.phone && (
-                      <p className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-white/80" />
-                        <a href={`tel:${lead.phone}`} className="underline underline-offset-2 hover:text-white/90">{lead.phone}</a>
-                        <a
-                          href={`https://wa.me/${lead.phone.replace(/\D/g, "")}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Abrir WhatsApp"
-                          className="ml-1 inline-flex items-center rounded-full bg-[#25D366] p-1 text-white hover:opacity-90"
-                        >
-                          <WhatsAppIcon className="h-3 w-3" />
-                        </a>
-                      </p>
-                    )}
-                    {lead.email && (
-                      <p className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-white/80" />
-                        <a href={`mailto:${lead.email}`} className="underline underline-offset-2 hover:text-white/90">{lead.email}</a>
-                      </p>
-                    )}
-                    {(lead.city || lead.state) && (
-                      <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-white/80" />{[lead.city, lead.state].filter(Boolean).join(" — ")}</p>
-                    )}
-                    {lead.source && <p className="flex items-center gap-2"><Tag className="h-4 w-4 text-white/80" />{lead.source}</p>}
-                    {leadScore != null && (
-                      <div className="flex items-center gap-2 sm:col-span-2">
-                        <span className="text-xs text-white/70">Pontuação e classificação</span>
-                        <Badge variant="outline" className={scorePresentation.className}>
-                          {Number.isInteger(leadScore) ? leadScore : leadScore.toLocaleString("pt-BR")} · {scorePresentation.label}
-                        </Badge>
+                  {missing.length > 0 && (
+                    <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        <strong>Cadastro incompleto:</strong> falta {missing.join(", ")}.
+                        {" "}Complete em <button type="button" className="font-semibold underline" onClick={() => onEdit(lead)}>Editar lead</button>.
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="lead-gradient-card rounded-xl border p-3 text-sm">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/70">Dados de cadastro</p>
+                    <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                      <div className="flex items-start gap-2">
+                        <dt className="sr-only">Nome</dt>
+                        <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-white/80" />
+                        <dd className="min-w-0 break-words">
+                          <span className="block text-[11px] text-white/60">Nome / empresa</span>
+                          {lead.name}{lead.company ? ` · ${lead.company}` : ""}
+                        </dd>
                       </div>
-                    )}
+                      <div className="flex items-start gap-2">
+                        <Phone className="mt-0.5 h-4 w-4 shrink-0 text-white/80" />
+                        <dd className="min-w-0">
+                          <span className="block text-[11px] text-white/60">Telefone / WhatsApp</span>
+                          {lead.phone ? (
+                            <span className="inline-flex items-center gap-1">
+                              <a href={`tel:${lead.phone}`} className="underline underline-offset-2 hover:text-white/90">{lead.phone}</a>
+                              <a
+                                href={`https://wa.me/${lead.phone.replace(/\D/g, "").replace(/^(?!55)(\d{10,11})$/, "55$1")}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Abrir WhatsApp"
+                                className="ml-1 inline-flex items-center rounded-full bg-[#25D366] p-1 text-white hover:opacity-90"
+                              >
+                                <WhatsAppIcon className="h-3 w-3" />
+                              </a>
+                            </span>
+                          ) : (
+                            <span className="italic text-white/50">Não informado</span>
+                          )}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-white/80" />
+                        <dd className="min-w-0 break-all">
+                          <span className="block text-[11px] text-white/60">E-mail</span>
+                          {lead.email ? (
+                            <a href={`mailto:${lead.email}`} className="underline underline-offset-2 hover:text-white/90">{lead.email}</a>
+                          ) : (
+                            <span className="italic text-white/50">Não informado</span>
+                          )}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-white/80" />
+                        <dd className="min-w-0">
+                          <span className="block text-[11px] text-white/60">Cidade / Estado</span>
+                          {lead.city || lead.state ? (
+                            [lead.city, lead.state].filter(Boolean).join(" — ")
+                          ) : (
+                            <span className="italic text-white/50">Não informado</span>
+                          )}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Tag className="mt-0.5 h-4 w-4 shrink-0 text-white/80" />
+                        <dd className="min-w-0 break-words">
+                          <span className="block text-[11px] text-white/60">Origem</span>
+                          {origins.length ? origins.join(" · ") : <span className="italic text-white/50">Não informado</span>}
+                        </dd>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Activity className="mt-0.5 h-4 w-4 shrink-0 text-white/80" />
+                        <dd className="min-w-0">
+                          <span className="block text-[11px] text-white/60">Qualificação do formulário</span>
+                          <LeadQualificationBadge
+                            classification={lead.lead_classification}
+                            score={leadScore}
+                            className="bg-white"
+                          />
+                        </dd>
+                      </div>
+                      {(lead.utm_campaign || lead.utm_content) && (
+                        <div className="flex items-start gap-2 sm:col-span-2">
+                          <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-white/80" />
+                          <dd className="min-w-0 break-words">
+                            <span className="block text-[11px] text-white/60">Campanha / anúncio</span>
+                            {[lead.utm_campaign, lead.utm_term, lead.utm_content].filter(Boolean).join(" › ")}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
                   </div>
 
-                  {responses.length > 0 && (
-                    <details className="mt-4 rounded-lg border bg-card px-4 py-3">
-                      <summary className="cursor-pointer text-sm font-semibold">Respostas do formulário</summary>
-                      <dl className="mt-3 divide-y">
+                  <div className="mt-4 rounded-lg border bg-card px-4 py-3">
+                    <p className="text-sm font-semibold">Respostas do formulário</p>
+                    {responses.length > 0 ? (
+                      <dl className="mt-2 divide-y">
                         {responses.map((response, index) => (
-                          <div key={`${response.label}-${index}`} className="grid gap-1 py-2 text-sm sm:grid-cols-[minmax(0,180px)_1fr]">
+                          <div key={`${response.key}-${index}`} className="grid gap-1 py-2 text-sm sm:grid-cols-[minmax(0,220px)_1fr]">
                             <dt className="font-medium text-muted-foreground">{response.label}</dt>
                             <dd className="whitespace-pre-wrap break-words">{response.value}</dd>
                           </div>
                         ))}
                       </dl>
-                    </details>
-                  )}
+                    ) : (
+                      <p className="mt-1 text-xs text-muted-foreground">Este lead não trouxe respostas de formulário.</p>
+                    )}
+                  </div>
 
                   <p className="mb-3 mt-5 flex items-center gap-2 text-sm font-semibold">
                     <Activity className="h-4 w-4 text-primary" /> Histórico da jornada

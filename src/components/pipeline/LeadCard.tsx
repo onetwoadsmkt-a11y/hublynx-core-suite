@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Mail, MapPin, Phone, Tag, TagIcon, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
+import { Ban, Flame, Snowflake, Sun, Building2, Mail, MapPin, Phone, Tag, TagIcon, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -56,24 +56,74 @@ export function leadScoreTone(classification: string | null | undefined): ScoreT
   return SCORE_ALIASES[classification?.trim().toLowerCase() ?? ""] ?? "neutral";
 }
 
+const DISQUALIFIED = new Set(["desqualificado", "desqualificada", "disqualified", "unqualified", "descartado"]);
+
+/** Rótulo e cor da qualificação definida pelo formulário (Lead Pro ou formulário Core). */
 export function leadScorePresentation(classification: string | null | undefined) {
-  const normalized = classification?.trim().toLowerCase() ?? "";
+  const raw = classification?.trim() ?? "";
+  const normalized = raw.toLowerCase();
+  if (!raw) {
+    return {
+      tone: "none" as const,
+      label: "Sem qualificação",
+      className: "border-dashed border-border bg-muted/60 text-muted-foreground",
+    };
+  }
+  if (DISQUALIFIED.has(normalized)) {
+    return {
+      tone: "disqualified" as const,
+      label: "Desqualificado",
+      className: "border-zinc-400/40 bg-zinc-500/15 text-zinc-600 dark:text-zinc-300",
+    };
+  }
   const tone: ScoreTone = SCORE_ALIASES[normalized] ?? "neutral";
   const labels: Record<ScoreTone, string> = {
     hot: "Quente",
     warm: "Morno",
     cold: "Frio",
     nutrition: "Nutrição",
-    neutral: classification?.trim() || "Sem classificação",
+    neutral: raw,
   };
   const classes: Record<ScoreTone, string> = {
-    hot: "border-score-hot/25 bg-score-hot/15 text-score-hot",
-    warm: "border-score-warm/25 bg-score-warm/15 text-score-warm",
-    cold: "border-score-cold/25 bg-score-cold/15 text-score-cold",
-    nutrition: "border-score-nutrition/25 bg-score-nutrition/15 text-score-nutrition",
+    hot: "border-score-hot/30 bg-score-hot/15 text-score-hot",
+    warm: "border-score-warm/30 bg-score-warm/15 text-score-warm",
+    cold: "border-score-cold/30 bg-score-cold/15 text-score-cold",
+    nutrition: "border-score-nutrition/30 bg-score-nutrition/15 text-score-nutrition",
     neutral: "border-border bg-muted text-muted-foreground",
   };
-  return { label: labels[tone], className: classes[tone] };
+  return { tone, label: labels[tone], className: classes[tone] };
+}
+
+const SCORE_ICON: Record<string, typeof Flame> = { hot: Flame, warm: Sun, cold: Snowflake, disqualified: Ban };
+
+/** Selo de qualificação exibido ao lado do nome. */
+export function LeadQualificationBadge({
+  classification,
+  score,
+  className,
+}: {
+  classification: string | null | undefined;
+  score?: number | null;
+  className?: string;
+}) {
+  const p = leadScorePresentation(classification);
+  const Icon = SCORE_ICON[p.tone];
+  return (
+    <span
+      title={score != null ? `${p.label} · ${score} pontos` : p.label}
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-[10px] font-bold uppercase tracking-wide",
+        p.className,
+        className,
+      )}
+    >
+      {Icon && <Icon aria-hidden className="h-3 w-3" />}
+      {p.label}
+      {score != null && (
+        <span className="font-semibold opacity-80">· {Number.isInteger(score) ? score : score.toLocaleString("pt-BR")}</span>
+      )}
+    </span>
+  );
 }
 
 export function LeadCard({
@@ -148,7 +198,6 @@ export function LeadCard({
   const nextActionAt = (lead as any).next_action_at as string | null;
   const nextActionOverdue = !!nextActionAt && new Date(nextActionAt).getTime() < Date.now();
   const leadScore = lead.lead_score != null ? Number(lead.lead_score) : null;
-  const scorePresentation = leadScorePresentation(lead.lead_classification);
 
   return (
     <div
@@ -163,9 +212,10 @@ export function LeadCard({
       onPointerDown={() => locked && onLockedDrag?.()}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="line-clamp-2 flex min-w-0 items-center gap-1.5 break-words text-sm font-semibold leading-tight">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm font-semibold leading-tight">
           {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-          {lead.name}
+          <span className="line-clamp-2 min-w-0 break-words">{lead.name}</span>
+          <LeadQualificationBadge classification={lead.lead_classification} score={leadScore} />
           {tags.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -205,7 +255,7 @@ export function LeadCard({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </p>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button
@@ -292,12 +342,6 @@ export function LeadCard({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {layout.score && (leadScore != null || lead.lead_classification) && (
-          <Badge variant="outline" className={cn("h-5 gap-1 px-1.5 text-[10px] font-semibold", scorePresentation.className)}>
-            {leadScore != null && (Number.isInteger(leadScore) ? leadScore : leadScore.toLocaleString("pt-BR"))}
-            <span className="font-medium">{leadScore != null ? "· " : ""}{scorePresentation.label}</span>
-          </Badge>
-        )}
         {layout.value && value && (
           <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
             {value}
