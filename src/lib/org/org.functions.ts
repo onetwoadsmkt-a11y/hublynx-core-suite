@@ -9,12 +9,17 @@ export type OrgSummary = {
   role: string;
   /** Códigos de módulo habilitados para a organização E liberados para o usuário. */
   modules: string[];
+  /** White label: logo da empresa (URL pública) e cor da marca (#RRGGBB). */
+  logoUrl: string | null;
+  brandColor: string | null;
 };
 
 export type OrgAccess = {
   isSuperAdmin: boolean;
   organizations: OrgSummary[];
 };
+
+const ORG_COLUMNS = "id, name, slug, status, logo_url, brand_color";
 
 /**
  * Acesso multi-tenant: organizações do usuário autenticado e módulos liberados
@@ -43,7 +48,7 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
     let roleByOrg = new Map<string, string>();
 
     if (isSuperAdmin) {
-      const { data } = await admin.from("organizations").select("id, name, slug, status").order("name");
+      const { data } = await admin.from("organizations").select(ORG_COLUMNS).order("name");
       orgRows = (data ?? []) as any[];
       for (const o of orgRows) roleByOrg.set(o.id, "super_admin");
     } else {
@@ -57,7 +62,7 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
       if (ids.length === 0) return { isSuperAdmin, organizations: [] };
       const { data } = await admin
         .from("organizations")
-        .select("id, name, slug, status")
+        .select(ORG_COLUMNS)
         .in("id", ids)
         .order("name");
       orgRows = (data ?? []) as any[];
@@ -102,6 +107,8 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
         status: o.status ?? "active",
         role,
         modules: allowed,
+        logoUrl: o.logo_url ?? null,
+        brandColor: o.brand_color ?? null,
       };
     });
 
