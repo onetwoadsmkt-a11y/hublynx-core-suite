@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProjectEvolution } from "@/components/projects/ProjectEvolution";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,7 +46,14 @@ import { toast } from "sonner";
 import { maskBRL } from "@/lib/security/value-lock";
 
 export const Route = createFileRoute("/_authenticated/projetos/$id")({
-  head: () => ({ meta: [{ title: "Projeto — Hublynx Core" }] }),
+  head: () => ({ meta: [
+    { title: "Evolução e gestão do projeto — Core Suite" },
+    { name: "description", content: "Acompanhe etapas, evolução, entregas, equipe e decisões do projeto no Core Suite." },
+    { property: "og:title", content: "Evolução e gestão do projeto — Core Suite" },
+    { property: "og:description", content: "Etapas, progresso e gestão do projeto reunidos em abas." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: ProjectCommandCenter,
 });
 
@@ -132,6 +141,7 @@ function ProjectCommandCenter() {
   const dashQ = useQuery({
     queryKey: ["project-dashboard", id],
     queryFn: () => getDash({ data: { id } }),
+    staleTime: 60_000,
   });
 
   const [editOpen, setEditOpen] = useState(false);
@@ -171,39 +181,32 @@ function ProjectCommandCenter() {
       <div className="space-y-6 min-w-0">
         <ExecutiveHeader p={p} d={d} />
         <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
-        <RoadmapStagesPanel
-          projectId={id}
-          stages={p.roadmap_stages}
-          disabled={p.commercial_model === "mensal_recorrente"}
-          disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente."
-        />
-        <PlannedVsActual data={d.plannedVsActual} progress={d.kpis.progress} />
-        
-        <CommercialPanel commercial={d.commercial} projectId={id} />
-
-        <UpcomingDeliveries upcoming={d.upcomingDeliveries} />
-        <KanbanCompact counts={d.kanbanCounts} />
-        <ActivityFeed activity={d.activity} />
-
-        {/* Secondary content as accordion */}
-        <Accordion type="multiple" className="space-y-3">
-          <AccordionItem value="team" className="border rounded-2xl px-4 bg-card">
-            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><UsersIcon className="h-4 w-4" /> Equipe</span></AccordionTrigger>
-            <AccordionContent><TeamSection members={d.members} projectId={id} /></AccordionContent>
-          </AccordionItem>
-          <AccordionItem value="risks" className="border rounded-2xl px-4 bg-card">
-            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" /> Riscos & Bloqueios</span></AccordionTrigger>
-            <AccordionContent><RisksSection risks={d.risks} projectId={id} /></AccordionContent>
-          </AccordionItem>
-          <AccordionItem value="files" className="border rounded-2xl px-4 bg-card">
-            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Arquivos</span></AccordionTrigger>
-            <AccordionContent><FilesSection files={d.files} /></AccordionContent>
-          </AccordionItem>
-          <AccordionItem value="notes" className="border rounded-2xl px-4 bg-card">
-            <AccordionTrigger className="py-4"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Notas & Decisões</span></AccordionTrigger>
-            <AccordionContent><NotesSection notes={d.notes} projectId={id} /></AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <Tabs defaultValue="evolution" className="min-w-0">
+          <div className="max-w-full overflow-x-auto border-b">
+            <TabsList aria-label="Seções do projeto" className="h-auto w-max justify-start gap-1 rounded-none bg-transparent p-0 text-sidebar-foreground">
+              {[
+                ["evolution", "Evolução do projeto", TrendingUp], ["stages", "Etapas", Flag],
+                ["commercial", "Comercial", Briefcase], ["deliveries", "Próximas entregas", CalIcon],
+                ["kanban", "Kanban", ListChecks], ["activity", "Atividade recente", ActivityIcon],
+                ["team", "Equipe", UsersIcon], ["risks", "Riscos & Bloqueios", AlertTriangle],
+                ["files", "Arquivos", FileText], ["notes", "Notas & Decisões", FileText],
+              ].map(([value, label, Icon]) => {
+                const TabIcon = Icon as typeof TrendingUp;
+                return <TabsTrigger key={String(value)} value={String(value)} className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 text-sidebar-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-sidebar-foreground data-[state=active]:shadow-none"><TabIcon className="h-4 w-4" />{String(label)}</TabsTrigger>;
+              })}
+            </TabsList>
+          </div>
+          <TabsContent value="evolution"><ProjectEvolution projectId={id} disabled={p.commercial_model === "mensal_recorrente"} dueDate={p.due_date} /></TabsContent>
+          <TabsContent value="stages"><RoadmapStagesPanel projectId={id} disabled={p.commercial_model === "mensal_recorrente"} disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente." /></TabsContent>
+          <TabsContent value="commercial"><CommercialPanel commercial={d.commercial} projectId={id} /></TabsContent>
+          <TabsContent value="deliveries"><UpcomingDeliveries upcoming={d.upcomingDeliveries} /></TabsContent>
+          <TabsContent value="kanban"><KanbanCompact counts={d.kanbanCounts} /></TabsContent>
+          <TabsContent value="activity"><ActivityFeed activity={d.activity} /></TabsContent>
+          <TabsContent value="team"><h2 className="my-5 text-xl font-semibold">Equipe</h2><TeamSection members={d.members} projectId={id} /></TabsContent>
+          <TabsContent value="risks"><h2 className="my-5 text-xl font-semibold">Riscos & Bloqueios</h2><RisksSection risks={d.risks} projectId={id} /></TabsContent>
+          <TabsContent value="files"><h2 className="my-5 text-xl font-semibold">Arquivos</h2><FilesSection files={d.files} /></TabsContent>
+          <TabsContent value="notes"><h2 className="my-5 text-xl font-semibold">Notas & Decisões</h2><NotesSection notes={d.notes} projectId={id} /></TabsContent>
+        </Tabs>
       </div>
 
       <ProjectFormDialog open={editOpen} onOpenChange={setEditOpen} project={p} />
