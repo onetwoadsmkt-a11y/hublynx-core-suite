@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { subscriberSchema, withModuleDependencies } from "@/lib/org/access-rules";
+import { trialEndsAt, trialHasExpired } from "@/lib/org/trial-rules";
 import { ALL_CAPABILITIES, type Capability } from "./capabilities";
 
 export type MyAccess = {
@@ -32,7 +33,7 @@ export const getMyAccess = createServerFn({ method: "GET" })
     const admin = await isAdminUser(supabase, userId);
     const { data, error: accessError } = await supabase
       .from("subscriptions")
-      .select("plan, status, capabilities, account_name")
+      .select("plan, status, capabilities, account_name, created_at")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -47,10 +48,11 @@ export const getMyAccess = createServerFn({ method: "GET" })
       };
     }
     if (!data) return { isAdmin: false, status: "pendente", capabilities: [], plan: null, accountName: null };
-    const active = data.status === "ativo" || data.status === "trial";
+    const expired = data.plan === "teste_14_dias" && data.status === "trial" && trialHasExpired(trialEndsAt(data.created_at));
+    const active = !expired && (data.status === "ativo" || data.status === "trial");
     return {
       isAdmin: false,
-      status: data.status,
+      status: expired ? "expirado" : data.status,
       capabilities: active ? ((data.capabilities ?? []) as Capability[]) : [],
       plan: data.plan,
       accountName: data.account_name,
@@ -138,6 +140,7 @@ export const createSubscriber = createServerFn({ method: "POST" })
     const { data: created, error } = await db.auth.admin.createUser({
       email: data.email, password: data.password, email_confirm: true,
       user_metadata: { full_name: data.accountName },
+      app_metadata: { account_provisioning: "administrative" },
     });
     if (error || !created.user) throw new Error(error?.message ?? "Não foi possível criar a conta.");
     const userId = created.user.id;

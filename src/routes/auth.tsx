@@ -10,7 +10,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Entrar — Core Suite" }, { name: "description", content: "Acesse sua conta Core Suite ou solicite seu cadastro." }, { property: "og:title", content: "Entrar — Core Suite" }, { property: "og:description", content: "Acesso seguro à sua conta Core Suite." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Entrar — Core Suite" }, { name: "description", content: "Acesse sua conta Core Suite ou cadastre-se para 14 dias de teste." }, { property: "og:title", content: "Entrar — Core Suite" }, { property: "og:description", content: "Acesso seguro ao Core Suite com 14 dias de teste para novas contas." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: AuthPage,
 });
 
@@ -82,7 +82,7 @@ function AuthPage() {
     });
     setLoading(false);
     if (error) return toast.error(error.message);
-    toast.success(data.session ? "Conta criada. Aguarde a liberação de acesso à empresa." : "Confira seu e-mail para confirmar o cadastro. O acesso à empresa depende de liberação.");
+    toast.success(data.session ? "Conta criada! Seu teste de 14 dias começou." : "Confira seu e-mail para confirmar o cadastro e acessar seu teste de 14 dias.");
     setTab("login");
   }
 
@@ -225,7 +225,7 @@ function AuthPage() {
               <h2 className="font-display text-3xl font-semibold text-foreground">
                 Crie sua conta
               </h2>
-              <p className="mt-1 text-sm text-[#00D084]">Comece a organizar seu negócio agora.</p>
+              <p className="mt-1 text-sm text-primary">14 dias de teste com acesso automático.</p>
 
               <form onSubmit={handleSignup} className="space-y-4 mt-8">
                 <div className="space-y-2">
