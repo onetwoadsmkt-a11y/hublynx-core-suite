@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { subscriberSchema, withModuleDependencies } from "@/lib/org/access-rules";
 import { ALL_CAPABILITIES, type Capability } from "./capabilities";
 
 export type MyAccess = {
@@ -31,7 +32,7 @@ export const getMyAccess = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (admin || !data) {
+    if (admin) {
       return {
         isAdmin: admin,
         status: data?.status ?? "ativo",
@@ -40,6 +41,7 @@ export const getMyAccess = createServerFn({ method: "GET" })
         accountName: data?.account_name ?? null,
       };
     }
+    if (!data) return { isAdmin: false, status: "pendente", capabilities: [], plan: null, accountName: null };
     const active = data.status === "ativo" || data.status === "trial";
     return {
       isAdmin: false,

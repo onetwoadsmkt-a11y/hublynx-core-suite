@@ -12,21 +12,11 @@ export const BRAND_CACHE_KEY = "hublynx-brand-cache";
 
 export type BrandInfo = { logoUrl: string | null; brandColor: string | null };
 
-function readBrandCache(): BrandInfo | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(BRAND_CACHE_KEY);
-    if (!raw) return null;
-    const v = JSON.parse(raw) as BrandInfo;
-    return { logoUrl: v.logoUrl ?? null, brandColor: v.brandColor ?? null };
-  } catch {
-    return null;
-  }
-}
-
 export function clearBrandCache() {
   try {
-    localStorage.removeItem(BRAND_CACHE_KEY);
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(BRAND_CACHE_KEY) || key.startsWith(STORAGE_KEY)) localStorage.removeItem(key);
+    }
   } catch {
     /* ignora */
   }
@@ -62,6 +52,8 @@ type WorkspaceContextValue = {
   /** Alias legado. */
   setActiveWorkspace: (id: string) => void;
   isLoading: boolean;
+  isError: boolean;
+  retryAccess: () => void;
 };
 
 const EMPTY: WorkspaceContextValue = {
@@ -76,24 +68,26 @@ const EMPTY: WorkspaceContextValue = {
   brand: null,
   setActiveOrganization: () => {},
   setActiveWorkspace: () => {},
-  isLoading: true,
+  isLoading: false,
+  isError: false,
+  retryAccess: () => {},
 };
 
 const Ctx = createContext<WorkspaceContextValue>(EMPTY);
 
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
+export function WorkspaceProvider({ children, userId }: { children: ReactNode; userId: string }) {
   const qc = useQueryClient();
   const fn = useServerFn(getMyOrgAccess);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    return localStorage.getItem(STORAGE_KEY);
+    return localStorage.getItem(`${STORAGE_KEY}:${userId}`);
   });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["my-org-access"],
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["my-org-access", userId],
     queryFn: async () => {
       const { data: s } = await supabase.auth.getSession();
-      if (!s.session?.access_token) return null;
+      if (!s.session?.access_token || s.session.user.id !== userId) throw new Error("Sessão indisponível. Entre novamente.");
       return fn();
     },
     staleTime: 5 * 60_000,
@@ -118,16 +112,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // Valida a empresa persistida; se o usuário não pertence mais, escolhe uma válida.
   const activeOrganization = useMemo(() => {
     if (organizations.length === 0) return null;
-    return organizations.find((o) => o.id === selectedId) ?? organizations[0]!;
+    return organizations.find((o) => o.id === selectedId) ?? organizations[0] ?? null;
   }, [organizations, selectedId]);
 
-  const [cachedBrand] = useState<BrandInfo | null>(() => readBrandCache());
+
 
   useEffect(() => {
     if (!activeOrganization || typeof window === "undefined") return;
     try {
       localStorage.setItem(
-        BRAND_CACHE_KEY,
+        `${BRAND_CACHE_KEY}:${userId}`,
         JSON.stringify({ logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor }),
       );
     } catch {
@@ -138,18 +132,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!activeOrganization) return;
     if (activeOrganization.id !== selectedId) setSelectedId(activeOrganization.id);
-    if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, activeOrganization.id);
+    if (typeof window !== "undefined") localStorage.setItem(`${STORAGE_KEY}:${userId}`, activeOrganization.id);
   }, [activeOrganization, selectedId]);
 
   const setActiveOrganization = useCallback(
     (id: string) => {
       if (id === selectedId) return;
       setSelectedId(id);
-      if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, id);
+      if (typeof window !== "undefined") localStorage.setItem(`${STORAGE_KEY}:${userId}`, id);
       // Troca de empresa refaz todas as telas dependentes de dados da empresa.
       qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "my-org-access" });
     },
-    [qc, selectedId],
+    [qc, selectedId, userId],
   );
 
   const value: WorkspaceContextValue = {
@@ -163,12 +157,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     isSuperAdmin: !!data?.isSuperAdmin,
     brand: activeOrganization
       ? { logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor }
-      : isLoading
-        ? cachedBrand
-        : null,
+      : null,
     setActiveOrganization,
     setActiveWorkspace: setActiveOrganization,
     isLoading,
+    isError,
+    retryAccess: () => { void refetch(); },
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyAccess } from "@/lib/subscriptions/subscriptions.functions";
+import { useWorkspace } from "./useWorkspace";
 import type { Capability } from "@/lib/subscriptions/capabilities";
 
 export function useAccess() {
+  const { activeOrganization, isSuperAdmin, isLoading: orgLoading } = useWorkspace();
   const fn = useServerFn(getMyAccess);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["my-access"],
@@ -25,7 +27,7 @@ export function useAccess() {
   const capabilities = (data?.capabilities ?? []) as Capability[];
   return {
     isLoading: isLoading || isError || data == null,
-    isAdmin: !!data?.isAdmin,
+    isAdmin: isSuperAdmin || !!data?.isAdmin,
     status: data?.status ?? "ativo",
     accountName: data?.accountName ?? null,
     capabilities,
