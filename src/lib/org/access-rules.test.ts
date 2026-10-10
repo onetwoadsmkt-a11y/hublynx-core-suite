@@ -22,4 +22,10 @@ describe("permissões de novas contas", () => {
     expect(subscriberSchema.safeParse({ ...input, organizationName: "Empresa" }).success).toBe(true);
     expect(subscriberSchema.safeParse({ ...input, organizationName: "Empresa", role: "super_admin" }).success).toBe(false);
   });
+  test("administrador da empresa só recebe os módulos contratados", () => {
+    expect(effectiveModules("active", ["crm"], "org_admin", ["projects"])).toEqual(["crm"]);
+  });
+  test("empresa cancelada não recebe módulos", () => {
+    expect(effectiveModules("cancelled", ["crm", "tasks"], "user", ["crm", "tasks"])).toEqual([]);
+  });
 });

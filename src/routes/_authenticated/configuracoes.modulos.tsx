@@ -8,13 +8,16 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
+import { useOrgAccess } from "@/hooks/useOrgAccess";
+import { orgModuleForPath } from "@/lib/org/modules-map";
 
 export const Route = createFileRoute("/_authenticated/configuracoes/modulos")({
-  head: () => ({ meta: [{ title: "Módulos — Hublynx Core" }] }),
+  head: () => ({ meta: [{ title: "Módulos da conta — Core Suite" }, { name: "description", content: "Gerencie os módulos disponíveis para sua conta Core Suite." }, { property: "og:title", content: "Módulos da conta — Core Suite" }, { property: "og:description", content: "Módulos autorizados da empresa ativa." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: ModulesPage,
 });
 
 function ModulesPage() {
+  const org = useOrgAccess();
   const list = useServerFn(listUserModules);
   const toggle = useServerFn(setModuleEnabled);
   const qc = useQueryClient();
@@ -35,7 +38,7 @@ function ModulesPage() {
       </div>
 
       <div className="space-y-3">
-        {MODULES.map((m) => {
+        {MODULES.filter((m) => { const code = orgModuleForPath(m.route); return !code || org.hasModule(code); }).map((m) => {
           const row = data?.find((r) => r.module_slug === m.slug);
           const enabled = row ? row.enabled : true;
           const Icon = m.icon;
@@ -71,7 +74,7 @@ function ModulesPage() {
                   <Switch
                     checked={enabled}
                     onCheckedChange={async (v) => {
-                      await toggle({ data: { slug: m.slug, enabled: v } });
+                      await toggle({ data: { slug: m.slug, enabled: v, organizationId: org.activeOrg?.id } });
                       await qc.invalidateQueries({ queryKey: ["user-modules"] });
                       toast.success(v ? `${m.shortName} ativado` : `${m.shortName} desativado`);
                     }}

@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Lock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 export function ModuleGate({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { activeOrganizationId } = useWorkspace();
   const mod = moduleForPath(pathname);
   const list = useServerFn(listUserModules);
   const toggle = useServerFn(setModuleEnabled);
@@ -40,7 +42,7 @@ export function ModuleGate({ children }: { children: ReactNode }) {
         <Button
           className="mt-4"
           onClick={async () => {
-            await toggle({ data: { slug: mod.slug, enabled: true } });
+            await toggle({ data: { slug: mod.slug, enabled: true, organizationId: activeOrganizationId ?? undefined } });
             await qc.invalidateQueries({ queryKey: ["user-modules"] });
             toast.success(`${mod.name} ativado.`);
           }}

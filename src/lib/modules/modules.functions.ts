@@ -41,7 +41,8 @@ export const setModuleEnabled = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => moduleSchema.extend({ enabled: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     const organizationId = await assertModuleAccess(context.supabase, context.userId, data.slug, data.organizationId);
-    const { error } = await context.supabase
+    const db = context.supabase as unknown as { from: (table: string) => any };
+    const { error } = await db
       .from("user_modules")
       .upsert(
         { user_id: context.userId, organization_id: organizationId, module_slug: data.slug, enabled: data.enabled },
@@ -56,7 +57,8 @@ export const markModuleInstalled = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => moduleSchema.parse(d))
   .handler(async ({ data, context }) => {
     const organizationId = await assertModuleAccess(context.supabase, context.userId, data.slug, data.organizationId);
-    const { error } = await context.supabase
+    const db = context.supabase as unknown as { from: (table: string) => any };
+    const { error } = await db
       .from("user_modules")
       .upsert(
         {
