@@ -13,7 +13,8 @@
 - [x] Pipeline — captação, mapeamento e destaque de pontuação/classificação de leads; respostas do formulário no detalhe
 - [x] Projetos — seções organizadas em abas; evolução com gráfico e progresso das etapas, sem alterar ações existentes
 - [ ] Projetos — conferir as abas com um projeto real; bloqueado pela ausência de sessão autenticada disponível para testes
-- [x] Contas — provisionamento administrativo com empresa/módulos explícitos; acesso pendente, erros visíveis, marca por identidade e testes de regras
+- [x] Contas — provisionamento administrativo com empresa/módulos explícitos; erros visíveis, marca por identidade e testes de regras
+- [ ] Contas — cadastro público com teste automático de 14 dias e bloqueio ao vencer; preparar SQL para aplicação autorizada no banco externo
 - [ ] Contas — validar criação administrativa e troca de contas reais; bloqueado pela ausência de sessão autorizada no banco externo
 - [ ] Segurança — retirar compatibilidade do papel admin legado após conferir os administradores atuais; bloqueado pela auditoria do banco externo
 - [ ] Contas — conferir cadastro afetado, administradores atuais e segurança do banco externo; bloqueado por acesso de auditoria e e-mail válido
