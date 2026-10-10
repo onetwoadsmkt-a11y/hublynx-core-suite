@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { clearBrandCache } from "@/hooks/useWorkspace";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -95,7 +96,7 @@ function MaisMobile() {
       <Button
         variant="outline"
         className="w-full rounded-full"
-        onClick={async () => { await supabase.auth.signOut(); window.location.href = "/auth"; }}
+        onClick={async () => { clearBrandCache(); await supabase.auth.signOut(); window.location.href = "/auth"; }}
       >
         <LogOut className="h-4 w-4 mr-2" /> Sair
       </Button>
