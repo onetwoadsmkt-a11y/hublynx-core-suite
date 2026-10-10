@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 
 /**
@@ -46,11 +46,14 @@ export function brandVars(hex: string): Record<(typeof BRAND_VARS)[number], stri
   };
 }
 
-export function BrandTheme() {
-  const { activeOrganization } = useWorkspace();
-  const color = activeOrganization?.brandColor ?? null;
+// useLayoutEffect aplica a cor antes de a tela ser pintada (sem piscar o verde da Core).
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-  useEffect(() => {
+export function BrandTheme() {
+  const { brand } = useWorkspace();
+  const color = brand?.brandColor ?? null;
+
+  useIsoLayoutEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
     if (!color || !HEX_RE.test(color)) {

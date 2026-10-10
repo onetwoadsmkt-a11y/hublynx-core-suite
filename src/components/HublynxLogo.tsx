@@ -8,8 +8,13 @@ import { useWorkspace } from "@/hooks/useWorkspace";
  * Sem logo cadastrada, mostra a da Core Suite.
  */
 export function HublynxLogo({ className = "", collapsed = false }: { className?: string; collapsed?: boolean }) {
-  const { activeOrganization } = useWorkspace();
-  const orgLogo = activeOrganization?.logoUrl ?? null;
+  const { activeOrganization, brand, isLoading } = useWorkspace();
+  const orgLogo = brand?.logoUrl ?? null;
+
+  // Enquanto a empresa carrega e não há marca guardada, reserva o espaço em vez de mostrar a logo da Core.
+  if (!orgLogo && isLoading && !brand) {
+    return <div className={`flex items-center ${className}`} style={{ height: collapsed ? "34px" : "50px", width: collapsed ? "34px" : "100px" }} aria-hidden />;
+  }
 
   if (orgLogo) {
     return (

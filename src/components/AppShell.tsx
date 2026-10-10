@@ -9,6 +9,7 @@ import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
 import { HublynxLogo } from "./HublynxLogo";
+import { clearBrandCache } from "@/hooks/useWorkspace";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -203,6 +204,7 @@ function UserMenu() {
   async function handleLogout() {
     await qc.cancelQueries();
     qc.clear();
+    clearBrandCache();
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
