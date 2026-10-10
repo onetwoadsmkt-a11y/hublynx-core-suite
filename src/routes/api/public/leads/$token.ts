@@ -125,6 +125,59 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           }
         }
 
+        // Mesmo lead chegando por mais de um caminho (Make + Lead Pro + formulário Core):
+        // em vez de duplicar, completa o cadastro existente da mesma empresa.
+        const digits = (v?: string | null) => (v ?? "").replace(/\D/g, "").slice(-11);
+        const email = parsed.data.email?.trim().toLowerCase() || null;
+        const phone = digits(parsed.data.phone) || null;
+        if (organizationId && (email || (phone && phone.length >= 10))) {
+          const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+          const { data: recent } = await (supabaseAdmin as any)
+            .from("leads")
+            .select("*")
+            .eq("organization_id", organizationId)
+            .gte("created_at", since)
+            .order("created_at", { ascending: false })
+            .limit(1000);
+          const existing = ((recent ?? []) as Record<string, any>[]).find(
+            (l) =>
+              (email && String(l.email ?? "").trim().toLowerCase() === email) ||
+              (phone && phone.length >= 10 && digits(l.phone) === phone),
+          );
+          if (existing) {
+            const patch: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(parsed.data)) {
+              if (v === null || v === undefined || v === "") continue;
+              if (k === "lead_score" || k === "lead_classification") continue;
+              const cur = existing[k];
+              if (cur === null || cur === undefined || cur === "") patch[k] = v;
+            }
+            // a qualificação do formulário é a referência: sempre atualiza quando vier
+            if (parsed.data.lead_classification) patch.lead_classification = parsed.data.lead_classification;
+            if (parsed.data.lead_score !== null && parsed.data.lead_score !== undefined) {
+              patch.lead_score = parsed.data.lead_score;
+            }
+            const prevMeta =
+              existing.metadata && typeof existing.metadata === "object" && !Array.isArray(existing.metadata)
+                ? (existing.metadata as Record<string, unknown>)
+                : {};
+            patch.metadata = { ...prevMeta, ...raw, merged_at: new Date().toISOString() };
+            const { error: upErr } = await supabaseAdmin
+              .from("leads")
+              .update(patch as never)
+              .eq("id", existing.id);
+            if (upErr) {
+              console.error("lead webhook merge failed", upErr.message);
+              return Response.json({ error: upErr.message }, { status: 500 });
+            }
+            await supabaseAdmin
+              .from("lead_webhooks")
+              .update({ call_count: (hook.call_count ?? 0) + 1, last_called_at: new Date().toISOString() })
+              .eq("id", hook.id);
+            return Response.json({ ok: true, lead_id: existing.id, merged: true }, { status: 200 });
+          }
+        }
+
         const { data: lead, error } = await supabaseAdmin
           .from("leads")
           .insert({
