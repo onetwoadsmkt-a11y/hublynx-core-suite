@@ -15,6 +15,9 @@ export type OrganizationOption = {
   status: string;
   role: string;
   modules: string[];
+  /** White label da empresa. */
+  logoUrl: string | null;
+  brandColor: string | null;
 };
 
 type WorkspaceContextValue = {
@@ -79,6 +82,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         status: o.status,
         role: o.role,
         modules: o.modules,
+        logoUrl: o.logoUrl ?? null,
+        brandColor: o.brandColor ?? null,
       })),
     [data],
   );
