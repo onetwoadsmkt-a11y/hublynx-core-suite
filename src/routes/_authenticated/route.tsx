@@ -5,6 +5,7 @@ import { ModuleManifest } from "@/components/modules/ModuleManifest";
 import { ModuleGate } from "@/components/modules/ModuleGate";
 import { AccessGate } from "@/components/access/AccessGate";
 import { WorkspaceProvider } from "@/hooks/useWorkspace";
+import { BrandTheme } from "@/components/BrandTheme";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -22,6 +23,7 @@ function AuthenticatedLayout() {
   if (pathname.startsWith("/app")) {
     return (
       <WorkspaceProvider>
+        <BrandTheme />
         <ModuleManifest />
         <Outlet />
       </WorkspaceProvider>
@@ -29,6 +31,7 @@ function AuthenticatedLayout() {
   }
   return (
     <WorkspaceProvider>
+      <BrandTheme />
       <AppShell>
         <ModuleManifest />
         <AccessGate>
