@@ -3,44 +3,25 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
-import { capabilityForPath, CAPABILITY_LABELS } from "@/lib/subscriptions/capabilities";
 import { orgModuleForPath, ORG_MODULE_LABELS } from "@/lib/org/modules-map";
 import { Button } from "@/components/ui/button";
 
 export function AccessGate({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { isLoading, isAdmin, can, status } = useAccess();
+  const access = useAccess();
   const org = useOrgAccess();
-
-  // Módulos contratados pela empresa valem também para administradores da conta;
-  // apenas o super admin da plataforma passa direto.
-  const orgModule = orgModuleForPath(pathname);
-  if (orgModule) {
-    if (!org.hasModule(orgModule)) {
-      return <Denied title={`${ORG_MODULE_LABELS[orgModule]} não está incluído no plano da sua empresa`} />;
-    }
-    // Módulo contratado pela empresa libera a área, mesmo sem a capability legada.
-    if (!org.isLoading) return <>{children}</>;
+  if (org.isLoading) return <div className="p-8 text-muted-foreground" role="status">Carregando acesso…</div>;
+  if (org.isError) return <div className="p-8 space-y-3"><p>Não foi possível carregar seu acesso.</p><Button onClick={org.retryAccess}>Tentar novamente</Button></div>;
+  if (org.isSuperAdmin) return <>{children}</>;
+  if (!org.activeOrg) return <Denied title="Aguardando liberação de acesso" />;
+  if (org.activeOrg.status !== "active" && org.activeOrg.status !== "trial") return <Denied title="Acesso da empresa suspenso" />;
+  if (pathname.startsWith("/admin")) {
+    const { isAdmin } = access;
+    if (!isAdmin) return <Denied title="Área restrita à administração da plataforma" />;
   }
-
-  if (isLoading || isAdmin) return <>{children}</>;
-
-  if (pathname.startsWith("/admin")) return <Denied title="Área restrita a administradores" />;
-
-
-
-  const cap = capabilityForPath(pathname);
-  if (!cap || can(cap)) return <>{children}</>;
-
-  return (
-    <Denied
-      title={
-        status === "suspenso" || status === "cancelado"
-          ? "Assinatura inativa"
-          : `${CAPABILITY_LABELS[cap]} não está incluído no seu plano`
-      }
-    />
-  );
+  const orgModule = orgModuleForPath(pathname);
+  if (orgModule && !org.hasModule(orgModule)) return <Denied title={`${ORG_MODULE_LABELS[orgModule]} não está liberado para sua conta`} />;
+  return <>{children}</>;
 }
 
 function Denied({ title }: { title: string }) {

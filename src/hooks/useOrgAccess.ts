@@ -7,13 +7,15 @@ import type { OrgModuleCode } from "@/lib/org/modules-map";
  */
 export function useOrgAccess() {
   const {
-    organizations, activeOrganization, isSuperAdmin, isLoading,
+    organizations, activeOrganization, isSuperAdmin, isLoading, isError, retryAccess,
   } = useWorkspace();
 
   const modules = activeOrganization?.modules ?? [];
 
   return {
     isLoading,
+    isError,
+    retryAccess,
     isSuperAdmin,
     organizations,
     activeOrg: activeOrganization,

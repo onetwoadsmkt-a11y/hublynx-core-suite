@@ -89,8 +89,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "twitter:title", content: "Hublynx — Digital Business Ecosystem" },
       { name: "twitter:description", content: "Hublynx Core centraliza tarefas, projetos, clientes, financeiro e agenda em um único painel rápido e elegante." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c908b4e6-2b33-48e0-8b73-0f8f152b5b14/id-preview-1f5799e2--957e50d6-f832-4e70-8e2d-1731f6df103a.lovable.app-1781551037995.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c908b4e6-2b33-48e0-8b73-0f8f152b5b14/id-preview-1f5799e2--957e50d6-f832-4e70-8e2d-1731f6df103a.lovable.app-1781551037995.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -136,7 +134,14 @@ function RootComponent() {
     let mounted = true;
     import("@/integrations/supabase/client").then(({ supabase }) => {
       if (!mounted) return;
-      const { data } = supabase.auth.onAuthStateChange((event) => {
+      let identity: string | null | undefined;
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        const nextIdentity = session?.user.id ?? null;
+        if (identity !== undefined && identity !== nextIdentity) {
+          void queryClient.cancelQueries();
+          queryClient.clear();
+        }
+        identity = nextIdentity;
         if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
         router.invalidate();
         if (event !== "SIGNED_OUT") queryClient.invalidateQueries();

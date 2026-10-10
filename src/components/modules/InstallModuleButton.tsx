@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { markModuleInstalled } from "@/lib/modules/modules.functions";
 import { toast } from "sonner";
 import type { ModuleDef } from "@/lib/modules/registry";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 type BIPEvent = Event & {
   prompt: () => Promise<void>;
@@ -21,6 +22,7 @@ export function InstallModuleButton({
   const [evt, setEvt] = useState<BIPEvent | null>(null);
   const [done, setDone] = useState(!!installed);
   const mark = useServerFn(markModuleInstalled);
+  const { activeOrganizationId } = useWorkspace();
 
   useEffect(() => {
     function handler(e: Event) {
@@ -41,7 +43,7 @@ export function InstallModuleButton({
     if (choice.outcome === "accepted") {
       setDone(true);
       try {
-        await mark({ data: { slug: module.slug } });
+        await mark({ data: { slug: module.slug, organizationId: activeOrganizationId ?? undefined } });
       } catch {
         /* noop */
       }

@@ -7,26 +7,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const uuid = z.string().uuid();
 
-async function adminDb(userId: string) {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const db = supabaseAdmin as unknown as { from: (t: string) => any; auth: any };
-
-  const { data: superRow } = await db
-    .from("platform_admins")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
+async function adminDb(supabase: any, userId: string) {
+  const { data: superRow, error: superError } = await supabase.from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle();
+  if (superError) throw new Error("Não foi possível verificar administração da plataforma.");
   if (!superRow) {
-    const { data: roleRow } = await db
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    if (!roleRow) throw new Error("Acesso restrito à administração da plataforma.");
+    // Compatibility only until existing platform administrators are audited.
+    const { data: roleRow, error } = await supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
+    if (error || !roleRow) throw new Error("Acesso restrito à administração da plataforma.");
   }
-  return db;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin as unknown as { from: (t: string) => any; auth: any };
 }
 
 // ---------------------------------------------------------------- empresas
@@ -52,7 +42,7 @@ export type ModuleRow = { id: string; code: string; name: string; active: boolea
 export const listOrganizations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ organizations: AdminOrg[]; modules: ModuleRow[] }> => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
 
     const [{ data: orgs }, { data: mods }, { data: orgMods }, { data: members }, { data: usage }] =
       await Promise.all([
@@ -113,7 +103,7 @@ export const saveOrganization = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const payload = {
       name: data.name,
       slug: data.slug || null,
@@ -145,7 +135,7 @@ export const setOrganizationModule = createServerFn({ method: "POST" })
     z.object({ organization_id: uuid, module_id: uuid, enabled: z.boolean() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     // Dependências: Projetos precisa de Tarefas; Fiscal precisa de Financeiro.
     const { data: mods } = await db.from("modules").select("id, code");
     const idByCode = new Map<string, string>(((mods ?? []) as any[]).map((m) => [m.code, m.id]));
@@ -190,7 +180,7 @@ export type AdminUserRow = {
 export const listPlatformUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AdminUserRow[]> => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { data: list, error } = await db.auth.admin.listUsers({ page: 1, perPage: 200 });
     if (error) throw new Error(error.message);
 
@@ -232,7 +222,7 @@ export const setOrgMembership = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     if (data.remove) {
       const { error } = await db
         .from("organization_members")
@@ -262,7 +252,7 @@ export type PricingMap = Record<string, number>;
 export const getPricing = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ pricing: PricingMap; history: any[] }> => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { data, error } = await db
       .from("pricing_config")
       .select("id, key, value, active, valid_from, note")
@@ -285,7 +275,7 @@ export const savePricing = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     for (const e of data.entries) {
       await db.from("pricing_config").update({ active: false }).eq("key", e.key).eq("active", true);
       const { error } = await db.from("pricing_config").insert({
@@ -315,7 +305,7 @@ export type Tier = {
 export const listTiers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<Tier[]> => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { data, error } = await db
       .from("resource_tiers")
       .select("id, name, min_users, max_users, database_limit_mb, storage_limit_mb, custom, active")
@@ -341,7 +331,7 @@ export const saveTier = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const payload = {
       name: data.name || null,
       min_users: data.min_users,
@@ -369,7 +359,7 @@ export const deleteTier = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { error } = await db.from("resource_tiers").update({ active: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true as const };
@@ -400,7 +390,7 @@ export type Simulation = {
 export const listSimulations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<Simulation[]> => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { data, error } = await db
       .from("commercial_simulations")
       .select("*")
@@ -434,7 +424,7 @@ export const saveSimulation = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { data: created, error } = await db
       .from("commercial_simulations")
       .insert({ ...data, created_by: context.userId })
@@ -455,7 +445,7 @@ export const setSimulationStatus = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { error } = await db
       .from("commercial_simulations")
       .update({ status: data.status, updated_at: new Date().toISOString() })
@@ -494,7 +484,7 @@ const COUNT_TABLES = [
 export const recalcUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { data: orgs } = await db.from("organizations").select("id");
     const ids = ((orgs ?? []) as any[]).map((o) => o.id as string);
 
@@ -538,7 +528,7 @@ export const recalcUsage = createServerFn({ method: "POST" })
 export const listUsage = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<OrgUsage[]> => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const [{ data: orgs }, { data: usage }, { data: tiers }] = await Promise.all([
       db.from("organizations").select("id, name, contracted_users").order("name"),
       db
@@ -588,7 +578,7 @@ export type PlatformOverview = {
 export const getPlatformOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PlatformOverview> => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const [{ data: orgs }, { data: mods }, { data: orgMods }, { data: members }, { data: pricing }, { data: sims }, { data: usage }] =
       await Promise.all([
         db.from("organizations").select("id, status, contracted_users"),
@@ -651,7 +641,7 @@ export const listOrgMembers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ organization_id: uuid }).parse(d))
   .handler(async ({ data, context }): Promise<OrgMemberRow[]> => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
 
     const [{ data: members }, { data: perms }, users] = await Promise.all([
       db
@@ -692,7 +682,7 @@ export const addOrgMemberByEmail = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
     const { data: list, error } = await db.auth.admin.listUsers({ page: 1, perPage: 500 });
     if (error) throw new Error(error.message);
     const target = ((list?.users ?? []) as any[]).find(
@@ -726,8 +716,10 @@ export const setUserModulePermission = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const db = await adminDb(context.userId);
+    const db = await adminDb(context.supabase, context.userId);
 
+    const { data: member, error: memberError } = await db.from("organization_members").select("user_id").eq("organization_id", data.organization_id).eq("user_id", data.user_id).eq("status", "active").maybeSingle();
+    if (memberError || !member) throw new Error("Usuário não é membro ativo desta empresa.");
     // Só é possível liberar módulos que a empresa realmente contratou.
     if (data.can_access) {
       const { data: contracted } = await db

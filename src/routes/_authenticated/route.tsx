@@ -18,19 +18,20 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
+  const { user } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // Rotas do PWA mobile (/app/*) rodam fora do AppShell desktop.
   if (pathname.startsWith("/app")) {
     return (
-      <WorkspaceProvider>
+      <WorkspaceProvider key={user.id} userId={user.id}>
         <BrandTheme />
         <ModuleManifest />
-        <Outlet />
+        <AccessGate><Outlet /></AccessGate>
       </WorkspaceProvider>
     );
   }
   return (
-    <WorkspaceProvider>
+    <WorkspaceProvider key={user.id} userId={user.id}>
       <BrandTheme />
       <AppShell>
         <ModuleManifest />

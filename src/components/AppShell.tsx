@@ -99,6 +99,8 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
       </nav>
     );
   }
+  if (org.isError) return <div className="p-4 text-sm text-nav-label-fixed"><p>Falha ao carregar acesso.</p><Button variant="ghost" onClick={org.retryAccess}>Tentar novamente</Button></div>;
+  if (!org.isSuperAdmin && !org.activeOrg) return <p className="p-4 text-sm text-nav-label-fixed">Aguardando liberação de acesso</p>;
   const groups: NavGroup[] = NAV_GROUPS.map((g) =>
     g.section === "Administração" && isAdmin
       ? {
@@ -121,7 +123,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
         if (mod) return org.hasModule(mod);
         if (isAdmin) return true;
         const cap = capabilityForPath(item.to);
-        return !cap || can(cap);
+        return !cap || Boolean(org.activeOrg);
       }),
     }))
     .filter((g) => g.items.length > 0);
@@ -181,6 +183,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
 }
 
 function UserMenu() {
+  const org = useOrgAccess();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data } = useQuery({
@@ -220,7 +223,7 @@ function UserMenu() {
           </Avatar>
           <div className="hidden md:flex flex-col items-start leading-tight">
             <span className="text-sm font-medium">{data?.full_name ?? "..."}</span>
-            <span className="text-xs text-muted-foreground">Administrador</span>
+            <span className="text-xs text-muted-foreground">{org.isSuperAdmin ? "Administrador da plataforma" : org.role === "org_admin" ? "Administrador da empresa" : org.role === "guest" ? "Convidado" : "Usuário"}</span>
           </div>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </button>
