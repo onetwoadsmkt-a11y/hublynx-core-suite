@@ -92,19 +92,27 @@ export function utmFromUrl(url?: string): Record<string, string> {
 const ALIASES: Record<string, string[]> = {
   name: ["name", "nome", "full_name", "fullname", "nome_completo", "first_name", "primeiro_nome"],
   email: ["email", "e-mail", "e_mail", "mail", "emailaddress"],
-  phone: ["phone", "telefone", "celular", "whatsapp", "fone", "tel"],
+  phone: ["phone", "telefone", "celular", "whatsapp", "whaz", "zap", "fone", "tel"],
   company: ["company", "empresa", "organizacao"],
   city: ["city", "cidade"],
   state: ["state", "estado", "uf"],
   source: ["source", "origem", "canal"],
   value: ["value", "valor", "orcamento"],
-  lead_score: ["lead_score", "score", "pontuacao", "pontuacao_lead"],
-  lead_classification: ["lead_classification", "classification", "classificacao", "classificacao_lead"],
+  lead_score: ["lead_score", "score", "pontuacao", "pontuacao_lead", "pontuacao_total", "score_total"],
+  lead_classification: [
+    "lead_classification",
+    "classification",
+    "classificacao",
+    "classificacao_lead",
+    "classification_key",
+    "qualificacao",
+    "temperatura",
+  ],
   utm_source: ["utm_source"],
   utm_medium: ["utm_medium"],
   utm_campaign: ["utm_campaign", "campanha"],
-  utm_term: ["utm_term"],
-  utm_content: ["utm_content"],
+  utm_term: ["utm_term", "conjunto", "adset"],
+  utm_content: ["utm_content", "anuncio", "criativo", "ad_name"],
   gclid: ["gclid"],
   fbclid: ["fbclid"],
   landing_url: ["landing_url", "page_url", "url", "pagina"],
@@ -118,6 +126,31 @@ const norm = (s: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
+/** Caminhos aninhados usados pelo Lead Pro (score.total, score.classificacao...). */
+const NESTED_PATHS: Record<string, string[]> = {
+  lead_score: ["score.total", "score.pontuacao", "scoring.total", "lead.score"],
+  lead_classification: [
+    "score.classificacao",
+    "score.classification",
+    "score.classification_key",
+    "scoring.classificacao",
+    "lead.classificacao",
+  ],
+};
+
+/** Padroniza a qualificação: quente/morno/frio → hot/warm/cold. */
+export function normalizeClassification(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const k = norm(value);
+  if (!k) return undefined;
+  if (["hot", "quente"].includes(k)) return "hot";
+  if (["warm", "morno"].includes(k)) return "warm";
+  if (["cold", "frio"].includes(k)) return "cold";
+  if (k.startsWith("desq") || k === "disqualified" || k === "unqualified") return "desqualificado";
+  if (k.startsWith("nutri")) return "nutrition";
+  return value.trim().toLowerCase().slice(0, 40);
+}
+
 /** Converte o payload cru em campos de lead usando field_map + fallback por nomes. */
 export function buildLeadFromPayload(raw: unknown, fieldMap: FieldMap) {
   const flat = flattenPayload(raw);
@@ -130,6 +163,12 @@ export function buildLeadFromPayload(raw: unknown, fieldMap: FieldMap) {
     } else if (typeof src === "string" && flat[src] !== undefined) {
       out[field] = flat[src];
     }
+  }
+
+  for (const [field, paths] of Object.entries(NESTED_PATHS)) {
+    if (out[field]) continue;
+    const hit = paths.find((p) => flat[p] !== undefined);
+    if (hit) out[field] = flat[hit];
   }
 
   for (const [field, aliases] of Object.entries(ALIASES)) {
@@ -153,6 +192,12 @@ export function buildLeadFromPayload(raw: unknown, fieldMap: FieldMap) {
 
   const fromUrl = utmFromUrl(out.landing_url);
   for (const [k, v] of Object.entries(fromUrl)) if (!out[k]) out[k] = v;
+
+  if (out.lead_score) {
+    const n = Number(String(out.lead_score).replace(",", ".").replace(/[^\d.-]/g, ""));
+    out.lead_score = Number.isFinite(n) && String(out.lead_score).match(/\d/) ? String(n) : undefined;
+  }
+  out.lead_classification = normalizeClassification(out.lead_classification);
 
   return out;
 }
