@@ -41,7 +41,7 @@ export function currency(v: number | null) {
   return maskBRL(v, { maximumFractionDigits: 0 });
 }
 
-type ScoreTone = "hot" | "warm" | "cold" | "nutrition" | "neutral";
+export type ScoreTone = "hot" | "warm" | "cold" | "nutrition" | "neutral";
 
 // Aceita as chaves em inglês (Lead Pro / webhooks) e os nomes em português das faixas.
 const SCORE_ALIASES: Record<string, ScoreTone> = {
@@ -50,6 +50,11 @@ const SCORE_ALIASES: Record<string, ScoreTone> = {
   cold: "cold", frio: "cold",
   nutrition: "nutrition", "nutrição": "nutrition", nutricao: "nutrition",
 };
+
+/** Normaliza a classificação do lead scoring (pt/en) para quente/morno/frio/nutrição. */
+export function leadScoreTone(classification: string | null | undefined): ScoreTone {
+  return SCORE_ALIASES[classification?.trim().toLowerCase() ?? ""] ?? "neutral";
+}
 
 export function leadScorePresentation(classification: string | null | undefined) {
   const normalized = classification?.trim().toLowerCase() ?? "";

@@ -8,7 +8,7 @@ import { CheckSquare, FolderKanban, Calendar as CalIcon, Users, Plus } from "luc
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { CommercialOverview } from "@/components/dashboard/CommercialOverview";
+import { SalesDashboard } from "@/components/dashboard/SalesDashboard";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -126,15 +126,17 @@ function Dashboard() {
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{greeting()}, {me ?? "por aí"}</h1>
-        <p className="text-sm text-muted-foreground">Visão geral do comercial e da operação.</p>
-      </div>
-
-      {!org.isLoading && org.hasModule("crm") && <CommercialOverview />}
+      {!org.isLoading && org.hasModule("crm") ? (
+        <SalesDashboard />
+      ) : (
+        <div>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{greeting()}, {me ?? "por aí"}</h1>
+          <p className="text-sm text-muted-foreground">Visão geral da operação.</p>
+        </div>
+      )}
 
       <section className="space-y-4 sm:space-y-6">
-      <h2 className="text-xl font-semibold tracking-tight">Seu dia</h2>
+      <h2 className="text-lg font-extrabold tracking-tight sm:text-xl">Seu dia, {me ?? "por aí"}</h2>
       <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4">
         {KPI.map((kp) => {
           const Icon = kp.icon;

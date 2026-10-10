@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { scopeOrganization } from "@/lib/org/filter";
+import { classifyStage } from "./funnel";
 
 const uuid = z.string().uuid();
 
@@ -46,6 +47,9 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
       created_at: string;
       temperature: string | null;
       tags: string[] | null;
+      lead_classification: string | null;
+      converted_at: string | null;
+      updated_at: string;
     };
 
     let leads: Row[] = [];
@@ -56,7 +60,11 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
     const fetchRange = async (fromDay?: string, toDay?: string) => {
       if (stageIds.length === 0) return [] as Row[];
       let q = scopeOrganization(
-        supabase.from("leads").select("id,stage_id,value,source,created_at,temperature,tags"),
+        supabase
+          .from("leads")
+          .select(
+            "id,stage_id,value,source,created_at,temperature,tags,lead_classification,converted_at,updated_at",
+          ),
         data.organizationId,
       );
       q = isFirst
@@ -68,7 +76,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
         .order("created_at", { ascending: true })
         .limit(5000);
       if (error) throw new Error(error.message);
-      return (rows ?? []) as Row[];
+      return (rows ?? []) as unknown as Row[];
     };
 
     leads = await fetchRange(data.from, data.to);
@@ -87,6 +95,23 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
     // Todos os leads atualmente no pipeline (sem filtro de data)
     const allLeads = await fetchRange();
 
+    // Quando cada lead entrou numa etapa de ganho (histórico gravado pelo gatilho de etapa).
+    // Usado no gráfico de evolução e nos ganhos fechados no período.
+    const wonStageIds = (stages ?? []).filter((s) => classifyStage(s) === "ganho").map((s) => s.id);
+    let winEvents: { lead_id: string; created_at: string }[] = [];
+    if (wonStageIds.length > 0) {
+      const since = new Date(Date.now() - 400 * 86400000).toISOString();
+      const { data: ev } = await supabase
+        .from("lead_events")
+        .select("lead_id,created_at")
+        .eq("kind", "stage_changed")
+        .in("meta->>to", wonStageIds)
+        .gte("created_at", since)
+        .order("created_at", { ascending: true })
+        .limit(5000);
+      winEvents = (ev ?? []) as { lead_id: string; created_at: string }[];
+    }
+
     let tags: Awaited<ReturnType<typeof import("./tags.server").readPipelineTags>> = [];
     if (current) {
       const { readPipelineTags } = await import("./tags.server");
@@ -101,6 +126,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
       leads,
       previousLeads,
       allLeads,
+      winEvents,
     };
   });
 
