@@ -134,7 +134,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
               (collapsed ? (
                 <div className="mx-2 my-2 border-t" />
               ) : (
-                <span className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                <span className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-nav-label-fixed">
                   {group.section}
                 </span>
               ))}
@@ -149,17 +149,15 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                   key={item.to}
                   to={item.to}
                   onClick={onNavigate}
-                  className={`flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium text-nav-label-fixed transition-colors ${
                     active
-                      ? "bg-primary/10 text-primary"
-                      : disabled
-                        ? "text-muted-foreground/60 hover:bg-muted"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-primary/10"
+                      : "hover:bg-muted"
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   {!collapsed && (
-                    <span className={`flex-1 flex items-center justify-between ${item.to === "/dashboard" ? "text-nav-label-fixed" : ""}`}>
+                    <span className="flex-1 flex items-center justify-between">
                       {item.label}
                       {disabled && <Lock className="h-3 w-3 opacity-60" />}
                     </span>
