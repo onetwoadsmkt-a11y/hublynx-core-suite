@@ -329,6 +329,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div key={valuesUnlocked ? "unlocked" : "locked"} className="p-4 lg:p-8 max-w-[1600px] mx-auto w-full">
             {children}
           </div>
+          <footer className="px-4 lg:px-8 pb-6 pt-2 text-center text-[11px] text-muted-foreground/70">
+            HubLynx Core Suite · Todos os direitos reservados
+          </footer>
         </main>
       </div>
     </div>
