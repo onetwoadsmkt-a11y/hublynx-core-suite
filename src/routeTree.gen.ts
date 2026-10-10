@@ -46,6 +46,7 @@ import { Route as AuthenticatedAppTarefasRouteImport } from './routes/_authentic
 import { Route as AuthenticatedComercialDashboardRouteImport } from './routes/_authenticated/comercial.dashboard'
 import { Route as AuthenticatedComercialRelatoriosRouteImport } from './routes/_authenticated/comercial.relatorios'
 import { Route as AuthenticatedConfiguracoesIndexRouteImport } from './routes/_authenticated/configuracoes.index'
+import { Route as AuthenticatedConfiguracoesAparenciaRouteImport } from './routes/_authenticated/configuracoes.aparencia'
 import { Route as AuthenticatedConfiguracoesModelosRouteImport } from './routes/_authenticated/configuracoes.modelos'
 import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
 import { Route as AuthenticatedFinanceiroSplatRouteImport } from './routes/_authenticated/financeiro.$'
@@ -259,6 +260,12 @@ const AuthenticatedConfiguracoesIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
   } as any)
+const AuthenticatedConfiguracoesAparenciaRoute =
+  AuthenticatedConfiguracoesAparenciaRouteImport.update({
+    id: '/aparencia',
+    path: '/aparencia',
+    getParentRoute: () => AuthenticatedConfiguracoesRoute,
+  } as any)
 const AuthenticatedConfiguracoesModelosRoute =
   AuthenticatedConfiguracoesModelosRouteImport.update({
     id: '/modelos',
@@ -382,6 +389,7 @@ export interface FileRoutesByFullPath {
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
   '/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
+  '/configuracoes/aparencia': typeof AuthenticatedConfiguracoesAparenciaRoute
   '/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
@@ -432,6 +440,7 @@ export interface FileRoutesByTo {
   '/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
   '/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
+  '/configuracoes/aparencia': typeof AuthenticatedConfiguracoesAparenciaRoute
   '/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
@@ -487,6 +496,7 @@ export interface FileRoutesById {
   '/_authenticated/app/tarefas': typeof AuthenticatedAppTarefasRouteWithChildren
   '/_authenticated/comercial/dashboard': typeof AuthenticatedComercialDashboardRoute
   '/_authenticated/comercial/relatorios': typeof AuthenticatedComercialRelatoriosRoute
+  '/_authenticated/configuracoes/aparencia': typeof AuthenticatedConfiguracoesAparenciaRoute
   '/_authenticated/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/_authenticated/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
@@ -542,6 +552,7 @@ export interface FileRouteTypes {
     | '/app/tarefas'
     | '/comercial/dashboard'
     | '/comercial/relatorios'
+    | '/configuracoes/aparencia'
     | '/configuracoes/modelos'
     | '/configuracoes/modulos'
     | '/financeiro/$'
@@ -592,6 +603,7 @@ export interface FileRouteTypes {
     | '/app/tarefas'
     | '/comercial/dashboard'
     | '/comercial/relatorios'
+    | '/configuracoes/aparencia'
     | '/configuracoes/modelos'
     | '/configuracoes/modulos'
     | '/financeiro/$'
@@ -646,6 +658,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/tarefas'
     | '/_authenticated/comercial/dashboard'
     | '/_authenticated/comercial/relatorios'
+    | '/_authenticated/configuracoes/aparencia'
     | '/_authenticated/configuracoes/modelos'
     | '/_authenticated/configuracoes/modulos'
     | '/_authenticated/financeiro/$'
@@ -940,6 +953,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesIndexRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
     }
+    '/_authenticated/configuracoes/aparencia': {
+      id: '/_authenticated/configuracoes/aparencia'
+      path: '/aparencia'
+      fullPath: '/configuracoes/aparencia'
+      preLoaderRoute: typeof AuthenticatedConfiguracoesAparenciaRouteImport
+      parentRoute: typeof AuthenticatedConfiguracoesRoute
+    }
     '/_authenticated/configuracoes/modelos': {
       id: '/_authenticated/configuracoes/modelos'
       path: '/modelos'
@@ -1107,6 +1127,7 @@ const AuthenticatedAppRouteWithChildren =
   AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
 
 interface AuthenticatedConfiguracoesRouteChildren {
+  AuthenticatedConfiguracoesAparenciaRoute: typeof AuthenticatedConfiguracoesAparenciaRoute
   AuthenticatedConfiguracoesModelosRoute: typeof AuthenticatedConfiguracoesModelosRoute
   AuthenticatedConfiguracoesModulosRoute: typeof AuthenticatedConfiguracoesModulosRoute
   AuthenticatedConfiguracoesIndexRoute: typeof AuthenticatedConfiguracoesIndexRoute
@@ -1116,6 +1137,8 @@ interface AuthenticatedConfiguracoesRouteChildren {
 
 const AuthenticatedConfiguracoesRouteChildren: AuthenticatedConfiguracoesRouteChildren =
   {
+    AuthenticatedConfiguracoesAparenciaRoute:
+      AuthenticatedConfiguracoesAparenciaRoute,
     AuthenticatedConfiguracoesModelosRoute:
       AuthenticatedConfiguracoesModelosRoute,
     AuthenticatedConfiguracoesModulosRoute:
