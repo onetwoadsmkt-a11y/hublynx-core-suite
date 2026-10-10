@@ -7,6 +7,30 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMyOrgAccess, type OrgSummary } from "@/lib/org/org.functions";
 
 const STORAGE_KEY = "hublynx-active-organization";
+/** Última marca usada neste navegador: aplicada já no primeiro desenho, antes de carregar a empresa. */
+export const BRAND_CACHE_KEY = "hublynx-brand-cache";
+
+export type BrandInfo = { logoUrl: string | null; brandColor: string | null };
+
+function readBrandCache(): BrandInfo | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(BRAND_CACHE_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as BrandInfo;
+    return { logoUrl: v.logoUrl ?? null, brandColor: v.brandColor ?? null };
+  } catch {
+    return null;
+  }
+}
+
+export function clearBrandCache() {
+  try {
+    localStorage.removeItem(BRAND_CACHE_KEY);
+  } catch {
+    /* ignora */
+  }
+}
 
 export type OrganizationOption = {
   id: string;
@@ -32,6 +56,8 @@ type WorkspaceContextValue = {
   activeWorkspaceId: string | null;
   role: string | null;
   isSuperAdmin: boolean;
+  /** Marca a exibir: a da empresa ativa ou, enquanto carrega, a última usada neste navegador. */
+  brand: BrandInfo | null;
   setActiveOrganization: (id: string) => void;
   /** Alias legado. */
   setActiveWorkspace: (id: string) => void;
@@ -47,6 +73,7 @@ const EMPTY: WorkspaceContextValue = {
   activeWorkspaceId: null,
   role: null,
   isSuperAdmin: false,
+  brand: null,
   setActiveOrganization: () => {},
   setActiveWorkspace: () => {},
   isLoading: true,
@@ -94,6 +121,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return organizations.find((o) => o.id === selectedId) ?? organizations[0]!;
   }, [organizations, selectedId]);
 
+  const [cachedBrand] = useState<BrandInfo | null>(() => readBrandCache());
+
+  useEffect(() => {
+    if (!activeOrganization || typeof window === "undefined") return;
+    try {
+      localStorage.setItem(
+        BRAND_CACHE_KEY,
+        JSON.stringify({ logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor }),
+      );
+    } catch {
+      /* ignora */
+    }
+  }, [activeOrganization?.id, activeOrganization?.logoUrl, activeOrganization?.brandColor]);
+
   useEffect(() => {
     if (!activeOrganization) return;
     if (activeOrganization.id !== selectedId) setSelectedId(activeOrganization.id);
@@ -120,6 +161,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     activeWorkspaceId: activeOrganization?.id ?? null,
     role: activeOrganization?.role ?? null,
     isSuperAdmin: !!data?.isSuperAdmin,
+    brand: activeOrganization
+      ? { logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor }
+      : isLoading
+        ? cachedBrand
+        : null,
     setActiveOrganization,
     setActiveWorkspace: setActiveOrganization,
     isLoading,
