@@ -13,3 +13,5 @@
 - [x] Pipeline — captação, mapeamento e destaque de pontuação/classificação de leads; respostas do formulário no detalhe
 - [x] Projetos — seções organizadas em abas; evolução com gráfico e progresso das etapas, sem alterar ações existentes
 - [ ] Projetos — conferir as abas com um projeto real; bloqueado pela ausência de sessão autenticada disponível para testes
+- [ ] Contas — corrigir provisionamento administrativo, acesso pendente, menu e marca por identidade; testar regras
+- [ ] Contas — conferir cadastro afetado, administradores atuais e segurança do banco externo; bloqueado por acesso de auditoria e e-mail válido
