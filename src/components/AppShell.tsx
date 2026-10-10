@@ -305,8 +305,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SidebarNav onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
+          <div className="sm:hidden">
+            <HublynxLogo collapsed />
+          </div>
 
-          <div className="relative flex-1 max-w-xl">
+          <div className="relative hidden max-w-xl flex-1 sm:block">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Buscar tarefas, projetos, clientes..." className="pl-9 bg-muted/50 border-transparent focus-visible:bg-background" />
           </div>

@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  DndContext, DragOverlay, PointerSensor, closestCorners, useSensor, useSensors,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, closestCorners, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
@@ -172,7 +172,15 @@ function PipelinePage() {
     onSuccess: refresh,
   });
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // Mouse arrasta após 6px; no toque é preciso segurar o card para arrastar,
+  // assim o deslizar lateral continua rolando as etapas no celular.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
+  const columnRefs = useRef(new Map<string, HTMLDivElement>());
+  const scrollToStage = (id: string) =>
+    columnRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
 
   // modal de conversão Ganho → Cliente → Projeto → Financeiro
   function onDragStart(e: DragStartEvent) {
@@ -200,10 +208,10 @@ function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">Pipeline de Vendas</h1>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Pipeline de Vendas</h1>
             <Select
               value={current?.id ?? ""}
               onValueChange={(v) => {
@@ -215,7 +223,7 @@ function PipelinePage() {
                 setPipelineId(v);
               }}
             >
-              <SelectTrigger className="h-8 w-[220px]">
+              <SelectTrigger className="h-9 w-full sm:h-8 sm:w-[220px]">
                 <SelectValue placeholder="Selecionar pipeline" />
               </SelectTrigger>
               <SelectContent>
@@ -226,25 +234,26 @@ function PipelinePage() {
               </SelectContent>
             </Select>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {filtered.length} leads · {currency(total)} em negociação
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1 lg:flex-none">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar lead, campanha..."
-              className="w-56 pl-9"
+              className="w-full pl-9 lg:w-56"
             />
           </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Settings className="mr-1.5 h-4 w-4" /> Configurações
+              <Button variant="outline" size="sm" className="h-9 shrink-0 sm:h-8" aria-label="Configurações">
+                <Settings className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Configurações</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
@@ -301,15 +310,16 @@ function PipelinePage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button size="sm" onClick={() => openNew(stages[0]?.id)}>
-            <Plus className="mr-1.5 h-4 w-4" /> Novo lead
+          <Button size="sm" className="h-9 shrink-0 sm:h-8" onClick={() => openNew(stages[0]?.id)} aria-label="Novo lead">
+            <Plus className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Novo lead</span>
           </Button>
         </div>
       </header>
 
       {isLoading ? (
-        <div className="flex gap-4">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-80 w-72 rounded-xl" />)}
+        <div className="flex gap-3 overflow-hidden sm:gap-4">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-80 w-[85vw] max-w-72 shrink-0 rounded-xl sm:w-72" />)}
         </div>
       ) : (
         <DndContext
@@ -318,10 +328,32 @@ function PipelinePage() {
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         >
-          <div className="flex flex-1 gap-4 overflow-x-auto pb-4">
+          {/* Celular: atalhos das etapas para pular direto à coluna */}
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden">
+            {stages.map((stage) => {
+              const n = filtered.filter((l) => l.stage_id === stage.id).length;
+              return (
+                <button
+                  key={stage.id}
+                  type="button"
+                  onClick={() => scrollToStage(stage.id)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-medium"
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                  <span className="max-w-[9rem] truncate">{stage.name}</span>
+                  <span className="text-muted-foreground tabular-nums">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="-mx-4 flex flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:gap-4 md:px-0">
             {stages.map((stage) => (
               <StageColumn
                 key={stage.id}
+                columnRef={(el) => {
+                  if (el) columnRefs.current.set(stage.id, el);
+                  else columnRefs.current.delete(stage.id);
+                }}
                 stage={stage}
                 leads={filtered.filter((l) => l.stage_id === stage.id)}
                 onOpen={setOpenLead}
@@ -334,7 +366,7 @@ function PipelinePage() {
           </div>
           <DragOverlay>
             {dragging && (
-              <div className="w-72 rotate-2">
+              <div className="w-[85vw] max-w-72 rotate-2 sm:w-72">
                 <LeadCard lead={dragging} onOpen={() => {}} onEdit={() => {}} draggable={false} />
               </div>
             )}
@@ -405,7 +437,9 @@ function StageColumn({
   onAdd,
   locked = false,
   tags = [],
+  columnRef,
 }: {
+  columnRef?: (el: HTMLDivElement | null) => void;
   stage: PipelineStage;
   leads: Lead[];
   onOpen: (l: Lead) => void;
@@ -415,13 +449,17 @@ function StageColumn({
   tags?: { slug: string; name: string; color: string }[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const setRefs = (el: HTMLDivElement | null) => {
+    setNodeRef(el);
+    columnRef?.(el);
+  };
   const total = leads.reduce((s, l) => s + Number(l.value ?? 0), 0);
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       className={cn(
-        "flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 transition",
+        "flex w-[85vw] max-w-72 shrink-0 snap-start flex-col rounded-xl border bg-muted/30 transition sm:w-72",
         isOver && "border-primary/60 bg-primary/5",
         locked && "border-dashed",
       )}
@@ -443,7 +481,7 @@ function StageColumn({
           </p>
         </div>
         {!locked && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onAdd}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-7 sm:w-7" onClick={onAdd} aria-label={`Novo lead em ${stage.name}`}>
             <Plus className="h-4 w-4" />
           </Button>
         )}
@@ -468,7 +506,10 @@ function StageColumn({
           />
         ))}
         {leads.length === 0 && (
-          <p className="px-2 py-6 text-center text-xs text-muted-foreground">Arraste leads para cá</p>
+          <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+            <span className="md:hidden">Nenhum lead nesta etapa</span>
+            <span className="hidden md:inline">Arraste leads para cá</span>
+          </p>
         )}
       </div>
     </div>

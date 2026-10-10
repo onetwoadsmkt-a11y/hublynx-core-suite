@@ -152,7 +152,7 @@ export function LeadCard({
       onPointerDown={() => locked && onLockedDrag?.()}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="line-clamp-2 flex items-center gap-1.5 text-sm font-semibold leading-tight">
+        <p className="line-clamp-2 flex min-w-0 items-center gap-1.5 break-words text-sm font-semibold leading-tight">
           {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           {lead.name}
           {tags.length > 0 && (
@@ -164,7 +164,7 @@ export function LeadCard({
                   title="Adicionar tag"
                   className={cn(
                     "h-5 w-5 shrink-0 text-muted-foreground",
-                    shownTags.length === 0 && "opacity-0 group-hover:opacity-100",
+                    shownTags.length === 0 && "md:opacity-0 md:group-hover:opacity-100",
                   )}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -197,7 +197,13 @@ export function LeadCard({
         </p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 md:h-6 md:w-6 md:opacity-0 md:group-hover:opacity-100"
+              aria-label="Ações do lead"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               <MoreVertical className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>

@@ -125,42 +125,45 @@ function Dashboard() {
   ];
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8 sm:space-y-10">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{greeting()}, {me ?? "por aí"}</h1>
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{greeting()}, {me ?? "por aí"}</h1>
         <p className="text-sm text-muted-foreground">Visão geral do comercial e da operação.</p>
       </div>
 
       {!org.isLoading && org.hasModule("crm") && <CommercialOverview />}
 
-      <section className="space-y-6">
+      <section className="space-y-4 sm:space-y-6">
       <h2 className="text-xl font-semibold tracking-tight">Seu dia</h2>
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4">
         {KPI.map((kp) => {
           const Icon = kp.icon;
           return (
             <Card key={kp.title} className="border-border/60 shadow-[var(--shadow-soft)]">
-              <CardContent className="p-5">
-                <div className={`h-10 w-10 rounded-lg ${kp.color} flex items-center justify-center`}>
-                  <Icon className="h-5 w-5" />
+              <CardContent className="p-3 sm:p-5">
+                <div className="flex items-center justify-between gap-2 sm:block">
+                  <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg ${kp.color} flex items-center justify-center shrink-0`}>
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </div>
+                  <p className="text-xl font-semibold tabular-nums sm:hidden">{kp.value}</p>
                 </div>
-                <p className="mt-4 text-sm text-muted-foreground">{kp.title}</p>
-                <p className="mt-1 text-2xl font-semibold">{kp.value}</p>
-                <p className={`mt-1 text-xs ${kp.subTone}`}>{kp.sub}</p>
+                <p className="mt-2 text-xs leading-tight text-muted-foreground sm:mt-4 sm:text-sm">{kp.title}</p>
+                <p className="mt-1 hidden text-2xl font-semibold tabular-nums sm:block">{kp.value}</p>
+                <p className={`mt-1 truncate text-[11px] sm:text-xs ${kp.subTone}`}>{kp.sub}</p>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         {/* Tarefas do dia */}
         <Card className="shadow-[var(--shadow-soft)]">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4 sm:p-6">
             <CardTitle className="text-base">Tarefas do dia</CardTitle>
             <Button asChild variant="outline" size="sm"><Link to="/tarefas" search={{ task: undefined }}>Ver todas</Link></Button>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-1 px-4 pb-4 sm:px-6 sm:pb-6">
             {data?.tasks.length === 0 && (
               <EmptyState icon={CheckSquare} text="Nenhuma tarefa para hoje" cta="Criar tarefa" to="/tarefas" />
             )}
@@ -177,8 +180,8 @@ function Dashboard() {
                     {[t.clients?.name, t.projects?.name].filter(Boolean).join(" • ") || "Sem cliente"}
                   </p>
                 </div>
-                <Badge variant="secondary" className="font-normal capitalize">{t.priority}</Badge>
-                <span className="text-xs text-muted-foreground tabular-nums w-12 text-right">
+                <Badge variant="secondary" className="hidden font-normal capitalize sm:inline-flex">{t.priority}</Badge>
+                <span className="w-11 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                   {t.due_date ? fmtTime(t.due_date) : "—"}
                 </span>
               </div>
@@ -189,20 +192,20 @@ function Dashboard() {
 
         {/* Projetos em andamento */}
         <Card className="shadow-[var(--shadow-soft)]">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4 sm:p-6">
             <CardTitle className="text-base">Projetos em andamento</CardTitle>
             <Button asChild variant="outline" size="sm"><Link to="/projetos">Ver todos</Link></Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
             {data?.projects.length === 0 && (
               <EmptyState icon={FolderKanban} text="Nenhum projeto ativo" cta="Criar projeto" to="/projetos" />
             )}
             {data?.projects.map((p: any) => (
               <div key={p.id} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-medium">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.clients?.name ?? "Sem cliente"}</p>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{p.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{p.clients?.name ?? "Sem cliente"}</p>
                   </div>
                   <span className="text-xs font-medium tabular-nums">{p.progress ?? 0}%</span>
                 </div>
@@ -214,11 +217,11 @@ function Dashboard() {
 
         {/* Próximos eventos */}
         <Card className="shadow-[var(--shadow-soft)]">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4 sm:p-6">
             <CardTitle className="text-base">Próximos eventos</CardTitle>
             <Button asChild variant="outline" size="sm"><Link to="/agenda">Ver agenda</Link></Button>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">
             {data?.events.length === 0 && (
               <EmptyState icon={CalIcon} text="Nenhum evento próximo" cta="Criar evento" to="/agenda" />
             )}
@@ -238,7 +241,7 @@ function Dashboard() {
                       {fmtTime(e.start_at)}{e.end_at ? ` - ${fmtTime(e.end_at)}` : ""}
                     </p>
                   </div>
-                  <Badge variant="secondary" className="font-normal capitalize">{e.event_type ?? "evento"}</Badge>
+                  <Badge variant="secondary" className="hidden font-normal capitalize sm:inline-flex">{e.event_type ?? "evento"}</Badge>
                 </div>
               );
             })}

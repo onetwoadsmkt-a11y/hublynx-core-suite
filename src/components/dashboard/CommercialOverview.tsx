@@ -152,27 +152,27 @@ export function CommercialOverview() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <header className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold tracking-tight">Comercial</h2>
           <p className="text-sm text-muted-foreground">
             {current?.name ?? "—"} · {brDate(from)} a {brDate(to)}
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1">
+        <div className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
+          <div className="min-w-0 space-y-1">
             <Label className="text-[11px] text-muted-foreground">Pipeline</Label>
             <Select value={current?.id ?? ""} onValueChange={setPipelineId}>
-              <SelectTrigger className="h-9 w-[220px]"><SelectValue placeholder="Pipeline" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full sm:w-[220px]"><SelectValue placeholder="Pipeline" /></SelectTrigger>
               <SelectContent>
                 {pipelines.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label className="text-[11px] text-muted-foreground">Medir por</Label>
             <Select value={mode} onValueChange={(v) => setMode(v as FunnelMode)}>
-              <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full sm:w-[170px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="both">Tags + etapas</SelectItem>
                 <SelectItem value="tags">Só tags</SelectItem>
@@ -182,22 +182,22 @@ export function CommercialOverview() {
           </div>
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">De</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-[150px]" />
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-full sm:w-[150px]" />
           </div>
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Até</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 w-[150px]" />
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 w-full sm:w-[150px]" />
           </div>
-          <div className="flex gap-1">
-            <Button variant="outline" size="sm" onClick={() => preset(7)}>7d</Button>
-            <Button variant="outline" size="sm" onClick={() => preset(30)}>30d</Button>
-            <Button variant="outline" size="sm" onClick={() => preset(90)}>90d</Button>
+          <div className="col-span-2 grid grid-cols-3 gap-1 sm:flex">
+            <Button variant="outline" size="sm" className="h-9" onClick={() => preset(7)}>7d</Button>
+            <Button variant="outline" size="sm" className="h-9" onClick={() => preset(30)}>30d</Button>
+            <Button variant="outline" size="sm" className="h-9" onClick={() => preset(90)}>90d</Button>
           </div>
         </div>
       </header>
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
       ) : (
@@ -207,21 +207,22 @@ export function CommercialOverview() {
             style={{ background: "linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-blue) 100%)" }}
           >
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-sm font-semibold text-white">Leads no pipeline (total, sem filtro de data)</h2>
+              <h2 className="text-sm font-semibold text-white">
+                Leads no pipeline <span className="font-normal text-white/70">· total, sem filtro de data</span>
+              </h2>
               <span className="text-xs text-white/70">{current?.name ?? "—"}</span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <Total label="Total no pipeline" value={total.leads} variant="gradient" />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
+              <Total label="Total no pipeline" value={total.leads} variant="gradient" className="col-span-2 sm:col-span-1" />
               <Total label="Em aberto" value={emAberto} variant="gradient" />
               <Total label="Em nutrição" value={total.nutricao} variant="gradient" />
               <Total label="Ganhos" value={total.ganhos} tone="text-emerald-400" variant="gradient" />
               <Total label="Perdidos" value={total.perdidos} tone="text-rose-400" variant="gradient" />
-              <Total label="Valor em aberto" value={valorAberto} money variant="gradient" />
+              <Total label="Valor em aberto" value={valorAberto} money variant="gradient" className="col-span-2 sm:col-span-1" />
             </div>
           </section>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             <Kpi label="Leads" value={m.leads} prev={prev.leads} hint="entradas no período" />
             <Kpi label="Conectados" value={m.conectados} prev={prev.conectados} hint={`${m.taxaConexao}% dos leads`} />
             <Kpi label="Reuniões agendadas" value={m.agendadas} prev={prev.agendadas} />
@@ -232,7 +233,7 @@ export function CommercialOverview() {
             <Kpi label="Perdidos" value={m.perdidos} prev={prev.perdidos} tone="text-rose-600" invert />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             <Rate label="% Leads x Conectados" value={m.taxaConexao} prev={prev.taxaConexao} />
             <Rate label="% Leads x Reuniões feitas" value={m.taxaReuniao} prev={prev.taxaReuniao} />
             <Rate label="% Reuniões x COF" value={m.taxaCof} prev={prev.taxaCof} />
@@ -251,7 +252,7 @@ export function CommercialOverview() {
                 Nenhuma tag configurada. Configure em Pipeline → Configurações → Tags de conversão.
               </p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                 {tagCounts.map((t) => (
                   <div key={t.slug} className="rounded-lg border p-3">
                     <div className="flex items-center gap-2">
@@ -270,11 +271,11 @@ export function CommercialOverview() {
             )}
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <section className="rounded-xl border p-4">
               <h2 className="mb-1 text-sm font-semibold">Comparativo com período anterior</h2>
               <p className="mb-3 text-xs text-muted-foreground">Mesmo número de dias imediatamente anteriores.</p>
-              <div className="h-[300px]">
+              <div className="h-[260px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={comparativo} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
@@ -292,7 +293,7 @@ export function CommercialOverview() {
             <section className="rounded-xl border p-4">
               <h2 className="mb-1 text-sm font-semibold">Funil comercial</h2>
               <p className="mb-3 text-xs text-muted-foreground">Leads que alcançaram cada etapa.</p>
-              <div className="h-[300px]">
+              <div className="h-[260px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={funil} layout="vertical" margin={{ top: 4, right: 16, left: 16, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
@@ -328,7 +329,7 @@ export function CommercialOverview() {
                     const agg = byStage.get(s.id) ?? { count: 0, total: 0, periodo: 0 };
                     const kind = classifyStage(s);
                     return (
-                      <div key={s.id} className="flex w-[168px] shrink-0 flex-col">
+                      <div key={s.id} className="flex w-[136px] shrink-0 flex-col sm:w-[168px]">
                         <p className="truncate text-center text-[11px] font-bold uppercase tracking-wide text-white" title={s.name}>
                           {s.name}
                         </p>
@@ -337,8 +338,8 @@ export function CommercialOverview() {
                         </p>
                         <div className="mt-2 h-[3px] rounded-full" style={{ backgroundColor: s.color }} />
 
-                        <div className="mt-3 flex flex-col items-center justify-center rounded-2xl border border-white/25 bg-white/10 py-6 backdrop-blur-sm">
-                          <span className="font-mono text-[42px] font-light leading-none tabular-nums text-white">
+                        <div className="mt-3 flex flex-col items-center justify-center rounded-2xl border border-white/25 bg-white/10 py-4 backdrop-blur-sm sm:py-6">
+                          <span className="font-mono text-[34px] font-light leading-none tabular-nums text-white sm:text-[42px]">
                             {agg.count || "0"}
                           </span>
                           <span className="mt-1 font-mono text-sm font-semibold tabular-nums text-white/90">
@@ -362,7 +363,7 @@ export function CommercialOverview() {
           </section>
 
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <section className="rounded-xl border p-4">
               <h2 className="mb-3 text-sm font-semibold">Entradas por dia</h2>
               {byDay.length === 0 ? (
@@ -419,15 +420,15 @@ function Delta({ value, prev, invert }: { value: number; prev: number; invert?: 
 }
 
 function Total({
-  label, value, tone, money, variant,
-}: { label: string; value: number; tone?: string; money?: boolean; variant?: "default" | "gradient" }) {
+  label, value, tone, money, variant, className = "",
+}: { label: string; value: number; tone?: string; money?: boolean; variant?: "default" | "gradient"; className?: string }) {
   const isGradient = variant === "gradient";
   return (
-    <div className={`rounded-lg border p-3 ${isGradient ? "bg-white/10 backdrop-blur-sm" : "bg-background"}`}>
-      <p className={`text-[11px] font-medium uppercase tracking-wide ${isGradient ? "text-white/80" : "text-muted-foreground"}`}>
+    <div className={`min-w-0 rounded-lg border p-3 ${isGradient ? "bg-white/10 backdrop-blur-sm" : "bg-background"} ${className}`}>
+      <p className={`truncate text-[10px] font-medium uppercase tracking-wide sm:text-[11px] ${isGradient ? "text-white/80" : "text-muted-foreground"}`}>
         {label}
       </p>
-      <p className={`mt-1 font-mono text-[22px] leading-none tabular-nums ${tone ?? (isGradient ? "text-white" : "")}`}>
+      <p className={`mt-1 truncate font-mono text-[20px] leading-none tabular-nums sm:text-[22px] ${tone ?? (isGradient ? "text-white" : "")}`}>
         {value ? (money ? currency(value) : value) : "·"}
       </p>
     </div>
@@ -439,23 +440,23 @@ function Kpi({
   label, value, prev, hint, tone, invert,
 }: { label: string; value: number; prev: number; hint?: string; tone?: string; invert?: boolean }) {
   return (
-    <div className="rounded-xl border p-4">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="mt-1 flex items-baseline gap-2">
-        <p className={`font-mono text-[26px] leading-none tabular-nums ${tone ?? ""}`}>{value || "·"}</p>
+    <div className="min-w-0 rounded-xl border p-3 sm:p-4">
+      <p className="text-[10px] font-medium uppercase leading-tight tracking-wide text-muted-foreground sm:text-[11px]">{label}</p>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <p className={`font-mono text-[22px] leading-none tabular-nums sm:text-[26px] ${tone ?? ""}`}>{value || "·"}</p>
         <Delta value={value} prev={prev} invert={invert} />
       </div>
-      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+      {hint && <p className="mt-1 text-[11px] leading-snug text-muted-foreground sm:text-xs">{hint}</p>}
     </div>
   );
 }
 
 function Rate({ label, value, prev }: { label: string; value: number; prev: number }) {
   return (
-    <div className="rounded-xl border bg-muted/30 p-4">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="mt-1 flex items-baseline gap-2">
-        <p className="font-mono text-[26px] leading-none tabular-nums">{value}%</p>
+    <div className="min-w-0 rounded-xl border bg-muted/30 p-3 sm:p-4">
+      <p className="text-[10px] font-medium uppercase leading-tight tracking-wide text-muted-foreground sm:text-[11px]">{label}</p>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <p className="font-mono text-[22px] leading-none tabular-nums sm:text-[26px]">{value}%</p>
         <Delta value={value} prev={prev} />
       </div>
       <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
