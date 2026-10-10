@@ -43,16 +43,22 @@ export function currency(v: number | null) {
 
 type ScoreTone = "hot" | "warm" | "cold" | "nutrition" | "neutral";
 
+// Aceita as chaves em inglês (Lead Pro / webhooks) e os nomes em português das faixas.
+const SCORE_ALIASES: Record<string, ScoreTone> = {
+  hot: "hot", quente: "hot",
+  warm: "warm", morno: "warm",
+  cold: "cold", frio: "cold",
+  nutrition: "nutrition", "nutrição": "nutrition", nutricao: "nutrition",
+};
+
 export function leadScorePresentation(classification: string | null | undefined) {
   const normalized = classification?.trim().toLowerCase() ?? "";
-  const tone: ScoreTone = ["hot", "warm", "cold", "nutrition"].includes(normalized)
-    ? (normalized as ScoreTone)
-    : "neutral";
+  const tone: ScoreTone = SCORE_ALIASES[normalized] ?? "neutral";
   const labels: Record<ScoreTone, string> = {
-    hot: "Hot",
-    warm: "Warm",
-    cold: "Cold",
-    nutrition: "Nutrition",
+    hot: "Quente",
+    warm: "Morno",
+    cold: "Frio",
+    nutrition: "Nutrição",
     neutral: classification?.trim() || "Sem classificação",
   };
   const classes: Record<ScoreTone, string> = {
@@ -281,10 +287,10 @@ export function LeadCard({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {layout.score && leadScore != null && (
+        {layout.score && (leadScore != null || lead.lead_classification) && (
           <Badge variant="outline" className={cn("h-5 gap-1 px-1.5 text-[10px] font-semibold", scorePresentation.className)}>
-            {Number.isInteger(leadScore) ? leadScore : leadScore.toLocaleString("pt-BR")}
-            <span className="font-medium">· {scorePresentation.label}</span>
+            {leadScore != null && (Number.isInteger(leadScore) ? leadScore : leadScore.toLocaleString("pt-BR"))}
+            <span className="font-medium">{leadScore != null ? "· " : ""}{scorePresentation.label}</span>
           </Badge>
         )}
         {layout.value && value && (

@@ -214,3 +214,111 @@
   color: white;
   border-color: rgb(255 255 255 / 0.10);
 }
+
+/* ------------------------------------------------------------------
+ * Formulários de captação (construtor trazido do Lead Pro).
+ * As variáveis --vs-* são o padrão; no formulário público cada empresa
+ * sobrescreve com as cores da própria aparência (src/lib/forms/theme.ts).
+ * ------------------------------------------------------------------ */
+@theme inline {
+  --color-accent-strong: var(--accent-strong);
+  --color-form-text-blue: var(--form-text-blue);
+  --color-form-text-green: var(--form-text-green);
+  --color-form-text-red: var(--form-text-red);
+  --color-form-text-orange: var(--form-text-orange);
+  --color-form-text-purple: var(--form-text-purple);
+  --color-vs-canvas: var(--vs-canvas);
+  --color-vs-surface: var(--vs-surface);
+  --color-vs-yellow: var(--vs-yellow);
+  --color-vs-yellow-hover: var(--vs-yellow-hover);
+  --color-vs-yellow-strong: var(--vs-yellow-strong);
+  --color-vs-yellow-soft: var(--vs-yellow-soft);
+  --color-vs-card: var(--vs-card);
+  --color-vs-ink: var(--vs-ink);
+  --color-vs-muted: var(--vs-muted);
+  --color-vs-line: var(--vs-line);
+  --color-vs-track: var(--vs-track);
+  --color-vs-on-dark: var(--vs-on-dark);
+  --font-form-display: var(--font-form-display);
+  --font-form-body: var(--font-form-body);
+  --shadow-card: var(--shadow-card);
+  --shadow-vs-card: var(--shadow-vs-card);
+  --shadow-vs-button: var(--shadow-vs-button);
+}
+
+:root {
+  --accent-strong: oklch(0.62 0.17 155);
+  --form-text-blue: oklch(0.52 0.2 255);
+  --form-text-green: oklch(0.5 0.15 150);
+  --form-text-red: oklch(0.55 0.22 27);
+  --form-text-orange: oklch(0.62 0.18 55);
+  --form-text-purple: oklch(0.5 0.2 305);
+  --font-form-display: "Archivo Black", "Archivo", sans-serif;
+  --font-form-body: "Hind", "Archivo", sans-serif;
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.04), 0 12px 32px oklch(0 0 0 / 0.06);
+  --vs-canvas: #0b1220;
+  --vs-surface: oklch(0.26 0.03 260);
+  --vs-yellow: #00d084;
+  --vs-yellow-hover: color-mix(in oklab, #00d084 86%, black);
+  --vs-yellow-strong: color-mix(in oklab, #00d084 72%, black);
+  --vs-yellow-soft: color-mix(in oklab, #00d084 14%, white);
+  --vs-card: oklch(1 0 0);
+  --vs-ink: oklch(0.178 0 0);
+  --vs-muted: oklch(0.551 0.023 264);
+  --vs-line: oklch(0.928 0.006 264);
+  --vs-track: oklch(0.32 0.02 260);
+  --vs-on-dark: oklch(1 0 0);
+  --shadow-vs-card: 0 20px 60px oklch(0 0 0 / 0.35);
+  --shadow-vs-button: 0 10px 24px color-mix(in oklab, #00d084 28%, transparent);
+}
+
+@utility card-surface {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+}
+
+@keyframes form-slide-in-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes form-slide-in-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes form-step-in {
+  from { opacity: 0; transform: translateX(22px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@utility animate-card-next {
+  animation: form-slide-in-right 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-card-prev {
+  animation: form-slide-in-left 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-form-step {
+  animation: form-step-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility font-form-display {
+  font-family: var(--font-form-display);
+  letter-spacing: 0;
+}
+
+@utility font-form-body {
+  font-family: var(--font-form-body);
+  letter-spacing: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-form-step {
+    animation: none;
+  }
+}

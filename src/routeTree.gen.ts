@@ -29,6 +29,7 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSemanaRouteImport } from './routes/_authenticated/semana'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as FPublicSlugRouteImport } from './routes/f.$publicSlug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminArmazenamentoRouteImport } from './routes/_authenticated/admin.armazenamento'
 import { Route as AuthenticatedAdminAssinaturasRouteImport } from './routes/_authenticated/admin.assinaturas'
@@ -48,12 +49,15 @@ import { Route as AuthenticatedConfiguracoesIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedConfiguracoesModelosRouteImport } from './routes/_authenticated/configuracoes.modelos'
 import { Route as AuthenticatedConfiguracoesModulosRouteImport } from './routes/_authenticated/configuracoes.modulos'
 import { Route as AuthenticatedFinanceiroSplatRouteImport } from './routes/_authenticated/financeiro.$'
+import { Route as AuthenticatedFormulariosIndexRouteImport } from './routes/_authenticated/formularios.index'
+import { Route as AuthenticatedFormulariosFormIdRouteImport } from './routes/_authenticated/formularios.$formId'
 import { Route as AuthenticatedGestaoClientesRouteImport } from './routes/_authenticated/gestao.clientes'
 import { Route as AuthenticatedProjetosIndexRouteImport } from './routes/_authenticated/projetos.index'
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
 import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authenticated/app.tarefas.$id'
 import { Route as AuthenticatedConfiguracoesIntegracoesIndexRouteImport } from './routes/_authenticated/configuracoes.integracoes.index'
 import { Route as AuthenticatedConfiguracoesIntegracoesLogsRouteImport } from './routes/_authenticated/configuracoes.integracoes.logs'
+import { Route as ApiPublicFormAssetsSplatRouteImport } from './routes/api/public/form-assets/$'
 import { Route as ApiPublicHooksRunRemindersRouteImport } from './routes/api/public/hooks/run-reminders'
 import { Route as ApiPublicLeadsTokenRouteImport } from './routes/api/public/leads/$token'
 import { Route as ApiPublicGoogleOauthCallbackRouteImport } from './routes/api/public/google/oauth/callback'
@@ -158,6 +162,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/callback',
   path: '/callback',
   getParentRoute: () => AuthRoute,
+} as any)
+const FPublicSlugRoute = FPublicSlugRouteImport.update({
+  id: '/f/$publicSlug',
+  path: '/f/$publicSlug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
@@ -268,6 +277,18 @@ const AuthenticatedFinanceiroSplatRoute =
     path: '/$',
     getParentRoute: () => AuthenticatedFinanceiroRoute,
   } as any)
+const AuthenticatedFormulariosIndexRoute =
+  AuthenticatedFormulariosIndexRouteImport.update({
+    id: '/formularios/',
+    path: '/formularios/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFormulariosFormIdRoute =
+  AuthenticatedFormulariosFormIdRouteImport.update({
+    id: '/formularios/$formId',
+    path: '/formularios/$formId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedGestaoClientesRoute =
   AuthenticatedGestaoClientesRouteImport.update({
     id: '/gestao/clientes',
@@ -302,6 +323,12 @@ const AuthenticatedConfiguracoesIntegracoesLogsRoute =
     id: '/integracoes/logs',
     path: '/integracoes/logs',
     getParentRoute: () => AuthenticatedConfiguracoesRoute,
+  } as any)
+const ApiPublicFormAssetsSplatRoute =
+  ApiPublicFormAssetsSplatRouteImport.update({
+    id: '/api/public/form-assets/$',
+    path: '/api/public/form-assets/$',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksRunRemindersRoute =
   ApiPublicHooksRunRemindersRouteImport.update({
@@ -341,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/semana': typeof AuthenticatedSemanaRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/f/$publicSlug': typeof FPublicSlugRoute
   '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
@@ -357,14 +385,17 @@ export interface FileRoutesByFullPath {
   '/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
+  '/formularios/$formId': typeof AuthenticatedFormulariosFormIdRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
+  '/formularios/': typeof AuthenticatedFormulariosIndexRoute
   '/projetos/': typeof AuthenticatedProjetosIndexRoute
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
+  '/api/public/form-assets/$': typeof ApiPublicFormAssetsSplatRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
@@ -387,6 +418,7 @@ export interface FileRoutesByTo {
   '/semana': typeof AuthenticatedSemanaRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/f/$publicSlug': typeof FPublicSlugRoute
   '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
@@ -403,14 +435,17 @@ export interface FileRoutesByTo {
   '/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
+  '/formularios/$formId': typeof AuthenticatedFormulariosFormIdRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesIndexRoute
+  '/formularios': typeof AuthenticatedFormulariosIndexRoute
   '/projetos': typeof AuthenticatedProjetosIndexRoute
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
+  '/api/public/form-assets/$': typeof ApiPublicFormAssetsSplatRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
@@ -438,6 +473,7 @@ export interface FileRoutesById {
   '/_authenticated/semana': typeof AuthenticatedSemanaRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/f/$publicSlug': typeof FPublicSlugRoute
   '/_authenticated/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/_authenticated/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/_authenticated/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
@@ -454,14 +490,17 @@ export interface FileRoutesById {
   '/_authenticated/configuracoes/modelos': typeof AuthenticatedConfiguracoesModelosRoute
   '/_authenticated/configuracoes/modulos': typeof AuthenticatedConfiguracoesModulosRoute
   '/_authenticated/financeiro/$': typeof AuthenticatedFinanceiroSplatRoute
+  '/_authenticated/formularios/$formId': typeof AuthenticatedFormulariosFormIdRoute
   '/_authenticated/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
+  '/_authenticated/formularios/': typeof AuthenticatedFormulariosIndexRoute
   '/_authenticated/projetos/': typeof AuthenticatedProjetosIndexRoute
   '/_authenticated/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/_authenticated/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
+  '/api/public/form-assets/$': typeof ApiPublicFormAssetsSplatRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/_authenticated/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
@@ -489,6 +528,7 @@ export interface FileRouteTypes {
     | '/semana'
     | '/tarefas'
     | '/auth/callback'
+    | '/f/$publicSlug'
     | '/admin/armazenamento'
     | '/admin/assinaturas'
     | '/admin/empresas'
@@ -505,14 +545,17 @@ export interface FileRouteTypes {
     | '/configuracoes/modelos'
     | '/configuracoes/modulos'
     | '/financeiro/$'
+    | '/formularios/$formId'
     | '/gestao/clientes'
     | '/projetos/$id'
     | '/admin/'
     | '/app/'
     | '/configuracoes/'
+    | '/formularios/'
     | '/projetos/'
     | '/app/tarefas/$id'
     | '/configuracoes/integracoes/logs'
+    | '/api/public/form-assets/$'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/configuracoes/integracoes/'
@@ -535,6 +578,7 @@ export interface FileRouteTypes {
     | '/semana'
     | '/tarefas'
     | '/auth/callback'
+    | '/f/$publicSlug'
     | '/admin/armazenamento'
     | '/admin/assinaturas'
     | '/admin/empresas'
@@ -551,14 +595,17 @@ export interface FileRouteTypes {
     | '/configuracoes/modelos'
     | '/configuracoes/modulos'
     | '/financeiro/$'
+    | '/formularios/$formId'
     | '/gestao/clientes'
     | '/projetos/$id'
     | '/admin'
     | '/app'
     | '/configuracoes'
+    | '/formularios'
     | '/projetos'
     | '/app/tarefas/$id'
     | '/configuracoes/integracoes/logs'
+    | '/api/public/form-assets/$'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/configuracoes/integracoes'
@@ -585,6 +632,7 @@ export interface FileRouteTypes {
     | '/_authenticated/semana'
     | '/_authenticated/tarefas'
     | '/auth/callback'
+    | '/f/$publicSlug'
     | '/_authenticated/admin/armazenamento'
     | '/_authenticated/admin/assinaturas'
     | '/_authenticated/admin/empresas'
@@ -601,14 +649,17 @@ export interface FileRouteTypes {
     | '/_authenticated/configuracoes/modelos'
     | '/_authenticated/configuracoes/modulos'
     | '/_authenticated/financeiro/$'
+    | '/_authenticated/formularios/$formId'
     | '/_authenticated/gestao/clientes'
     | '/_authenticated/projetos/$id'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/configuracoes/'
+    | '/_authenticated/formularios/'
     | '/_authenticated/projetos/'
     | '/_authenticated/app/tarefas/$id'
     | '/_authenticated/configuracoes/integracoes/logs'
+    | '/api/public/form-assets/$'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/_authenticated/configuracoes/integracoes/'
@@ -621,6 +672,8 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  FPublicSlugRoute: typeof FPublicSlugRoute
+  ApiPublicFormAssetsSplatRoute: typeof ApiPublicFormAssetsSplatRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
   ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
@@ -768,6 +821,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/f/$publicSlug': {
+      id: '/f/$publicSlug'
+      path: '/f/$publicSlug'
+      fullPath: '/f/$publicSlug'
+      preLoaderRoute: typeof FPublicSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
@@ -901,6 +961,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinanceiroSplatRouteImport
       parentRoute: typeof AuthenticatedFinanceiroRoute
     }
+    '/_authenticated/formularios/': {
+      id: '/_authenticated/formularios/'
+      path: '/formularios'
+      fullPath: '/formularios/'
+      preLoaderRoute: typeof AuthenticatedFormulariosIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/formularios/$formId': {
+      id: '/_authenticated/formularios/$formId'
+      path: '/formularios/$formId'
+      fullPath: '/formularios/$formId'
+      preLoaderRoute: typeof AuthenticatedFormulariosFormIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/gestao/clientes': {
       id: '/_authenticated/gestao/clientes'
       path: '/gestao/clientes'
@@ -942,6 +1016,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/configuracoes/integracoes/logs'
       preLoaderRoute: typeof AuthenticatedConfiguracoesIntegracoesLogsRouteImport
       parentRoute: typeof AuthenticatedConfiguracoesRoute
+    }
+    '/api/public/form-assets/$': {
+      id: '/api/public/form-assets/$'
+      path: '/api/public/form-assets/$'
+      fullPath: '/api/public/form-assets/$'
+      preLoaderRoute: typeof ApiPublicFormAssetsSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/run-reminders': {
       id: '/api/public/hooks/run-reminders'
@@ -1082,8 +1163,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedComercialDashboardRoute: typeof AuthenticatedComercialDashboardRoute
   AuthenticatedComercialRelatoriosRoute: typeof AuthenticatedComercialRelatoriosRoute
+  AuthenticatedFormulariosFormIdRoute: typeof AuthenticatedFormulariosFormIdRoute
   AuthenticatedGestaoClientesRoute: typeof AuthenticatedGestaoClientesRoute
   AuthenticatedProjetosIdRoute: typeof AuthenticatedProjetosIdRoute
+  AuthenticatedFormulariosIndexRoute: typeof AuthenticatedFormulariosIndexRoute
   AuthenticatedProjetosIndexRoute: typeof AuthenticatedProjetosIndexRoute
 }
 
@@ -1104,8 +1187,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedComercialDashboardRoute: AuthenticatedComercialDashboardRoute,
   AuthenticatedComercialRelatoriosRoute: AuthenticatedComercialRelatoriosRoute,
+  AuthenticatedFormulariosFormIdRoute: AuthenticatedFormulariosFormIdRoute,
   AuthenticatedGestaoClientesRoute: AuthenticatedGestaoClientesRoute,
   AuthenticatedProjetosIdRoute: AuthenticatedProjetosIdRoute,
+  AuthenticatedFormulariosIndexRoute: AuthenticatedFormulariosIndexRoute,
   AuthenticatedProjetosIndexRoute: AuthenticatedProjetosIndexRoute,
 }
 
@@ -1128,6 +1213,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  FPublicSlugRoute: FPublicSlugRoute,
+  ApiPublicFormAssetsSplatRoute: ApiPublicFormAssetsSplatRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
   ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,

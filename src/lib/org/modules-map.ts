@@ -27,6 +27,7 @@ const ROUTE_MAP: { prefix: string; code: OrgModuleCode }[] = [
   { prefix: "/pipeline", code: "crm" },
   { prefix: "/comercial", code: "crm" },
   { prefix: "/leads", code: "crm" },
+  { prefix: "/formularios", code: "crm" },
   { prefix: "/atendimento", code: "crm" },
   { prefix: "/tarefas", code: "tasks" },
   { prefix: "/agenda", code: "tasks" },
