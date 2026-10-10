@@ -20,13 +20,14 @@ import { Shield, ShieldOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
-  head: () => ({ meta: [{ title: "Usuários — Admin" }] }),
+  head: () => ({ meta: [{ title: "Usuários da plataforma — Core Suite" }, { name: "description", content: "Administração de contas e papéis na plataforma Core Suite." }, { property: "og:title", content: "Usuários da plataforma — Core Suite" }, { property: "og:description", content: "Gestão autorizada de contas da plataforma." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   beforeLoad: async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) throw redirect({ to: "/auth" });
     const { data } = await supabase
       .from("user_roles").select("role").eq("user_id", u.user.id).eq("role", "admin").maybeSingle();
-    if (!data) throw redirect({ to: "/dashboard" });
+    const { data: platform } = await supabase.from("platform_admins" as any).select("user_id").eq("user_id", u.user.id).maybeSingle();
+    if (!data && !platform) throw redirect({ to: "/dashboard" });
   },
   component: AdminUsers,
   errorComponent: ({ error }) => <div className="p-6 text-destructive">{error instanceof Error ? error.message : String(error)}</div>,

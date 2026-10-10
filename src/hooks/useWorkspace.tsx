@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMyOrgAccess, type OrgSummary } from "@/lib/org/org.functions";
 
 const STORAGE_KEY = "hublynx-active-organization";
-/** Última marca usada neste navegador: aplicada já no primeiro desenho, antes de carregar a empresa. */
+/** Cache legado apagado ao sair; a marca exibida vem da empresa validada. */
 export const BRAND_CACHE_KEY = "hublynx-brand-cache";
 
 export type BrandInfo = { logoUrl: string | null; brandColor: string | null };
@@ -46,7 +46,7 @@ type WorkspaceContextValue = {
   activeWorkspaceId: string | null;
   role: string | null;
   isSuperAdmin: boolean;
-  /** Marca a exibir: a da empresa ativa ou, enquanto carrega, a última usada neste navegador. */
+  /** Marca da empresa ativa, após verificar o acesso da identidade atual. */
   brand: BrandInfo | null;
   setActiveOrganization: (id: string) => void;
   /** Alias legado. */
@@ -80,7 +80,7 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
   const fn = useServerFn(getMyOrgAccess);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    return localStorage.getItem(`${STORAGE_KEY}:${userId}`);
+    try { return localStorage.getItem(`${STORAGE_KEY}:${userId}`); } catch { return null; }
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -137,13 +137,13 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
 
   const setActiveOrganization = useCallback(
     (id: string) => {
-      if (id === selectedId) return;
+      if (id === selectedId || !organizations.some((org) => org.id === id)) return;
       setSelectedId(id);
       if (typeof window !== "undefined") localStorage.setItem(`${STORAGE_KEY}:${userId}`, id);
       // Troca de empresa refaz todas as telas dependentes de dados da empresa.
       qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "my-org-access" });
     },
-    [qc, selectedId, userId],
+    [qc, selectedId, userId, organizations],
   );
 
   const value: WorkspaceContextValue = {
