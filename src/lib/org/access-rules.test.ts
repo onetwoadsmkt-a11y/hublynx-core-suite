@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { describe, it as test } from "node:test";
+import assert from "node:assert/strict";
+const expect = (actual: unknown) => ({ toEqual: (expected: unknown) => assert.deepEqual(actual, expected), toBe: (expected: unknown) => assert.equal(actual, expected) });
 import { effectiveModules, subscriberSchema, withModuleDependencies } from "./access-rules";
 
 describe("permissões de novas contas", () => {

@@ -2,13 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function assertAdmin(supabase: any, userId: string) {
-  const { data } = await supabase
+  const { data: platform, error: platformError } = await supabase.from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle();
+  if (platformError) throw new Error("Não foi possível verificar administração.");
+  if (platform) return;
+  const { data, error } = await supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
     .eq("role", "admin")
     .maybeSingle();
-  if (!data) throw new Error("Forbidden");
+  if (error || !data) throw new Error("Forbidden");
 }
 
 export const listUsers = createServerFn({ method: "GET" })

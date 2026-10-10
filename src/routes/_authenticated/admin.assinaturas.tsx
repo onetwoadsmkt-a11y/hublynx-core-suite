@@ -85,7 +85,7 @@ function SubscriptionsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
   const createMut = useMutation({
-    mutationFn: (v: Parameters<typeof create>[0]["data"]) => create({ data: v }),
+    mutationFn: (v: NewSubscriberInput) => create({ data: v }),
     onSuccess: () => { invalidate(); toast.success("Assinante criado"); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -263,7 +263,7 @@ function NewSubscriberDialog({
       <DialogTrigger asChild>
         <Button><Plus className="mr-2 h-4 w-4" /> Novo assinante</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader><DialogTitle>Novo assinante</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <Label>Empresa</Label>

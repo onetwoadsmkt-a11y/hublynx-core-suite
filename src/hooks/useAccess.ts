@@ -6,7 +6,7 @@ import { useWorkspace } from "./useWorkspace";
 import type { Capability } from "@/lib/subscriptions/capabilities";
 
 export function useAccess() {
-  const { activeOrganization, isSuperAdmin, isLoading: orgLoading } = useWorkspace();
+  const { isSuperAdmin } = useWorkspace();
   const fn = useServerFn(getMyAccess);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["my-access"],
