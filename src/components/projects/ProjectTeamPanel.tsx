@@ -910,7 +910,8 @@ export function InviteClientDialog({
               </Button>
               {!result.password && (
                 <p className="text-xs text-muted-foreground">
-                  Este e-mail já tem conta de equipe no Core; a senha dele não foi alterada.
+                  Este e-mail já tem conta no Core (equipe ou outra empresa), então a senha não foi
+                  alterada: a pessoa entra com a senha que já usa.
                 </p>
               )}
             </div>

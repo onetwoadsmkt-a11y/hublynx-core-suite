@@ -438,6 +438,18 @@ export const setProjectLogo = createServerFn({ method: "POST" })
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       if (bytes.length > 1_048_576) throw new Error("A logo deve ter no máximo 1 MB.");
+      // confere a assinatura do arquivo (não só o tipo informado pelo navegador)
+      const sig = (n: number[]) => n.every((b, i) => bytes[i] === b);
+      const real =
+        (data.contentType === "image/png" && sig([0x89, 0x50, 0x4e, 0x47])) ||
+        (data.contentType === "image/jpeg" && sig([0xff, 0xd8, 0xff])) ||
+        (data.contentType === "image/webp" &&
+          sig([0x52, 0x49, 0x46, 0x46]) &&
+          bytes[8] === 0x57 &&
+          bytes[9] === 0x45 &&
+          bytes[10] === 0x42 &&
+          bytes[11] === 0x50);
+      if (!real) throw new Error("Arquivo inválido: envie uma imagem PNG, JPG ou WebP.");
       const ext =
         data.contentType === "image/png"
           ? "png"
@@ -544,17 +556,18 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
             "Não foi possível criar o acesso do cliente.",
         );
       }
-      // Conta de equipe (em qualquer empresa) ou da plataforma: nunca troca a senha.
-      const [{ data: staff }, { data: platform }] = await Promise.all([
-        admin
-          .from("organization_members")
-          .select("id")
-          .eq("user_id", userId)
-          .neq("role", "guest")
-          .limit(1),
+      // Só gera senha nova para quem já é cliente APENAS desta empresa. Conta de equipe,
+      // da plataforma, sem vínculo ou ligada a outra empresa mantém a senha (senão quem
+      // convida receberia a senha de uma conta que não é dele).
+      const [{ data: memberships }, { data: platform }] = await Promise.all([
+        admin.from("organization_members").select("organization_id, role").eq("user_id", userId),
         admin.from("platform_admins").select("user_id").eq("user_id", userId).limit(1),
       ]);
-      if (staff?.length || platform?.length) {
+      const list = (memberships ?? []) as { organization_id: string; role: string }[];
+      const onlyGuestHere =
+        list.length > 0 &&
+        list.every((m) => m.organization_id === project.organization_id && m.role === "guest");
+      if (!onlyGuestHere || platform?.length) {
         password = null;
       } else {
         const upd = await admin.auth.admin.updateUserById(userId, {
