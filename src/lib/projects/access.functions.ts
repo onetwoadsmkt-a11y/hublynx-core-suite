@@ -172,12 +172,30 @@ export const setProjectMember = createServerFn({ method: "POST" })
     if (existing?.access_role === "cliente") {
       throw new Error("Esta pessoa é o cliente do projeto. Remova o acesso de cliente antes.");
     }
+    // project_members.name é obrigatório: usa o nome do perfil (ou o e-mail)
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as Db & { auth: any };
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", data.userId)
+      .maybeSingle();
+    let email: string | null = null;
+    try {
+      const { data: u } = await admin.auth.admin.getUserById(data.userId);
+      email = u?.user?.email ?? null;
+    } catch {
+      /* sem acesso ao auth: segue com o perfil */
+    }
+    const fullName = ((prof as { full_name?: string | null } | null)?.full_name ?? "").trim();
     const payload: Record<string, unknown> = {
       project_id: data.projectId,
       user_id: data.userId,
       access_role: data.accessRole,
       status: "active",
       owner_id: context.userId,
+      name: fullName || email || "Usuário",
+      email,
     };
     if (data.label !== undefined) payload.role = data.label || null;
     const { error } = existing
