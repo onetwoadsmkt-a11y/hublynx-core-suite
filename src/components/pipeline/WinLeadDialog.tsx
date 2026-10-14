@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { convertLeadToClient } from "@/lib/pipeline/conversion.functions";
 import { listProjectTemplates } from "@/lib/projects/stages.functions";
+import { inviteProjectClient } from "@/lib/projects/access.functions";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery } from "@tanstack/react-query";
 import type { Lead } from "./types";
 
@@ -51,6 +53,8 @@ export function WinLeadDialog({
   const qc = useQueryClient();
   const navigate = useNavigate();
   const convert = useServerFn(convertLeadToClient);
+  const inviteFn = useServerFn(inviteProjectClient);
+  const [inviteClient, setInviteClient] = useState(true);
 
   const [clientName, setClientName] = useState("");
   const [company, setCompany] = useState("");
@@ -84,6 +88,7 @@ export function WinLeadDialog({
     setValue(lead.value != null ? String(lead.value) : "");
     setStartDate(today());
     setTemplateId("none");
+    setInviteClient(!!lead.email);
   }, [lead]);
 
   const num = (s: string) => {
@@ -120,7 +125,29 @@ export function WinLeadDialog({
         },
       });
     },
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
+      if (inviteClient && email.trim()) {
+        try {
+          const inv = await inviteFn({
+            data: { projectId: res.projectId, email: email.trim(), name: clientName.trim() },
+          });
+          const link = inv.link;
+          toast.success(
+            inv.emailSent ? "Convite do portal enviado ao cliente por e-mail" : "Acesso ao portal criado para o cliente",
+            link
+              ? {
+                  duration: 20_000,
+                  action: {
+                    label: "Copiar link",
+                    onClick: () => navigator.clipboard?.writeText(link).then(() => toast.success("Link copiado")),
+                  },
+                }
+              : undefined,
+          );
+        } catch (e) {
+          toast.error(`Projeto criado, mas o convite falhou: ${(e as Error).message}`);
+        }
+      }
       qc.invalidateQueries({ queryKey: ["pipeline"] });
       qc.invalidateQueries({ queryKey: ["clients"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
@@ -229,6 +256,23 @@ export function WinLeadDialog({
           </section>
 
         </div>
+
+        <label className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+          <Checkbox
+            className="mt-0.5"
+            checked={inviteClient && !!email.trim()}
+            disabled={!email.trim()}
+            onCheckedChange={(v) => setInviteClient(v === true)}
+          />
+          <span>
+            <span className="font-medium">Convidar o cliente para o portal</span>
+            <span className="block text-xs text-muted-foreground">
+              {email.trim()
+                ? `Ele recebe acesso em ${email.trim()} para acompanhar o projeto e concluir as tarefas dele.`
+                : "Informe o e-mail do cliente para liberar o portal."}
+            </span>
+          </span>
+        </label>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Agora não</Button>

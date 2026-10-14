@@ -1,0 +1,381 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { DEPARTMENT_PRESETS, BLANK_SHEET, type CostColumn } from "./cost-presets";
+
+/** Fase 4 — departamentos e planilhas de custo do projeto (regras de acesso no banco). */
+
+export type CostCell = string | number | boolean | null;
+export type CostRow = {
+  id: string;
+  sheet_id: string;
+  position: number;
+  data: Record<string, CostCell>;
+  updated_at: string;
+};
+export type CostSheet = {
+  id: string;
+  department_id: string;
+  name: string;
+  columns: CostColumn[];
+  position: number;
+  rows: CostRow[];
+};
+export type CostDepartment = {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+  sheets: CostSheet[];
+};
+
+const uuid = z.string().uuid();
+type Db = { from: (t: string) => any };
+
+const columnSchema: z.ZodType<CostColumn> = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(40)
+    .regex(/^[a-z0-9_]+$/),
+  label: z.string().trim().min(1).max(80),
+  type: z.enum(["text", "number", "currency", "percent", "date", "status", "boolean", "calc"]),
+  options: z
+    .array(
+      z.object({
+        label: z.string().trim().min(1).max(60),
+        color: z.string().max(20),
+        done: z.boolean().optional(),
+      }),
+    )
+    .max(30)
+    .optional(),
+  sum: z.boolean().optional(),
+  alert: z.boolean().optional(),
+  calc: z
+    .object({
+      op: z.enum(["div", "mul", "sub", "add"]),
+      a: z.string().max(40),
+      b: z.string().max(40),
+      asPercent: z.boolean().optional(),
+    })
+    .optional(),
+  width: z.number().int().min(60).max(600).optional(),
+}) as z.ZodType<CostColumn>;
+
+async function projectInfo(db: Db, projectId: string) {
+  const { data, error } = await db
+    .from("projects")
+    .select("id, organization_id, template_id")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Projeto não encontrado.");
+  return data as { id: string; organization_id: string; template_id: string | null };
+}
+
+export const listProjectDepartments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectId: uuid }).parse(d))
+  .handler(async ({ data, context }): Promise<CostDepartment[]> => {
+    const db = context.supabase as unknown as Db;
+    const { data: depts, error } = await db
+      .from("cost_departments")
+      .select("id, name, color, position")
+      .eq("project_id", data.projectId)
+      .order("position");
+    if (error) throw new Error(error.message);
+    const list = (depts ?? []) as Omit<CostDepartment, "sheets">[];
+    if (!list.length) return [];
+    const { data: sheets, error: sErr } = await db
+      .from("cost_sheets")
+      .select("id, department_id, name, columns, position")
+      .in(
+        "department_id",
+        list.map((d) => d.id),
+      )
+      .order("position");
+    if (sErr) throw new Error(sErr.message);
+    const sheetList = (sheets ?? []) as Omit<CostSheet, "rows">[];
+    let rows: CostRow[] = [];
+    if (sheetList.length) {
+      const { data: r, error: rErr } = await db
+        .from("cost_sheet_rows")
+        .select("id, sheet_id, position, data, updated_at")
+        .in(
+          "sheet_id",
+          sheetList.map((s) => s.id),
+        )
+        .order("position")
+        .order("created_at");
+      if (rErr) throw new Error(rErr.message);
+      rows = (r ?? []) as CostRow[];
+    }
+    return list.map((d) => ({
+      ...d,
+      sheets: sheetList
+        .filter((s) => s.department_id === d.id)
+        .map((s) => ({
+          ...s,
+          columns: (s.columns ?? []) as CostColumn[],
+          rows: rows.filter((r) => r.sheet_id === s.id),
+        })),
+    }));
+  });
+
+export const createDepartment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        projectId: uuid,
+        name: z.string().trim().min(1).max(80),
+        color: z.string().max(20).default("#2563eb"),
+        preset: z.string().max(40).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const p = await projectInfo(db, data.projectId);
+    const { count } = await db
+      .from("cost_departments")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", data.projectId);
+    const preset = data.preset ? DEPARTMENT_PRESETS.find((x) => x.key === data.preset) : null;
+    const { data: dept, error } = await db
+      .from("cost_departments")
+      .insert({
+        organization_id: p.organization_id,
+        project_id: data.projectId,
+        name: data.name,
+        color: preset?.color ?? data.color,
+        position: count ?? 0,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    const sheets = preset ? preset.sheets : [BLANK_SHEET];
+    const { error: sErr } = await db.from("cost_sheets").insert(
+      sheets.map((s, i) => ({
+        organization_id: p.organization_id,
+        department_id: dept.id,
+        name: s.name,
+        columns: s.columns,
+        position: i,
+      })),
+    );
+    if (sErr) throw new Error(sErr.message);
+    return { id: dept.id as string };
+  });
+
+export const updateDepartment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({ id: uuid, name: z.string().trim().min(1).max(80), color: z.string().max(20) })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: row, error } = await db
+      .from("cost_departments")
+      .update({ name: data.name, color: data.color })
+      .eq("id", data.id)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para alterar o departamento.");
+    return { ok: true as const };
+  });
+
+export const deleteDepartment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: row, error } = await db
+      .from("cost_departments")
+      .delete()
+      .eq("id", data.id)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para excluir o departamento.");
+    return { ok: true as const };
+  });
+
+export const saveSheet = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: uuid.optional(),
+        departmentId: uuid,
+        name: z.string().trim().min(1).max(80),
+        columns: z.array(columnSchema).min(1).max(40),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    if (data.id) {
+      const { data: row, error } = await db
+        .from("cost_sheets")
+        .update({ name: data.name, columns: data.columns })
+        .eq("id", data.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!row) throw new Error("Sem permissão para alterar a planilha.");
+      return { id: data.id };
+    }
+    const { data: dept, error: dErr } = await db
+      .from("cost_departments")
+      .select("organization_id")
+      .eq("id", data.departmentId)
+      .maybeSingle();
+    if (dErr || !dept) throw new Error("Departamento não encontrado.");
+    const { count } = await db
+      .from("cost_sheets")
+      .select("id", { count: "exact", head: true })
+      .eq("department_id", data.departmentId);
+    const { data: row, error } = await db
+      .from("cost_sheets")
+      .insert({
+        organization_id: dept.organization_id,
+        department_id: data.departmentId,
+        name: data.name,
+        columns: data.columns,
+        position: count ?? 0,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: row.id as string };
+  });
+
+export const deleteSheet = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: row, error } = await db
+      .from("cost_sheets")
+      .delete()
+      .eq("id", data.id)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para excluir a planilha.");
+    return { ok: true as const };
+  });
+
+export const saveRow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: uuid.optional(),
+        sheetId: uuid,
+        data: z.record(
+          z.string().max(40),
+          z.union([z.string().max(2000), z.number(), z.boolean(), z.null()]),
+        ),
+        position: z.number().int().min(0).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    if (data.id) {
+      const { data: row, error } = await db
+        .from("cost_sheet_rows")
+        .update({ data: data.data, updated_at: new Date().toISOString() })
+        .eq("id", data.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!row) throw new Error("Sem permissão para alterar a linha.");
+      return { id: data.id };
+    }
+    const { data: sheet, error: sErr } = await db
+      .from("cost_sheets")
+      .select("organization_id")
+      .eq("id", data.sheetId)
+      .maybeSingle();
+    if (sErr || !sheet) throw new Error("Planilha não encontrada.");
+    const { count } = await db
+      .from("cost_sheet_rows")
+      .select("id", { count: "exact", head: true })
+      .eq("sheet_id", data.sheetId);
+    const { data: row, error } = await db
+      .from("cost_sheet_rows")
+      .insert({
+        organization_id: sheet.organization_id,
+        sheet_id: data.sheetId,
+        data: data.data,
+        position: data.position ?? count ?? 0,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: row.id as string };
+  });
+
+export const deleteRow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: row, error } = await db
+      .from("cost_sheet_rows")
+      .delete()
+      .eq("id", data.id)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para excluir a linha.");
+    return { ok: true as const };
+  });
+
+/** Copia departamentos e planilhas (sem as linhas) do modelo de projeto para este projeto. */
+export const loadTemplateDepartments = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const p = await projectInfo(db, data.projectId);
+    if (!p.template_id) throw new Error("Este projeto não foi criado a partir de um modelo.");
+    const { copyTemplateDepartmentsToProject } = await import("./costs.server");
+    const added = await copyTemplateDepartmentsToProject(db, {
+      templateId: p.template_id,
+      projectId: p.id,
+      organizationId: p.organization_id,
+    });
+    return { added };
+  });
+
+/** Salva a estrutura deste projeto como padrão do modelo (só administrador). */
+export const saveDepartmentsToTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ projectId: uuid, templateId: uuid.optional() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db & {
+      rpc: (f: string, a: Record<string, unknown>) => any;
+    };
+    const p = await projectInfo(db, data.projectId);
+    const templateId = data.templateId ?? p.template_id;
+    if (!templateId) throw new Error("Escolha o modelo de projeto que vai receber a estrutura.");
+    const { data: isAdmin } = await db.rpc("is_org_admin", { _org: p.organization_id });
+    if (isAdmin !== true) throw new Error("Somente o administrador da empresa altera os modelos.");
+    const { replaceTemplateDepartmentsFromProject } = await import("./costs.server");
+    const count = await replaceTemplateDepartmentsFromProject(db, {
+      templateId,
+      projectId: p.id,
+      organizationId: p.organization_id,
+    });
+    return { count };
+  });

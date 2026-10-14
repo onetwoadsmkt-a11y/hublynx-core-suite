@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Circle, Pencil, Plus, Trash2, GripVertical, LayoutTemplate, ListChecks } from "lucide-react";
+import { Check, Circle, Eye, EyeOff, Pencil, Plus, Trash2, GripVertical, LayoutTemplate, ListChecks, UserRound, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   listProjectStageTasks,
   addProjectStageTask,
   setProjectStageTaskDone,
+  setStageTaskClient,
   type ProjectStage,
   type StageTask,
 } from "@/lib/projects/stages.functions";
@@ -62,6 +63,7 @@ export function RoadmapStagesPanel({
   const stageTasksFn = useServerFn(listProjectStageTasks);
   const addTaskFn = useServerFn(addProjectStageTask);
   const doneTaskFn = useServerFn(setProjectStageTaskDone);
+  const clientFlagFn = useServerFn(setStageTaskClient);
   const [editing, setEditing] = useState(false);
   const [openStage, setOpenStage] = useState<ProjectStage | null>(null);
 
@@ -97,8 +99,15 @@ export function RoadmapStagesPanel({
     qc.invalidateQueries({ queryKey: ["agenda"] });
   };
 
+  const clientFlagM = useMutation({
+    mutationFn: (v: { task_id: string; responsible_type?: "equipe" | "cliente"; visible_to_client?: boolean }) =>
+      clientFlagFn({ data: v }),
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const addTaskM = useMutation({
-    mutationFn: (v: { stage_id: string; title: string; due_date: string | null }) =>
+    mutationFn: (v: { stage_id: string; title: string; due_date: string | null; responsible_type: "equipe" | "cliente" }) =>
       addTaskFn({ data: { project_id: projectId, ...v } }),
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message),
@@ -305,7 +314,8 @@ export function RoadmapStagesPanel({
       )}
 
       <p className="text-[11px] text-muted-foreground mt-4">
-        Clique numa etapa para avançar até ela. Clique numa etapa concluída para retroceder.
+        Clique numa etapa para avançar até ela. Clique numa etapa concluída para retroceder. Quando todas as
+        tarefas de uma etapa são concluídas, ela é concluída sozinha.
       </p>
 
       <StageTasksDialog
@@ -314,13 +324,15 @@ export function RoadmapStagesPanel({
         tasks={openStage ? (tasksByStage.get(openStage.id) ?? []) : []}
         loading={stageTasksQ.isLoading}
         onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
-        onAdd={(title, due_date) =>
+        onClientFlag={(v) => clientFlagM.mutate(v)}
+        onAdd={(title, due_date, responsible_type) =>
           openStage &&
           addTaskM.mutate({
             stage_id: openStage.id,
             title,
             // sem data informada, usa a data da etapa para aparecer na Agenda
             due_date: due_date ?? openStage.due_date ?? null,
+            responsible_type,
           })
         }
         adding={addTaskM.isPending}
@@ -465,6 +477,7 @@ function StageTasksDialog({
   tasks,
   loading,
   onToggle,
+  onClientFlag,
   onAdd,
   adding,
 }: {
@@ -473,11 +486,15 @@ function StageTasksDialog({
   tasks: StageTask[];
   loading: boolean;
   onToggle: (taskId: string, done: boolean) => void;
-  onAdd: (title: string, dueDate: string | null) => void;
+  onClientFlag: (v: { task_id: string; responsible_type?: "equipe" | "cliente"; visible_to_client?: boolean }) => void;
+  onAdd: (title: string, dueDate: string | null, responsible: "equipe" | "cliente") => void;
   adding: boolean;
 }) {
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
+  const [responsible, setResponsible] = useState<"equipe" | "cliente">("equipe");
+  const pending = tasks.filter((t) => t.status !== "concluido");
+  const finished = tasks.filter((t) => t.status === "concluido");
 
   const done = tasks.filter((t) => t.status === "concluido").length;
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
@@ -488,7 +505,7 @@ function StageTasksDialog({
       toast.error("Informe o título da tarefa");
       return;
     }
-    onAdd(t, due || null);
+    onAdd(t, due || null, responsible);
     setTitle("");
     setDue("");
   }
@@ -520,28 +537,24 @@ function StageTasksDialog({
               Nenhuma tarefa nesta etapa. Adicione abaixo — ela aparece também na Central de Execuções.
             </p>
           ) : (
-            tasks.map((t) => {
-              const isDone = t.status === "concluido";
-              return (
-                <label
-                  key={t.id}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/40 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={isDone}
-                    onCheckedChange={(v) => onToggle(t.id, v === true)}
-                  />
-                  <span className={["flex-1 text-sm", isDone ? "line-through text-muted-foreground" : ""].join(" ")}>
-                    {t.title}
-                  </span>
-                  {t.due_date && (
-                    <span className="text-[11px] text-muted-foreground shrink-0">
-                      {new Date(t.due_date).toLocaleDateString("pt-BR")}
-                    </span>
-                  )}
-                </label>
-              );
-            })
+            <>
+              {pending.map((t) => (
+                <StageTaskRow key={t.id} t={t} onToggle={onToggle} onClientFlag={onClientFlag} />
+              ))}
+              {pending.length === 0 && (
+                <p className="px-2 py-1 text-xs text-emerald-700">Todas as tarefas desta etapa foram concluídas.</p>
+              )}
+              {finished.length > 0 && (
+                <details className="mt-2" open={finished.length <= 3}>
+                  <summary className="cursor-pointer px-2 py-1 text-xs font-medium text-muted-foreground">
+                    Concluídas ({finished.length})
+                  </summary>
+                  {finished.map((t) => (
+                    <StageTaskRow key={t.id} t={t} onToggle={onToggle} onClientFlag={onClientFlag} />
+                  ))}
+                </details>
+              )}
+            </>
           )}
         </div>
 
@@ -562,6 +575,17 @@ function StageTasksDialog({
             onChange={(e) => setDue(e.target.value)}
             aria-label="Prazo da tarefa"
           />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0"
+            onClick={() => setResponsible((r) => (r === "equipe" ? "cliente" : "equipe"))}
+            title="Quem executa esta tarefa"
+          >
+            {responsible === "cliente" ? <UserRound className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+            {responsible === "cliente" ? "Cliente" : "Equipe"}
+          </Button>
           <Button onClick={submit} disabled={adding} size="icon" aria-label="Adicionar tarefa">
             <Plus className="h-4 w-4" />
           </Button>
@@ -572,5 +596,54 @@ function StageTasksDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function StageTaskRow({
+  t,
+  onToggle,
+  onClientFlag,
+}: {
+  t: StageTask;
+  onToggle: (taskId: string, done: boolean) => void;
+  onClientFlag: (v: { task_id: string; responsible_type?: "equipe" | "cliente"; visible_to_client?: boolean }) => void;
+}) {
+  const isDone = t.status === "concluido";
+  const isClient = t.responsible_type === "cliente";
+  return (
+    <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/40">
+      <Checkbox checked={isDone} onCheckedChange={(v) => onToggle(t.id, v === true)} aria-label="Concluir tarefa" />
+      <span className={["min-w-0 flex-1 text-sm", isDone ? "line-through text-muted-foreground" : ""].join(" ")}>
+        {t.title}
+      </span>
+      <button
+        type="button"
+        onClick={() => onClientFlag({ task_id: t.id, responsible_type: isClient ? "equipe" : "cliente" })}
+        className={[
+          "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+          isClient ? "border-amber-300 bg-amber-50 text-amber-800" : "text-muted-foreground",
+        ].join(" ")}
+        title="Clique para alternar entre Equipe e Cliente"
+      >
+        {isClient ? <UserRound className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+        {isClient ? "Cliente" : "Equipe"}
+      </button>
+      {!isClient && (
+        <button
+          type="button"
+          onClick={() => onClientFlag({ task_id: t.id, visible_to_client: !t.visible_to_client })}
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+          title={t.visible_to_client ? "O cliente acompanha esta tarefa no portal" : "Oculta do cliente"}
+          aria-label="Visível para o cliente"
+        >
+          {t.visible_to_client ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        </button>
+      )}
+      {t.due_date && (
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {new Date(t.due_date).toLocaleDateString("pt-BR")}
+        </span>
+      )}
+    </div>
   );
 }

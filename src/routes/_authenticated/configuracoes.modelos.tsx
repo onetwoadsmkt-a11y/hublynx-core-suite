@@ -42,7 +42,7 @@ export const Route = createFileRoute("/_authenticated/configuracoes/modelos")({
   component: TemplatesPage,
 });
 
-type TaskDraft = { title: string; due_offset_days: number };
+type TaskDraft = { title: string; due_offset_days: number; responsible_type: "equipe" | "cliente" };
 type StageDraft = { name: string; duration_days: number | null; tasks: TaskDraft[] };
 
 function TemplatesPage() {
@@ -200,6 +200,7 @@ function TemplateDialog({
             tasks: (s.tasks ?? []).map((t) => ({
               title: t.title,
               due_offset_days: t.due_offset_days ?? 0,
+              responsible_type: t.responsible_type ?? "equipe",
             })),
           }))
         : [
@@ -224,7 +225,12 @@ function TemplateDialog({
             name: s.name.trim(),
             duration_days: s.duration_days,
             tasks: s.tasks
-              .map((t) => ({ title: t.title.trim(), due_offset_days: t.due_offset_days || 0 }))
+              .map((t) => ({
+                title: t.title.trim(),
+                due_offset_days: t.due_offset_days || 0,
+                responsible_type: t.responsible_type,
+                visible_to_client: t.responsible_type === "cliente",
+              }))
               .filter((t) => t.title.length > 0),
           }))
           .filter((s) => s.name.length > 0),
@@ -363,6 +369,31 @@ function TemplateDialog({
                             )
                           }
                         />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={`h-8 shrink-0 px-2 text-[11px] ${t.responsible_type === "cliente" ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
+                          title="Quem executa: Equipe ou Cliente (o cliente conclui pelo portal)"
+                          onClick={() =>
+                            setStages((d) =>
+                              d.map((x, j) =>
+                                j === i
+                                  ? {
+                                      ...x,
+                                      tasks: x.tasks.map((y, m) =>
+                                        m === k
+                                          ? { ...y, responsible_type: y.responsible_type === "cliente" ? "equipe" : "cliente" }
+                                          : y,
+                                      ),
+                                    }
+                                  : x,
+                              ),
+                            )
+                          }
+                        >
+                          {t.responsible_type === "cliente" ? "Cliente" : "Equipe"}
+                        </Button>
                         <span className="text-[11px] text-muted-foreground shrink-0 w-[68px] tabular-nums">
                           {format(
                             addDays(
@@ -398,7 +429,7 @@ function TemplateDialog({
                         setStages((d) =>
                           d.map((x, j) =>
                             j === i
-                              ? { ...x, tasks: [...x.tasks, { title: "", due_offset_days: 0 }] }
+                              ? { ...x, tasks: [...x.tasks, { title: "", due_offset_days: 0, responsible_type: "equipe" }] }
                               : x,
                           ),
                         )

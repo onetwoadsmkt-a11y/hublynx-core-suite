@@ -160,7 +160,7 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const { id } = data;
     const { data: project, error } = await context.supabase
       .from("projects")
-      .select("*, clients(id, name, company)")
+      .select("*, clients(id, name, company, email)")
       .eq("id", id)
       .single();
     if (error) throw new Error(error.message);

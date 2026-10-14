@@ -30,6 +30,9 @@ import { Route as AuthenticatedSemanaRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as FPublicSlugRouteImport } from './routes/f.$publicSlug'
+import { Route as PortalIndexRouteImport } from './routes/portal.index'
+import { Route as PortalProjectIdRouteImport } from './routes/portal.$projectId'
+import { Route as PortalAcessoRouteImport } from './routes/portal.acesso'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminArmazenamentoRouteImport } from './routes/_authenticated/admin.armazenamento'
 import { Route as AuthenticatedAdminAssinaturasRouteImport } from './routes/_authenticated/admin.assinaturas'
@@ -167,6 +170,21 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
 const FPublicSlugRoute = FPublicSlugRouteImport.update({
   id: '/f/$publicSlug',
   path: '/f/$publicSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalIndexRoute = PortalIndexRouteImport.update({
+  id: '/portal/',
+  path: '/portal/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalProjectIdRoute = PortalProjectIdRouteImport.update({
+  id: '/portal/$projectId',
+  path: '/portal/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalAcessoRoute = PortalAcessoRouteImport.update({
+  id: '/portal/acesso',
+  path: '/portal/acesso',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -376,6 +394,9 @@ export interface FileRoutesByFullPath {
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/f/$publicSlug': typeof FPublicSlugRoute
+  '/portal/$projectId': typeof PortalProjectIdRoute
+  '/portal/acesso': typeof PortalAcessoRoute
+  '/portal/': typeof PortalIndexRoute
   '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
@@ -427,6 +448,9 @@ export interface FileRoutesByTo {
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/f/$publicSlug': typeof FPublicSlugRoute
+  '/portal/$projectId': typeof PortalProjectIdRoute
+  '/portal/acesso': typeof PortalAcessoRoute
+  '/portal': typeof PortalIndexRoute
   '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
@@ -483,6 +507,9 @@ export interface FileRoutesById {
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/f/$publicSlug': typeof FPublicSlugRoute
+  '/portal/$projectId': typeof PortalProjectIdRoute
+  '/portal/acesso': typeof PortalAcessoRoute
+  '/portal/': typeof PortalIndexRoute
   '/_authenticated/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/_authenticated/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
   '/_authenticated/admin/empresas': typeof AuthenticatedAdminEmpresasRoute
@@ -539,6 +566,9 @@ export interface FileRouteTypes {
     | '/tarefas'
     | '/auth/callback'
     | '/f/$publicSlug'
+    | '/portal/$projectId'
+    | '/portal/acesso'
+    | '/portal/'
     | '/admin/armazenamento'
     | '/admin/assinaturas'
     | '/admin/empresas'
@@ -590,6 +620,9 @@ export interface FileRouteTypes {
     | '/tarefas'
     | '/auth/callback'
     | '/f/$publicSlug'
+    | '/portal/$projectId'
+    | '/portal/acesso'
+    | '/portal'
     | '/admin/armazenamento'
     | '/admin/assinaturas'
     | '/admin/empresas'
@@ -645,6 +678,9 @@ export interface FileRouteTypes {
     | '/_authenticated/tarefas'
     | '/auth/callback'
     | '/f/$publicSlug'
+    | '/portal/$projectId'
+    | '/portal/acesso'
+    | '/portal/'
     | '/_authenticated/admin/armazenamento'
     | '/_authenticated/admin/assinaturas'
     | '/_authenticated/admin/empresas'
@@ -686,6 +722,9 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   FPublicSlugRoute: typeof FPublicSlugRoute
+  PortalProjectIdRoute: typeof PortalProjectIdRoute
+  PortalAcessoRoute: typeof PortalAcessoRoute
+  PortalIndexRoute: typeof PortalIndexRoute
   ApiPublicFormAssetsSplatRoute: typeof ApiPublicFormAssetsSplatRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
@@ -839,6 +878,27 @@ declare module '@tanstack/react-router' {
       path: '/f/$publicSlug'
       fullPath: '/f/$publicSlug'
       preLoaderRoute: typeof FPublicSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/': {
+      id: '/portal/'
+      path: '/portal'
+      fullPath: '/portal/'
+      preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/$projectId': {
+      id: '/portal/$projectId'
+      path: '/portal/$projectId'
+      fullPath: '/portal/$projectId'
+      preLoaderRoute: typeof PortalProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/acesso': {
+      id: '/portal/acesso'
+      path: '/portal/acesso'
+      fullPath: '/portal/acesso'
+      preLoaderRoute: typeof PortalAcessoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1237,6 +1297,9 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   FPublicSlugRoute: FPublicSlugRoute,
+  PortalProjectIdRoute: PortalProjectIdRoute,
+  PortalAcessoRoute: PortalAcessoRoute,
+  PortalIndexRoute: PortalIndexRoute,
   ApiPublicFormAssetsSplatRoute: ApiPublicFormAssetsSplatRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,

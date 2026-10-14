@@ -39,6 +39,8 @@ import {
 } from "recharts";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
+import { ProjectTeamPanel, useProjectAccess } from "@/components/projects/ProjectTeamPanel";
+import { ProjectDepartmentsPanel } from "@/components/projects/ProjectDepartmentsPanel";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 import { supabase } from "@/integrations/supabase/client";
@@ -145,6 +147,9 @@ function ProjectCommandCenter() {
   });
 
   const [editOpen, setEditOpen] = useState(false);
+  const accessQ = useProjectAccess(id);
+  const canEdit = accessQ.data?.canEdit ?? false;
+  const canManage = accessQ.data?.canManage ?? false;
   const delFn = useServerFn(deleteProject);
   const delM = useMutation({
     mutationFn: () => delFn({ data: { id } }),
@@ -168,13 +173,17 @@ function ProjectCommandCenter() {
           <Link to="/projetos"><ArrowLeft className="h-4 w-4" /> Voltar</Link>
         </Button>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-            <Pencil className="h-4 w-4" /> Editar
-          </Button>
-          <Button variant="outline" size="sm" className="text-rose-600 hover:text-rose-700"
-            onClick={() => { if (confirm("Excluir este projeto?")) delM.mutate(); }}>
-            <Trash2 className="h-4 w-4" /> Excluir
-          </Button>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-4 w-4" /> Editar
+            </Button>
+          )}
+          {canManage && (
+            <Button variant="outline" size="sm" className="text-rose-600 hover:text-rose-700"
+              onClick={() => { if (confirm("Excluir este projeto?")) delM.mutate(); }}>
+              <Trash2 className="h-4 w-4" /> Excluir
+            </Button>
+          )}
         </div>
       </div>
 
@@ -188,7 +197,7 @@ function ProjectCommandCenter() {
                 ["evolution", "Evolução do projeto", TrendingUp], ["stages", "Etapas", Flag],
                 ["commercial", "Comercial", Briefcase], ["deliveries", "Próximas entregas", CalIcon],
                 ["kanban", "Kanban", ListChecks], ["activity", "Atividade recente", ActivityIcon],
-                ["team", "Equipe", UsersIcon], ["risks", "Riscos & Bloqueios", AlertTriangle],
+                ["team", "Equipe e acesso", UsersIcon], ["risks", "Riscos & Bloqueios", AlertTriangle],
                 ["files", "Arquivos", FileText], ["notes", "Notas & Decisões", FileText],
               ].map(([value, label, Icon]) => {
                 const TabIcon = Icon as typeof TrendingUp;
@@ -198,11 +207,11 @@ function ProjectCommandCenter() {
           </div>
           <TabsContent value="evolution"><ProjectEvolution projectId={id} disabled={p.commercial_model === "mensal_recorrente"} dueDate={p.due_date} /></TabsContent>
           <TabsContent value="stages"><RoadmapStagesPanel projectId={id} disabled={p.commercial_model === "mensal_recorrente"} disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente." /></TabsContent>
-          <TabsContent value="commercial"><CommercialPanel commercial={d.commercial} projectId={id} /></TabsContent>
+          <TabsContent value="commercial"><CommercialPanel commercial={d.commercial} projectId={id} /><ProjectDepartmentsPanel projectId={id} templateId={p.template_id ?? null} canEdit={canEdit} /></TabsContent>
           <TabsContent value="deliveries"><UpcomingDeliveries upcoming={d.upcomingDeliveries} /></TabsContent>
           <TabsContent value="kanban"><KanbanCompact counts={d.kanbanCounts} /></TabsContent>
           <TabsContent value="activity"><ActivityFeed activity={d.activity} /></TabsContent>
-          <TabsContent value="team"><h2 className="my-5 text-xl font-semibold">Equipe</h2><TeamSection members={d.members} projectId={id} /></TabsContent>
+          <TabsContent value="team"><h2 className="my-5 text-xl font-semibold">Equipe e acesso</h2><ProjectTeamPanel projectId={id} defaultClient={{ name: p.client?.name ?? null, email: p.client?.email ?? null }} /></TabsContent>
           <TabsContent value="risks"><h2 className="my-5 text-xl font-semibold">Riscos & Bloqueios</h2><RisksSection risks={d.risks} projectId={id} /></TabsContent>
           <TabsContent value="files"><h2 className="my-5 text-xl font-semibold">Arquivos</h2><FilesSection files={d.files} /></TabsContent>
           <TabsContent value="notes"><h2 className="my-5 text-xl font-semibold">Notas & Decisões</h2><NotesSection notes={d.notes} projectId={id} /></TabsContent>

@@ -423,8 +423,13 @@ function TaskListGrouped({
   const nextWeek = addDays(today, 7);
 
   const groups = useMemo(() => {
-    const g: Record<string, Task[]> = { vencidas: [], hoje: [], semana: [], depois: [], semData: [] };
+    const g: Record<string, Task[]> = { vencidas: [], hoje: [], semana: [], depois: [], semData: [], concluidas: [] };
     tasks.forEach((t) => {
+      // concluídas e canceladas saem da fila e vão para um grupo próprio no fim
+      if (t.status === "concluido" || t.status === "cancelado") {
+        g.concluidas.push(t);
+        return;
+      }
       if (!t.due_date) {
         g.semData.push(t);
         return;
@@ -507,6 +512,24 @@ function TaskListGrouped({
         onSelect={onSelect}
         dueFormatter={(d) => format(d, "dd/MM/yyyy")}
       />
+      {groups.concluidas.length > 0 && (
+        <details>
+          <summary className="mb-3 cursor-pointer text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Concluídas ({groups.concluidas.length})
+          </summary>
+          <TaskGroup
+            title="Concluídas"
+            tone="muted"
+            tasks={groups.concluidas}
+            kanbanCols={kanbanCols}
+            labelsIndex={labelsIndex}
+            clientsById={clientsById}
+            projectsById={projectsById}
+            onSelect={onSelect}
+            dueFormatter={(d) => format(d, "dd/MM/yyyy")}
+          />
+        </details>
+      )}
       {groups.semData.length > 0 && (
         <TaskGroup
           title="Sem data"

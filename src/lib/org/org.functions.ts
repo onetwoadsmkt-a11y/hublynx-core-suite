@@ -123,5 +123,7 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
       };
     });
 
-    return { isSuperAdmin, organizations };
+    // Quem é equipe em alguma empresa não vê, no painel, as empresas onde é só cliente (portal).
+    const staffOrgs = organizations.filter((o) => o.role !== "guest");
+    return { isSuperAdmin, organizations: staffOrgs.length ? staffOrgs : organizations };
   });

@@ -22,6 +22,8 @@ export type TemplateTask = {
   title: string;
   description: string | null;
   due_offset_days: number;
+  responsible_type?: "equipe" | "cliente";
+  visible_to_client?: boolean;
 };
 
 export type ProjectTemplate = {
@@ -197,7 +199,7 @@ export const listProjectTemplates = createServerFn({ method: "GET" })
     if (stageList.length) {
       const { data: tRows } = await db
         .from("project_template_tasks")
-        .select("stage_id, title, description, due_offset_days, sort_order")
+        .select("stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client")
         .in("stage_id", stageList.map((s) => s.id as string))
         .order("sort_order");
       tasks = (tRows ?? []) as any[];
@@ -214,6 +216,8 @@ export const listProjectTemplates = createServerFn({ method: "GET" })
               title: k.title as string,
               description: (k.description ?? null) as string | null,
               due_offset_days: Number(k.due_offset_days ?? 0),
+              responsible_type: (k.responsible_type ?? "equipe") as "equipe" | "cliente",
+              visible_to_client: !!k.visible_to_client,
             })),
         })),
     })) as ProjectTemplate[];
@@ -240,6 +244,8 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
                     title: z.string().trim().min(1).max(200),
                     description: z.string().trim().max(1000).nullable().optional(),
                     due_offset_days: z.number().int().min(0).max(365).default(0),
+                    responsible_type: z.enum(["equipe", "cliente"]).default("equipe"),
+                    visible_to_client: z.boolean().default(false),
                   }),
                 )
                 .max(30)
@@ -304,6 +310,8 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
         title: t.title,
         description: t.description ?? null,
         due_offset_days: t.due_offset_days ?? 0,
+        responsible_type: t.responsible_type ?? "equipe",
+        visible_to_client: t.visible_to_client ?? false,
         sort_order: j,
       }));
     });
@@ -379,7 +387,7 @@ export async function applyTemplateStages(
   try {
     const { data: tplTasks } = await db
       .from("project_template_tasks")
-      .select("stage_id, title, description, due_offset_days, sort_order")
+      .select("stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client")
       .in("stage_id", list.map((s) => s.id as string))
       .order("sort_order");
     const tasks = (tplTasks ?? []) as any[];
@@ -411,6 +419,8 @@ export async function applyTemplateStages(
               priority: "media",
               due_date: dueIso,
               position: 0,
+              responsible_type: t.responsible_type ?? "equipe",
+              visible_to_client: !!t.visible_to_client,
             };
           });
       });
@@ -418,6 +428,18 @@ export async function applyTemplateStages(
     }
   } catch {
     // tarefas padrão são complementares
+  }
+
+  // Departamentos e planilhas de custo do modelo (estrutura, sem lançamentos)
+  try {
+    const { copyTemplateDepartmentsToProject } = await import("./costs.server");
+    await copyTemplateDepartmentsToProject(db, {
+      templateId: opts.templateId,
+      projectId: opts.projectId,
+      organizationId: opts.organizationId,
+    });
+  } catch {
+    // estrutura de custos é complementar
   }
   return rows.length;
 }
@@ -463,6 +485,9 @@ export type StageTask = {
   status: string;
   due_date: string | null;
   priority: string;
+  responsible_type: "equipe" | "cliente";
+  visible_to_client: boolean;
+  completed_at: string | null;
 };
 
 export const listProjectStageTasks = createServerFn({ method: "GET" })
@@ -472,7 +497,7 @@ export const listProjectStageTasks = createServerFn({ method: "GET" })
     const db = context.supabase as any;
     const { data: rows, error } = await db
       .from("tasks")
-      .select("id, stage_id, title, status, due_date, priority")
+      .select("id, stage_id, title, status, due_date, priority, responsible_type, visible_to_client, completed_at")
       .eq("project_id", data.project_id)
       .not("stage_id", "is", null)
       .order("due_date", { ascending: true, nullsFirst: false });
@@ -489,6 +514,8 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
         stage_id: uuid,
         title: z.string().trim().min(1).max(200),
         due_date: z.string().nullable().optional(),
+        responsible_type: z.enum(["equipe", "cliente"]).default("equipe"),
+        visible_to_client: z.boolean().default(false),
       })
       .parse(d),
   )
@@ -505,8 +532,36 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
       priority: "media",
       due_date: data.due_date ? new Date(data.due_date).toISOString() : null,
       position: 0,
+      responsible_type: data.responsible_type,
+      visible_to_client: data.visible_to_client || data.responsible_type === "cliente",
     });
     if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+/** Responsável pela tarefa (equipe ou cliente) e se o cliente acompanha pelo portal. */
+export const setStageTaskClient = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        task_id: uuid,
+        responsible_type: z.enum(["equipe", "cliente"]).optional(),
+        visible_to_client: z.boolean().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
+    const patch: Record<string, unknown> = {};
+    if (data.responsible_type) {
+      patch.responsible_type = data.responsible_type;
+      if (data.responsible_type === "cliente") patch.visible_to_client = true;
+    }
+    if (data.visible_to_client !== undefined) patch.visible_to_client = data.visible_to_client;
+    const { data: row, error } = await db.from("tasks").update(patch).eq("id", data.task_id).select("id").maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para alterar esta tarefa.");
     return { ok: true as const };
   });
 
