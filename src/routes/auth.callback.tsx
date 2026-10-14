@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { goAfterLogin } from "@/lib/auth-redirect";
 import { HublynxLogo } from "@/components/HublynxLogo";
 
 export const Route = createFileRoute("/auth/callback")({
@@ -40,7 +41,7 @@ function AuthCallbackPage() {
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       if (data.session) {
-        navigate({ to: "/dashboard", replace: true });
+        goAfterLogin();
       } else {
         setMessage("Sessão não encontrada. Tente entrar novamente.");
       }

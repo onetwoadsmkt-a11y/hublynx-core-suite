@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { rememberNext } from "@/lib/auth-redirect";
 import { AppShell } from "@/components/AppShell";
 import { ModuleManifest } from "@/components/modules/ModuleManifest";
 import { ModuleGate } from "@/components/modules/ModuleGate";
@@ -9,9 +10,13 @@ import { BrandTheme } from "@/components/BrandTheme";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/auth" });
+    if (error || !data.user) {
+      // depois do login, volta para a página que foi aberta (ex.: link do projeto)
+      rememberNext(location.href);
+      throw redirect({ to: "/auth" });
+    }
     return { user: data.user };
   },
   component: AuthenticatedLayout,
@@ -26,7 +31,9 @@ function AuthenticatedLayout() {
       <WorkspaceProvider key={user.id} userId={user.id}>
         <BrandTheme />
         <ModuleManifest />
-        <AccessGate><Outlet /></AccessGate>
+        <AccessGate>
+          <Outlet />
+        </AccessGate>
       </WorkspaceProvider>
     );
   }

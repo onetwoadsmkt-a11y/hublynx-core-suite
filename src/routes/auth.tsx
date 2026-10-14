@@ -7,10 +7,26 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { HublynxLogo } from "@/components/HublynxLogo";
 import { toast } from "sonner";
+import { goAfterLogin } from "@/lib/auth-redirect";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Entrar — Core Suite" }, { name: "description", content: "Acesse sua conta Core Suite ou cadastre-se para 14 dias de teste." }, { property: "og:title", content: "Entrar — Core Suite" }, { property: "og:description", content: "Acesso seguro ao Core Suite com 14 dias de teste para novas contas." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({
+    meta: [
+      { title: "Entrar — Core Suite" },
+      {
+        name: "description",
+        content: "Acesse sua conta Core Suite ou cadastre-se para 14 dias de teste.",
+      },
+      { property: "og:title", content: "Entrar — Core Suite" },
+      {
+        property: "og:description",
+        content: "Acesso seguro ao Core Suite com 14 dias de teste para novas contas.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: AuthPage,
 });
 
@@ -31,11 +47,17 @@ function AuthPage() {
 
   useEffect(() => {
     // Listener registrado ANTES da checagem inicial de sessão.
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      goAfterLogin();
+    };
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) navigate({ to: "/dashboard", replace: true });
+      if (session) go();
     });
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard", replace: true });
+      if (data.session) go();
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
@@ -66,7 +88,7 @@ function AuthPage() {
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Bem-vindo de volta!");
-    navigate({ to: "/dashboard" });
+    goAfterLogin();
   }
 
   async function handleSignup(e: React.FormEvent) {
@@ -82,7 +104,11 @@ function AuthPage() {
     });
     setLoading(false);
     if (error) return toast.error(error.message);
-    toast.success(data.session ? "Conta criada! Seu teste de 14 dias começou." : "Confira seu e-mail para confirmar o cadastro e acessar seu teste de 14 dias.");
+    toast.success(
+      data.session
+        ? "Conta criada! Seu teste de 14 dias começou."
+        : "Confira seu e-mail para confirmar o cadastro e acessar seu teste de 14 dias.",
+    );
     setTab("login");
   }
 
@@ -106,7 +132,9 @@ function AuthPage() {
 
         <div className="text-white max-w-lg">
           <h1 className="font-display text-4xl font-semibold leading-tight">
-            O sistema operacional<br />do seu negócio.
+            O sistema operacional
+            <br />
+            do seu negócio.
           </h1>
           <p className="mt-4 text-white/70 text-sm leading-relaxed">
             Tarefas, projetos, clientes, financeiro e agenda em um único lugar. Substitua Trello,
@@ -134,7 +162,9 @@ function AuthPage() {
       {/* Right panel */}
       <div className="flex items-center justify-center p-6 bg-background">
         <div className="w-full max-w-md">
-          <div className="lg:hidden mb-6 flex justify-center"><HublynxLogo /></div>
+          <div className="lg:hidden mb-6 flex justify-center">
+            <HublynxLogo />
+          </div>
 
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="grid w-full grid-cols-2 mb-8">
@@ -156,16 +186,29 @@ function AuthPage() {
                 className="w-full mt-8 gap-2"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-                  <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9z" />
-                  <path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z" />
-                  <path fill="#FBBC05" d="M5.4 14.4a7.2 7.2 0 0 1 0-4.6V6.7H1.4a12 12 0 0 0 0 10.8l4-3.1z" />
-                  <path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4C17.9 1.2 15.2 0 12 0A12 12 0 0 0 1.4 6.7l4 3.1C6.3 6.9 8.9 4.8 12 4.8z" />
+                  <path
+                    fill="#4285F4"
+                    d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.4 14.4a7.2 7.2 0 0 1 0-4.6V6.7H1.4a12 12 0 0 0 0 10.8l4-3.1z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4C17.9 1.2 15.2 0 12 0A12 12 0 0 0 1.4 6.7l4 3.1C6.3 6.9 8.9 4.8 12 4.8z"
+                  />
                 </svg>
                 Entrar com Google
               </Button>
 
               <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="h-px flex-1 bg-border" /> ou <span className="h-px flex-1 bg-border" />
+                <span className="h-px flex-1 bg-border" /> ou{" "}
+                <span className="h-px flex-1 bg-border" />
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
@@ -230,7 +273,12 @@ function AuthPage() {
               <form onSubmit={handleSignup} className="space-y-4 mt-8">
                 <div className="space-y-2">
                   <Label htmlFor="fn">Nome completo</Label>
-                  <Input id="fn" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                  <Input
+                    id="fn"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email2">E-mail</Label>

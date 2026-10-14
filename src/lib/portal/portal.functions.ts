@@ -65,7 +65,10 @@ export type PortalProject = {
 };
 
 const uuid = z.string().uuid();
-type Db = { rpc: (fn: string, args?: Record<string, unknown>) => any };
+type Db = {
+  rpc: (fn: string, args?: Record<string, unknown>) => any;
+  from: (t: string) => any;
+};
 
 export const portalMyProjects = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -80,7 +83,14 @@ export const portalProject = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
-      .object({ projectId: z.string().trim().min(1).max(160).regex(/^[a-z0-9-]+$/i) })
+      .object({
+        projectId: z
+          .string()
+          .trim()
+          .min(1)
+          .max(160)
+          .regex(/^[a-z0-9-]+$/i),
+      })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
@@ -92,6 +102,39 @@ export const portalProject = createServerFn({ method: "GET" })
     const { data: row, error } = await db.rpc("portal_project", { _project: id });
     if (error) throw new Error(error.message);
     return row as PortalProject;
+  });
+
+/**
+ * Link do portal aberto por alguém da equipe (não é o cliente): devolve o id do
+ * projeto se a pessoa puder vê-lo no Core (respeita as regras de acesso do banco).
+ */
+export const portalStaffLookup = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        projectId: z
+          .string()
+          .trim()
+          .min(1)
+          .max(160)
+          .regex(/^[a-z0-9-]+$/i),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const ref = data.projectId.toLowerCase();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(ref);
+    const { data: row } = await db
+      .from("projects")
+      .select("id, name")
+      .eq(isUuid ? "id" : "portal_slug", ref)
+      .maybeSingle();
+    return {
+      projectId: (row?.id as string | undefined) ?? null,
+      name: (row?.name as string | undefined) ?? null,
+    };
   });
 
 export const portalSetTaskDone = createServerFn({ method: "POST" })

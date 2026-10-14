@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { KeyRound, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { rememberNext } from "@/lib/auth-redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,11 +32,7 @@ export function usePortalSession() {
       if (!alive) return;
       if (!data.session) {
         // depois do login, volta para o projeto que o cliente abriu
-        try {
-          sessionStorage.setItem("portal_next", window.location.pathname);
-        } catch {
-          /* sem storage */
-        }
+        rememberNext(window.location.pathname);
         navigate({ to: "/auth", replace: true });
         return;
       }

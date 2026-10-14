@@ -11,9 +11,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { PortalShell, usePortalSession } from "@/components/portal/PortalShell";
+import { supabase } from "@/integrations/supabase/client";
+import { rememberNext } from "@/lib/auth-redirect";
 import {
   portalAddComment,
   portalProject,
+  portalStaffLookup,
   portalSetTaskDone,
   type PortalStage,
   type PortalTask,
@@ -92,7 +95,7 @@ function PortalProjectPage() {
       {!session.ready || q.isLoading ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
       ) : q.isError || !d ? (
-        <Card className="p-6 text-sm text-rose-600">Projeto não encontrado ou sem acesso.</Card>
+        <NotClientCard projectRef={projectId} email={session.email} />
       ) : (
         <div className="space-y-6">
           <Card className="p-5">
@@ -383,5 +386,43 @@ function TaskRow({
         </div>
       </div>
     </li>
+  );
+}
+
+/** O link é do portal do cliente, mas quem entrou não é o cliente deste projeto. */
+function NotClientCard({ projectRef, email }: { projectRef: string; email: string | null }) {
+  const lookupFn = useServerFn(portalStaffLookup);
+  const q = useQuery({
+    queryKey: ["portal-staff-lookup", projectRef],
+    queryFn: () => lookupFn({ data: { projectId: projectRef } }),
+  });
+  async function switchAccount() {
+    rememberNext(`/portal/${projectRef}`);
+    await supabase.auth.signOut();
+    window.location.replace("/auth");
+  }
+  if (q.isLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  const staffId = q.data?.projectId ?? null;
+  return (
+    <Card className="space-y-3 p-6 text-sm">
+      <p className="font-medium">Este é o link do portal do cliente.</p>
+      <p className="text-muted-foreground">
+        Você entrou como <strong>{email ?? "outro usuário"}</strong>, que não é o cliente deste
+        projeto.
+        {staffId
+          ? " Como você faz parte da equipe, abra o projeto no Core."
+          : " Entre com o e-mail e a senha que o cliente recebeu no convite."}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {staffId && (
+          <Button asChild>
+            <a href={`/projetos/${staffId}`}>Abrir o projeto no Core</a>
+          </Button>
+        )}
+        <Button variant={staffId ? "outline" : "default"} onClick={switchAccount}>
+          Sair e entrar como cliente
+        </Button>
+      </div>
+    </Card>
   );
 }
