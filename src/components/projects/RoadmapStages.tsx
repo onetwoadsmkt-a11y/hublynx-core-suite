@@ -110,7 +110,8 @@ export function RoadmapStagesPanel({
     .filter(
       (m) =>
         m.user_id &&
-        ["gestor", "editor", "executor"].includes(m.access_role) &&
+        // equipe que executa + o cliente (executa as tarefas dele pelo portal)
+        ["gestor", "editor", "executor", "cliente"].includes(m.access_role) &&
         m.status === "active",
     )
     .map((m) => ({
@@ -722,7 +723,10 @@ type TaskPatch = {
   visible_to_client?: boolean;
   assignee_id?: string | null;
 };
-/** Valor do seletor de responsável: "equipe" (sem pessoa), "cliente" ou "u:<id da pessoa>". */
+/**
+ * Valor do seletor de responsável: "equipe" (sem pessoa), "u:<id>" (pessoa da equipe),
+ * "c:<id>" (cliente que executa pelo portal) ou "cliente" (cliente ainda não convidado).
+ */
 type Who = string;
 
 function responsibleFrom(who: Who): {
@@ -730,6 +734,7 @@ function responsibleFrom(who: Who): {
   assignee_id: string | null;
 } {
   if (who === "cliente") return { responsible_type: "cliente", assignee_id: null };
+  if (who.startsWith("c:")) return { responsible_type: "cliente", assignee_id: who.slice(2) };
   if (who.startsWith("u:")) return { responsible_type: "equipe", assignee_id: who.slice(2) };
   return { responsible_type: "equipe", assignee_id: null };
 }
@@ -755,7 +760,13 @@ function ResponsibleSelect({
   className?: string;
   compact?: boolean;
 }) {
-  const current = value.startsWith("u:") ? assignees.find((a) => `u:${a.id}` === value) : null;
+  const team = assignees.filter((a) => a.role !== "cliente");
+  const clients = assignees.filter((a) => a.role === "cliente");
+  const isClient = value === "cliente" || value.startsWith("c:");
+  const current =
+    value.startsWith("u:") || value.startsWith("c:")
+      ? assignees.find((a) => value === `${a.role === "cliente" ? "c" : "u"}:${a.id}`)
+      : null;
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
@@ -765,17 +776,19 @@ function ResponsibleSelect({
       >
         <SelectValue>
           <span className="flex min-w-0 items-center gap-1.5">
-            {value === "cliente" ? (
+            {isClient ? (
               <UserRound className="h-3.5 w-3.5 shrink-0 text-amber-700" />
             ) : (
               <Users className="h-3.5 w-3.5 shrink-0" />
             )}
             <span className="truncate">
-              {value === "cliente"
-                ? "Cliente"
-                : current
-                  ? current.name
-                  : value.startsWith("u:")
+              {current
+                ? isClient
+                  ? `${current.name} (cliente)`
+                  : current.name
+                : value === "cliente"
+                  ? "Cliente"
+                  : value.startsWith("u:") || value.startsWith("c:")
                     ? "Pessoa sem permissão"
                     : compact
                       ? "Responsável"
@@ -787,13 +800,13 @@ function ResponsibleSelect({
       <SelectContent>
         <SelectGroup>
           <SelectLabel>Equipe do projeto</SelectLabel>
-          {assignees.map((a) => (
+          {team.map((a) => (
             <SelectItem key={a.id} value={`u:${a.id}`}>
               {a.name}
               <span className="ml-1 text-muted-foreground">· {ROLE_SHORT[a.role] ?? a.role}</span>
             </SelectItem>
           ))}
-          {assignees.length === 0 && (
+          {team.length === 0 && (
             <p className="px-2 py-1.5 text-xs text-muted-foreground">
               Ninguém liberado ainda.{" "}
               {canManageTeam
@@ -804,7 +817,18 @@ function ResponsibleSelect({
           <SelectItem value="equipe">Equipe (sem responsável)</SelectItem>
         </SelectGroup>
         <SelectSeparator />
-        <SelectItem value="cliente">Cliente (portal)</SelectItem>
+        <SelectGroup>
+          <SelectLabel>Cliente — executa pelo portal</SelectLabel>
+          {clients.map((a) => (
+            <SelectItem key={a.id} value={`c:${a.id}`}>
+              {a.name}
+              <span className="ml-1 text-muted-foreground">· Cliente</span>
+            </SelectItem>
+          ))}
+          {clients.length === 0 && (
+            <SelectItem value="cliente">Cliente (ainda não convidado)</SelectItem>
+          )}
+        </SelectGroup>
       </SelectContent>
     </Select>
   );
@@ -975,7 +999,13 @@ function StageTaskRow({
 }) {
   const isDone = t.status === "concluido";
   const isClient = t.responsible_type === "cliente";
-  const who: Who = isClient ? "cliente" : t.assignee_id ? `u:${t.assignee_id}` : "equipe";
+  const who: Who = isClient
+    ? t.assignee_id
+      ? `c:${t.assignee_id}`
+      : "cliente"
+    : t.assignee_id
+      ? `u:${t.assignee_id}`
+      : "equipe";
   return (
     <div
       className={[

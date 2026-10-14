@@ -518,21 +518,31 @@ export type StageTask = {
   assignee_id: string | null;
 };
 
-/** Quem pode ser responsável por tarefas: pessoas liberadas no projeto (não cliente/visualizador). */
+/**
+ * Quem pode ser responsável por tarefas: pessoas liberadas no projeto como gestor,
+ * editor ou executor; e o cliente do projeto, que executa as tarefas dele pelo portal.
+ */
 const ASSIGNABLE_ROLES = ["gestor", "editor", "executor"];
 
-async function assertAssignable(db: any, projectId: string, userId: string) {
+async function assertAssignable(
+  db: any,
+  projectId: string,
+  userId: string,
+  kind: "equipe" | "cliente" = "equipe",
+) {
   const { data } = await db
     .from("project_members")
     .select("id")
     .eq("project_id", projectId)
     .eq("user_id", userId)
     .eq("status", "active")
-    .in("access_role", ASSIGNABLE_ROLES)
+    .in("access_role", kind === "cliente" ? ["cliente"] : ASSIGNABLE_ROLES)
     .limit(1);
   if (!data?.length) {
     throw new Error(
-      "Esta pessoa não tem permissão para executar tarefas neste projeto. Libere em Equipe e permissões.",
+      kind === "cliente"
+        ? "Esta pessoa não é cliente deste projeto. Convide o cliente em Equipe e permissões."
+        : "Esta pessoa não tem permissão para executar tarefas neste projeto. Libere em Equipe e permissões.",
     );
   }
 }
@@ -572,8 +582,8 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
     const organization_id = await orgOfProject(db, data.project_id);
-    const assignee = data.responsible_type === "cliente" ? null : (data.assignee_id ?? null);
-    if (assignee) await assertAssignable(db, data.project_id, assignee);
+    const assignee = data.assignee_id ?? null;
+    if (assignee) await assertAssignable(db, data.project_id, assignee, data.responsible_type);
     const { error } = await db.from("tasks").insert({
       owner_id: context.userId,
       organization_id,
@@ -601,7 +611,7 @@ export const setStageTaskClient = createServerFn({ method: "POST" })
         task_id: uuid,
         responsible_type: z.enum(["equipe", "cliente"]).optional(),
         visible_to_client: z.boolean().optional(),
-        /** pessoa da equipe responsável (null = sem responsável) */
+        /** pessoa responsável: da equipe ou o cliente do projeto (null = sem pessoa) */
         assignee_id: uuid.nullable().optional(),
       })
       .parse(d),
@@ -611,12 +621,10 @@ export const setStageTaskClient = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = {};
     if (data.responsible_type) {
       patch.responsible_type = data.responsible_type;
-      if (data.responsible_type === "cliente") {
-        patch.visible_to_client = true;
-        patch.assignee_id = null;
-      }
+      // tarefa do cliente sempre aparece no portal
+      if (data.responsible_type === "cliente") patch.visible_to_client = true;
     }
-    if (data.assignee_id !== undefined && data.responsible_type !== "cliente") {
+    if (data.assignee_id !== undefined) {
       if (data.assignee_id) {
         const { data: task } = await db
           .from("tasks")
@@ -624,8 +632,12 @@ export const setStageTaskClient = createServerFn({ method: "POST" })
           .eq("id", data.task_id)
           .maybeSingle();
         if (!task?.project_id) throw new Error("Tarefa não encontrada.");
-        await assertAssignable(db, task.project_id, data.assignee_id);
-        patch.responsible_type = "equipe";
+        await assertAssignable(
+          db,
+          task.project_id,
+          data.assignee_id,
+          data.responsible_type ?? "equipe",
+        );
       }
       patch.assignee_id = data.assignee_id;
     }

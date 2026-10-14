@@ -75,7 +75,7 @@ export const ROLE_INFO: Record<string, { label: string; desc: string; tone: stri
   },
   cliente: {
     label: "Cliente",
-    desc: "Portal do cliente: vê o andamento e conclui as tarefas dele",
+    desc: "Executor das tarefas dele pelo portal: vê o roadmap, conclui e comenta",
     tone: "bg-amber-50 text-amber-800 border-amber-200",
   },
 };
@@ -251,7 +251,7 @@ export function ProjectTeamPanel({
       </section>
 
       <PermissionsMatrix
-        staff={staff}
+        staff={[...staff, ...clients]}
         canManage={a.canManage}
         restricted={a.restricted}
         onRole={(m, r) => roleM.mutate({ id: m.id, accessRole: r })}
@@ -293,12 +293,12 @@ const PERMISSIONS: { key: string; label: string; roles: string[] }[] = [
   {
     key: "ver",
     label: "Ver o projeto e o roadmap",
-    roles: ["gestor", "editor", "executor", "visualizador"],
+    roles: ["gestor", "editor", "executor", "visualizador", "cliente"],
   },
   {
     key: "executar",
     label: "Ser responsável e concluir as tarefas dele",
-    roles: ["gestor", "editor", "executor"],
+    roles: ["gestor", "editor", "executor", "cliente"],
   },
   { key: "tarefas", label: "Criar e editar tarefas e etapas", roles: ["gestor", "editor"] },
   {
@@ -449,6 +449,14 @@ function RoleSelect({
   onRole: (m: ProjectMemberRow, r: (typeof STAFF_ROLES)[number]) => void;
 }) {
   const info = ROLE_INFO[m.access_role] ?? ROLE_INFO.editor;
+  if (m.access_role === "cliente") {
+    // o cliente executa as tarefas dele pelo portal; o papel não muda aqui
+    return (
+      <Badge variant="outline" className={`whitespace-nowrap text-[10px] ${info.tone}`}>
+        Cliente · executor no portal
+      </Badge>
+    );
+  }
   if (!canManage) {
     return (
       <Badge variant="outline" className={`text-[10px] ${info.tone}`}>
