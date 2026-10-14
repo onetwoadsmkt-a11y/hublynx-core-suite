@@ -197,7 +197,7 @@ function ProjectCommandCenter() {
                 ["evolution", "Evolução do projeto", TrendingUp], ["stages", "Etapas", Flag],
                 ["commercial", "Comercial", Briefcase], ["deliveries", "Próximas entregas", CalIcon],
                 ["kanban", "Kanban", ListChecks], ["activity", "Atividade recente", ActivityIcon],
-                ["team", "Equipe e acesso", UsersIcon], ["risks", "Riscos & Bloqueios", AlertTriangle],
+                ["team", "Equipe e permissões", UsersIcon], ["risks", "Riscos & Bloqueios", AlertTriangle],
                 ["files", "Arquivos", FileText], ["notes", "Notas & Decisões", FileText],
               ].map(([value, label, Icon]) => {
                 const TabIcon = Icon as typeof TrendingUp;
@@ -211,7 +211,7 @@ function ProjectCommandCenter() {
           <TabsContent value="deliveries"><UpcomingDeliveries upcoming={d.upcomingDeliveries} /></TabsContent>
           <TabsContent value="kanban"><KanbanCompact counts={d.kanbanCounts} /></TabsContent>
           <TabsContent value="activity"><ActivityFeed activity={d.activity} /></TabsContent>
-          <TabsContent value="team"><h2 className="my-5 text-xl font-semibold">Equipe e acesso</h2><ProjectTeamPanel projectId={id} defaultClient={{ name: p.client?.name ?? null, email: p.client?.email ?? null }} /></TabsContent>
+          <TabsContent value="team"><h2 className="my-5 text-xl font-semibold">Equipe e permissões</h2><ProjectTeamPanel projectId={id} defaultClient={{ name: p.client?.name ?? null, email: p.client?.email ?? null }} /></TabsContent>
           <TabsContent value="risks"><h2 className="my-5 text-xl font-semibold">Riscos & Bloqueios</h2><RisksSection risks={d.risks} projectId={id} /></TabsContent>
           <TabsContent value="files"><h2 className="my-5 text-xl font-semibold">Arquivos</h2><FilesSection files={d.files} /></TabsContent>
           <TabsContent value="notes"><h2 className="my-5 text-xl font-semibold">Notas & Decisões</h2><NotesSection notes={d.notes} projectId={id} /></TabsContent>

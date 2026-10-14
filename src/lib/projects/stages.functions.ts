@@ -81,7 +81,9 @@ export const listProjectStages = createServerFn({ method: "GET" })
     const db = context.supabase as any;
     const { data: rows, error } = await db
       .from("project_stages")
-      .select("id, project_id, name, description, sort_order, start_date, due_date, status, percent, notes")
+      .select(
+        "id, project_id, name, description, sort_order, start_date, due_date, status, percent, notes",
+      )
       .eq("project_id", data.project_id)
       .order("sort_order");
     if (error) throw new Error(error.message);
@@ -167,7 +169,11 @@ export const setStageProgress = createServerFn({ method: "POST" })
     } else {
       const { error: e3 } = await db
         .from("project_stages")
-        .update({ status: data.status, percent: percentForStatus(data.status, 50), updated_at: now })
+        .update({
+          status: data.status,
+          percent: percentForStatus(data.status, 50),
+          updated_at: now,
+        })
         .eq("id", data.stage_id);
       if (e3) throw new Error(e3.message);
     }
@@ -199,8 +205,13 @@ export const listProjectTemplates = createServerFn({ method: "GET" })
     if (stageList.length) {
       const { data: tRows } = await db
         .from("project_template_tasks")
-        .select("stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client")
-        .in("stage_id", stageList.map((s) => s.id as string))
+        .select(
+          "stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client",
+        )
+        .in(
+          "stage_id",
+          stageList.map((s) => s.id as string),
+        )
         .order("sort_order");
       tasks = (tRows ?? []) as any[];
     }
@@ -264,10 +275,17 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
     if (templateId) {
       const { error } = await db
         .from("project_templates")
-        .update({ name: data.name, description: data.description ?? null, updated_at: new Date().toISOString() })
+        .update({
+          name: data.name,
+          description: data.description ?? null,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", templateId);
       if (error) throw new Error(error.message);
-      const { error: dErr } = await db.from("project_template_stages").delete().eq("template_id", templateId);
+      const { error: dErr } = await db
+        .from("project_template_stages")
+        .delete()
+        .eq("template_id", templateId);
       if (dErr) throw new Error(dErr.message);
     } else {
       const { data: created, error } = await db
@@ -327,7 +345,10 @@ export const deleteProjectTemplate = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
-    const { error } = await db.from("project_templates").update({ active: false }).eq("id", data.id);
+    const { error } = await db
+      .from("project_templates")
+      .update({ active: false })
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
@@ -387,8 +408,13 @@ export async function applyTemplateStages(
   try {
     const { data: tplTasks } = await db
       .from("project_template_tasks")
-      .select("stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client")
-      .in("stage_id", list.map((s) => s.id as string))
+      .select(
+        "stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client",
+      )
+      .in(
+        "stage_id",
+        list.map((s) => s.id as string),
+      )
       .order("sort_order");
     const tasks = (tplTasks ?? []) as any[];
     if (tasks.length) {
@@ -460,7 +486,8 @@ export const applyTemplateToProject = createServerFn({ method: "POST" })
       .single();
     if (projectErr) throw new Error(projectErr.message);
 
-    const startDate = (project?.start_date as string | null) ?? new Date().toISOString().slice(0, 10);
+    const startDate =
+      (project?.start_date as string | null) ?? new Date().toISOString().slice(0, 10);
 
     if (data.replace) {
       const { error } = await db.from("project_stages").delete().eq("project_id", data.project_id);
@@ -488,7 +515,27 @@ export type StageTask = {
   responsible_type: "equipe" | "cliente";
   visible_to_client: boolean;
   completed_at: string | null;
+  assignee_id: string | null;
 };
+
+/** Quem pode ser responsável por tarefas: pessoas liberadas no projeto (não cliente/visualizador). */
+const ASSIGNABLE_ROLES = ["gestor", "editor", "executor"];
+
+async function assertAssignable(db: any, projectId: string, userId: string) {
+  const { data } = await db
+    .from("project_members")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .in("access_role", ASSIGNABLE_ROLES)
+    .limit(1);
+  if (!data?.length) {
+    throw new Error(
+      "Esta pessoa não tem permissão para executar tarefas neste projeto. Libere em Equipe e permissões.",
+    );
+  }
+}
 
 export const listProjectStageTasks = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -497,7 +544,9 @@ export const listProjectStageTasks = createServerFn({ method: "GET" })
     const db = context.supabase as any;
     const { data: rows, error } = await db
       .from("tasks")
-      .select("id, stage_id, title, status, due_date, priority, responsible_type, visible_to_client, completed_at")
+      .select(
+        "id, stage_id, title, status, due_date, priority, responsible_type, visible_to_client, completed_at, assignee_id",
+      )
       .eq("project_id", data.project_id)
       .not("stage_id", "is", null)
       .order("due_date", { ascending: true, nullsFirst: false });
@@ -516,12 +565,15 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
         due_date: z.string().nullable().optional(),
         responsible_type: z.enum(["equipe", "cliente"]).default("equipe"),
         visible_to_client: z.boolean().default(false),
+        assignee_id: uuid.nullable().optional(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
     const organization_id = await orgOfProject(db, data.project_id);
+    const assignee = data.responsible_type === "cliente" ? null : (data.assignee_id ?? null);
+    if (assignee) await assertAssignable(db, data.project_id, assignee);
     const { error } = await db.from("tasks").insert({
       owner_id: context.userId,
       organization_id,
@@ -534,6 +586,7 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
       position: 0,
       responsible_type: data.responsible_type,
       visible_to_client: data.visible_to_client || data.responsible_type === "cliente",
+      assignee_id: assignee,
     });
     if (error) throw new Error(error.message);
     return { ok: true as const };
@@ -548,6 +601,8 @@ export const setStageTaskClient = createServerFn({ method: "POST" })
         task_id: uuid,
         responsible_type: z.enum(["equipe", "cliente"]).optional(),
         visible_to_client: z.boolean().optional(),
+        /** pessoa da equipe responsável (null = sem responsável) */
+        assignee_id: uuid.nullable().optional(),
       })
       .parse(d),
   )
@@ -556,10 +611,31 @@ export const setStageTaskClient = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = {};
     if (data.responsible_type) {
       patch.responsible_type = data.responsible_type;
-      if (data.responsible_type === "cliente") patch.visible_to_client = true;
+      if (data.responsible_type === "cliente") {
+        patch.visible_to_client = true;
+        patch.assignee_id = null;
+      }
+    }
+    if (data.assignee_id !== undefined && data.responsible_type !== "cliente") {
+      if (data.assignee_id) {
+        const { data: task } = await db
+          .from("tasks")
+          .select("project_id")
+          .eq("id", data.task_id)
+          .maybeSingle();
+        if (!task?.project_id) throw new Error("Tarefa não encontrada.");
+        await assertAssignable(db, task.project_id, data.assignee_id);
+        patch.responsible_type = "equipe";
+      }
+      patch.assignee_id = data.assignee_id;
     }
     if (data.visible_to_client !== undefined) patch.visible_to_client = data.visible_to_client;
-    const { data: row, error } = await db.from("tasks").update(patch).eq("id", data.task_id).select("id").maybeSingle();
+    const { data: row, error } = await db
+      .from("tasks")
+      .update(patch)
+      .eq("id", data.task_id)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Sem permissão para alterar esta tarefa.");
     return { ok: true as const };

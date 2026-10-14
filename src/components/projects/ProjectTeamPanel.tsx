@@ -1,7 +1,20 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Copy, Lock, Mail, Pencil, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import {
+  Check,
+  Copy,
+  KeyRound,
+  Lock,
+  Mail,
+  Minus,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -237,18 +250,13 @@ export function ProjectTeamPanel({
         )}
       </section>
 
-      <details className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
-        <summary className="cursor-pointer font-medium text-foreground">
-          O que cada papel pode fazer
-        </summary>
-        <ul className="mt-2 space-y-1">
-          {Object.entries(ROLE_INFO).map(([k, v]) => (
-            <li key={k}>
-              <strong className="text-foreground">{v.label}:</strong> {v.desc}
-            </li>
-          ))}
-        </ul>
-      </details>
+      <PermissionsMatrix
+        staff={staff}
+        canManage={a.canManage}
+        restricted={a.restricted}
+        onRole={(m, r) => roleM.mutate({ id: m.id, accessRole: r })}
+        onAdd={() => setAddOpen(true)}
+      />
 
       <AddMemberDialog
         open={addOpen}
@@ -277,6 +285,193 @@ export function ProjectTeamPanel({
         onDone={refresh}
       />
     </div>
+  );
+}
+
+/** O que cada papel libera — espelha as regras do banco (can_view/edit/manage_project). */
+const PERMISSIONS: { key: string; label: string; roles: string[] }[] = [
+  {
+    key: "ver",
+    label: "Ver o projeto e o roadmap",
+    roles: ["gestor", "editor", "executor", "visualizador"],
+  },
+  {
+    key: "executar",
+    label: "Ser responsável e concluir as tarefas dele",
+    roles: ["gestor", "editor", "executor"],
+  },
+  { key: "tarefas", label: "Criar e editar tarefas e etapas", roles: ["gestor", "editor"] },
+  {
+    key: "custos_ver",
+    label: "Ver custos (Comercial)",
+    roles: ["gestor", "editor", "executor", "visualizador"],
+  },
+  { key: "custos", label: "Editar custos (Comercial)", roles: ["gestor", "editor"] },
+  { key: "equipe", label: "Gerenciar equipe, permissões e cliente", roles: ["gestor"] },
+];
+
+function PermissionsMatrix({
+  staff,
+  canManage,
+  restricted,
+  onRole,
+  onAdd,
+}: {
+  staff: ProjectMemberRow[];
+  canManage: boolean;
+  restricted: boolean;
+  onRole: (m: ProjectMemberRow, r: (typeof STAFF_ROLES)[number]) => void;
+  onAdd: () => void;
+}) {
+  const rows = staff.filter((m) => m.user_id);
+  return (
+    <section className="rounded-2xl border bg-card">
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b p-4">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <KeyRound className="h-4 w-4" /> Permissões no projeto
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {canManage
+              ? "Escolha o papel de cada pessoa. Só quem pode executar tarefas aparece como responsável."
+              : "Somente o gestor do projeto ou o administrador altera as permissões."}
+          </p>
+        </div>
+        {canManage && (
+          <Button size="sm" variant="outline" onClick={onAdd}>
+            <UserPlus className="h-4 w-4" /> Liberar pessoa
+          </Button>
+        )}
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="p-4 text-sm text-muted-foreground">
+          Ninguém liberado ainda. {canManage ? "Use “Liberar pessoa” para dar acesso." : ""}
+        </p>
+      ) : (
+        <>
+          {/* Desktop: tabela */}
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="px-4 py-2 font-medium">Pessoa</th>
+                  <th className="px-2 py-2 font-medium">Papel</th>
+                  {PERMISSIONS.map((p) => (
+                    <th key={p.key} className="px-2 py-2 text-center font-medium leading-tight">
+                      {p.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((m) => (
+                  <tr key={m.id} className="border-b last:border-0">
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium">{m.name || m.email || "Sem nome"}</p>
+                      {m.email && m.email !== m.name && (
+                        <p className="text-xs text-muted-foreground">{m.email}</p>
+                      )}
+                    </td>
+                    <td className="px-2 py-2.5">
+                      <RoleSelect m={m} canManage={canManage} onRole={onRole} />
+                    </td>
+                    {PERMISSIONS.map((p) => (
+                      <td key={p.key} className="px-2 py-2.5 text-center">
+                        <PermMark on={p.roles.includes(m.access_role)} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Celular: cartões */}
+          <div className="space-y-2 p-3 md:hidden">
+            {rows.map((m) => (
+              <div key={m.id} className="rounded-xl border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 truncate text-sm font-medium">{m.name || m.email}</p>
+                  <RoleSelect m={m} canManage={canManage} onRole={onRole} />
+                </div>
+                <ul className="mt-2 space-y-1">
+                  {PERMISSIONS.map((p) => (
+                    <li key={p.key} className="flex items-center gap-2 text-xs">
+                      <PermMark on={p.roles.includes(m.access_role)} />
+                      <span
+                        className={
+                          p.roles.includes(m.access_role)
+                            ? ""
+                            : "text-muted-foreground line-through"
+                        }
+                      >
+                        {p.label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <p className="border-t p-3 text-[11px] text-muted-foreground">
+        O administrador da empresa sempre tem acesso total.{" "}
+        {restricted
+          ? "Acesso restrito ligado: quem não está nesta lista não vê os projetos."
+          : "Acesso restrito desligado: quem é da empresa e não está nesta lista também pode ver e editar o projeto. Ligue o acesso restrito para valer só o que está aqui."}
+      </p>
+    </section>
+  );
+}
+
+function PermMark({ on }: { on: boolean }) {
+  return on ? (
+    <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-primary/15 text-primary">
+      <Check className="h-3.5 w-3.5" aria-label="Liberado" />
+    </span>
+  ) : (
+    <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-muted text-muted-foreground">
+      <Minus className="h-3.5 w-3.5" aria-label="Não liberado" />
+    </span>
+  );
+}
+
+function RoleSelect({
+  m,
+  canManage,
+  onRole,
+}: {
+  m: ProjectMemberRow;
+  canManage: boolean;
+  onRole: (m: ProjectMemberRow, r: (typeof STAFF_ROLES)[number]) => void;
+}) {
+  const info = ROLE_INFO[m.access_role] ?? ROLE_INFO.editor;
+  if (!canManage) {
+    return (
+      <Badge variant="outline" className={`text-[10px] ${info.tone}`}>
+        {info.label}
+      </Badge>
+    );
+  }
+  return (
+    <Select
+      value={m.access_role}
+      onValueChange={(v) => onRole(m, v as (typeof STAFF_ROLES)[number])}
+    >
+      <SelectTrigger className="h-8 w-[140px] text-xs">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {STAFF_ROLES.map((r) => (
+          <SelectItem key={r} value={r}>
+            {ROLE_INFO[r].label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
