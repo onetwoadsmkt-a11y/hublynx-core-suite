@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DEFAULT_STAGES } from "./defaults";
 import { scopeOrganization, organizationFields } from "@/lib/org/filter";
 import { resolveOrganizationId } from "@/lib/org/resolve";
+import { fetchAllRows } from "@/lib/supabase-paging";
 
 const uuid = z.string().uuid();
 
@@ -177,14 +178,21 @@ export const listPipeline = createServerFn({ method: "GET" })
     }
 
     const stageIds = (stages ?? []).map((s) => s.id);
-    const query = scopeOrganization(
-      supabase.from("leads").select("*").order("created_at", { ascending: false }),
-      orgId,
-    );
-    const { data: leads, error: lerr } = await (isFirst
-      ? query.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
-      : query.in("stage_id", stageIds));
-    if (lerr) throw new Error(lerr.message);
+    const leads = stageIds.length
+      ? await fetchAllRows(() => {
+          const query = scopeOrganization(
+            supabase
+              .from("leads")
+              .select("*")
+              .order("created_at", { ascending: false })
+              .order("id", { ascending: true }),
+            orgId,
+          );
+          return isFirst
+            ? query.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
+            : query.in("stage_id", stageIds);
+        })
+      : [];
 
     return { pipelines, pipeline: current, stages: stages ?? [], leads: leads ?? [] };
   });
@@ -779,15 +787,20 @@ export const listAllLeads = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ organizationId: uuid.optional() }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const [{ data: pipelines }, { data: stages }, { data: leads, error }] = await Promise.all([
+    const [{ data: pipelines }, { data: stages }, leads] = await Promise.all([
       supabase.from("pipelines").select("*").order("position"),
       supabase.from("pipeline_stages").select("*").order("position"),
-      scopeOrganization(
-        supabase.from("leads").select("*").order("created_at", { ascending: false }),
-        data.organizationId,
+      fetchAllRows(() =>
+        scopeOrganization(
+          supabase
+            .from("leads")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true }),
+          data.organizationId,
+        ),
       ),
     ]);
-    if (error) throw new Error(error.message);
     return {
       pipelines: pipelines ?? [],
       stages: stages ?? [],

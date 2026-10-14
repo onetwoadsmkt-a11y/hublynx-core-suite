@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { scopeOrganization } from "@/lib/org/filter";
+import { fetchAllRows } from "@/lib/supabase-paging";
 import { classifyStage } from "./funnel";
 
 const uuid = z.string().uuid();
@@ -59,24 +60,23 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
 
     const fetchRange = async (fromDay?: string, toDay?: string) => {
       if (stageIds.length === 0) return [] as Row[];
-      let q = scopeOrganization(
-        supabase
-          .from("leads")
-          .select(
-            "id,stage_id,value,source,created_at,temperature,tags,lead_classification,converted_at,updated_at",
-          ),
-        data.organizationId,
-      );
-      q = isFirst
-        ? q.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
-        : q.in("stage_id", stageIds);
-      if (fromDay) q = q.gte("created_at", `${fromDay}T00:00:00`);
-      if (toDay) q = q.lte("created_at", `${toDay}T23:59:59`);
-      const { data: rows, error } = await q
-        .order("created_at", { ascending: true })
-        .limit(5000);
-      if (error) throw new Error(error.message);
-      return (rows ?? []) as unknown as Row[];
+      const build = () => {
+        let q = scopeOrganization(
+          supabase
+            .from("leads")
+            .select(
+              "id,stage_id,value,source,created_at,temperature,tags,lead_classification,converted_at,updated_at",
+            ),
+          data.organizationId,
+        );
+        q = isFirst
+          ? q.or(`stage_id.in.(${stageIds.join(",")}),stage_id.is.null`)
+          : q.in("stage_id", stageIds);
+        if (fromDay) q = q.gte("created_at", `${fromDay}T00:00:00`);
+        if (toDay) q = q.lte("created_at", `${toDay}T23:59:59`);
+        return q.order("created_at", { ascending: true }).order("id", { ascending: true });
+      };
+      return (await fetchAllRows(build)) as unknown as Row[];
     };
 
     leads = await fetchRange(data.from, data.to);

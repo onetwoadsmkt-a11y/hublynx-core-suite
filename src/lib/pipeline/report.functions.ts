@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { scopeOrganization } from "@/lib/org/filter";
+import { fetchAllRows } from "@/lib/supabase-paging";
 
 export const getLeadsReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -23,20 +24,26 @@ export const getLeadsReport = createServerFn({ method: "GET" })
       supabase.from("pipeline_stages").select("*").order("position"),
     ]);
 
-    let q = scopeOrganization(
-      supabase.from("leads").select("*").order("created_at", { ascending: false }),
-      data.organizationId,
-    );
-    if (data.from) q = q.gte("created_at", `${data.from}T00:00:00`);
-    if (data.to) q = q.lte("created_at", `${data.to}T23:59:59`);
-    if (data.pipelineId) {
-      const ids = (stages ?? [])
-        .filter((s) => s.pipeline_id === data.pipelineId)
-        .map((s) => s.id);
-      q = q.in("stage_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
-    }
-    const { data: leads, error } = await q;
-    if (error) throw new Error(error.message);
+    const buildQuery = () => {
+      let q = scopeOrganization(
+        supabase
+          .from("leads")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true }),
+        data.organizationId,
+      );
+      if (data.from) q = q.gte("created_at", `${data.from}T00:00:00`);
+      if (data.to) q = q.lte("created_at", `${data.to}T23:59:59`);
+      if (data.pipelineId) {
+        const ids = (stages ?? [])
+          .filter((s) => s.pipeline_id === data.pipelineId)
+          .map((s) => s.id);
+        q = q.in("stage_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+      }
+      return q;
+    };
+    const leads = await fetchAllRows(buildQuery);
 
     const leadIds = (leads ?? []).map((l) => l.id);
     let notes: { id: string; lead_id: string; body: string; created_at: string }[] = [];
