@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -28,6 +29,20 @@ function PortalHome() {
     refetchInterval: 60_000,
   });
   const projects = q.data ?? [];
+
+  // veio de um link de projeto antes do login: abre o projeto
+  useEffect(() => {
+    if (!session.ready) return;
+    try {
+      const next = sessionStorage.getItem("portal_next");
+      sessionStorage.removeItem("portal_next");
+      if (next && /^\/portal\/[a-z0-9-]+$/i.test(next) && next !== window.location.pathname) {
+        window.location.replace(next);
+      }
+    } catch {
+      /* sem storage */
+    }
+  }, [session.ready]);
   const brand = projects[0]?.organization ?? null;
 
   return (
@@ -61,10 +76,10 @@ function PortalHome() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {projects.map((p) => (
-            <Link key={p.id} to="/portal/$projectId" params={{ projectId: p.id }} className="group">
+            <Link key={p.id} to="/portal/$projectId" params={{ projectId: p.slug || p.id }} className="group">
               <Card className="h-full p-5 transition hover:border-primary/40 hover:shadow-md">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-semibold leading-tight">{p.name}</h2>
+                  <h2 className="font-semibold leading-tight">{p.number ? `Nº ${p.number} · ` : ""}{p.name}</h2>
                   <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5" />
                 </div>
                 <div className="mt-4">

@@ -45,7 +45,10 @@ function PortalAccessPage() {
         await supabase.auth.setSession({ access_token: at, refresh_token: rt }).catch(() => null);
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
-      window.history.replaceState({}, "", window.location.pathname);
+      {
+        const nx = new URLSearchParams(window.location.search).get("next");
+        window.history.replaceState({}, "", window.location.pathname + (nx ? `?next=${encodeURIComponent(nx)}` : ""));
+      }
       setStatus(data.session ? "ready" : "invalid");
       if (!data.session) setError("O link expirou ou já foi usado. Peça um novo convite à equipe.");
     })();
@@ -53,6 +56,15 @@ function PortalAccessPage() {
       cancelled = true;
     };
   }, []);
+
+  function goNext() {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next && /^\/portal\/[a-z0-9-]+$/i.test(next)) {
+      window.location.assign(next);
+      return;
+    }
+    navigate({ to: "/portal", replace: true });
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -63,7 +75,7 @@ function PortalAccessPage() {
     setSaving(false);
     if (upErr) return toast.error(upErr.message);
     toast.success("Senha criada. Bem-vindo ao portal!");
-    navigate({ to: "/portal", replace: true });
+    goNext();
   }
 
   return (
@@ -119,7 +131,7 @@ function PortalAccessPage() {
                 type="button"
                 variant="ghost"
                 className="w-full"
-                onClick={() => navigate({ to: "/portal" })}
+                onClick={goNext}
               >
                 Agora não — entrar no portal
               </Button>

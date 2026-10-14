@@ -231,7 +231,10 @@ function ExecutiveHeader({ p, d }: any) {
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">{p.name}</h1>
+            <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">
+              {p.project_number ? <span className="text-muted-foreground">Nº {p.project_number} · </span> : null}
+              {p.name}
+            </h1>
             <Badge className={`${STATUS_TONE[p.status as ProjectStatus]} border`} variant="outline">
               {STATUS_LABEL[p.status as ProjectStatus]}
             </Badge>

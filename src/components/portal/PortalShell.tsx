@@ -19,6 +19,12 @@ export function usePortalSession() {
     supabase.auth.getSession().then(({ data }) => {
       if (!alive) return;
       if (!data.session) {
+        // depois do login, volta para o projeto que o cliente abriu
+        try {
+          sessionStorage.setItem("portal_next", window.location.pathname);
+        } catch {
+          /* sem storage */
+        }
         navigate({ to: "/auth", replace: true });
         return;
       }

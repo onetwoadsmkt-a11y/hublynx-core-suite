@@ -35,12 +35,18 @@ async function rpcBool(db: Db, fn: string, projectId: string): Promise<boolean> 
 async function projectOrg(db: Db, projectId: string) {
   const { data, error } = await db
     .from("projects")
-    .select("id, name, organization_id")
+    .select("id, name, organization_id, portal_slug, project_number")
     .eq("id", projectId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Projeto não encontrado ou sem acesso.");
-  return data as { id: string; name: string; organization_id: string };
+  return data as {
+    id: string;
+    name: string;
+    organization_id: string;
+    portal_slug: string | null;
+    project_number: number | null;
+  };
 }
 
 /** Permissões do usuário atual no projeto + membros com nome e e-mail. */
@@ -91,9 +97,13 @@ export const getProjectAccess = createServerFn({ method: "GET" })
       }
     }
 
+    const portalPath = `/portal/${project.portal_slug || project.id}`;
     return {
       projectId: project.id,
       organizationId: project.organization_id,
+      projectNumber: project.project_number ?? null,
+      portalSlug: project.portal_slug ?? null,
+      portalUrl: `${appOrigin()}${portalPath}`,
       myRole: (roleRes?.data as ProjectAccessRole | null) ?? null,
       canEdit,
       canManage,
@@ -307,7 +317,8 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
     const project = await projectOrg(db, data.projectId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as unknown as Db & { auth: any };
-    const redirectTo = `${appOrigin()}/portal/acesso`;
+    const portalPath = `/portal/${project.portal_slug || project.id}`;
+    const redirectTo = `${appOrigin()}/portal/acesso?next=${encodeURIComponent(portalPath)}`;
 
     // 1) Conta do cliente: convite (envia e-mail) ou conta existente
     let userId: string | null = null;
@@ -400,7 +411,7 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
       : await admin.from("project_members").insert(payload);
     if (pmErr) throw new Error(pmErr.message);
 
-    return { ok: true as const, emailSent, link, existed };
+    return { ok: true as const, emailSent, link, existed, portalUrl: `${appOrigin()}${portalPath}` };
   });
 
 /** Remove o acesso do cliente ao projeto (a conta continua existindo). */
@@ -419,4 +430,39 @@ export const revokeProjectClient = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Sem permissão para remover o cliente.");
     return { ok: true as const };
+  });
+
+/**
+ * Link personalizado do portal: padrão <número>-<cliente>-<empresa>.
+ * Vazio volta ao padrão. Só gestor/administrador altera.
+ */
+export const updatePortalSlug = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ projectId: uuid, slug: z.string().trim().max(120) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    if (!(await rpcBool(db, "can_manage_project", data.projectId))) {
+      throw new Error("Só o gestor do projeto ou o administrador pode alterar o link.");
+    }
+    const clean = data.slug
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 120);
+    const { data: row, error } = await db
+      .from("projects")
+      .update({ portal_slug: clean || "" })
+      .eq("id", data.projectId)
+      .select("portal_slug")
+      .maybeSingle();
+    if (error) {
+      if (/duplicate|unique/i.test(error.message)) throw new Error("Este link já está em uso em outro projeto.");
+      throw new Error(error.message);
+    }
+    if (!row) throw new Error("Sem permissão para alterar o link.");
+    return { slug: row.portal_slug as string, portalUrl: `${appOrigin()}/portal/${row.portal_slug}` };
   });

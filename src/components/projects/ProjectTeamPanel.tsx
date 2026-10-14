@@ -33,6 +33,7 @@ import {
   setProjectMember,
   setProjectsRestricted,
   updateProjectMemberRole,
+  updatePortalSlug,
   type ProjectMemberRow,
 } from "@/lib/projects/access.functions";
 
@@ -162,6 +163,15 @@ export function ProjectTeamPanel({
           />
         </Card>
       )}
+
+      <PortalLinkCard
+        projectId={projectId}
+        url={a.portalUrl}
+        slug={a.portalSlug}
+        number={a.projectNumber}
+        canManage={a.canManage}
+        onSaved={refresh}
+      />
 
       {/* Cliente */}
       <section>
@@ -535,5 +545,94 @@ export function InviteClientDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PortalLinkCard({
+  projectId, url, slug, number, canManage, onSaved,
+}: {
+  projectId: string;
+  url: string;
+  slug: string | null;
+  number: number | null;
+  canManage: boolean;
+  onSaved: () => void;
+}) {
+  const saveFn = useServerFn(updatePortalSlug);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(slug ?? "");
+  const save = useMutation({
+    mutationFn: (v: string) => saveFn({ data: { projectId, slug: v } }),
+    onSuccess: (r) => {
+      toast.success("Link do portal atualizado");
+      setValue(r.slug);
+      setEditing(false);
+      onSaved();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <Card className="space-y-2 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium">
+          Link do projeto para o cliente
+          {number ? <span className="text-muted-foreground"> · Projeto nº {number}</span> : null}
+        </p>
+        {canManage && !editing && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7"
+            onClick={() => {
+              setValue(slug ?? "");
+              setEditing(true);
+            }}
+          >
+            Personalizar
+          </Button>
+        )}
+      </div>
+      {editing ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-xs text-muted-foreground">/portal/</span>
+            <Input
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="numero-cliente-empresa"
+              className="h-8 text-sm"
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Padrão: número do projeto, nome do cliente e empresa (ex.: 12-joao-silva-valesafe-expansao).
+            Deixe em branco para voltar ao padrão.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" disabled={save.isPending} onClick={() => save.mutate(value)}>
+              Salvar link
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Input readOnly value={url} className="h-8 text-xs" onFocus={(e) => e.currentTarget.select()} />
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0"
+            aria-label="Copiar link"
+            onClick={() => navigator.clipboard?.writeText(url).then(() => toast.success("Link copiado"))}
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground">
+        O cliente precisa estar convidado (abaixo). Sem login, o link pede para entrar e depois abre o projeto.
+      </p>
+    </Card>
   );
 }

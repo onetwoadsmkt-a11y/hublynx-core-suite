@@ -10,6 +10,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type PortalProjectSummary = {
   id: string;
+  slug?: string | null;
+  number?: number | null;
   name: string;
   status: string;
   start_date: string | null;
@@ -76,10 +78,18 @@ export const portalMyProjects = createServerFn({ method: "GET" })
 
 export const portalProject = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ projectId: uuid }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({ projectId: z.string().trim().min(1).max(160).regex(/^[a-z0-9-]+$/i) })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const db = context.supabase as unknown as Db;
-    const { data: row, error } = await db.rpc("portal_project", { _project: data.projectId });
+    // aceita o link personalizado (ex.: 12-joao-silva-valesafe) ou o id do projeto
+    const { data: id, error: rErr } = await db.rpc("portal_resolve", { _ref: data.projectId });
+    if (rErr) throw new Error(rErr.message);
+    if (!id) throw new Error("Projeto não encontrado.");
+    const { data: row, error } = await db.rpc("portal_project", { _project: id });
     if (error) throw new Error(error.message);
     return row as PortalProject;
   });
