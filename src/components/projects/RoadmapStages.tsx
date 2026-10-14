@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Circle, Eye, EyeOff, Pencil, Plus, Trash2, GripVertical, LayoutTemplate, ListChecks, UserRound, Users } from "lucide-react";
+import { Check, Circle, Eye, EyeOff, Pencil, Plus, Trash2, GripVertical, LayoutTemplate, ListChecks, UserRound, Users, Rows3, Columns3 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import {
   listProjectStages,
   saveProjectStages,
@@ -66,6 +67,25 @@ export function RoadmapStagesPanel({
   const clientFlagFn = useServerFn(setStageTaskClient);
   const [editing, setEditing] = useState(false);
   const [openStage, setOpenStage] = useState<ProjectStage | null>(null);
+  const [view, setView] = useState<"vertical" | "horizontal">("vertical");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("core_project_roadmap_view");
+      if (saved === "vertical" || saved === "horizontal") setView(saved);
+    } catch {
+      // A visualização continua disponível quando o armazenamento é bloqueado.
+    }
+  }, []);
+
+  function changeView(next: "vertical" | "horizontal") {
+    setView(next);
+    try {
+      localStorage.setItem("core_project_roadmap_view", next);
+    } catch {
+      // A escolha ainda é mantida durante esta visita.
+    }
+  }
 
   const stagesQ = useQuery({
     queryKey: ["project-stages", projectId],
@@ -188,14 +208,26 @@ export function RoadmapStagesPanel({
 
   return (
     <Card className="rounded-2xl p-5">
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <div>
+      <div className="mb-4 grid min-w-0 gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <div className="min-w-0">
           <h3 className="font-semibold text-sm">Roadmap do Projeto</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             {doneCount} de {total} etapas concluídas — {percent}%
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div role="group" aria-label="Visualização do roadmap" className="flex shrink-0 items-center gap-1 rounded-lg border bg-muted/50 p-1">
+          {([
+            { value: "vertical", label: "Vertical", icon: Rows3 },
+            { value: "horizontal", label: "Horizontal", icon: Columns3 },
+          ] as const).map(({ value, label, icon: Icon }) => (
+            <Button key={value} variant={view === value ? "secondary" : "ghost"} size="sm" onClick={() => changeView(value)} aria-pressed={view === value} aria-label={label} title={label} className="shrink-0 px-2 sm:px-3">
+              <Icon className="h-4 w-4 shrink-0" /><span className="hidden sm:inline">{label}</span>
+            </Button>
+          ))}
+        </div>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           {templates.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -230,8 +262,54 @@ export function RoadmapStagesPanel({
         <p className="text-xs text-muted-foreground">
           Nenhuma etapa cadastrada. Use “Editar etapas” ou aplique um modelo.
         </p>
+      ) : view === "vertical" ? (
+        <ol className="space-y-3" aria-label="Etapas do projeto">
+          {stages.map((s, i) => {
+            const isDone = s.status === "done";
+            const isCurrent = !isDone && i === currentIdx;
+            const taskProgress = stageProgress(s.id);
+            const statusLabel = { not_started: "Não iniciada", in_progress: "Em andamento", waiting: "Aguardando", blocked: "Bloqueada", done: "Concluída" }[s.status];
+            return (
+              <li key={s.id} className="grid min-w-0 grid-cols-[36px_minmax(0,1fr)] gap-3 sm:gap-4">
+                <div className="flex flex-col items-center">
+                  <Button
+                    variant="outline" size="icon"
+                    onClick={() => progressM.mutate({ stage_id: s.id, status: isDone ? "not_started" : "done" })}
+                    disabled={progressM.isPending}
+                    className={`z-10 h-9 w-9 shrink-0 rounded-full border-2 ${isDone ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : isCurrent ? "border-primary text-primary ring-4 ring-primary/15" : "border-border text-muted-foreground"}`}
+                    aria-label={`Etapa ${s.name}`}
+                    title={isDone ? "Retroceder etapa" : "Avançar etapa"}
+                  >
+                    {isDone ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
+                  </Button>
+                  {i < total - 1 && <span className={`mt-1 w-0.5 flex-1 ${isDone ? "bg-primary" : "bg-border"}`} />}
+                </div>
+                <div className={`min-w-0 rounded-lg border bg-background p-4 ${isCurrent ? "border-primary/50" : "border-border"}`}>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                    <div className="min-w-0">
+                      <h4 className="break-words text-sm font-semibold">{i + 1}. {s.name}</h4>
+                      <p className="mt-1 text-xs text-muted-foreground">{statusLabel}{s.due_date ? ` · Prazo: ${s.due_date.split("-").reverse().join("/")}` : ""}</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-primary">{s.percent}%</span>
+                  </div>
+                  <Progress value={s.percent} aria-label={`Progresso da etapa ${s.name}`} className="mt-3 h-1.5" />
+                  <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">{taskProgress.total > 0 ? `${taskProgress.done}/${taskProgress.total} tarefas concluídas · ${taskProgress.pct}%` : "Nenhuma tarefa"}</p>
+                      {taskProgress.total > 0 && <Progress value={taskProgress.pct} aria-label={`Progresso das tarefas de ${s.name}`} className="mt-2 h-1" />}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setOpenStage(s)} className="shrink-0" aria-label={`Tarefas da etapa ${s.name}`}>
+                      <ListChecks className="h-4 w-4" /> Tarefas
+                    </Button>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       ) : (
-        <div className="relative">
+        <div className="overflow-x-auto pb-2">
+        <div className="relative" style={{ minWidth: total * 120 }}>
           <div className="absolute left-0 right-0 top-4 h-1 bg-muted rounded-full" />
           <div
             className="absolute left-0 top-4 h-1 bg-primary rounded-full transition-all"
@@ -310,6 +388,7 @@ export function RoadmapStagesPanel({
               );
             })}
           </ol>
+        </div>
         </div>
       )}
 

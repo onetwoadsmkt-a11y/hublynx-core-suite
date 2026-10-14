@@ -12,6 +12,7 @@
 - [ ] Etapa 9 — Estrutura fiscal (NFS-e): `supabase/migrations-org/07_fiscal.sql` gerado e aprovado; aguardando execução manual no Supabase pelo usuário. Sem emissão real nesta fase.
 - [x] Pipeline — captação, mapeamento e destaque de pontuação/classificação de leads; respostas do formulário no detalhe
 - [x] Projetos — seções organizadas em abas; evolução com gráfico e progresso das etapas, sem alterar ações existentes
+- [ ] Projetos — oferecer roadmap vertical como padrão, alternativa horizontal e conferir apresentação e ações disponíveis
 - [ ] Projetos — conferir as abas com um projeto real; bloqueado pela ausência de sessão autenticada disponível para testes
 - [x] Contas — provisionamento administrativo com empresa/módulos explícitos; erros visíveis, marca por identidade e testes de regras
 - [x] Contas — cadastro e regras de teste de 14 dias preparados; 11 testes aprovados e tela de cadastro conferida
