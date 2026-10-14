@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Ban, Flame, Snowflake, Sun, Building2, Mail, MapPin, Phone, Tag, TagIcon, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
-import { useDraggable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,7 @@ export function LeadCard({
   locked = false,
   onLockedDrag,
   tags = [],
+  overlay = false,
 }: {
   lead: Lead;
   onOpen: (lead: Lead) => void;
@@ -142,6 +144,8 @@ export function LeadCard({
   locked?: boolean;
   onLockedDrag?: () => void;
   tags?: { slug: string; name: string; color: string }[];
+  /** Cópia exibida no DragOverlay enquanto o card é arrastado. */
+  overlay?: boolean;
 }) {
   const leadTags = ((lead as any).tags as string[] | null) ?? [];
   const [sel, setSel] = useState<string[]>(leadTags.map(String));
@@ -186,10 +190,15 @@ export function LeadCard({
   });
 
 
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: lead.id,
-    disabled: !draggable,
+  // Card ordenável: arrasta para qualquer posição, na mesma etapa ou em outra.
+  const { attributes, listeners, setNodeRef, isDragging, transform, transition } = useSortable({
+    id: overlay ? `${lead.id}__overlay` : lead.id,
+    disabled: !draggable || overlay,
+    data: { type: "lead", stageId: lead.stage_id },
   });
+  const sortableStyle = draggable
+    ? { transform: CSS.Transform.toString(transform), transition }
+    : undefined;
 
   const { layout } = useLeadCardLayout();
   const value = currency(lead.value != null ? Number(lead.value) : null);
@@ -202,6 +211,7 @@ export function LeadCard({
   return (
     <div
       ref={setNodeRef}
+      style={sortableStyle}
       {...(draggable ? { ...listeners, ...attributes } : {})}
       className={cn(
         "group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md",

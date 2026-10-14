@@ -3,12 +3,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  DndContext, DragOverlay, MouseSensor, TouchSensor, closestCorners, useSensor, useSensors,
-  type DragEndEvent, type DragStartEvent,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, closestCorners, pointerWithin,
+  useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { useDroppable } from "@dnd-kit/core";
 import {
-  CalendarDays, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Tags, Trash2, Webhook,
+  SortableContext, arrayMove, horizontalListSortingStrategy, useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  CalendarDays, GripVertical, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Tags, Trash2, Webhook,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,6 +42,7 @@ import { WinLeadDialog } from "@/components/pipeline/WinLeadDialog";
 import type { Lead, PipelineStage } from "@/components/pipeline/types";
 import {
   createPipeline, deletePipeline, listPipeline, moveLead, renamePipeline,
+  reorderLeads, reorderStages,
 } from "@/lib/pipeline/pipeline.functions";
 import { cn } from "@/lib/utils";
 import { useLeadArrivalAlert } from "@/lib/pipeline/use-lead-arrival";
@@ -58,10 +64,45 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
 
 type PipelineRow = { id: string; name: string };
 
+const COL_PREFIX = "col:";
+const colId = (stageId: string) => `${COL_PREFIX}${stageId}`;
+
+/** Ordem manual (position) e, em empate, o lead mais novo primeiro. */
+function byManualOrder(a: Lead, b: Lead) {
+  const pa = Number(a.position ?? 0);
+  const pb = Number(b.position ?? 0);
+  if (pa !== pb) return pa - pb;
+  return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
+}
+
+/**
+ * Ao arrastar uma coluna, só colunas contam como destino.
+ * Ao arrastar um card, vale o card sob o ponteiro; sem card, a coluna.
+ */
+const pipelineCollision: CollisionDetection = (args) => {
+  const type = args.active.data.current?.type;
+  if (type === "column") {
+    return closestCorners({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) => c.data.current?.type === "column"),
+    });
+  }
+  const hits = pointerWithin(args);
+  const leadHit = hits.find((h) => {
+    const c = args.droppableContainers.find((d) => d.id === h.id);
+    return c?.data.current?.type === "lead";
+  });
+  if (leadHit) return [leadHit];
+  if (hits.length) return hits;
+  return closestCorners(args);
+};
+
 function PipelinePage() {
   const qc = useQueryClient();
   const listFn = useServerFn(listPipeline);
   const moveFn = useServerFn(moveLead);
+  const reorderLeadsFn = useServerFn(reorderLeads);
+  const reorderStagesFn = useServerFn(reorderStages);
   const createPipelineFn = useServerFn(createPipeline);
   const renamePipelineFn = useServerFn(renamePipeline);
   const deletePipelineFn = useServerFn(deletePipeline);
@@ -69,6 +110,7 @@ function PipelinePage() {
   const [pipelineId, setPipelineId] = useState<string | undefined>();
   const [q, setQ] = useState("");
   const [dragging, setDragging] = useState<Lead | null>(null);
+  const [draggingStage, setDraggingStage] = useState<PipelineStage | null>(null);
   const [winLead, setWinLead] = useState<Lead | null>(null);
   const [openLead, setOpenLead] = useState<Lead | null>(null);
   const [editing, setEditing] = useState<Lead | null>(null);
@@ -83,8 +125,9 @@ function PipelinePage() {
 
   const { activeOrganizationId, isLoading: wsLoading } = useWorkspace();
 
+  const pipelineKey = ["pipeline", pipelineId ?? "default", activeOrganizationId ?? "none"] as const;
   const { data, isLoading } = useQuery({
-    queryKey: ["pipeline", pipelineId ?? "default", activeOrganizationId ?? "none"],
+    queryKey: pipelineKey,
     queryFn: () =>
       listFn({
         data: {
@@ -167,9 +210,43 @@ function PipelinePage() {
 
   const total = filtered.reduce((s, l) => s + Number(l.value ?? 0), 0);
 
-  const move = useMutation({
-    mutationFn: (v: { id: string; stage_id: string }) => moveFn({ data: v }),
-    onSuccess: refresh,
+  // Lista de cada etapa na ordem em que aparece na tela.
+  const leadsOf = (stageId: string, list: Lead[] = filtered) =>
+    list.filter((l) => l.stage_id === stageId).sort(byManualOrder);
+
+  type PipelineData = { stages: PipelineStage[]; leads: Lead[] } & Record<string, unknown>;
+  const patchCache = (fn: (d: PipelineData) => PipelineData) =>
+    qc.setQueryData<PipelineData>(pipelineKey as unknown as unknown[], (old) => (old ? fn(old) : old));
+
+  const arrange = useMutation({
+    mutationFn: async (v: {
+      leadId: string;
+      fromStage: string | null;
+      toStage: string;
+      ordered: string[];
+      before: Map<string, number>;
+    }) => {
+      const idx = v.ordered.indexOf(v.leadId);
+      if (v.fromStage !== v.toStage) {
+        await moveFn({ data: { id: v.leadId, stage_id: v.toStage, position: idx } });
+      }
+      const items = v.ordered
+        .map((id, position) => ({ id, position }))
+        .filter((it) => it.id !== v.leadId || v.fromStage === v.toStage)
+        .filter((it) => v.before.get(it.id) !== it.position);
+      if (items.length) await reorderLeadsFn({ data: { stage_id: v.toStage, items } });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      refresh();
+    },
+    onSettled: refresh,
+  });
+
+  const arrangeStages = useMutation({
+    mutationFn: (ids: string[]) => reorderStagesFn({ data: { ids } }),
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: refresh,
   });
 
   // Mouse arrasta após 6px; no toque é preciso segurar o card para arrastar,
@@ -182,22 +259,76 @@ function PipelinePage() {
   const scrollToStage = (id: string) =>
     columnRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
 
-  // modal de conversão Ganho → Cliente → Projeto → Financeiro
   function onDragStart(e: DragStartEvent) {
-    setDragging(leads.find((l) => l.id === e.active.id) ?? null);
-  }
-  function onDragEnd(e: DragEndEvent) {
-    setDragging(null);
-    const stageId = e.over?.id ? String(e.over.id) : null;
-    const lead = leads.find((l) => l.id === e.active.id);
-    if (!stageId || !lead || lead.stage_id === stageId) return;
-    const target = stages.find((st) => st.id === stageId);
-    if (target?.is_won && !(lead as any).converted_project_id) {
-      move.mutate({ id: lead.id, stage_id: stageId });
-      setWinLead({ ...lead, stage_id: stageId });
+    if (e.active.data.current?.type === "column") {
+      setDraggingStage(stages.find((st) => colId(st.id) === e.active.id) ?? null);
       return;
     }
-    move.mutate({ id: lead.id, stage_id: stageId });
+    setDragging(leads.find((l) => l.id === e.active.id) ?? null);
+  }
+
+  function onDragEnd(e: DragEndEvent) {
+    setDragging(null);
+    setDraggingStage(null);
+    const { active, over } = e;
+    if (!over) return;
+
+    // 1) Reordenar colunas (etapas) pelo cabeçalho
+    if (active.data.current?.type === "column") {
+      const from = stages.findIndex((st) => colId(st.id) === active.id);
+      const to = stages.findIndex((st) => colId(st.id) === over.id);
+      if (from < 0 || to < 0 || from === to) return;
+      const next = arrayMove(stages, from, to).map((st, i) => ({ ...st, position: i }));
+      patchCache((d) => ({ ...d, stages: next }));
+      arrangeStages.mutate(next.map((st) => st.id));
+      return;
+    }
+
+    // 2) Mover / reordenar card
+    const lead = leads.find((l) => l.id === active.id);
+    if (!lead) return;
+    const overData = over.data.current as { type?: string; stageId?: string | null } | undefined;
+    const toStage =
+      overData?.type === "lead"
+        ? overData.stageId ?? null
+        : overData?.type === "column"
+          ? overData.stageId ?? null
+          : null;
+    if (!toStage) return;
+    if (over.id === active.id) return;
+
+    const fromStage = lead.stage_id ?? null;
+    const target = stages.find((st) => st.id === toStage);
+    // A ordem é calculada sobre a lista completa da etapa (sem o filtro de busca)
+    const column = leadsOf(toStage, leads);
+    const before = new Map(column.map((l, i) => [l.id, i]));
+    let ordered = column.map((l) => l.id);
+    if (fromStage === toStage) {
+      const oldIdx = ordered.indexOf(lead.id);
+      const newIdx = overData?.type === "lead" ? ordered.indexOf(String(over.id)) : ordered.length - 1;
+      if (oldIdx < 0 || newIdx < 0 || oldIdx === newIdx) return;
+      ordered = arrayMove(ordered, oldIdx, newIdx);
+    } else {
+      const at = overData?.type === "lead" ? ordered.indexOf(String(over.id)) : ordered.length;
+      ordered.splice(at < 0 ? ordered.length : at, 0, lead.id);
+    }
+
+    // Atualiza a tela na hora; o servidor confirma em seguida
+    const pos = new Map(ordered.map((id, i) => [id, i]));
+    patchCache((d) => ({
+      ...d,
+      leads: d.leads.map((l) =>
+        pos.has(l.id)
+          ? ({ ...l, stage_id: toStage, position: pos.get(l.id)! } as Lead)
+          : l,
+      ),
+    }));
+    arrange.mutate({ leadId: lead.id, fromStage, toStage, ordered, before });
+
+    // modal de conversão Ganho → Cliente → Projeto
+    if (fromStage !== toStage && target?.is_won && !(lead as any).converted_project_id) {
+      setWinLead({ ...lead, stage_id: toStage });
+    }
   }
 
   function openNew(stageId?: string) {
@@ -324,7 +455,7 @@ function PipelinePage() {
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={pipelineCollision}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         >
@@ -346,6 +477,7 @@ function PipelinePage() {
               );
             })}
           </div>
+          <SortableContext items={stages.map((st) => colId(st.id))} strategy={horizontalListSortingStrategy}>
           <div className="-mx-4 flex flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:gap-4 md:px-0">
             {stages.map((stage) => (
               <StageColumn
@@ -355,7 +487,7 @@ function PipelinePage() {
                   else columnRefs.current.delete(stage.id);
                 }}
                 stage={stage}
-                leads={filtered.filter((l) => l.stage_id === stage.id)}
+                leads={leadsOf(stage.id)}
                 onOpen={setOpenLead}
                 onEdit={(l) => { setEditing(l); setTargetStage(undefined); setFormOpen(true); }}
                 onAdd={() => openNew(stage.id)}
@@ -364,10 +496,17 @@ function PipelinePage() {
               />
             ))}
           </div>
+          </SortableContext>
           <DragOverlay>
             {dragging && (
               <div className="w-[85vw] max-w-72 rotate-2 sm:w-72">
-                <LeadCard lead={dragging} onOpen={() => {}} onEdit={() => {}} draggable={false} />
+                <LeadCard lead={dragging} onOpen={() => {}} onEdit={() => {}} draggable={false} overlay tags={tags} />
+              </div>
+            )}
+            {draggingStage && (
+              <div className="w-[85vw] max-w-72 rotate-1 rounded-xl border bg-card shadow-lg sm:w-72">
+                <div className="h-1.5 rounded-t-xl" style={{ backgroundColor: draggingStage.color }} />
+                <p className="px-3 py-2.5 text-sm font-semibold">{draggingStage.name}</p>
               </div>
             )}
           </DragOverlay>
@@ -448,7 +587,10 @@ function StageColumn({
   locked?: boolean;
   tags?: { slug: string; name: string; color: string }[];
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  // A coluna é ordenável pelo cabeçalho e também recebe cards soltos nela.
+  const {
+    setNodeRef, isOver, attributes, listeners, setActivatorNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: colId(stage.id), data: { type: "column", stageId: stage.id } });
   const setRefs = (el: HTMLDivElement | null) => {
     setNodeRef(el);
     columnRef?.(el);
@@ -458,15 +600,28 @@ function StageColumn({
   return (
     <div
       ref={setRefs}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         "flex w-[85vw] max-w-72 shrink-0 snap-start flex-col rounded-xl border bg-muted/30 transition sm:w-72",
         isOver && "border-primary/60 bg-primary/5",
         locked && "border-dashed",
+        isDragging && "opacity-40",
       )}
     >
       <div className="h-1.5 rounded-t-xl" style={{ backgroundColor: stage.color }} />
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-        <div className="min-w-0">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          className="-ml-1 flex h-7 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-accent active:cursor-grabbing"
+          aria-label={`Arrastar etapa ${stage.name}`}
+          title="Segure e arraste para reordenar a etapa"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
             {stage.name}
             {locked && (
@@ -486,6 +641,7 @@ function StageColumn({
           </Button>
         )}
       </div>
+      <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
       <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-3">
         {leads.map((l) => (
           <LeadCard
@@ -512,6 +668,7 @@ function StageColumn({
           </p>
         )}
       </div>
+      </SortableContext>
     </div>
   );
 }

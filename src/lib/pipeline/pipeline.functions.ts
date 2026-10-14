@@ -361,6 +361,37 @@ export const moveLead = createServerFn({ method: "POST" })
     return { ok: true as const, is_won: !!stage?.is_won, is_lost: !!stage?.is_lost };
   });
 
+/** Ordem manual dos cards dentro de uma etapa (arrastar e soltar). */
+export const reorderLeads = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        stage_id: uuid,
+        items: z.array(z.object({ id: uuid, position: z.number().int().min(0) })).max(1000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    // Grava só os cards que mudaram de posição, em lotes, e sempre restrito à etapa.
+    const chunks: (typeof data.items)[] = [];
+    for (let i = 0; i < data.items.length; i += 25) chunks.push(data.items.slice(i, i + 25));
+    for (const chunk of chunks) {
+      const results = await Promise.all(
+        chunk.map((it) =>
+          context.supabase
+            .from("leads")
+            .update({ position: it.position })
+            .eq("id", it.id)
+            .eq("stage_id", data.stage_id),
+        ),
+      );
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw new Error(failed.error.message);
+    }
+    return { ok: true as const };
+  });
+
 export const deleteLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
