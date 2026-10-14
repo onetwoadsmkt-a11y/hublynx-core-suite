@@ -28,6 +28,7 @@ import {
 import {
   getProjectAccess,
   inviteProjectClient,
+  inviteTeamMember,
   listOrgTeam,
   removeProjectMember,
   revokeProjectClient,
@@ -254,6 +255,7 @@ export function ProjectTeamPanel({
         onOpenChange={setAddOpen}
         projectId={projectId}
         existing={a.members}
+        isOrgAdmin={a.isOrgAdmin}
         onDone={refresh}
       />
       {editClient && (
@@ -365,19 +367,26 @@ function AddMemberDialog({
   onOpenChange,
   projectId,
   existing,
+  isOrgAdmin,
   onDone,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   projectId: string;
   existing: ProjectMemberRow[];
+  isOrgAdmin: boolean;
   onDone: () => void;
 }) {
   const listFn = useServerFn(listOrgTeam);
   const addFn = useServerFn(setProjectMember);
+  const inviteFn = useServerFn(inviteTeamMember);
+  const [mode, setMode] = useState<"equipe" | "nova">("equipe");
   const [userId, setUserId] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [role, setRole] = useState<(typeof STAFF_ROLES)[number]>("editor");
   const [label, setLabel] = useState("");
+  const [result, setResult] = useState<TeamInviteResult | null>(null);
   const teamQ = useQuery({
     queryKey: ["org-team", projectId],
     queryFn: () => listFn({ data: { projectId } }),
@@ -385,87 +394,227 @@ function AddMemberDialog({
   });
   const taken = new Set(existing.map((m) => m.user_id).filter(Boolean));
   const options = (teamQ.data ?? []).filter((u) => !taken.has(u.user_id));
+  const nobodyLeft = !teamQ.isLoading && options.length === 0;
+  const effectiveMode = isOrgAdmin && (mode === "nova" || nobodyLeft) ? "nova" : "equipe";
+
+  function reset() {
+    setUserId("");
+    setName("");
+    setEmail("");
+    setLabel("");
+    setRole("editor");
+    setResult(null);
+    setMode("equipe");
+  }
+  function close(v: boolean) {
+    if (!v) reset();
+    onOpenChange(v);
+  }
   const add = useMutation({
     mutationFn: () =>
       addFn({ data: { projectId, userId, accessRole: role, label: label.trim() || null } }),
     onSuccess: () => {
       toast.success("Pessoa adicionada ao projeto");
-      setUserId("");
-      setLabel("");
-      setRole("editor");
-      onOpenChange(false);
+      close(false);
       onDone();
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const invite = useMutation({
+    mutationFn: () =>
+      inviteFn({
+        data: {
+          projectId,
+          name: name.trim(),
+          email: email.trim(),
+          accessRole: role,
+          label: label.trim() || null,
+        },
+      }),
+    onSuccess: (r) => {
+      setResult(r);
+      onDone();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const teamMessage = (r: TeamInviteResult) =>
+    [
+      `Olá, ${name.trim().split(/\s+/)[0]}! Seu acesso à equipe do projeto no Core:`,
+      "",
+      `Link: ${r.portalUrl}`,
+      `E-mail: ${r.email}`,
+      r.password ? `Senha: ${r.password}` : "Senha: a mesma que você já usa no Core",
+    ].join("\n");
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Adicionar pessoa da equipe</DialogTitle>
+          <DialogTitle>Adicionar pessoa ao projeto</DialogTitle>
           <DialogDescription>
-            Escolha um usuário da empresa e o papel dele neste projeto.
+            Escolha alguém da equipe da empresa ou convide uma pessoa nova por e-mail.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Pessoa</Label>
-            <Select value={userId} onValueChange={setUserId}>
-              <SelectTrigger>
-                <SelectValue placeholder={teamQ.isLoading ? "Carregando…" : "Selecione"} />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((u) => (
-                  <SelectItem key={u.user_id} value={u.user_id}>
-                    {u.name}
-                    {u.email && u.email !== u.name ? ` — ${u.email}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!teamQ.isLoading && options.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                Todos os usuários da empresa já estão no projeto. Novos usuários são criados em
-                Administração → Usuários.
+        {result ? (
+          <div className="space-y-3 text-sm">
+            {result.emailSent ? (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">
+                Pessoa adicionada. Convite enviado de <strong>{result.sentFrom}</strong> para{" "}
+                <strong>{result.email}</strong>.
+              </p>
+            ) : (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                Pessoa adicionada, mas o e-mail não foi enviado: {result.emailError}
               </p>
             )}
+            <Label>Dados de acesso (para enviar por WhatsApp)</Label>
+            <Textarea readOnly rows={5} value={teamMessage(result)} className="text-xs" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigator.clipboard
+                  ?.writeText(teamMessage(result))
+                  .then(() => toast.success("Mensagem copiada"))
+              }
+            >
+              <Copy className="h-4 w-4" /> Copiar mensagem
+            </Button>
+            {!result.password && (
+              <p className="text-xs text-muted-foreground">
+                Este e-mail já tinha conta no Core; a senha não foi alterada.
+              </p>
+            )}
+            <DialogFooter>
+              <Button onClick={() => close(false)}>Concluir</Button>
+            </DialogFooter>
           </div>
-          <div className="space-y-1.5">
-            <Label>Papel no projeto</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as (typeof STAFF_ROLES)[number])}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STAFF_ROLES.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {ROLE_INFO[r].label} — {ROLE_INFO[r].desc}
-                  </SelectItem>
+        ) : (
+          <>
+            {isOrgAdmin && (
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm">
+                {(
+                  [
+                    ["equipe", "Da equipe"],
+                    ["nova", "Pessoa nova"],
+                  ] as const
+                ).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setMode(k)}
+                    className={`rounded-md px-3 py-1.5 font-medium transition ${
+                      effectiveMode === k
+                        ? "bg-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {l}
+                  </button>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Função (opcional)</Label>
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Ex.: Compras, Arquitetura, Implantação"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button disabled={!userId || add.isPending} onClick={() => add.mutate()}>
-            <Plus className="h-4 w-4" /> Adicionar
-          </Button>
-        </DialogFooter>
+              </div>
+            )}
+            <div className="space-y-3">
+              {effectiveMode === "equipe" ? (
+                <div className="space-y-1.5">
+                  <Label>Pessoa</Label>
+                  <Select value={userId} onValueChange={setUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={teamQ.isLoading ? "Carregando…" : "Selecione"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((u) => (
+                        <SelectItem key={u.user_id} value={u.user_id}>
+                          {u.name}
+                          {u.email && u.email !== u.name ? ` — ${u.email}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {nobodyLeft && (
+                    <p className="text-xs text-muted-foreground">
+                      Todos da equipe da empresa já estão no projeto. Peça ao administrador da
+                      empresa para convidar uma pessoa nova.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {nobodyLeft && (
+                    <p className="text-xs text-muted-foreground">
+                      Todos da equipe já estão no projeto. Convide uma pessoa nova: ela recebe
+                      e-mail e senha de acesso e passa a ser usuária da empresa no Core.
+                    </p>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label>Nome</Label>
+                    <Input value={name} onChange={(e) => setName(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>E-mail</Label>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="pessoa@empresa.com"
+                    />
+                  </div>
+                </>
+              )}
+              <div className="space-y-1.5">
+                <Label>Papel no projeto</Label>
+                <Select
+                  value={role}
+                  onValueChange={(v) => setRole(v as (typeof STAFF_ROLES)[number])}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STAFF_ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {ROLE_INFO[r].label} — {ROLE_INFO[r].desc}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Função (opcional)</Label>
+                <Input
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  placeholder="Ex.: Compras, Arquitetura, Implantação"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => close(false)}>
+                Cancelar
+              </Button>
+              {effectiveMode === "equipe" ? (
+                <Button disabled={!userId || add.isPending} onClick={() => add.mutate()}>
+                  <Plus className="h-4 w-4" /> Adicionar
+                </Button>
+              ) : (
+                <Button
+                  disabled={!name.trim() || !email.trim() || invite.isPending}
+                  onClick={() => invite.mutate()}
+                >
+                  <Mail className="h-4 w-4" />{" "}
+                  {invite.isPending ? "Enviando…" : "Adicionar e enviar convite"}
+                </Button>
+              )}
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
+
+type TeamInviteResult = Awaited<ReturnType<typeof inviteTeamMember>>;
 
 type InviteResult = Awaited<ReturnType<typeof inviteProjectClient>>;
 

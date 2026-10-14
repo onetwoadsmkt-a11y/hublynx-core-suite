@@ -1,4 +1,4 @@
-// Server-only — senha gerada e e-mail de convite do portal do cliente.
+// Server-only — senha gerada e e-mail de convite (portal do cliente ou equipe do projeto).
 type Db = { from: (t: string) => any };
 
 /** Senha legível e aleatória para o primeiro acesso do cliente. */
@@ -30,6 +30,8 @@ export type InviteMailInput = {
   /** null = conta já existente da equipe: o cliente usa a senha que já tem */
   password: string | null;
   portalUrl: string;
+  /** "cliente" (portal do cliente) ou "equipe" (membro da equipe do projeto) */
+  audience?: "cliente" | "equipe";
 };
 
 export type InviteMailResult = { sent: boolean; from: string | null; error: string | null };
@@ -128,14 +130,26 @@ export async function sendClientInviteMail(
       const projectLabel = `${p.projectNumber ? `Nº ${p.projectNumber} · ` : ""}${p.projectName}`;
       const who = senderName ?? "Nossa equipe";
       const fromOrg = orgName && senderName !== orgName ? `, da ${orgName},` : "";
-      const subject = `Seu acesso ao projeto ${p.projectName}${orgName ? ` — ${orgName}` : ""}`;
+      const team = p.audience === "equipe";
+      const subject = `${team ? "Convite para a equipe do projeto" : "Seu acesso ao projeto"} ${p.projectName}${orgName ? ` — ${orgName}` : ""}`;
+      const inviteTail = team ? "na equipe do projeto" : "para acompanhar o projeto";
+      const where = team ? "no Core" : "no portal do cliente";
+      const about = team
+        ? "No Core você acompanha as etapas, as tarefas e os prazos do projeto junto com a equipe."
+        : "No portal você acompanha o andamento, conclui as tarefas que são sua responsabilidade e conversa com a equipe.";
+      const pwHint = team
+        ? "Recomendamos trocar a senha no primeiro acesso."
+        : "Recomendamos trocar a senha no primeiro acesso (botão “Alterar senha” no portal).";
 
       const text = [
         `Olá, ${firstName}!`,
         "",
-        `${who}${fromOrg} convidou você para acompanhar o projeto ${projectLabel} no portal do cliente.`,
+        `${who}${fromOrg} convidou você ${team ? "para entrar" : ""}${team ? " " : ""}${inviteTail} ${projectLabel} ${where}.`.replace(
+          /\s+/g,
+          " ",
+        ),
         "",
-        "No portal você acompanha o andamento, conclui as tarefas que são sua responsabilidade e conversa com a equipe.",
+        about,
         "",
         `Acesse: ${p.portalUrl}`,
         `E-mail: ${p.clientEmail}`,
@@ -143,12 +157,7 @@ export async function sendClientInviteMail(
           ? `Senha: ${p.password}`
           : "Senha: use a senha que você já tem (ou clique em “Esqueci a senha”).",
         "",
-        ...(p.password
-          ? [
-              "Recomendamos trocar a senha no primeiro acesso (botão “Alterar senha” no portal).",
-              "",
-            ]
-          : []),
+        ...(p.password ? [pwHint, ""] : []),
         "Qualquer dúvida, é só responder este e-mail.",
         "",
         senderName ?? "",
@@ -161,8 +170,8 @@ export async function sendClientInviteMail(
 <tr><td style="background:#0f2b4c;color:#ffffff;padding:20px 28px;font-size:18px;font-weight:bold">${h(orgName || "Portal do cliente")}</td></tr>
 <tr><td style="padding:28px">
 <p style="margin:0 0 14px;font-size:16px">Olá, ${h(firstName)}!</p>
-<p style="margin:0 0 14px;font-size:15px;line-height:1.5">${h(who)}${h(fromOrg)} convidou você para acompanhar o projeto <strong>${h(projectLabel)}</strong> no portal do cliente.</p>
-<p style="margin:0 0 20px;font-size:15px;line-height:1.5">No portal você acompanha o andamento, conclui as tarefas que são sua responsabilidade e conversa com a equipe.</p>
+<p style="margin:0 0 14px;font-size:15px;line-height:1.5">${h(who)}${h(fromOrg)} convidou você ${team ? "para entrar " : ""}${h(inviteTail)} <strong>${h(projectLabel)}</strong> ${h(where)}.</p>
+<p style="margin:0 0 20px;font-size:15px;line-height:1.5">${h(about)}</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="background:#f4f5f7;border-radius:8px;width:100%;margin:0 0 20px"><tr><td style="padding:16px 18px;font-size:14px;line-height:1.8">
 <strong>E-mail:</strong> ${h(p.clientEmail)}<br>
 ${
@@ -173,7 +182,7 @@ ${
 </td></tr></table>
 <p style="margin:0 0 22px"><a href="${h(p.portalUrl)}" style="display:inline-block;background:#0f2b4c;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold;font-size:15px">Acessar o projeto</a></p>
 <p style="margin:0 0 6px;font-size:12px;color:#6b7280">Se o botão não abrir, copie este endereço: ${h(p.portalUrl)}</p>
-${p.password ? '<p style="margin:0 0 6px;font-size:12px;color:#6b7280">Recomendamos trocar a senha no primeiro acesso (botão “Alterar senha” no portal).</p>' : ""}
+${p.password ? `<p style="margin:0 0 6px;font-size:12px;color:#6b7280">${h(pwHint)}</p>` : ""}
 <p style="margin:18px 0 0;font-size:14px">Qualquer dúvida, é só responder este e-mail.<br><br>${h(senderName ?? "")}${orgName && senderName !== orgName ? `<br>${h(orgName)}` : ""}</p>
 </td></tr></table></td></tr></table></body></html>`;
 

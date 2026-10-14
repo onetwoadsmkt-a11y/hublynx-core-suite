@@ -215,6 +215,129 @@ export const setProjectMember = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+/**
+ * Convida uma pessoa nova para a equipe da empresa e já a coloca no projeto.
+ * Só o administrador da empresa: a pessoa vira usuário da empresa (conta no plano).
+ * Cria a conta com senha gerada (ou usa a conta que já existe) e envia o convite
+ * pelo Gmail/SMTP conectado, como no convite do cliente.
+ */
+export const inviteTeamMember = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        projectId: uuid,
+        name: z.string().trim().min(1).max(160),
+        email: z.string().trim().toLowerCase().email().max(200),
+        accessRole: z.enum(["gestor", "editor", "executor", "visualizador"]),
+        label: z.string().trim().max(120).nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const project = await projectOrg(db, data.projectId);
+    const { data: isAdmin } = await db.rpc("is_org_admin", { _org: project.organization_id });
+    if (isAdmin !== true) {
+      throw new Error("Só o administrador da empresa pode cadastrar uma pessoa nova na equipe.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as Db & { auth: any };
+    const { generatePassword, sendClientInviteMail } = await import("./client-invite.server");
+
+    // 1) Conta: nova com senha gerada, ou a existente (sem trocar a senha)
+    let userId: string | null = null;
+    let password: string | null = generatePassword();
+    const created = await admin.auth.admin.createUser({
+      email: data.email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: data.name, temp_password: true },
+    });
+    if (!created.error && created.data?.user) {
+      userId = created.data.user.id;
+    } else {
+      const gen = await admin.auth.admin.generateLink({ type: "magiclink", email: data.email });
+      userId = gen.data?.user?.id ?? null;
+      password = null;
+      if (!userId) {
+        throw new Error(
+          created.error?.message ?? gen.error?.message ?? "Não foi possível criar a conta.",
+        );
+      }
+    }
+
+    // 2) Vínculo com a empresa como usuário da equipe (cliente do portal não vira equipe)
+    const { data: membership } = await admin
+      .from("organization_members")
+      .select("id, role, status")
+      .eq("organization_id", project.organization_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (membership?.role === "guest") {
+      throw new Error(
+        "Este e-mail é de um cliente do portal. Use outro e-mail para a pessoa da equipe.",
+      );
+    }
+    if (!membership) {
+      const { error } = await admin.from("organization_members").insert({
+        organization_id: project.organization_id,
+        user_id: userId,
+        role: "user",
+        status: "active",
+      });
+      if (error) throw new Error(error.message);
+    } else if (membership.status !== "active") {
+      await admin.from("organization_members").update({ status: "active" }).eq("id", membership.id);
+    }
+
+    // 3) Papel no projeto
+    const { data: existing } = await admin
+      .from("project_members")
+      .select("id, access_role")
+      .eq("project_id", data.projectId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const payload: Record<string, unknown> = {
+      project_id: data.projectId,
+      user_id: userId,
+      access_role: data.accessRole,
+      status: "active",
+      name: data.name,
+      email: data.email,
+      role: data.label || null,
+      invited_at: new Date().toISOString(),
+      owner_id: context.userId,
+    };
+    const { error: pmErr } = existing
+      ? await admin.from("project_members").update(payload).eq("id", existing.id)
+      : await admin.from("project_members").insert(payload);
+    if (pmErr) throw new Error(pmErr.message);
+
+    // 4) Convite por e-mail
+    const loginUrl = `${appOrigin()}/projetos/${data.projectId}`;
+    const mail = await sendClientInviteMail(admin, {
+      inviterId: context.userId,
+      organizationId: project.organization_id,
+      projectName: project.name,
+      projectNumber: project.project_number,
+      clientName: data.name,
+      clientEmail: data.email,
+      password,
+      portalUrl: loginUrl,
+      audience: "equipe",
+    });
+    return {
+      ok: true as const,
+      portalUrl: loginUrl,
+      email: data.email,
+      password,
+      emailSent: mail.sent,
+      sentFrom: mail.from,
+      emailError: mail.error,
+    };
+  });
+
 export const updateProjectMemberRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
