@@ -36,7 +36,8 @@ export type InviteMailResult = { sent: boolean; from: string | null; error: stri
 
 /**
  * Envia o convite pela caixa de e-mail (SMTP) conectada em Configurações → Integrações:
- * primeiro a de quem convida; se não houver, a de um administrador da empresa.
+ * primeiro a conta Google (Gmail) de quem convida ou de um administrador; se não houver,
+ * o e-mail IMAP/SMTP conectado em Configurações → Integrações.
  * Nunca lança erro: devolve o motivo para a tela mostrar.
  */
 export async function sendClientInviteMail(
@@ -45,7 +46,8 @@ export async function sendClientInviteMail(
 ): Promise<InviteMailResult> {
   try {
     const { getMailCredentials } = await import("@/server/mailAccounts.server");
-    const { sendSmtpMail } = await import("@/server/mailSend.server");
+    const { sendSmtpMail, buildMimeMessage } = await import("@/server/mailSend.server");
+    const { getConnection, googleFetch } = await import("@/server/googleOAuth.server");
 
     const { data: admins } = await admin
       .from("organization_members")
@@ -59,72 +61,101 @@ export async function sendClientInviteMail(
       ...((admins ?? []) as { user_id: string }[]).map((a) => a.user_id),
     ].filter((v, i, arr) => !!v && arr.indexOf(v) === i);
 
-    let creds: Awaited<ReturnType<typeof getMailCredentials>> = null;
-    let senderId: string | null = null;
+    // Ordem: Google (Gmail) de quem convida e dos admins; depois e-mail IMAP/SMTP.
+    type Sender =
+      | { kind: "google"; userId: string; email: string; displayName: null }
+      | {
+          kind: "smtp";
+          userId: string;
+          email: string;
+          displayName: string | null;
+          creds: NonNullable<Awaited<ReturnType<typeof getMailCredentials>>>;
+        };
+    const senders: Sender[] = [];
+    for (const id of candidates) {
+      const conn = await getConnection(id).catch(() => null);
+      const canSend = (conn?.scopes ?? []).some(
+        (s) => s === "gmail.send" || s.endsWith("/gmail.send"),
+      );
+      if (conn?.google_email && conn.status !== "revoked" && canSend) {
+        senders.push({ kind: "google", userId: id, email: conn.google_email, displayName: null });
+      }
+    }
     let keyMissing = false;
     for (const id of candidates) {
       try {
-        creds = await getMailCredentials(id);
+        const creds = await getMailCredentials(id);
+        if (creds)
+          senders.push({
+            kind: "smtp",
+            userId: id,
+            email: creds.account.email,
+            displayName: creds.account.display_name,
+            creds,
+          });
       } catch (err) {
         if (/is not set/.test(String((err as Error)?.message))) keyMissing = true;
-        creds = null;
-      }
-      if (creds) {
-        senderId = id;
-        break;
       }
     }
-    if (!creds || !senderId) {
+    if (!senders.length) {
       return {
         sent: false,
         from: null,
         error: keyMissing
           ? "A chave de criptografia do e-mail (MAIL_PASSWORD_ENCRYPTION_KEY) não está configurada no servidor."
-          : "Nenhuma caixa de e-mail conectada. Conecte o seu e-mail em Configurações → Integrações → E-mail (IMAP/SMTP).",
+          : "Nenhum e-mail conectado. Conecte sua conta Google (com envio de e-mail) ou um e-mail IMAP/SMTP em Configurações → Integrações.",
       };
     }
 
-    const [{ data: org }, { data: prof }] = await Promise.all([
-      admin.from("organizations").select("name").eq("id", p.organizationId).maybeSingle(),
-      admin.from("profiles").select("full_name").eq("id", senderId).maybeSingle(),
-    ]);
+    const { data: org } = await admin
+      .from("organizations")
+      .select("name")
+      .eq("id", p.organizationId)
+      .maybeSingle();
     const orgName = ((org?.name as string | undefined) ?? "").trim();
-    const senderName =
-      (
-        creds.account.display_name ||
-        (prof?.full_name as string | undefined) ||
-        orgName ||
-        ""
-      ).trim() || null;
-    const firstName = p.clientName.trim().split(/\s+/)[0];
-    const projectLabel = `${p.projectNumber ? `Nº ${p.projectNumber} · ` : ""}${p.projectName}`;
-    const who = senderName ?? "Nossa equipe";
-    const fromOrg = orgName && senderName !== orgName ? `, da ${orgName},` : "";
-    const subject = `Seu acesso ao projeto ${p.projectName}${orgName ? ` — ${orgName}` : ""}`;
+    const errors: string[] = [];
 
-    const text = [
-      `Olá, ${firstName}!`,
-      "",
-      `${who}${fromOrg} convidou você para acompanhar o projeto ${projectLabel} no portal do cliente.`,
-      "",
-      "No portal você acompanha o andamento, conclui as tarefas que são sua responsabilidade e conversa com a equipe.",
-      "",
-      `Acesse: ${p.portalUrl}`,
-      `E-mail: ${p.clientEmail}`,
-      p.password
-        ? `Senha: ${p.password}`
-        : "Senha: use a senha que você já tem (ou clique em “Esqueci a senha”).",
-      "",
-      ...(p.password
-        ? ["Recomendamos trocar a senha no primeiro acesso (botão “Alterar senha” no portal).", ""]
-        : []),
-      "Qualquer dúvida, é só responder este e-mail.",
-      "",
-      senderName ?? "",
-      ...(orgName && senderName !== orgName ? [orgName] : []),
-    ].join("\n");
+    for (const sender of senders) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("full_name")
+        .eq("id", sender.userId)
+        .maybeSingle();
+      const senderName =
+        (sender.displayName || (prof?.full_name as string | undefined) || orgName || "").trim() ||
+        null;
+      const firstName = p.clientName.trim().split(/\s+/)[0];
+      const projectLabel = `${p.projectNumber ? `Nº ${p.projectNumber} · ` : ""}${p.projectName}`;
+      const who = senderName ?? "Nossa equipe";
+      const fromOrg = orgName && senderName !== orgName ? `, da ${orgName},` : "";
+      const subject = `Seu acesso ao projeto ${p.projectName}${orgName ? ` — ${orgName}` : ""}`;
 
-    const html = `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
+      const text = [
+        `Olá, ${firstName}!`,
+        "",
+        `${who}${fromOrg} convidou você para acompanhar o projeto ${projectLabel} no portal do cliente.`,
+        "",
+        "No portal você acompanha o andamento, conclui as tarefas que são sua responsabilidade e conversa com a equipe.",
+        "",
+        `Acesse: ${p.portalUrl}`,
+        `E-mail: ${p.clientEmail}`,
+        p.password
+          ? `Senha: ${p.password}`
+          : "Senha: use a senha que você já tem (ou clique em “Esqueci a senha”).",
+        "",
+        ...(p.password
+          ? [
+              "Recomendamos trocar a senha no primeiro acesso (botão “Alterar senha” no portal).",
+              "",
+            ]
+          : []),
+        "Qualquer dúvida, é só responder este e-mail.",
+        "",
+        senderName ?? "",
+        ...(orgName && senderName !== orgName ? [orgName] : []),
+      ].join("\n");
+
+      const html = `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0"><tr><td align="center">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden">
 <tr><td style="background:#0f2b4c;color:#ffffff;padding:20px 28px;font-size:18px;font-weight:bold">${h(orgName || "Portal do cliente")}</td></tr>
@@ -146,20 +177,44 @@ ${p.password ? '<p style="margin:0 0 6px;font-size:12px;color:#6b7280">Recomenda
 <p style="margin:18px 0 0;font-size:14px">Qualquer dúvida, é só responder este e-mail.<br><br>${h(senderName ?? "")}${orgName && senderName !== orgName ? `<br>${h(orgName)}` : ""}</p>
 </td></tr></table></td></tr></table></body></html>`;
 
-    await sendSmtpMail(
-      creds.account,
-      creds.password,
-      {
+      const mail = {
         to: p.clientEmail,
         toName: p.clientName,
         subject,
         text,
         html,
-        replyTo: creds.account.email,
-      },
-      senderName,
-    );
-    return { sent: true, from: creds.account.email, error: null };
+        replyTo: sender.email,
+      };
+      try {
+        if (sender.kind === "google") {
+          const raw = buildMimeMessage({ email: sender.email, name: senderName }, mail);
+          const b64url = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+          const res = await googleFetch(
+            sender.userId,
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ raw: b64url }),
+            },
+          );
+          if (!res.ok) {
+            const j: any = await res.json().catch(() => ({}));
+            throw new Error(`Gmail: ${j?.error?.message ?? `HTTP ${res.status}`}`);
+          }
+        } else {
+          await sendSmtpMail(sender.creds.account, sender.creds.password, mail, senderName);
+        }
+        return { sent: true, from: sender.email, error: null };
+      } catch (err) {
+        errors.push(`${sender.email}: ${String((err as Error)?.message ?? err)}`);
+      }
+    }
+    return {
+      sent: false,
+      from: null,
+      error: errors.join(" • ") || "Não foi possível enviar o e-mail.",
+    };
   } catch (err) {
     return {
       sent: false,

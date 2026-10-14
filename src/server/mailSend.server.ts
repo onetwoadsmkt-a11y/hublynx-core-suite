@@ -36,7 +36,7 @@ function wrap76(s: string) {
   return s.replace(/.{1,76}/g, "$&\r\n");
 }
 
-function buildMessage(from: { email: string; name?: string | null }, m: OutgoingMail) {
+export function buildMimeMessage(from: { email: string; name?: string | null }, m: OutgoingMail) {
   const boundary = `b_${crypto.randomUUID()}`;
   const domain = from.email.split("@")[1] || "hublynx.local";
   return [
@@ -121,7 +121,7 @@ export async function sendSmtpMail(
     await expect(`RCPT TO:<${mail.to}>`, [250, 251], "O servidor SMTP recusou o destinatário.");
     await expect("DATA", [354], "O servidor SMTP não aceitou a mensagem.");
     // linhas que começam com "." são duplicadas (RFC 5321)
-    const body = buildMessage(
+    const body = buildMimeMessage(
       { email: account.email, name: fromName ?? account.display_name },
       mail,
     )
