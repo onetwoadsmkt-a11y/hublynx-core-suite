@@ -229,7 +229,15 @@ function ExecutiveHeader({ p, d }: any) {
   return (
     <Card className="rounded-2xl p-6 border-l-4" style={{ borderLeftColor: p.color || "#6366f1" }}>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:justify-between">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex items-start gap-4">
+          {p.logo_url && (
+            <img
+              src={p.logo_url}
+              alt=""
+              className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-xl border bg-white object-contain p-1"
+            />
+          )}
+          <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">
               {p.project_number ? <span className="text-muted-foreground">Nº {p.project_number} · </span> : null}
@@ -260,6 +268,7 @@ function ExecutiveHeader({ p, d }: any) {
                 {d.kpis.daysRemaining < 0 ? `${Math.abs(d.kpis.daysRemaining)} dias atrasado` : `${d.kpis.daysRemaining} dias restantes`}
               </span>
             )}
+          </div>
           </div>
         </div>
         <div className="shrink-0">

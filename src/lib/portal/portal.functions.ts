@@ -25,6 +25,7 @@ export type PortalProjectSummary = {
   stages_done: number;
   progress: number;
   my_open_tasks: number;
+  logo_url?: string | null;
 };
 
 export type PortalComment = {
@@ -57,6 +58,7 @@ export type PortalProject = {
   project: {
     id: string;
     name: string;
+    logo_url?: string | null;
     status: string;
     description: string | null;
     start_date: string | null;
@@ -94,6 +96,19 @@ async function portalDb(accessToken: string): Promise<Db> {
   return db as unknown as Db;
 }
 
+/** Logos dos projetos que o usuário já pode ver (ids vindos das funções do portal). */
+async function withLogos(ids: string[]): Promise<Map<string, string | null>> {
+  if (!ids.length) return new Map();
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await (supabaseAdmin as unknown as Db)
+    .from("projects")
+    .select("id, logo_url")
+    .in("id", ids);
+  return new Map(
+    ((data ?? []) as { id: string; logo_url: string | null }[]).map((r) => [r.id, r.logo_url]),
+  );
+}
+
 /**
  * Dados públicos da tela de entrada do portal: nome do projeto e marca da empresa.
  * Só pelo link do projeto; não expõe tarefas, valores nem pessoas.
@@ -107,7 +122,7 @@ export const portalPublicInfo = createServerFn({ method: "GET" })
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(r);
     const { data: row } = await admin
       .from("projects")
-      .select("name, project_number, organizations(name, logo_url, brand_color)")
+      .select("name, project_number, logo_url, organizations(name, logo_url, brand_color)")
       .eq(isUuid ? "id" : "portal_slug", r)
       .maybeSingle();
     if (!row) return null;
@@ -119,6 +134,7 @@ export const portalPublicInfo = createServerFn({ method: "GET" })
     return {
       projectName: row.name as string,
       projectNumber: (row.project_number as number | null) ?? null,
+      projectLogo: (row.logo_url as string | null) ?? null,
       organization: org ?? null,
     };
   });
@@ -129,7 +145,10 @@ export const portalMyProjects = createServerFn({ method: "GET" })
     const db = await portalDb(data.token);
     const { data: rows, error } = await db.rpc("portal_my_projects");
     if (error) throw new Error(error.message);
-    return (rows ?? []) as PortalProjectSummary[];
+    const list = (rows ?? []) as PortalProjectSummary[];
+    return withLogos(list.map((p) => p.id)).then((logos) =>
+      list.map((p) => ({ ...p, logo_url: logos.get(p.id) ?? null })),
+    );
   });
 
 export const portalProject = createServerFn({ method: "GET" })
@@ -142,7 +161,9 @@ export const portalProject = createServerFn({ method: "GET" })
     if (!id) throw new Error("NOT_CLIENT");
     const { data: row, error } = await db.rpc("portal_project", { _project: id });
     if (error) throw new Error(error.message);
-    return row as PortalProject;
+    const out = row as PortalProject;
+    const logos = await withLogos([id as string]);
+    return { ...out, project: { ...out.project, logo_url: logos.get(id as string) ?? null } };
   });
 
 export const portalSetTaskDone = createServerFn({ method: "POST" })

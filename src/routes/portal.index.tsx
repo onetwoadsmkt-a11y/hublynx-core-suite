@@ -79,7 +79,14 @@ function PortalHome() {
             >
               <Card className="h-full p-5 transition hover:border-primary/40 hover:shadow-md">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-semibold leading-tight">
+                  {p.logo_url && (
+                    <img
+                      src={p.logo_url}
+                      alt=""
+                      className="h-10 w-10 shrink-0 rounded-lg border bg-white object-contain p-0.5"
+                    />
+                  )}
+                  <h2 className="min-w-0 flex-1 font-display font-semibold leading-tight">
                     {p.number ? `Nº ${p.number} · ` : ""}
                     {p.name}
                   </h2>

@@ -401,6 +401,77 @@ export const setProjectsRestricted = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+/**
+ * Logo do projeto (aparece no portal do cliente e no cabeçalho do projeto).
+ * Envia PNG/JPG/WebP até 1 MB, ou remove a logo (dataBase64 = null).
+ * Só quem pode editar o projeto; o arquivo vai para o armazenamento público de marca.
+ */
+export const setProjectLogo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        projectId: uuid,
+        contentType: z.enum(["image/png", "image/jpeg", "image/webp"]).nullable(),
+        dataBase64: z.string().max(1_500_000).nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    if (!(await rpcBool(db, "can_edit_project", data.projectId))) {
+      throw new Error("Sem permissão para alterar a logo deste projeto.");
+    }
+    const project = await projectOrg(db, data.projectId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as Db & { storage: any };
+    const { data: cur } = await admin
+      .from("projects")
+      .select("logo_url")
+      .eq("id", data.projectId)
+      .maybeSingle();
+    const oldUrl = (cur?.logo_url as string | null) ?? null;
+
+    let logoUrl: string | null = null;
+    if (data.dataBase64 && data.contentType) {
+      const bin = atob(data.dataBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      if (bytes.length > 1_048_576) throw new Error("A logo deve ter no máximo 1 MB.");
+      const ext =
+        data.contentType === "image/png"
+          ? "png"
+          : data.contentType === "image/webp"
+            ? "webp"
+            : "jpg";
+      const path = `${project.organization_id}/projeto-${data.projectId}-${Date.now()}.${ext}`;
+      const up = await admin.storage
+        .from("org-branding")
+        .upload(path, bytes, { contentType: data.contentType, upsert: false });
+      if (up.error) throw new Error(up.error.message);
+      logoUrl = admin.storage.from("org-branding").getPublicUrl(path).data.publicUrl as string;
+    }
+
+    const { error } = await admin
+      .from("projects")
+      .update({ logo_url: logoUrl })
+      .eq("id", data.projectId);
+    if (error) throw new Error(error.message);
+
+    // remove o arquivo anterior (só os desta pasta da empresa)
+    const marker = "/org-branding/";
+    if (oldUrl && oldUrl.includes(marker)) {
+      const oldPath = decodeURIComponent(oldUrl.split(marker)[1] ?? "");
+      if (oldPath.startsWith(`${project.organization_id}/projeto-${data.projectId}-`)) {
+        await admin.storage
+          .from("org-branding")
+          .remove([oldPath])
+          .catch(() => null);
+      }
+    }
+    return { logoUrl };
+  });
+
 /** Origem pública do app (para o link do convite). */
 function appOrigin(): string {
   try {

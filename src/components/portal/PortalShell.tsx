@@ -18,6 +18,11 @@ import { PORTAL_AUTH_ERROR } from "@/lib/portal/portal.functions";
 
 export type PortalBrand = { name: string; logo_url: string | null; brand_color: string | null };
 
+/** Identidade visual do Core Suite (mesma da tela de login do Core). */
+export const CORE_NAVY = "#0a2557";
+export const CORE_GREEN = "#00D084";
+export const CORE_GRADIENT = "linear-gradient(135deg,#071A3D 0%,#0a2557 60%,#00D084 180%)";
+
 type SessionState = {
   ready: boolean;
   email: string | null;
@@ -90,6 +95,7 @@ export function usePortalSession(projectRef?: string | null) {
 
 export function PortalShell({
   brand,
+  logo,
   title,
   subtitle,
   session,
@@ -97,6 +103,8 @@ export function PortalShell({
   children,
 }: {
   brand?: PortalBrand | null;
+  /** logo do projeto (se não houver, usa a da empresa) */
+  logo?: string | null;
   /** nome do projeto no cabeçalho */
   title?: string | null;
   subtitle?: string | null;
@@ -104,7 +112,7 @@ export function PortalShell({
   projectRef?: string | null;
   children: ReactNode;
 }) {
-  const color = brand?.brand_color || "#0f2b4c";
+  const logoUrl = logo || brand?.logo_url || null;
   const [pwOpen, setPwOpen] = useState(false);
   async function signOut() {
     await portalAuth().auth.signOut();
@@ -112,24 +120,30 @@ export function PortalShell({
   }
   return (
     <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-20 text-white shadow-sm" style={{ backgroundColor: color }}>
+      <header
+        className="sticky top-0 z-20 border-b-2 text-white shadow-sm"
+        style={{ background: CORE_GRADIENT, borderBottomColor: CORE_GREEN }}
+      >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/portal" className="flex min-w-0 items-center gap-3">
-            {brand?.logo_url ? (
+            {logoUrl ? (
               <span className="grid h-10 shrink-0 place-items-center rounded-lg bg-white px-2">
                 <img
-                  src={brand.logo_url}
-                  alt={brand.name}
+                  src={logoUrl}
+                  alt={title ?? brand?.name ?? "Logo"}
                   className="h-7 w-auto max-w-[110px] object-contain"
                 />
               </span>
             ) : (
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/15 text-base font-bold">
+              <span
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg font-display text-base font-bold"
+                style={{ backgroundColor: CORE_GREEN, color: "#071A3D" }}
+              >
                 {(brand?.name ?? "P").slice(0, 1).toUpperCase()}
               </span>
             )}
             <div className="min-w-0">
-              <p className="line-clamp-2 text-[15px] font-semibold leading-tight sm:truncate sm:text-lg">
+              <p className="line-clamp-2 font-display text-[15px] font-semibold leading-tight sm:truncate sm:text-lg">
                 {title || brand?.name || "Portal do cliente"}
               </p>
               <p className="truncate text-xs text-white/75">

@@ -2,16 +2,30 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { upsertProject, type ProjectRow, type ProjectStatus } from "@/lib/projects/projects.functions";
+import {
+  upsertProject,
+  type ProjectRow,
+  type ProjectStatus,
+} from "@/lib/projects/projects.functions";
+import { setProjectLogo } from "@/lib/projects/access.functions";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { listClients } from "@/lib/clients/clients.functions";
 import { toast } from "sonner";
 
@@ -24,8 +38,16 @@ const STATUS: { value: ProjectStatus; label: string }[] = [
   { value: "cancelado", label: "Cancelado" },
 ];
 
-type CommercialModel = "projeto_fechado" | "mensal_recorrente" | "banco_horas" | "por_hora" | "suporte_continuo";
-type ServiceType = "desenvolvimento" | "trafego_pago" | "gestao_conteudo" | "consultoria" | "design" | "suporte" | "outros";
+type CommercialModel =
+  "projeto_fechado" | "mensal_recorrente" | "banco_horas" | "por_hora" | "suporte_continuo";
+type ServiceType =
+  | "desenvolvimento"
+  | "trafego_pago"
+  | "gestao_conteudo"
+  | "consultoria"
+  | "design"
+  | "suporte"
+  | "outros";
 
 const COMMERCIAL: { value: CommercialModel; label: string }[] = [
   { value: "projeto_fechado", label: "Projeto Fechado" },
@@ -46,7 +68,9 @@ const SERVICE: { value: ServiceType; label: string }[] = [
 ];
 
 export function ProjectFormDialog({
-  open, onOpenChange, project,
+  open,
+  onOpenChange,
+  project,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -54,16 +78,30 @@ export function ProjectFormDialog({
 }) {
   const qc = useQueryClient();
   const upsert = useServerFn(upsertProject);
+  const logoFn = useServerFn(setProjectLogo);
+  // logo: arquivo novo escolhido, prévia e se foi removida
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
   const listClientsFn = useServerFn(listClients);
   const clientsQ = useQuery({ queryKey: ["clients"], queryFn: () => listClientsFn() });
 
   const [form, setForm] = useState({
-    name: "", description: "", client_id: "", status: "planejamento" as ProjectStatus,
-    start_date: "", due_date: "", contract_value: "", color: "#6366f1",
+    name: "",
+    description: "",
+    client_id: "",
+    status: "planejamento" as ProjectStatus,
+    start_date: "",
+    due_date: "",
+    contract_value: "",
+    color: "#6366f1",
     service_type: "" as ServiceType | "",
     commercial_model: "projeto_fechado" as CommercialModel,
-    hourly_rate: "", contracted_hours: "", monthly_value: "",
-    billing_day: "", next_billing_date: "",
+    hourly_rate: "",
+    contracted_hours: "",
+    monthly_value: "",
+    billing_day: "",
+    next_billing_date: "",
   });
 
   useEffect(() => {
@@ -88,19 +126,49 @@ export function ProjectFormDialog({
       });
     } else {
       setForm({
-        name: "", description: "", client_id: "", status: "planejamento",
-        start_date: "", due_date: "", contract_value: "", color: "#6366f1",
-        service_type: "", commercial_model: "projeto_fechado",
-        hourly_rate: "", contracted_hours: "", monthly_value: "",
-        billing_day: "", next_billing_date: "",
+        name: "",
+        description: "",
+        client_id: "",
+        status: "planejamento",
+        start_date: "",
+        due_date: "",
+        contract_value: "",
+        color: "#6366f1",
+        service_type: "",
+        commercial_model: "projeto_fechado",
+        hourly_rate: "",
+        contracted_hours: "",
+        monthly_value: "",
+        billing_day: "",
+        next_billing_date: "",
       });
     }
+    setLogoFile(null);
+    setLogoRemoved(false);
+    setLogoPreview(((project as any)?.logo_url as string | null) ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, (project as any)?.id]);
 
+  function pickLogo(file: File | undefined) {
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      toast.error("Use uma imagem PNG, JPG ou WebP.");
+      return;
+    }
+    if (file.size > 1_048_576) {
+      toast.error("A logo deve ter no máximo 1 MB.");
+      return;
+    }
+    setLogoFile(file);
+    setLogoRemoved(false);
+    const reader = new FileReader();
+    reader.onload = () => setLogoPreview(String(reader.result));
+    reader.readAsDataURL(file);
+  }
+
   const m = useMutation({
-    mutationFn: async () =>
-      upsert({
+    mutationFn: async () => {
+      const res = await upsert({
         data: {
           id: (project as any)?.id,
           name: form.name,
@@ -119,11 +187,38 @@ export function ProjectFormDialog({
           billing_day: form.billing_day ? Number(form.billing_day) : null,
           next_billing_date: form.next_billing_date || null,
         } as any,
-      }),
+      });
+      const projectId = (res as any)?.project?.id as string | undefined;
+      if (projectId && (logoFile || logoRemoved)) {
+        try {
+          if (logoFile) {
+            const dataUrl = await new Promise<string>((ok, fail) => {
+              const r = new FileReader();
+              r.onload = () => ok(String(r.result));
+              r.onerror = () => fail(new Error("Não foi possível ler a imagem."));
+              r.readAsDataURL(logoFile);
+            });
+            await logoFn({
+              data: {
+                projectId,
+                contentType: logoFile.type as "image/png" | "image/jpeg" | "image/webp",
+                dataBase64: dataUrl.split(",")[1] ?? "",
+              },
+            });
+          } else {
+            await logoFn({ data: { projectId, contentType: null, dataBase64: null } });
+          }
+        } catch (e) {
+          toast.error(`Projeto salvo, mas a logo não foi enviada: ${(e as Error).message}`);
+        }
+      }
+      return res;
+    },
     onSuccess: () => {
       toast.success(project?.id ? "Projeto atualizado" : "Projeto criado");
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["project-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["project-access"] });
       onOpenChange(false);
     },
     onError: (e: any) => toast.error(e.message ?? "Erro ao salvar"),
@@ -142,69 +237,171 @@ export function ProjectFormDialog({
           <DialogTitle>{project?.id ? "Editar projeto" : "Novo projeto"}</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+          <div className="md:col-span-2 flex items-center gap-4 rounded-xl border border-dashed p-3">
+            <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border bg-muted/40">
+              {logoPreview ? (
+                <img
+                  src={logoPreview}
+                  alt="Logo do projeto"
+                  className="h-full w-full object-contain p-1"
+                />
+              ) : (
+                <ImagePlus className="h-6 w-6 text-muted-foreground" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Logo do projeto</p>
+              <p className="text-xs text-muted-foreground">
+                Aparece no portal do cliente e no cabeçalho do projeto. PNG, JPG ou WebP até 1 MB.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" asChild>
+                  <label className="cursor-pointer">
+                    {logoPreview ? "Trocar logo" : "Enviar logo"}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      onChange={(e) => {
+                        pickLogo(e.target.files?.[0]);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </Button>
+                {logoPreview && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="text-rose-600"
+                    onClick={() => {
+                      setLogoFile(null);
+                      setLogoPreview(null);
+                      setLogoRemoved(true);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" /> Remover
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
           <div className="md:col-span-2">
             <Label>Nome *</Label>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div className="md:col-span-2">
             <Label>Descrição</Label>
-            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <Textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
           </div>
           <div>
             <Label>Cliente</Label>
-            <Select value={form.client_id || "none"} onValueChange={(v) => setForm({ ...form, client_id: v === "none" ? "" : v })}>
-              <SelectTrigger><SelectValue placeholder="Sem cliente" /></SelectTrigger>
+            <Select
+              value={form.client_id || "none"}
+              onValueChange={(v) => setForm({ ...form, client_id: v === "none" ? "" : v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Sem cliente" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sem cliente</SelectItem>
                 {(clientsQ.data?.clients ?? []).map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Status</Label>
-            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as ProjectStatus })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={form.status}
+              onValueChange={(v) => setForm({ ...form, status: v as ProjectStatus })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {STATUS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                {STATUS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
           <div>
             <Label>Tipo de Serviço</Label>
-            <Select value={form.service_type || "none"} onValueChange={(v) => setForm({ ...form, service_type: (v === "none" ? "" : v) as any })}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <Select
+              value={form.service_type || "none"}
+              onValueChange={(v) =>
+                setForm({ ...form, service_type: (v === "none" ? "" : v) as any })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">—</SelectItem>
-                {SERVICE.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                {SERVICE.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Modelo Comercial *</Label>
-            <Select value={form.commercial_model} onValueChange={(v) => setForm({ ...form, commercial_model: v as CommercialModel })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={form.commercial_model}
+              onValueChange={(v) => setForm({ ...form, commercial_model: v as CommercialModel })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {COMMERCIAL.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                {COMMERCIAL.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
           <div>
             <Label>Início</Label>
-            <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+            <Input
+              type="date"
+              value={form.start_date}
+              onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+            />
           </div>
           <div>
             <Label>Prazo</Label>
-            <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+            <Input
+              type="date"
+              value={form.due_date}
+              onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+            />
           </div>
 
           {showContract && (
             <div className="md:col-span-2">
               <Label>Valor do contrato (R$)</Label>
-              <Input type="number" step="0.01" value={form.contract_value} onChange={(e) => setForm({ ...form, contract_value: e.target.value })} />
+              <Input
+                type="number"
+                step="0.01"
+                value={form.contract_value}
+                onChange={(e) => setForm({ ...form, contract_value: e.target.value })}
+              />
             </div>
           )}
 
@@ -212,15 +409,30 @@ export function ProjectFormDialog({
             <>
               <div>
                 <Label>Valor mensal (R$)</Label>
-                <Input type="number" step="0.01" value={form.monthly_value} onChange={(e) => setForm({ ...form, monthly_value: e.target.value })} />
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.monthly_value}
+                  onChange={(e) => setForm({ ...form, monthly_value: e.target.value })}
+                />
               </div>
               <div>
                 <Label>Dia da cobrança (1-28)</Label>
-                <Input type="number" min={1} max={28} value={form.billing_day} onChange={(e) => setForm({ ...form, billing_day: e.target.value })} />
+                <Input
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={form.billing_day}
+                  onChange={(e) => setForm({ ...form, billing_day: e.target.value })}
+                />
               </div>
               <div className="md:col-span-2">
                 <Label>Próxima cobrança</Label>
-                <Input type="date" value={form.next_billing_date} onChange={(e) => setForm({ ...form, next_billing_date: e.target.value })} />
+                <Input
+                  type="date"
+                  value={form.next_billing_date}
+                  onChange={(e) => setForm({ ...form, next_billing_date: e.target.value })}
+                />
               </div>
             </>
           )}
@@ -228,23 +440,40 @@ export function ProjectFormDialog({
           {showHourly && (
             <div>
               <Label>Valor por hora (R$)</Label>
-              <Input type="number" step="0.01" value={form.hourly_rate} onChange={(e) => setForm({ ...form, hourly_rate: e.target.value })} />
+              <Input
+                type="number"
+                step="0.01"
+                value={form.hourly_rate}
+                onChange={(e) => setForm({ ...form, hourly_rate: e.target.value })}
+              />
             </div>
           )}
           {showHoursBank && (
             <div>
               <Label>Horas contratadas</Label>
-              <Input type="number" step="0.25" value={form.contracted_hours} onChange={(e) => setForm({ ...form, contracted_hours: e.target.value })} />
+              <Input
+                type="number"
+                step="0.25"
+                value={form.contracted_hours}
+                onChange={(e) => setForm({ ...form, contracted_hours: e.target.value })}
+              />
             </div>
           )}
 
           <div>
             <Label>Cor</Label>
-            <Input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-9 p-1" />
+            <Input
+              type="color"
+              value={form.color}
+              onChange={(e) => setForm({ ...form, color: e.target.value })}
+              className="h-9 p-1"
+            />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
           <Button onClick={() => m.mutate()} disabled={!form.name || m.isPending}>
             {m.isPending ? "Salvando..." : "Salvar"}
           </Button>

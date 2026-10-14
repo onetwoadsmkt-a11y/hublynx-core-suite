@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { PortalShell, usePortalSession } from "@/components/portal/PortalShell";
+import { CORE_NAVY, PortalShell, usePortalSession } from "@/components/portal/PortalShell";
 import { portalAuth, portalLoginPath } from "@/lib/portal/portal-client";
 import {
   portalAddComment,
@@ -194,12 +194,13 @@ function PortalProjectPage() {
     ? Math.round(realStages.reduce((a, s) => a + s.percent, 0) / realStages.length)
     : 0;
   const mineOpen = stages.reduce((a, s) => a + s.mineOpen, 0);
-  const color = d?.organization?.brand_color || "#0f2b4c";
+  const color = CORE_NAVY;
   const notClient = q.isError && String((q.error as Error)?.message).includes("NOT_CLIENT");
 
   return (
     <PortalShell
       brand={d?.organization}
+      logo={d?.project.logo_url}
       title={d?.project.name ?? "Carregando projeto…"}
       subtitle={
         d
@@ -230,12 +231,15 @@ function PortalProjectPage() {
                   <p className="text-sm text-muted-foreground">
                     {doneStages} de {realStages.length} etapas concluídas
                   </p>
-                  <p className="text-2xl font-semibold tabular-nums">{progress}%</p>
+                  <p className="font-display text-2xl font-semibold tabular-nums">{progress}%</p>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full transition-all"
-                    style={{ width: `${progress}%`, backgroundColor: color }}
+                    style={{
+                      width: `${progress}%`,
+                      background: "linear-gradient(90deg,#0a2557,#00D084)",
+                    }}
                   />
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -250,7 +254,7 @@ function PortalProjectPage() {
                       <ListChecks className="h-3.5 w-3.5" /> {mineOpen} tarefa(s) sua(s) pendente(s)
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-emerald-700">
+                    <span className="inline-flex items-center gap-1 text-[#00a868] dark:text-primary">
                       <Check className="h-3.5 w-3.5" /> Nenhuma pendência sua
                     </span>
                   )}
@@ -368,7 +372,7 @@ export function VerticalRoadmap({ stages, color, onToggle, session, projectId }:
                 <span
                   className={cn(
                     "mt-1 w-0.5 flex-1 rounded-full",
-                    s.done ? "bg-emerald-400" : "bg-border",
+                    s.done ? "bg-primary" : "bg-border",
                   )}
                 />
               )}
@@ -411,10 +415,7 @@ export function HorizontalRoadmap({ stages, color, onToggle, session, projectId 
                 <StageDot s={s} color={color} />
                 {i < stages.length - 1 && (
                   <span
-                    className={cn(
-                      "h-0.5 flex-1 rounded-full",
-                      s.done ? "bg-emerald-400" : "bg-border",
-                    )}
+                    className={cn("h-0.5 flex-1 rounded-full", s.done ? "bg-primary" : "bg-border")}
                   />
                 )}
               </div>
@@ -434,13 +435,13 @@ export function HorizontalRoadmap({ stages, color, onToggle, session, projectId 
         <section
           className={cn(
             "rounded-2xl border p-4 sm:p-5",
-            selected.done ? "border-emerald-300 bg-emerald-50/60" : "bg-card",
+            selected.done ? "border-primary/50 bg-accent/60" : "bg-card",
           )}
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs text-muted-foreground">Etapa {selected.index + 1}</p>
-              <h3 className="font-semibold">{selected.stage.name}</h3>
+              <h3 className="font-display font-semibold">{selected.stage.name}</h3>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setOpenId(null)}>
               <ChevronUp className="h-4 w-4" /> Fechar
@@ -467,7 +468,7 @@ function StageDot({ s, color }: { s: StageView; color: string }) {
       className={cn(
         "grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 text-sm font-semibold",
         s.done
-          ? "border-emerald-500 bg-emerald-500 text-white"
+          ? "border-primary bg-primary text-primary-foreground"
           : s.current
             ? "bg-background"
             : "border-border bg-background text-muted-foreground",
@@ -501,9 +502,7 @@ function StageCard({
       className={cn(
         "rounded-2xl border p-4 transition",
         compact && "flex flex-1 flex-col",
-        s.done
-          ? "border-emerald-300 bg-emerald-50 dark:border-emerald-500/40 dark:bg-emerald-500/10"
-          : "bg-card",
+        s.done ? "border-primary/50 bg-accent" : "bg-card",
         !s.done && s.current && "shadow-sm ring-2",
         open && !s.done && "shadow-md",
       )}
@@ -518,14 +517,14 @@ function StageCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3
               className={cn(
-                "font-semibold leading-snug",
-                s.done && "text-emerald-900 dark:text-emerald-200",
+                "font-display font-semibold leading-snug",
+                s.done && "text-accent-foreground",
               )}
             >
               {s.stage.name}
             </h3>
             {s.done ? (
-              <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+              <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
                 Concluída
               </span>
             ) : s.current ? (
@@ -547,7 +546,7 @@ function StageCard({
           <span
             className={cn(
               "shrink-0 text-sm font-semibold tabular-nums",
-              s.done ? "text-emerald-700" : "",
+              s.done ? "text-[#00a868] dark:text-primary" : "",
             )}
           >
             {s.percent}%
@@ -558,7 +557,7 @@ function StageCard({
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
         <div
           className="h-full rounded-full transition-all"
-          style={{ width: `${s.percent}%`, backgroundColor: s.done ? "#10b981" : color }}
+          style={{ width: `${s.percent}%`, backgroundColor: s.done ? "#00D084" : color }}
         />
       </div>
 
@@ -665,7 +664,7 @@ function TaskRow({
       className={cn(
         "rounded-xl border p-3 transition",
         isDone
-          ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-500/30 dark:bg-emerald-500/10"
+          ? "border-primary/40 bg-accent/70"
           : isMine
             ? "border-amber-300/80 bg-background"
             : "bg-background",
@@ -676,7 +675,8 @@ function TaskRow({
           <Checkbox
             className={cn(
               "mt-0.5 h-6 w-6 rounded-md",
-              isDone && "border-emerald-600 data-[state=checked]:bg-emerald-600",
+              isDone &&
+                "border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
             )}
             checked={isDone}
             onCheckedChange={(v) => onToggle(task.id, v === true)}
@@ -688,7 +688,7 @@ function TaskRow({
             title="Responsabilidade da equipe"
           >
             {isDone ? (
-              <Check className="h-4 w-4 text-emerald-600" />
+              <Check className="h-4 w-4 text-primary" />
             ) : (
               <Circle className="h-3.5 w-3.5 text-muted-foreground" />
             )}
@@ -698,8 +698,7 @@ function TaskRow({
           <p
             className={cn(
               "text-sm font-medium",
-              isDone &&
-                "text-emerald-900 line-through decoration-emerald-600/40 dark:text-emerald-200",
+              isDone && "text-accent-foreground line-through decoration-primary/60",
             )}
           >
             {task.title}
@@ -728,7 +727,7 @@ function TaskRow({
               </span>
             )}
             {isDone && (
-              <span className="font-medium text-emerald-700">
+              <span className="font-medium text-[#00a868] dark:text-primary">
                 Concluída{task.completed_at ? ` em ${fmtDate(task.completed_at)}` : ""}
               </span>
             )}
