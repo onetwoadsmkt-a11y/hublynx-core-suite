@@ -3,12 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 export type ProjectStatus =
-  | "planejamento"
-  | "ativo"
-  | "aguardando_cliente"
-  | "em_pausa"
-  | "concluido"
-  | "cancelado";
+  "planejamento" | "ativo" | "aguardando_cliente" | "em_pausa" | "concluido" | "cancelado";
 
 export interface ProjectRow {
   id: string;
@@ -106,8 +101,21 @@ const projectInput = z.object({
   ]),
   color: z.string().max(20).nullable().optional(),
   // commercial model
-  service_type: z.enum(["desenvolvimento","trafego_pago","gestao_conteudo","consultoria","design","suporte","outros"]).nullable().optional(),
-  commercial_model: z.enum(["projeto_fechado","mensal_recorrente","banco_horas","por_hora","suporte_continuo"]).optional(),
+  service_type: z
+    .enum([
+      "desenvolvimento",
+      "trafego_pago",
+      "gestao_conteudo",
+      "consultoria",
+      "design",
+      "suporte",
+      "outros",
+    ])
+    .nullable()
+    .optional(),
+  commercial_model: z
+    .enum(["projeto_fechado", "mensal_recorrente", "banco_horas", "por_hora", "suporte_continuo"])
+    .optional(),
   hourly_rate: z.number().nonnegative().nullable().optional(),
   contracted_hours: z.number().nonnegative().nullable().optional(),
   monthly_value: z.number().nonnegative().nullable().optional(),
@@ -115,22 +123,35 @@ const projectInput = z.object({
   next_billing_date: z.string().nullable().optional(),
 });
 
-
 export const upsertProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => projectInput.parse(d))
   .handler(async ({ data, context }) => {
-    const payload: any = { ...data, owner_id: context.userId };
-    if (!data.id) {
-      const { resolveOrganizationId } = await import("@/lib/org/resolve");
-      const orgId = await resolveOrganizationId(context.supabase as never, context.userId);
-      if (orgId) payload.organization_id = orgId;
+    if (data.id) {
+      // edição: não troca o dono do projeto
+      const { id, ...fields } = data;
+      const { data: row, error } = await context.supabase
+        .from("projects")
+        .update(fields as any)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      return { project: row as ProjectRow };
     }
-    const q = data.id
-      ? context.supabase.from("projects").update(payload).eq("id", data.id).select().single()
-      : context.supabase.from("projects").insert(payload).select().single();
-    const { data: row, error } = await q;
+    const payload: any = { ...data, id: crypto.randomUUID(), owner_id: context.userId };
+    const { resolveOrganizationId } = await import("@/lib/org/resolve");
+    const orgId = await resolveOrganizationId(context.supabase as never, context.userId);
+    if (orgId) payload.organization_id = orgId;
+    // cria sem "returning": a regra de leitura do projeto só enxerga a linha depois de gravada
+    const { error } = await context.supabase.from("projects").insert(payload);
     if (error) throw new Error(error.message);
+    const { data: row, error: readErr } = await context.supabase
+      .from("projects")
+      .select()
+      .eq("id", payload.id)
+      .single();
+    if (readErr) throw new Error(readErr.message);
     return { project: row as ProjectRow };
   });
 
@@ -219,7 +240,9 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const overdueTasks = tasks.filter(
       (t: any) => t.status !== "concluido" && t.due_date && new Date(t.due_date) < now,
     ).length;
-    const progress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : (project as any).progress ?? 0;
+    const progress = totalTasks
+      ? Math.round((doneTasks / totalTasks) * 100)
+      : ((project as any).progress ?? 0);
 
     const revenueReceived = finances
       .filter((f: any) => f.kind === "receber" && f.status === "quitado")
@@ -311,7 +334,8 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       next.setDate(d.getDate() + 1);
       const key = d.toISOString().slice(0, 10);
       const completed = tasks.filter(
-        (t: any) => t.completed_at && new Date(t.completed_at) >= d && new Date(t.completed_at) < next,
+        (t: any) =>
+          t.completed_at && new Date(t.completed_at) >= d && new Date(t.completed_at) < next,
       ).length;
       const created = tasks.filter(
         (t: any) => new Date(t.created_at) >= d && new Date(t.created_at) < next,
@@ -345,7 +369,7 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
         plannedVsActual.push({
           week: wd.toISOString().slice(5, 10),
           planned,
-          actual: wd > now && i > 0 ? plannedVsActual[i - 1]?.actual ?? 0 : actual,
+          actual: wd > now && i > 0 ? (plannedVsActual[i - 1]?.actual ?? 0) : actual,
         });
       }
     }
@@ -355,11 +379,33 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       const limit = new Date(today);
       limit.setDate(limit.getDate() + days);
       const inTasks = tasks
-        .filter((t: any) => t.due_date && t.status !== "concluido" && new Date(t.due_date) >= today && new Date(t.due_date) <= limit)
-        .map((t: any) => ({ kind: "task" as const, id: t.id, title: t.title, due_date: t.due_date }));
+        .filter(
+          (t: any) =>
+            t.due_date &&
+            t.status !== "concluido" &&
+            new Date(t.due_date) >= today &&
+            new Date(t.due_date) <= limit,
+        )
+        .map((t: any) => ({
+          kind: "task" as const,
+          id: t.id,
+          title: t.title,
+          due_date: t.due_date,
+        }));
       const inMilestones = (milestonesRes.data ?? [])
-        .filter((m: any) => m.due_date && m.status !== "done" && new Date(m.due_date) >= today && new Date(m.due_date) <= limit)
-        .map((m: any) => ({ kind: "milestone" as const, id: m.id, title: m.title, due_date: m.due_date }));
+        .filter(
+          (m: any) =>
+            m.due_date &&
+            m.status !== "done" &&
+            new Date(m.due_date) >= today &&
+            new Date(m.due_date) <= limit,
+        )
+        .map((m: any) => ({
+          kind: "milestone" as const,
+          id: m.id,
+          title: m.title,
+          due_date: m.due_date,
+        }));
       return [...inTasks, ...inMilestones].sort(
         (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
       );
@@ -368,7 +414,11 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
 
     // Kanban counts (by canonical task status)
     const kanbanCounts: Record<string, number> = {
-      a_fazer: 0, em_andamento: 0, em_revisao: 0, concluido: 0, cancelado: 0,
+      a_fazer: 0,
+      em_andamento: 0,
+      em_revisao: 0,
+      concluido: 0,
+      cancelado: 0,
     };
     tasks.forEach((t: any) => {
       const k = String(t.status ?? "a_fazer");
@@ -381,12 +431,26 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       const revenue = finances
-        .filter((f: any) => f.kind === "receber" && f.status === "quitado" && f.created_at && new Date(f.created_at) >= d && new Date(f.created_at) < next)
+        .filter(
+          (f: any) =>
+            f.kind === "receber" &&
+            f.status === "quitado" &&
+            f.created_at &&
+            new Date(f.created_at) >= d &&
+            new Date(f.created_at) < next,
+        )
         .reduce((s: number, f: any) => s + Number(f.amount), 0);
       const cost = costs
-        .filter((c: any) => c.incurred_at && new Date(c.incurred_at) >= d && new Date(c.incurred_at) < next)
+        .filter(
+          (c: any) =>
+            c.incurred_at && new Date(c.incurred_at) >= d && new Date(c.incurred_at) < next,
+        )
         .reduce((s: number, c: any) => s + Number(c.amount), 0);
-      financeMonthly.push({ month: d.toLocaleDateString("pt-BR", { month: "short" }), revenue, cost });
+      financeMonthly.push({
+        month: d.toLocaleDateString("pt-BR", { month: "short" }),
+        revenue,
+        cost,
+      });
     }
 
     const nextMilestone = (milestonesRes.data ?? []).find((m: any) => m.status !== "done") ?? null;
@@ -394,11 +458,12 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     // ---------- Commercial block ----------
     const p: any = project;
     const model: string = p.commercial_model ?? "projeto_fechado";
-    const hoursWorked = (tasks as any[]).reduce((s, t: any) => {
-      const minutes = Number(t.time_spent_minutes ?? 0);
-      const legacy = Number(t.actual_hours ?? 0) * 60;
-      return s + (minutes > 0 ? minutes : legacy);
-    }, 0) / 60;
+    const hoursWorked =
+      (tasks as any[]).reduce((s, t: any) => {
+        const minutes = Number(t.time_spent_minutes ?? 0);
+        const legacy = Number(t.actual_hours ?? 0) * 60;
+        return s + (minutes > 0 ? minutes : legacy);
+      }, 0) / 60;
     const hoursContracted = Number(p.contracted_hours ?? 0);
     const hoursRemaining = Math.max(0, hoursContracted - hoursWorked);
     const hourlyRate = Number(p.hourly_rate ?? 0);
@@ -408,9 +473,14 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const recurringFinances = finances.filter((f: any) => f.kind === "receber");
     const monthsPaid = recurringFinances.filter((f: any) => f.status === "quitado").length;
     const monthsPending = recurringFinances.filter((f: any) => f.status !== "quitado").length;
-    const nextBilling = p.next_billing_date ?? recurringFinances
-      .filter((f: any) => f.status !== "quitado" && f.due_date)
-      .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0]?.due_date ?? null;
+    const nextBilling =
+      p.next_billing_date ??
+      recurringFinances
+        .filter((f: any) => f.status !== "quitado" && f.due_date)
+        .sort(
+          (a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
+        )[0]?.due_date ??
+      null;
 
     const commercial = {
       model,
@@ -431,7 +501,6 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       profit,
       margin,
     };
-
 
     return {
       project: { ...project, client: (project as any).clients },
@@ -535,7 +604,13 @@ export const upsertMember = createServerFn({ method: "POST" })
         project_id: z.string().uuid(),
         name: z.string().min(1).max(200),
         role: z.string().max(120).nullable().optional(),
-        email: z.string().email().max(255).nullable().optional().or(z.literal("").transform(() => null)),
+        email: z
+          .string()
+          .email()
+          .max(255)
+          .nullable()
+          .optional()
+          .or(z.literal("").transform(() => null)),
       })
       .parse(d),
   )
@@ -668,16 +743,20 @@ export const saveProjectNotes = createServerFn({ method: "POST" })
 export const generateRecurringInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({
-      project_id: z.string().uuid(),
-      amount: z.number().positive().optional(),
-      description: z.string().max(500).optional(),
-    }).parse(d),
+    z
+      .object({
+        project_id: z.string().uuid(),
+        amount: z.number().positive().optional(),
+        description: z.string().max(500).optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: proj, error: pErr } = await context.supabase
       .from("projects")
-      .select("id, name, client_id, monthly_value, billing_day, next_billing_date, commercial_model")
+      .select(
+        "id, name, client_id, monthly_value, billing_day, next_billing_date, commercial_model",
+      )
       .eq("id", data.project_id)
       .single();
     if (pErr) throw new Error(pErr.message);
@@ -708,10 +787,7 @@ export const generateRecurringInvoice = createServerFn({ method: "POST" })
       const next = new Date(base);
       next.setMonth(next.getMonth() + 1);
       const nextIso = next.toISOString().slice(0, 10);
-      await context.supabase
-        .from("projects")
-        .update({ next_billing_date: nextIso })
-        .eq("id", p.id);
+      await context.supabase.from("projects").update({ next_billing_date: nextIso }).eq("id", p.id);
       return { ok: true as const, due_date: dueIso, next_billing_date: nextIso };
     }
     return { ok: true as const, due_date: dueIso, next_billing_date: null };
@@ -724,12 +800,15 @@ export const listProjectFinances = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("finances")
-      .select("id, kind, description, amount, due_date, paid_at, status, recurrence, payment_method")
+      .select(
+        "id, kind, description, amount, due_date, paid_at, status, recurrence, payment_method",
+      )
       .eq("project_id", data.project_id)
       .order("due_date", { ascending: false });
     if (error) throw new Error(error.message);
     const items = (rows ?? []) as any[];
-    let revenue = 0, expense = 0;
+    let revenue = 0,
+      expense = 0;
     for (const r of items) {
       const amt = Number(r.amount) || 0;
       if (r.status === "quitado") {
@@ -780,12 +859,14 @@ export const upsertProjectFinance = createServerFn({ method: "POST" })
 
     if (data.id) {
       const { error } = await context.supabase
-        .from("finances").update({
+        .from("finances")
+        .update({
           ...basePayload,
           amount: data.amount,
           due_date: data.due_date,
           paid_at: data.status === "quitado" ? new Date().toISOString() : null,
-        }).eq("id", data.id);
+        })
+        .eq("id", data.id);
       if (error) throw new Error(error.message);
       return { ok: true as const, id: data.id };
     }
@@ -793,19 +874,21 @@ export const upsertProjectFinance = createServerFn({ method: "POST" })
     const n = Math.max(1, data.installments ?? 1);
     if (n === 1) {
       const { data: ins, error } = await context.supabase
-        .from("finances").insert({
+        .from("finances")
+        .insert({
           ...basePayload,
           amount: data.amount,
           due_date: data.due_date,
           paid_at: data.status === "quitado" ? new Date().toISOString() : null,
-        }).select("id").single();
+        })
+        .select("id")
+        .single();
       if (error) throw new Error(error.message);
       return { ok: true as const, id: (ins as any).id };
     }
 
-    const perAmount = data.installment_mode === "fixed"
-      ? data.amount
-      : Math.round((data.amount / n) * 100) / 100;
+    const perAmount =
+      data.installment_mode === "fixed" ? data.amount : Math.round((data.amount / n) * 100) / 100;
     const base = new Date(data.due_date);
     const rows = Array.from({ length: n }, (_, i) => {
       const d = new Date(base);
@@ -828,7 +911,6 @@ export const upsertProjectFinance = createServerFn({ method: "POST" })
     return { ok: true as const, id: null };
   });
 
-
 export const deleteProjectFinance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
@@ -847,10 +929,12 @@ const stageSchema = z.object({
 export const updateRoadmapStages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({
-      project_id: z.string().uuid(),
-      stages: z.array(stageSchema).min(1).max(20),
-    }).parse(d),
+    z
+      .object({
+        project_id: z.string().uuid(),
+        stages: z.array(stageSchema).min(1).max(20),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase

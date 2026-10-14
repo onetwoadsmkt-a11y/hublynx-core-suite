@@ -97,27 +97,26 @@ export const convertLeadToClient = createServerFn({ method: "POST" })
 
     // 2) Projeto
     const p = data.project;
-    const { data: project, error: projErr } = await db
-      .from("projects")
-      .insert({
-        ...orgFields,
-        owner_id: userId,
-        client_id: clientId,
-        name: p.name,
-        description: p.description ?? null,
-        status: "ativo",
-        service_type: p.service_type ?? null,
-        commercial_model: p.commercial_model,
-        contract_value: p.contract_value ?? null,
-        value: p.contract_value ?? null,
-        monthly_value: p.monthly_value ?? null,
-        start_date: p.start_date ?? new Date().toISOString().slice(0, 10),
-        due_date: p.due_date ?? null,
-      })
-      .select("id, name")
-      .single();
+    // id gerado aqui e gravação sem "returning": a regra de leitura do projeto só
+    // enxerga a linha depois de gravada
+    const projectId = crypto.randomUUID();
+    const { error: projErr } = await db.from("projects").insert({
+      id: projectId,
+      ...orgFields,
+      owner_id: userId,
+      client_id: clientId,
+      name: p.name,
+      description: p.description ?? null,
+      status: "ativo",
+      service_type: p.service_type ?? null,
+      commercial_model: p.commercial_model,
+      contract_value: p.contract_value ?? null,
+      value: p.contract_value ?? null,
+      monthly_value: p.monthly_value ?? null,
+      start_date: p.start_date ?? new Date().toISOString().slice(0, 10),
+      due_date: p.due_date ?? null,
+    });
     if (projErr) throw new Error(projErr.message);
-    const projectId = (project as any).id as string;
 
     // 2b) Roadmap a partir do modelo escolhido
     if (data.templateId && organizationId) {
