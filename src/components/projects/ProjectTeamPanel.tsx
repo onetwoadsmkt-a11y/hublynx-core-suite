@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -466,6 +467,23 @@ function AddMemberDialog({
   );
 }
 
+type InviteResult = Awaited<ReturnType<typeof inviteProjectClient>>;
+
+function accessMessage(r: InviteResult, name: string) {
+  const first = name.trim().split(/\s+/)[0] || "";
+  return [
+    `Olá${first ? `, ${first}` : ""}! Seu acesso ao portal do projeto:`,
+    "",
+    `Link: ${r.portalUrl}`,
+    `E-mail: ${r.email}`,
+    r.password ? `Senha: ${r.password}` : "Senha: a mesma que você já usa no Core",
+    "",
+    r.password ? "No primeiro acesso, troque a senha em “Alterar senha”." : "",
+  ]
+    .join("\n")
+    .trim();
+}
+
 export function InviteClientDialog({
   open,
   onOpenChange,
@@ -485,14 +503,14 @@ export function InviteClientDialog({
   const inviteFn = useServerFn(inviteProjectClient);
   const [name, setName] = useState(defaultClient?.name ?? "");
   const [email, setEmail] = useState(defaultClient?.email ?? "");
-  const [result, setResult] = useState<{ link: string | null; emailSent: boolean } | null>(null);
+  const [result, setResult] = useState<InviteResult | null>(null);
   const invite = useMutation({
     mutationFn: () =>
       inviteFn({
         data: { projectId, name: name.trim(), email: email.trim(), replaceId: editId },
       }),
     onSuccess: (r) => {
-      setResult({ link: r.link, emailSent: r.emailSent });
+      setResult(r);
       onDone?.();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -515,36 +533,43 @@ export function InviteClientDialog({
         </DialogHeader>
         {result ? (
           <div className="space-y-3 text-sm">
-            <p>
-              {editId ? "Dados do cliente atualizados. " : ""}
-              {result.emailSent
-                ? "Convite enviado por e-mail."
-                : "Acesso criado. O e-mail não pôde ser enviado automaticamente."}{" "}
-              Você também pode mandar o link abaixo pelo WhatsApp (vale por pouco tempo e uma única
-              vez).
-            </p>
-            {result.link && (
-              <div className="flex items-center gap-2">
-                <Input
-                  readOnly
-                  value={result.link}
-                  className="text-xs"
-                  onFocus={(e) => e.currentTarget.select()}
-                />
-                <Button
-                  size="icon"
-                  variant="outline"
-                  aria-label="Copiar link"
-                  onClick={() => {
-                    navigator.clipboard
-                      ?.writeText(result.link!)
-                      .then(() => toast.success("Link copiado"));
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
+            {result.emailSent ? (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">
+                {editId ? "Dados atualizados. " : ""}Convite enviado de{" "}
+                <strong>{result.sentFrom}</strong> para <strong>{result.email}</strong>.
+              </p>
+            ) : (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                {editId ? "Dados atualizados e acesso criado" : "Acesso criado"}, mas o e-mail não
+                foi enviado: {result.emailError}
+              </p>
             )}
+            <div className="space-y-1.5">
+              <Label>Dados de acesso (para enviar por WhatsApp)</Label>
+              <Textarea
+                readOnly
+                rows={6}
+                value={accessMessage(result, name)}
+                className="text-xs"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard
+                    ?.writeText(accessMessage(result, name))
+                    .then(() => toast.success("Mensagem copiada"));
+                }}
+              >
+                <Copy className="h-4 w-4" /> Copiar mensagem
+              </Button>
+              {!result.password && (
+                <p className="text-xs text-muted-foreground">
+                  Este e-mail já tem conta de equipe no Core; a senha dele não foi alterada.
+                </p>
+              )}
+            </div>
             <DialogFooter>
               <Button onClick={() => close(false)}>Concluir</Button>
             </DialogFooter>

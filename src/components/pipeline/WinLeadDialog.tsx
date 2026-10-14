@@ -6,12 +6,21 @@ import { toast } from "sonner";
 import { ArrowRight, Building2, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { convertLeadToClient } from "@/lib/pipeline/conversion.functions";
 import { listProjectTemplates } from "@/lib/projects/stages.functions";
@@ -131,19 +140,25 @@ export function WinLeadDialog({
           const inv = await inviteFn({
             data: { projectId: res.projectId, email: email.trim(), name: clientName.trim() },
           });
-          const link = inv.link;
-          toast.success(
-            inv.emailSent ? "Convite do portal enviado ao cliente por e-mail" : "Acesso ao portal criado para o cliente",
-            link
-              ? {
-                  duration: 20_000,
-                  action: {
-                    label: "Copiar link",
-                    onClick: () => navigator.clipboard?.writeText(link).then(() => toast.success("Link copiado")),
-                  },
-                }
-              : undefined,
-          );
+          const msg = [
+            `Seu acesso ao portal do projeto:`,
+            `Link: ${inv.portalUrl}`,
+            `E-mail: ${inv.email}`,
+            inv.password ? `Senha: ${inv.password}` : "Senha: a mesma que você já usa no Core",
+          ].join("\n");
+          const copy = {
+            duration: 20_000,
+            action: {
+              label: "Copiar acesso",
+              onClick: () =>
+                navigator.clipboard?.writeText(msg).then(() => toast.success("Acesso copiado")),
+            },
+          };
+          if (inv.emailSent) {
+            toast.success(`Convite do portal enviado de ${inv.sentFrom} para o cliente`, copy);
+          } else {
+            toast.warning(`Acesso criado, mas o e-mail não foi enviado: ${inv.emailError}`, copy);
+          }
         } catch (e) {
           toast.error(`Projeto criado, mas o convite falhou: ${(e as Error).message}`);
         }
@@ -164,7 +179,8 @@ export function WinLeadDialog({
         <DialogHeader>
           <DialogTitle>Converter lead em cliente</DialogTitle>
           <DialogDescription className="flex items-center gap-2 text-xs">
-            Lead <ArrowRight className="h-3 w-3" /> Cliente <ArrowRight className="h-3 w-3" /> Projeto
+            Lead <ArrowRight className="h-3 w-3" /> Cliente <ArrowRight className="h-3 w-3" />{" "}
+            Projeto
           </DialogDescription>
         </DialogHeader>
 
@@ -211,10 +227,14 @@ export function WinLeadDialog({
               <div className="space-y-1.5">
                 <Label>Serviço</Label>
                 <Select value={service} onValueChange={(v) => setService(v as Service)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {SERVICES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -222,31 +242,47 @@ export function WinLeadDialog({
               <div className="space-y-1.5">
                 <Label>Modelo comercial</Label>
                 <Select value={model} onValueChange={(v) => setModel(v as Model)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {MODELS.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>{recurring ? "Valor mensal (R$)" : "Valor do contrato (R$)"}</Label>
-                <Input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" />
+                <Input
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  inputMode="decimal"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Início</Label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
               </div>
               {!recurring && templates.length > 0 && (
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label>Modelo de roadmap</Label>
                   <Select value={templateId} onValueChange={setTemplateId}>
-                    <SelectTrigger><SelectValue placeholder="Sem modelo" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sem modelo" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Sem modelo</SelectItem>
                       {templates.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -254,7 +290,6 @@ export function WinLeadDialog({
               )}
             </div>
           </section>
-
         </div>
 
         <label className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
@@ -275,7 +310,9 @@ export function WinLeadDialog({
         </label>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Agora não</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Agora não
+          </Button>
           <Button onClick={() => run.mutate()} disabled={run.isPending}>
             {run.isPending ? "Criando..." : "Criar cliente e projeto"}
           </Button>

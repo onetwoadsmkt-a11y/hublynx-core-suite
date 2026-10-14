@@ -6,7 +6,7 @@ export type Security = "ssl" | "starttls" | "none";
 
 export type TestResult = { protocol: "imap" | "smtp"; ok: boolean; message: string };
 
-function friendlyError(err: unknown, protocol: "imap" | "smtp"): string {
+export function friendlyError(err: unknown, protocol: "imap" | "smtp"): string {
   const raw = String((err as Error)?.message ?? err ?? "");
   const nome = protocol === "imap" ? "IMAP" : "SMTP";
   if (/timeout/i.test(raw)) return `Tempo esgotado ao conectar no servidor ${nome}.`;
@@ -80,7 +80,7 @@ export type SmtpParams = {
   auth: boolean;
 };
 
-async function smtpCommand(
+export async function smtpCommand(
   socket: Awaited<ReturnType<typeof openMailSocket>>,
   lines: ReturnType<typeof createLineReader>,
   command: string | null,

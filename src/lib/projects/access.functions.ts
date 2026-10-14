@@ -294,8 +294,8 @@ function appOrigin(): string {
 
 /**
  * Convida o cliente (lead convertido / franqueado) para o portal do projeto.
- * Cria a conta se não existir, envia o e-mail de convite e devolve também um link
- * de acesso para enviar por WhatsApp. O cliente entra na empresa como "guest":
+ * Cria a conta com senha gerada e envia o convite pelo e-mail conectado de quem
+ * convida; devolve também e-mail e senha para mandar por WhatsApp. O cliente entra na empresa como "guest":
  * não vê leads, outros clientes, valores nem tarefas internas.
  */
 export const inviteProjectClient = createServerFn({ method: "POST" })
@@ -319,49 +319,53 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
     const project = await projectOrg(db, data.projectId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as unknown as Db & { auth: any };
-    const portalPath = `/portal/${project.portal_slug || project.id}`;
-    const redirectTo = `${appOrigin()}/portal/acesso?next=${encodeURIComponent(portalPath)}`;
+    const { generatePassword, sendClientInviteMail } = await import("./client-invite.server");
+    const portalUrl = `${appOrigin()}/portal/${project.portal_slug || project.id}`;
 
-    // 1) Conta do cliente: convite (envia e-mail) ou conta existente
+    // 1) Conta do cliente com senha gerada (sem e-mail do Supabase: quem envia é o Core)
     let userId: string | null = null;
-    let emailSent = false;
-    let link: string | null = null;
+    let password: string | null = generatePassword();
     let existed = false;
-
-    const invited = await admin.auth.admin.inviteUserByEmail(data.email, {
-      redirectTo,
-      data: { full_name: data.name },
+    const created = await admin.auth.admin.createUser({
+      email: data.email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: data.name, temp_password: true },
     });
-    if (!invited.error && invited.data?.user) {
-      userId = invited.data.user.id;
-      emailSent = true;
+    if (!created.error && created.data?.user) {
+      userId = created.data.user.id;
     } else {
       existed = true;
-    }
-
-    const gen = await admin.auth.admin.generateLink({
-      type: existed ? "magiclink" : "recovery",
-      email: data.email,
-      options: { redirectTo },
-    });
-    if (!gen.error) {
-      link = gen.data?.properties?.action_link ?? null;
-      userId = userId ?? gen.data?.user?.id ?? null;
-    }
-    if (!userId) {
-      throw new Error(
-        invited.error?.message ??
-          gen.error?.message ??
-          "Não foi possível criar o acesso do cliente.",
-      );
-    }
-    if (existed) {
-      // conta já existia: manda um link de acesso por e-mail
-      const otp = await admin.auth.signInWithOtp({
-        email: data.email,
-        options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
-      });
-      emailSent = !otp.error;
+      // só descobre o id da conta existente (não envia nada)
+      const gen = await admin.auth.admin.generateLink({ type: "magiclink", email: data.email });
+      userId = gen.data?.user?.id ?? null;
+      if (!userId) {
+        throw new Error(
+          created.error?.message ??
+            gen.error?.message ??
+            "Não foi possível criar o acesso do cliente.",
+        );
+      }
+      // Conta de equipe (em qualquer empresa) ou da plataforma: nunca troca a senha.
+      const [{ data: staff }, { data: platform }] = await Promise.all([
+        admin
+          .from("organization_members")
+          .select("id")
+          .eq("user_id", userId)
+          .neq("role", "guest")
+          .limit(1),
+        admin.from("platform_admins").select("user_id").eq("user_id", userId).limit(1),
+      ]);
+      if (staff?.length || platform?.length) {
+        password = null;
+      } else {
+        const upd = await admin.auth.admin.updateUserById(userId, {
+          password,
+          email_confirm: true,
+          user_metadata: { full_name: data.name, temp_password: true },
+        });
+        if (upd.error) throw new Error(upd.error.message);
+      }
     }
 
     // 2) Vínculo com a empresa: cliente entra como guest (equipe continua equipe)
@@ -443,12 +447,27 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
       }
     }
 
+    // 5) E-mail de convite enviado pela caixa de e-mail conectada de quem convida
+    const mail = await sendClientInviteMail(admin, {
+      inviterId: context.userId,
+      organizationId: project.organization_id,
+      projectName: project.name,
+      projectNumber: project.project_number,
+      clientName: data.name,
+      clientEmail: data.email,
+      password,
+      portalUrl,
+    });
+
     return {
       ok: true as const,
-      emailSent,
-      link,
       existed,
-      portalUrl: `${appOrigin()}${portalPath}`,
+      portalUrl,
+      email: data.email,
+      password,
+      emailSent: mail.sent,
+      sentFrom: mail.from,
+      emailError: mail.error,
     };
   });
 

@@ -1,8 +1,19 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
+import { KeyRound, LogOut } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 /** Garante sessão; sem login, manda para a tela de entrar. */
 export function usePortalSession() {
@@ -53,6 +64,13 @@ export function PortalShell({
 }) {
   const navigate = useNavigate();
   const color = brand?.brand_color || "#0f2b4c";
+  const [pwOpen, setPwOpen] = useState(false);
+  const [tempPassword, setTempPassword] = useState(false);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setTempPassword(data.user?.user_metadata?.temp_password === true);
+    });
+  }, []);
   async function signOut() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
@@ -88,6 +106,10 @@ export function PortalShell({
             {email && (
               <span className="hidden text-xs text-muted-foreground sm:inline">{email}</span>
             )}
+            <Button variant="ghost" size="sm" onClick={() => setPwOpen(true)}>
+              <KeyRound className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Alterar senha</span>
+            </Button>
             <Button variant="ghost" size="sm" onClick={signOut}>
               <LogOut className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Sair</span>
@@ -95,7 +117,94 @@ export function PortalShell({
           </div>
         </div>
       </header>
+      {tempPassword && (
+        <div className="border-b border-amber-200 bg-amber-50">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm text-amber-900">
+            <span>Você está usando a senha enviada no convite. Crie uma senha sua.</span>
+            <Button size="sm" variant="outline" className="h-7" onClick={() => setPwOpen(true)}>
+              Alterar senha
+            </Button>
+          </div>
+        </div>
+      )}
       <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+      <ChangePasswordDialog
+        open={pwOpen}
+        onOpenChange={setPwOpen}
+        onDone={() => setTempPassword(false)}
+      />
     </div>
+  );
+}
+
+function ChangePasswordDialog({
+  open,
+  onOpenChange,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onDone: () => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 6) return toast.error("A senha precisa ter pelo menos 6 caracteres.");
+    if (password !== confirm) return toast.error("As senhas não conferem.");
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({
+      password,
+      data: { temp_password: false },
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Senha alterada.");
+    setPassword("");
+    setConfirm("");
+    onDone();
+    onOpenChange(false);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Alterar senha</DialogTitle>
+          <DialogDescription>Use esta senha nos próximos acessos ao portal.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={save} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="np">Nova senha</Label>
+            <Input
+              id="np"
+              type="password"
+              minLength={6}
+              required
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="np2">Confirmar nova senha</Label>
+            <Input
+              id="np2"
+              type="password"
+              minLength={6}
+              required
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Salvando…" : "Salvar senha"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
