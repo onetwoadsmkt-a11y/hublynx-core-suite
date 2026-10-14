@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  addLeadNote, deleteLeadFile, deleteLeadTask, getLeadDetail, moveLead, registerLeadFile,
+  addLeadNote, deleteLeadFile, deleteLeadTask, getLeadDetail, listAllStages, moveLead, registerLeadFile,
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
 import { setLeadTags } from "@/lib/pipeline/tags.functions";
@@ -28,6 +28,7 @@ import { currency, LeadQualificationBadge } from "./LeadCard";
 import { buildLeadAnswers, leadOrigins, useLeadAnswerLabels } from "./lead-answers";
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -96,6 +97,8 @@ export function LeadDrawer({
   const qc = useQueryClient();
   const detailFn = useServerFn(getLeadDetail);
   const moveFn = useServerFn(moveLead);
+  const allStagesFn = useServerFn(listAllStages);
+  const { activeOrganizationId } = useWorkspace();
   const taskFn = useServerFn(upsertLeadTask);
   const toggleFn = useServerFn(toggleLeadTask);
   const delTaskFn = useServerFn(deleteLeadTask);
@@ -162,9 +165,49 @@ export function LeadDrawer({
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["lead-detail", lead?.id] });
 
+  // Mover o lead: primeiro o pipeline, depois a etapa daquele pipeline.
+  const allStagesQ = useQuery({
+    queryKey: ["all-stages", activeOrganizationId ?? "none"],
+    queryFn: () =>
+      allStagesFn({ data: activeOrganizationId ? { organizationId: activeOrganizationId } : {} }),
+    enabled: !!lead,
+    staleTime: 60_000,
+  });
+  const allStages = allStagesQ.data ?? [];
+  const pipelineOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const s of allStages) if (s.pipeline_id && !seen.has(s.pipeline_id)) seen.set(s.pipeline_id, s.pipeline_name);
+    return [...seen].map(([id, name]) => ({ id, name }));
+  }, [allStages]);
+  const [stageNow, setStageNow] = useState<string | null>(null);
+  const currentStageId = stageNow ?? lead?.stage_id ?? null;
+  const currentPipelineId =
+    allStages.find((s) => s.id === currentStageId)?.pipeline_id ??
+    stages.find((s) => s.id === currentStageId)?.pipeline_id ??
+    null;
+  const [pickedPipeline, setPickedPipeline] = useState<string | null>(null);
+  useEffect(() => {
+    setStageNow(null);
+    setPickedPipeline(null);
+  }, [lead?.id]);
+  const shownPipeline = pickedPipeline ?? currentPipelineId;
+  const stagesOfPipeline = allStages.length
+    ? allStages.filter((s) => s.pipeline_id === shownPipeline)
+    : stages;
+
   const move = useMutation({
     mutationFn: (stageId: string) => moveFn({ data: { id: lead!.id, stage_id: stageId } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pipeline"] }); refresh(); },
+    onSuccess: (_r, stageId) => {
+      setStageNow(stageId);
+      setPickedPipeline(null);
+      const target = allStages.find((s) => s.id === stageId);
+      if (target && target.pipeline_id !== currentPipelineId) {
+        toast.success(`Lead movido para ${target.pipeline_name} · ${target.name}`);
+      }
+      qc.invalidateQueries({ queryKey: ["pipeline"] });
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const addTask = useMutation({
@@ -356,12 +399,39 @@ export function LeadDrawer({
                     {currency(Number(lead.value))}
                   </Badge>
                 )}
-                <Select value={lead.stage_id ?? ""} onValueChange={(v) => move.mutate(v)}>
-                  <SelectTrigger className="h-8 w-[190px] border-white/20 text-white">
-                    <SelectValue />
+                {pipelineOptions.length > 0 && (
+                  <Select
+                    value={shownPipeline ?? ""}
+                    onValueChange={(v) => setPickedPipeline(v === currentPipelineId ? null : v)}
+                  >
+                    <SelectTrigger
+                      className="h-8 w-[170px] border-white/20 text-white"
+                      aria-label="Pipeline do lead"
+                      title="Pipeline"
+                    >
+                      <SelectValue placeholder="Pipeline" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelineOptions.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Select
+                  value={stagesOfPipeline.some((s) => s.id === currentStageId) ? currentStageId ?? "" : ""}
+                  onValueChange={(v) => move.mutate(v)}
+                  disabled={move.isPending}
+                >
+                  <SelectTrigger
+                    className="h-8 w-[190px] border-white/20 text-white"
+                    aria-label="Etapa do lead"
+                    title="Etapa"
+                  >
+                    <SelectValue placeholder="Escolha a etapa" />
                   </SelectTrigger>
                   <SelectContent>
-                    {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    {stagesOfPipeline.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Button

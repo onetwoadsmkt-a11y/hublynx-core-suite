@@ -480,24 +480,37 @@ export const listWebhooks = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
-/** Todas as etapas de todos os pipelines (para escolher o destino de um webhook). */
+/** Todas as etapas de todos os pipelines da empresa (webhooks e mover lead entre pipelines). */
 export const listAllStages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: unknown) => z.object({ organizationId: uuid.optional() }).parse(d ?? {}))
+  .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { data: pipes } = await supabase.from("pipelines").select("id, name, position").order("position");
-    const { data: stages, error } = await supabase
-      .from("pipeline_stages")
-      .select("id, name, pipeline_id, position")
-      .order("position");
+    const { data: pipes } = await scopeOrganization(
+      supabase.from("pipelines").select("id, name, position").order("position"),
+      data.organizationId,
+    );
+    const { data: stages, error } = await scopeOrganization(
+      supabase.from("pipeline_stages").select("id, name, pipeline_id, position").order("position"),
+      data.organizationId,
+    );
     if (error) throw new Error(error.message);
-    const byId = new Map((pipes ?? []).map((p) => [p.id, p.name]));
-    return (stages ?? []).map((s) => ({
-      id: s.id,
-      name: s.name,
-      pipeline_id: s.pipeline_id,
-      pipeline_name: s.pipeline_id ? byId.get(s.pipeline_id) ?? "Sem pipeline" : "Sem pipeline",
-    }));
+    const pipeList = pipes ?? [];
+    const byId = new Map(pipeList.map((p) => [p.id, p.name]));
+    const pipeOrder = new Map(pipeList.map((p, i) => [p.id, i]));
+    return (stages ?? [])
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        pipeline_id: s.pipeline_id,
+        position: s.position,
+        pipeline_name: s.pipeline_id ? byId.get(s.pipeline_id) ?? "Sem pipeline" : "Sem pipeline",
+      }))
+      .sort(
+        (a, b) =>
+          (pipeOrder.get(a.pipeline_id ?? "") ?? 999) - (pipeOrder.get(b.pipeline_id ?? "") ?? 999) ||
+          (a.position ?? 0) - (b.position ?? 0),
+      );
   });
 
 export const createWebhook = createServerFn({ method: "POST" })

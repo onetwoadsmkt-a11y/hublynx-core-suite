@@ -18,6 +18,7 @@ import {
 import {
   createWebhook, deleteWebhook, listAllStages, listWebhooks, toggleWebhook, updateWebhook,
 } from "@/lib/pipeline/pipeline.functions";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { WebhookFieldMapper } from "./WebhookFieldMapper";
 import { WebhookPayloadTemplate } from "./WebhookPayloadTemplate";
 import type { PipelineStage } from "./types";
@@ -71,9 +72,11 @@ export function WebhooksDialog({
   const updateFn = useServerFn(updateWebhook);
   const allStagesFn = useServerFn(listAllStages);
 
+  const { activeOrganizationId } = useWorkspace();
   const { data: allStages } = useQuery({
-    queryKey: ["pipeline-all-stages"],
-    queryFn: () => allStagesFn(),
+    queryKey: ["pipeline-all-stages", activeOrganizationId ?? "none"],
+    queryFn: () =>
+      allStagesFn({ data: activeOrganizationId ? { organizationId: activeOrganizationId } : {} }),
     enabled: open,
   });
 
