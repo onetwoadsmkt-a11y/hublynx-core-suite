@@ -443,7 +443,11 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as unknown as Db & { auth: any };
     const { generatePassword, sendClientInviteMail } = await import("./client-invite.server");
-    const portalUrl = `${appOrigin()}/portal/${project.portal_slug || project.id}`;
+    // link do e-mail: tela de entrada do portal, já com o projeto e o e-mail do cliente
+    const portalUrl = `${appOrigin()}/portal/entrar?${new URLSearchParams({
+      p: project.portal_slug || project.id,
+      e: data.email,
+    }).toString()}`;
 
     // 1) Conta do cliente com senha gerada (sem e-mail do Supabase: quem envia é o Core)
     let userId: string | null = null;

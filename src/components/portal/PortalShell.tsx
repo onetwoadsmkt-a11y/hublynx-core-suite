@@ -1,9 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { KeyRound, LogOut } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { rememberNext } from "@/lib/auth-redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,120 +13,171 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { portalAuth, portalLoginPath, portalToken } from "@/lib/portal/portal-client";
+import { PORTAL_AUTH_ERROR } from "@/lib/portal/portal.functions";
 
-/** Garante sessão; sem login, manda para a tela de entrar. */
-export function usePortalSession() {
-  const navigate = useNavigate();
-  const [state, setState] = useState<{ ready: boolean; email: string | null; name: string | null }>(
-    {
-      ready: false,
-      email: null,
-      name: null,
-    },
-  );
+export type PortalBrand = { name: string; logo_url: string | null; brand_color: string | null };
+
+type SessionState = {
+  ready: boolean;
+  email: string | null;
+  name: string | null;
+  tempPassword: boolean;
+};
+
+/**
+ * Sessão do portal (separada do Core). Sem sessão, manda para a tela de entrada
+ * do portal e volta para o projeto depois.
+ */
+export function usePortalSession(projectRef?: string | null) {
+  const [state, setState] = useState<SessionState>({
+    ready: false,
+    email: null,
+    name: null,
+    tempPassword: false,
+  });
   useEffect(() => {
     let alive = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!alive) return;
-      if (!data.session) {
-        // depois do login, volta para o projeto que o cliente abriu
-        rememberNext(window.location.pathname);
-        navigate({ to: "/auth", replace: true });
-        return;
-      }
-      const u = data.session.user;
-      setState({
-        ready: true,
-        email: u.email ?? null,
-        name: (u.user_metadata?.full_name as string | undefined) ?? null,
+    portalAuth()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (!alive) return;
+        if (!data.session) {
+          window.location.replace(portalLoginPath(projectRef));
+          return;
+        }
+        const u = data.session.user;
+        setState({
+          ready: true,
+          email: u.email ?? null,
+          name: (u.user_metadata?.full_name as string | undefined) ?? null,
+          tempPassword: u.user_metadata?.temp_password === true,
+        });
       });
-    });
     return () => {
       alive = false;
     };
-  }, [navigate]);
-  return state;
+  }, [projectRef]);
+
+  /** Chama uma função do portal com o token da sessão; sessão vencida → tela de entrada. */
+  const call = useCallback(
+    async <T,>(fn: (token: string) => Promise<T>): Promise<T> => {
+      const token = await portalToken();
+      if (!token) {
+        window.location.replace(portalLoginPath(projectRef));
+        throw new Error("Entre novamente no portal.");
+      }
+      try {
+        return await fn(token);
+      } catch (err) {
+        if (String((err as Error)?.message).includes(PORTAL_AUTH_ERROR)) {
+          await portalAuth().auth.signOut();
+          window.location.replace(portalLoginPath(projectRef, state.email));
+          throw new Error("Sua sessão expirou. Entre novamente.");
+        }
+        throw err;
+      }
+    },
+    [projectRef, state.email],
+  );
+
+  return {
+    ...state,
+    call,
+    setTempPassword: (v: boolean) => setState((s) => ({ ...s, tempPassword: v })),
+  };
 }
 
 export function PortalShell({
   brand,
-  email,
+  title,
+  subtitle,
+  session,
+  projectRef,
   children,
 }: {
-  brand?: { name: string; logo_url: string | null; brand_color: string | null } | null;
-  email?: string | null;
+  brand?: PortalBrand | null;
+  /** nome do projeto no cabeçalho */
+  title?: string | null;
+  subtitle?: string | null;
+  session: ReturnType<typeof usePortalSession>;
+  projectRef?: string | null;
   children: ReactNode;
 }) {
-  const navigate = useNavigate();
   const color = brand?.brand_color || "#0f2b4c";
   const [pwOpen, setPwOpen] = useState(false);
-  const [tempPassword, setTempPassword] = useState(false);
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setTempPassword(data.user?.user_metadata?.temp_password === true);
-    });
-  }, []);
   async function signOut() {
-    await supabase.auth.signOut();
-    navigate({ to: "/auth", replace: true });
+    await portalAuth().auth.signOut();
+    window.location.replace(portalLoginPath(projectRef, session.email));
   }
   return (
     <div className="min-h-screen bg-muted/30">
-      <header
-        className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur"
-        style={{ borderTop: `3px solid ${color}` }}
-      >
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+      <header className="sticky top-0 z-20 text-white shadow-sm" style={{ backgroundColor: color }}>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/portal" className="flex min-w-0 items-center gap-3">
             {brand?.logo_url ? (
-              <img
-                src={brand.logo_url}
-                alt={brand.name}
-                className="h-8 w-auto max-w-[140px] object-contain"
-              />
+              <span className="grid h-10 shrink-0 place-items-center rounded-lg bg-white px-2">
+                <img
+                  src={brand.logo_url}
+                  alt={brand.name}
+                  className="h-7 w-auto max-w-[110px] object-contain"
+                />
+              </span>
             ) : (
-              <span
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm font-bold text-white"
-                style={{ backgroundColor: color }}
-              >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/15 text-base font-bold">
                 {(brand?.name ?? "P").slice(0, 1).toUpperCase()}
               </span>
             )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{brand?.name ?? "Portal do cliente"}</p>
-              <p className="text-[11px] text-muted-foreground">Portal do cliente</p>
+              <p className="line-clamp-2 text-[15px] font-semibold leading-tight sm:truncate sm:text-lg">
+                {title || brand?.name || "Portal do cliente"}
+              </p>
+              <p className="truncate text-xs text-white/75">
+                {subtitle ??
+                  (brand?.name ? `${brand.name} · Portal do cliente` : "Portal do cliente")}
+              </p>
             </div>
           </Link>
-          <div className="flex items-center gap-2">
-            {email && (
-              <span className="hidden text-xs text-muted-foreground sm:inline">{email}</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {session.email && (
+              <span className="mr-1 hidden text-xs text-white/75 lg:inline">{session.email}</span>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setPwOpen(true)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/15 hover:text-white"
+              onClick={() => setPwOpen(true)}
+            >
               <KeyRound className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Alterar senha</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={signOut}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/15 hover:text-white"
+              onClick={signOut}
+            >
               <LogOut className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Sair</span>
             </Button>
           </div>
         </div>
       </header>
-      {tempPassword && (
+      {session.tempPassword && (
         <div className="border-b border-amber-200 bg-amber-50">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm text-amber-900">
-            <span>Você está usando a senha enviada no convite. Crie uma senha sua.</span>
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm text-amber-900">
+            <span>Você está usando a senha do convite. Crie uma senha sua.</span>
             <Button size="sm" variant="outline" className="h-7" onClick={() => setPwOpen(true)}>
               Alterar senha
             </Button>
           </div>
         </div>
       )}
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-5 sm:py-6">{children}</main>
       <ChangePasswordDialog
         open={pwOpen}
         onOpenChange={setPwOpen}
-        onDone={() => setTempPassword(false)}
+        onDone={() => session.setTempPassword(false)}
       />
     </div>
   );
@@ -151,7 +200,7 @@ function ChangePasswordDialog({
     if (password.length < 6) return toast.error("A senha precisa ter pelo menos 6 caracteres.");
     if (password !== confirm) return toast.error("As senhas não conferem.");
     setSaving(true);
-    const { error } = await supabase.auth.updateUser({
+    const { error } = await portalAuth().auth.updateUser({
       password,
       data: { temp_password: false },
     });

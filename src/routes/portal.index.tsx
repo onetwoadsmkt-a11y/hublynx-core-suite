@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -23,16 +24,24 @@ function PortalHome() {
   const listFn = useServerFn(portalMyProjects);
   const q = useQuery({
     queryKey: ["portal-projects"],
-    queryFn: () => listFn(),
+    queryFn: () => session.call((token) => listFn({ data: { token } })),
     enabled: session.ready,
     refetchInterval: 60_000,
   });
   const projects = q.data ?? [];
 
+  // Um projeto só: abre direto o roadmap dele.
+  useEffect(() => {
+    if (q.data && q.data.length === 1) {
+      const only = q.data[0];
+      window.location.replace(`/portal/${only.slug || only.id}`);
+    }
+  }, [q.data]);
+
   const brand = projects[0]?.organization ?? null;
 
   return (
-    <PortalShell brand={brand} email={session.email}>
+    <PortalShell brand={brand} title="Meus projetos" session={session}>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">
           {session.name ? `Olá, ${session.name.split(" ")[0]}` : "Seus projetos"}

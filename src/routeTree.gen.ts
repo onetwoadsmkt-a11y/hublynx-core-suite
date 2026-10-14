@@ -33,6 +33,7 @@ import { Route as FPublicSlugRouteImport } from './routes/f.$publicSlug'
 import { Route as PortalIndexRouteImport } from './routes/portal.index'
 import { Route as PortalProjectIdRouteImport } from './routes/portal.$projectId'
 import { Route as PortalAcessoRouteImport } from './routes/portal.acesso'
+import { Route as PortalEntrarRouteImport } from './routes/portal.entrar'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminArmazenamentoRouteImport } from './routes/_authenticated/admin.armazenamento'
 import { Route as AuthenticatedAdminAssinaturasRouteImport } from './routes/_authenticated/admin.assinaturas'
@@ -185,6 +186,11 @@ const PortalProjectIdRoute = PortalProjectIdRouteImport.update({
 const PortalAcessoRoute = PortalAcessoRouteImport.update({
   id: '/portal/acesso',
   path: '/portal/acesso',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalEntrarRoute = PortalEntrarRouteImport.update({
+  id: '/portal/entrar',
+  path: '/portal/entrar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -396,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/f/$publicSlug': typeof FPublicSlugRoute
   '/portal/$projectId': typeof PortalProjectIdRoute
   '/portal/acesso': typeof PortalAcessoRoute
+  '/portal/entrar': typeof PortalEntrarRoute
   '/portal/': typeof PortalIndexRoute
   '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
@@ -450,6 +457,7 @@ export interface FileRoutesByTo {
   '/f/$publicSlug': typeof FPublicSlugRoute
   '/portal/$projectId': typeof PortalProjectIdRoute
   '/portal/acesso': typeof PortalAcessoRoute
+  '/portal/entrar': typeof PortalEntrarRoute
   '/portal': typeof PortalIndexRoute
   '/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
@@ -509,6 +517,7 @@ export interface FileRoutesById {
   '/f/$publicSlug': typeof FPublicSlugRoute
   '/portal/$projectId': typeof PortalProjectIdRoute
   '/portal/acesso': typeof PortalAcessoRoute
+  '/portal/entrar': typeof PortalEntrarRoute
   '/portal/': typeof PortalIndexRoute
   '/_authenticated/admin/armazenamento': typeof AuthenticatedAdminArmazenamentoRoute
   '/_authenticated/admin/assinaturas': typeof AuthenticatedAdminAssinaturasRoute
@@ -568,6 +577,7 @@ export interface FileRouteTypes {
     | '/f/$publicSlug'
     | '/portal/$projectId'
     | '/portal/acesso'
+    | '/portal/entrar'
     | '/portal/'
     | '/admin/armazenamento'
     | '/admin/assinaturas'
@@ -622,6 +632,7 @@ export interface FileRouteTypes {
     | '/f/$publicSlug'
     | '/portal/$projectId'
     | '/portal/acesso'
+    | '/portal/entrar'
     | '/portal'
     | '/admin/armazenamento'
     | '/admin/assinaturas'
@@ -680,6 +691,7 @@ export interface FileRouteTypes {
     | '/f/$publicSlug'
     | '/portal/$projectId'
     | '/portal/acesso'
+    | '/portal/entrar'
     | '/portal/'
     | '/_authenticated/admin/armazenamento'
     | '/_authenticated/admin/assinaturas'
@@ -724,6 +736,7 @@ export interface RootRouteChildren {
   FPublicSlugRoute: typeof FPublicSlugRoute
   PortalProjectIdRoute: typeof PortalProjectIdRoute
   PortalAcessoRoute: typeof PortalAcessoRoute
+  PortalEntrarRoute: typeof PortalEntrarRoute
   PortalIndexRoute: typeof PortalIndexRoute
   ApiPublicFormAssetsSplatRoute: typeof ApiPublicFormAssetsSplatRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
@@ -899,6 +912,13 @@ declare module '@tanstack/react-router' {
       path: '/portal/acesso'
       fullPath: '/portal/acesso'
       preLoaderRoute: typeof PortalAcessoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/entrar': {
+      id: '/portal/entrar'
+      path: '/portal/entrar'
+      fullPath: '/portal/entrar'
+      preLoaderRoute: typeof PortalEntrarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1299,6 +1319,7 @@ const rootRouteChildren: RootRouteChildren = {
   FPublicSlugRoute: FPublicSlugRoute,
   PortalProjectIdRoute: PortalProjectIdRoute,
   PortalAcessoRoute: PortalAcessoRoute,
+  PortalEntrarRoute: PortalEntrarRoute,
   PortalIndexRoute: PortalIndexRoute,
   ApiPublicFormAssetsSplatRoute: ApiPublicFormAssetsSplatRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
