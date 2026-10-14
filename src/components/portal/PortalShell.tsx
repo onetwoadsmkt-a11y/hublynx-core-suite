@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { KeyRound, LogOut } from "lucide-react";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { portalAuth, portalLoginPath, portalToken } from "@/lib/portal/portal-client";
 import { PORTAL_AUTH_ERROR } from "@/lib/portal/portal.functions";
+import { brandVars, HEX_RE, readableOn } from "@/components/BrandTheme";
 
 export type PortalBrand = { name: string; logo_url: string | null; brand_color: string | null };
 
@@ -22,6 +23,24 @@ export type PortalBrand = { name: string; logo_url: string | null; brand_color: 
 export const CORE_NAVY = "#0a2557";
 export const CORE_GREEN = "#00D084";
 export const CORE_GRADIENT = "linear-gradient(135deg,#071A3D 0%,#0a2557 60%,#00D084 180%)";
+
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/**
+ * Cores da empresa dentro do portal (mesma regra do Core): troca só as cores de
+ * destaque (botões, etapa atual, progresso). Verde continua sendo "concluído".
+ * Sem cor cadastrada, fica a identidade do Core Suite.
+ */
+function usePortalBrandColors(hex: string | null) {
+  useIsoLayoutEffect(() => {
+    if (typeof document === "undefined" || !hex) return;
+    const root = document.documentElement;
+    const vars = brandVars(hex);
+    const keys = Object.keys(vars) as (keyof typeof vars)[];
+    keys.forEach((k) => root.style.setProperty(k, vars[k]));
+    return () => keys.forEach((k) => root.style.removeProperty(k));
+  }, [hex]);
+}
 
 type SessionState = {
   ready: boolean;
@@ -113,6 +132,20 @@ export function PortalShell({
   children: ReactNode;
 }) {
   const logoUrl = logo || brand?.logo_url || null;
+  const hex = brand?.brand_color && HEX_RE.test(brand.brand_color) ? brand.brand_color : null;
+  usePortalBrandColors(hex);
+  // texto do cabeçalho legível sobre a cor da empresa (escuro em cores claras)
+  const lightBrand = hex ? readableOn(hex) !== "oklch(1 0 0)" : false;
+  const headerStyle = hex
+    ? {
+        background: `linear-gradient(135deg, ${hex} 0%, color-mix(in oklab, ${hex} 80%, black) 100%)`,
+        color: lightBrand ? "#071A3D" : "#ffffff",
+        borderBottomColor: `color-mix(in oklab, ${hex} 65%, black)`,
+      }
+    : { background: CORE_GRADIENT, color: "#ffffff", borderBottomColor: CORE_GREEN };
+  const headerBtn = lightBrand
+    ? "text-inherit hover:bg-black/10 hover:text-inherit"
+    : "text-inherit hover:bg-white/15 hover:text-inherit";
   const [pwOpen, setPwOpen] = useState(false);
   async function signOut() {
     await portalAuth().auth.signOut();
@@ -120,10 +153,7 @@ export function PortalShell({
   }
   return (
     <div className="min-h-screen bg-muted/30">
-      <header
-        className="sticky top-0 z-20 border-b-2 text-white shadow-sm"
-        style={{ background: CORE_GRADIENT, borderBottomColor: CORE_GREEN }}
-      >
+      <header className="sticky top-0 z-20 border-b-2 shadow-sm" style={headerStyle}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/portal" className="flex min-w-0 items-center gap-3">
             {logoUrl ? (
@@ -137,7 +167,11 @@ export function PortalShell({
             ) : (
               <span
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-lg font-display text-base font-bold"
-                style={{ backgroundColor: CORE_GREEN, color: "#071A3D" }}
+                style={
+                  hex
+                    ? { backgroundColor: "rgba(255,255,255,0.92)", color: "#071A3D" }
+                    : { backgroundColor: CORE_GREEN, color: "#071A3D" }
+                }
               >
                 {(brand?.name ?? "P").slice(0, 1).toUpperCase()}
               </span>
@@ -146,7 +180,7 @@ export function PortalShell({
               <p className="line-clamp-2 font-display text-[15px] font-semibold leading-tight sm:truncate sm:text-lg">
                 {title || brand?.name || "Portal do cliente"}
               </p>
-              <p className="truncate text-xs text-white/75">
+              <p className="truncate text-xs opacity-75">
                 {subtitle ??
                   (brand?.name ? `${brand.name} · Portal do cliente` : "Portal do cliente")}
               </p>
@@ -154,23 +188,13 @@ export function PortalShell({
           </Link>
           <div className="flex shrink-0 items-center gap-1">
             {session.email && (
-              <span className="mr-1 hidden text-xs text-white/75 lg:inline">{session.email}</span>
+              <span className="mr-1 hidden text-xs opacity-75 lg:inline">{session.email}</span>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/15 hover:text-white"
-              onClick={() => setPwOpen(true)}
-            >
+            <Button variant="ghost" size="sm" className={headerBtn} onClick={() => setPwOpen(true)}>
               <KeyRound className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Alterar senha</span>
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/15 hover:text-white"
-              onClick={signOut}
-            >
+            <Button variant="ghost" size="sm" className={headerBtn} onClick={signOut}>
               <LogOut className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Sair</span>
             </Button>
