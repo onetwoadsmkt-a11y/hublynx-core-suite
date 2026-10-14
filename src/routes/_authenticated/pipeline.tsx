@@ -256,6 +256,31 @@ function PipelinePage() {
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
   const columnRefs = useRef(new Map<string, HTMLDivElement>());
+
+  // Rolagem lateral com o mouse: clicar no fundo do quadro, segurar e arrastar.
+  // Cards, alças de coluna, botões e campos continuam com o comportamento normal.
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [panning, setPanning] = useState(false);
+  const onBoardMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = boardRef.current;
+    if (!el || e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-lead-card], button, a, input, textarea, select, [role='button'], [data-no-pan]")) return;
+    e.preventDefault();
+    const startX = e.pageX;
+    const startScroll = el.scrollLeft;
+    setPanning(true);
+    const onMove = (ev: MouseEvent) => {
+      el.scrollLeft = startScroll - (ev.pageX - startX);
+    };
+    const onUp = () => {
+      setPanning(false);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
   const scrollToStage = (id: string) =>
     columnRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
 
@@ -478,7 +503,15 @@ function PipelinePage() {
             })}
           </div>
           <SortableContext items={stages.map((st) => colId(st.id))} strategy={horizontalListSortingStrategy}>
-          <div className="-mx-4 flex flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:gap-4 md:px-0">
+          <div
+            ref={boardRef}
+            onMouseDown={onBoardMouseDown}
+            className={cn(
+              "-mx-4 flex flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:gap-4 md:px-0",
+              "md:cursor-grab [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+              panning && "select-none md:cursor-grabbing",
+            )}
+          >
             {stages.map((stage) => (
               <StageColumn
                 key={stage.id}

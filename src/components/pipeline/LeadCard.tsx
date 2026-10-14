@@ -211,6 +211,7 @@ export function LeadCard({
   return (
     <div
       ref={setNodeRef}
+      data-lead-card
       style={sortableStyle}
       {...(draggable ? { ...listeners, ...attributes } : {})}
       className={cn(
