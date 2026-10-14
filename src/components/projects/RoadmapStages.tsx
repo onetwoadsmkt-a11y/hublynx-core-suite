@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -18,6 +18,8 @@ import {
   Users,
   Rows3,
   Columns3,
+  Paperclip,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -49,6 +51,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useProjectAccess } from "@/components/projects/ProjectTeamPanel";
+import { TaskAttachments } from "@/components/projects/TaskAttachments";
+import {
+  ACCEPT_ATTACHMENTS,
+  MAX_ATTACHMENT_MB,
+  attachmentDownloadUrl,
+  listProjectAttachments,
+  removeTaskAttachment,
+  retryAttachmentDrive,
+  uploadTaskAttachment,
+  type TaskAttachment,
+} from "@/lib/projects/attachments.functions";
 import {
   listProjectStages,
   saveProjectStages,
@@ -62,6 +75,17 @@ import {
   type ProjectStage,
   type StageTask,
 } from "@/lib/projects/stages.functions";
+
+/** Arquivos das tarefas do projeto (lista + ações), compartilhados pelas linhas. */
+type AttachCtx = {
+  byTask: Map<string, TaskAttachment[]>;
+  upload: (taskId: string, file: File, note: string) => Promise<unknown>;
+  open: (id: string) => Promise<string>;
+  remove: (id: string) => Promise<unknown>;
+  retry: (id: string) => Promise<unknown>;
+  canManage: boolean;
+};
+const AttachmentsContext = createContext<AttachCtx | null>(null);
 
 type Draft = {
   id?: string;
@@ -165,6 +189,7 @@ export function RoadmapStagesPanel({
     qc.invalidateQueries({ queryKey: ["project-stages", projectId] });
     qc.invalidateQueries({ queryKey: ["project-dashboard", projectId] });
     qc.invalidateQueries({ queryKey: ["project-stage-tasks", projectId] });
+    qc.invalidateQueries({ queryKey: ["project-journey", projectId] });
     qc.invalidateQueries({ queryKey: ["tasks"] });
     // "Seu dia" do Hub Central também mostra estas tarefas
     qc.invalidateQueries({ queryKey: ["hub-today"] });
@@ -178,14 +203,71 @@ export function RoadmapStagesPanel({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // arquivos das tarefas (cópia no Google Drive feita pelo servidor)
+  const attachListFn = useServerFn(listProjectAttachments);
+  const attachUploadFn = useServerFn(uploadTaskAttachment);
+  const attachUrlFn = useServerFn(attachmentDownloadUrl);
+  const attachRemoveFn = useServerFn(removeTaskAttachment);
+  const attachRetryFn = useServerFn(retryAttachmentDrive);
+  const attachQ = useQuery({
+    queryKey: ["project-attachments", projectId],
+    queryFn: () => attachListFn({ data: { projectId } }),
+    enabled: !disabled,
+    staleTime: 30_000,
+  });
+  const refreshAttachments = () => {
+    qc.invalidateQueries({ queryKey: ["project-attachments", projectId] });
+    qc.invalidateQueries({ queryKey: ["project-journey", projectId] });
+  };
+  async function uploadTo(taskId: string, file: File, note: string) {
+    const fd = new FormData();
+    fd.append("taskId", taskId);
+    fd.append("file", file);
+    if (note.trim()) fd.append("note", note.trim());
+    const out = await attachUploadFn({ data: fd });
+    refreshAttachments();
+    if (out.drive.status === "ok") toast.success("Arquivo anexado e copiado para o Google Drive.");
+    else toast.warning(`Arquivo anexado. Cópia no Drive pendente: ${out.drive.error ?? ""}`);
+    return out;
+  }
+  const attachCtx = useMemo<AttachCtx>(() => {
+    const byTask = new Map<string, TaskAttachment[]>();
+    for (const a of attachQ.data ?? [])
+      byTask.set(a.task_id, [...(byTask.get(a.task_id) ?? []), a]);
+    return {
+      byTask,
+      upload: uploadTo,
+      open: async (id) => (await attachUrlFn({ data: { id } })).url,
+      remove: async (id) => {
+        await attachRemoveFn({ data: { id } });
+        toast.success("Arquivo removido da tarefa (fica no histórico).");
+        refreshAttachments();
+      },
+      retry: async (id) => {
+        const r = await attachRetryFn({ data: { id } });
+        if (r.status === "ok") toast.success("Copiado para o Google Drive.");
+        else toast.error(r.error ?? "Não foi possível copiar para o Drive.");
+        refreshAttachments();
+      },
+      canManage: canManageTeam,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachQ.data, canManageTeam]);
+
   const addTaskM = useMutation({
-    mutationFn: (v: {
+    mutationFn: async (v: {
       stage_id: string;
       title: string;
       due_date: string | null;
       responsible_type: "equipe" | "cliente";
       assignee_id: string | null;
-    }) => addTaskFn({ data: { project_id: projectId, ...v } }),
+      file?: File | null;
+    }) => {
+      const { file, ...task } = v;
+      const out = await addTaskFn({ data: { project_id: projectId, ...task } });
+      if (file && out.id) await uploadTo(out.id, file, "");
+      return out;
+    },
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message),
   });
@@ -268,217 +350,101 @@ export function RoadmapStagesPanel({
   };
 
   return (
-    <Card className="rounded-2xl p-5">
-      <div className="mb-4 grid min-w-0 gap-3">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-          <div className="min-w-0">
-            <h3 className="font-semibold text-sm">Roadmap do Projeto</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {doneCount} de {total} etapas concluídas — {percent}%
-            </p>
-          </div>
-          <div
-            role="group"
-            aria-label="Visualização do roadmap"
-            className="flex shrink-0 items-center gap-1 rounded-lg border bg-muted/50 p-1"
-          >
-            {(
-              [
-                { value: "vertical", label: "Vertical", icon: Rows3 },
-                { value: "horizontal", label: "Horizontal", icon: Columns3 },
-              ] as const
-            ).map(({ value, label, icon: Icon }) => (
-              <Button
-                key={value}
-                variant={view === value ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => changeView(value)}
-                aria-pressed={view === value}
-                aria-label={label}
-                title={label}
-                className="shrink-0 px-2 sm:px-3"
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="hidden sm:inline">{label}</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-          {templates.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={applyM.isPending}>
-                  <LayoutTemplate className="h-3.5 w-3.5" /> Aplicar modelo
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {templates.map((t) => (
-                  <DropdownMenuItem
-                    key={t.id}
-                    onClick={() => {
-                      if (total > 0 && !confirm("Isso substitui as etapas atuais. Continuar?"))
-                        return;
-                      applyM.mutate(t.id);
-                    }}
-                  >
-                    {t.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-            <Pencil className="h-3.5 w-3.5" /> Editar etapas
-          </Button>
-        </div>
-      </div>
-
-      {stagesQ.isLoading ? (
-        <p className="text-xs text-muted-foreground">Carregando etapas...</p>
-      ) : total === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          Nenhuma etapa cadastrada. Use “Editar etapas” ou aplique um modelo.
-        </p>
-      ) : view === "vertical" ? (
-        <ol className="space-y-3" aria-label="Etapas do projeto">
-          {stages.map((s, i) => {
-            const isDone = s.status === "done";
-            const isCurrent = !isDone && i === currentIdx;
-            const taskProgress = stageProgress(s.id);
-            const statusLabel = {
-              not_started: "Não iniciada",
-              in_progress: "Em andamento",
-              waiting: "Aguardando",
-              blocked: "Bloqueada",
-              done: "Concluída",
-            }[s.status];
-            return (
-              <li key={s.id} className="grid min-w-0 grid-cols-[36px_minmax(0,1fr)] gap-3 sm:gap-4">
-                <div className="flex flex-col items-center">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() =>
-                      progressM.mutate({ stage_id: s.id, status: isDone ? "not_started" : "done" })
-                    }
-                    disabled={progressM.isPending}
-                    className={`z-10 h-9 w-9 shrink-0 rounded-full border-2 ${isDone ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : isCurrent ? "border-primary text-primary ring-4 ring-primary/15" : "border-border text-muted-foreground"}`}
-                    aria-label={`Etapa ${s.name}`}
-                    title={isDone ? "Retroceder etapa" : "Avançar etapa"}
-                  >
-                    {isDone ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
-                  </Button>
-                  {i < total - 1 && (
-                    <span className={`mt-1 w-0.5 flex-1 ${isDone ? "bg-primary" : "bg-border"}`} />
-                  )}
-                </div>
-                <div
-                  className={`min-w-0 rounded-lg border bg-background p-4 ${isCurrent ? "border-primary/50" : "border-border"}`}
-                >
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                    <div className="min-w-0">
-                      <h4 className="break-words text-sm font-semibold">
-                        {i + 1}. {s.name}
-                      </h4>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {statusLabel}
-                        {s.due_date ? ` · Prazo: ${s.due_date.split("-").reverse().join("/")}` : ""}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-sm font-semibold text-primary">
-                      {s.percent}%
-                    </span>
-                  </div>
-                  <Progress
-                    value={s.percent}
-                    aria-label={`Progresso da etapa ${s.name}`}
-                    className="mt-3 h-1.5"
-                  />
-                  <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground">
-                        {taskProgress.total > 0
-                          ? `${taskProgress.done}/${taskProgress.total} tarefas concluídas · ${taskProgress.pct}%`
-                          : "Nenhuma tarefa"}
-                      </p>
-                      {taskProgress.total > 0 && (
-                        <Progress
-                          value={taskProgress.pct}
-                          aria-label={`Progresso das tarefas de ${s.name}`}
-                          className="mt-2 h-1"
-                        />
-                      )}
-                    </div>
-                    <Button
-                      variant={expanded.has(s.id) ? "secondary" : "outline"}
-                      size="sm"
-                      onClick={() =>
-                        setExpanded((cur) => {
-                          const n = new Set(cur);
-                          if (n.has(s.id)) n.delete(s.id);
-                          else n.add(s.id);
-                          return n;
-                        })
-                      }
-                      className="shrink-0"
-                      aria-expanded={expanded.has(s.id)}
-                      aria-label={`Tarefas da etapa ${s.name}`}
-                    >
-                      {expanded.has(s.id) ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                      {expanded.has(s.id) ? "Fechar" : "Abrir tarefas"}
-                    </Button>
-                  </div>
-                  {expanded.has(s.id) && (
-                    <div className="mt-4 border-t pt-4">
-                      <StageTasksPanel
-                        tasks={tasksByStage.get(s.id) ?? []}
-                        loading={stageTasksQ.isLoading}
-                        assignees={assignees}
-                        canManageTeam={canManageTeam}
-                        onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
-                        onPatch={(v) => clientFlagM.mutate(v)}
-                        onAdd={(title, due_date, who) =>
-                          addTaskM.mutate({
-                            stage_id: s.id,
-                            title,
-                            due_date: due_date ?? s.due_date ?? null,
-                            ...responsibleFrom(who),
-                          })
-                        }
-                        adding={addTaskM.isPending}
-                      />
-                    </div>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      ) : (
-        <div className="overflow-x-auto pb-2">
-          <div className="relative" style={{ minWidth: total * 120 }}>
-            <div className="absolute left-0 right-0 top-4 h-1 bg-muted rounded-full" />
+    <AttachmentsContext.Provider value={attachCtx}>
+      <Card className="rounded-2xl p-5">
+        <div className="mb-4 grid min-w-0 gap-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-sm">Roadmap do Projeto</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {doneCount} de {total} etapas concluídas — {percent}%
+              </p>
+            </div>
             <div
-              className="absolute left-0 top-4 h-1 bg-primary rounded-full transition-all"
-              style={{ width: `${percent}%` }}
-            />
-
-            <ol
-              className="relative grid gap-2"
-              style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
+              role="group"
+              aria-label="Visualização do roadmap"
+              className="flex shrink-0 items-center gap-1 rounded-lg border bg-muted/50 p-1"
             >
-              {stages.map((s, i) => {
-                const isDone = s.status === "done";
-                const isCurrent = !isDone && i === currentIdx;
-                return (
-                  <li key={s.id} className="flex flex-col items-center min-w-0">
-                    <button
-                      type="button"
+              {(
+                [
+                  { value: "vertical", label: "Vertical", icon: Rows3 },
+                  { value: "horizontal", label: "Horizontal", icon: Columns3 },
+                ] as const
+              ).map(({ value, label, icon: Icon }) => (
+                <Button
+                  key={value}
+                  variant={view === value ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => changeView(value)}
+                  aria-pressed={view === value}
+                  aria-label={label}
+                  title={label}
+                  className="shrink-0 px-2 sm:px-3"
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">{label}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            {templates.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={applyM.isPending}>
+                    <LayoutTemplate className="h-3.5 w-3.5" /> Aplicar modelo
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {templates.map((t) => (
+                    <DropdownMenuItem
+                      key={t.id}
+                      onClick={() => {
+                        if (total > 0 && !confirm("Isso substitui as etapas atuais. Continuar?"))
+                          return;
+                        applyM.mutate(t.id);
+                      }}
+                    >
+                      {t.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" /> Editar etapas
+            </Button>
+          </div>
+        </div>
+
+        {stagesQ.isLoading ? (
+          <p className="text-xs text-muted-foreground">Carregando etapas...</p>
+        ) : total === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Nenhuma etapa cadastrada. Use “Editar etapas” ou aplique um modelo.
+          </p>
+        ) : view === "vertical" ? (
+          <ol className="space-y-3" aria-label="Etapas do projeto">
+            {stages.map((s, i) => {
+              const isDone = s.status === "done";
+              const isCurrent = !isDone && i === currentIdx;
+              const taskProgress = stageProgress(s.id);
+              const statusLabel = {
+                not_started: "Não iniciada",
+                in_progress: "Em andamento",
+                waiting: "Aguardando",
+                blocked: "Bloqueada",
+                done: "Concluída",
+              }[s.status];
+              return (
+                <li
+                  key={s.id}
+                  className="grid min-w-0 grid-cols-[36px_minmax(0,1fr)] gap-3 sm:gap-4"
+                >
+                  <div className="flex flex-col items-center">
+                    <Button
+                      variant="outline"
+                      size="icon"
                       onClick={() =>
                         progressM.mutate({
                           stage_id: s.id,
@@ -486,114 +452,244 @@ export function RoadmapStagesPanel({
                         })
                       }
                       disabled={progressM.isPending}
-                      className={[
-                        "relative z-10 h-9 w-9 rounded-full grid place-items-center border-2 transition-all",
-                        isDone
-                          ? "bg-primary border-primary text-primary-foreground"
-                          : isCurrent
-                            ? "bg-background border-primary text-primary ring-4 ring-primary/15"
-                            : "bg-background border-muted-foreground/30 text-muted-foreground hover:border-primary/60",
-                      ].join(" ")}
+                      className={`z-10 h-9 w-9 shrink-0 rounded-full border-2 ${isDone ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : isCurrent ? "border-primary text-primary ring-4 ring-primary/15" : "border-border text-muted-foreground"}`}
                       aria-label={`Etapa ${s.name}`}
+                      title={isDone ? "Retroceder etapa" : "Avançar etapa"}
                     >
                       {isDone ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
-                    </button>
-                    <p
-                      className={[
-                        "mt-2 text-[11px] text-center font-medium truncate w-full px-1",
-                        isDone || isCurrent ? "text-foreground" : "text-muted-foreground",
-                      ].join(" ")}
-                      title={s.name}
-                    >
-                      {s.name}
-                    </p>
-                    {s.due_date && (
-                      <p className="text-[10px] text-muted-foreground">
-                        {s.due_date.split("-").reverse().join("/")}
-                      </p>
+                    </Button>
+                    {i < total - 1 && (
+                      <span
+                        className={`mt-1 w-0.5 flex-1 ${isDone ? "bg-primary" : "bg-border"}`}
+                      />
                     )}
-                    {(() => {
-                      const p = stageProgress(s.id);
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => setOpenStage(s)}
-                          className="mt-1.5 w-full rounded-lg border px-1.5 py-1 text-[10px] leading-tight hover:bg-accent/50 transition"
-                          title={`Tarefas da etapa ${s.name}`}
-                        >
-                          <span className="flex items-center justify-center gap-1 font-semibold">
-                            <ListChecks className="h-3 w-3" />
-                            {p.total > 0 ? `${p.pct}%` : "Tarefas"}
-                          </span>
-                          <span className="block text-muted-foreground">
-                            {p.total > 0 ? `${p.done}/${p.total} tarefas` : "adicionar"}
-                          </span>
-                          {p.total > 0 && (
-                            <span className="mt-1 block h-1 w-full rounded-full bg-muted">
-                              <span
-                                className="block h-1 rounded-full bg-primary transition-all"
-                                style={{ width: `${p.pct}%` }}
-                              />
+                  </div>
+                  <div
+                    className={`min-w-0 rounded-lg border bg-background p-4 ${isCurrent ? "border-primary/50" : "border-border"}`}
+                  >
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                      <div className="min-w-0">
+                        <h4 className="break-words text-sm font-semibold">
+                          {i + 1}. {s.name}
+                        </h4>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {statusLabel}
+                          {s.due_date
+                            ? ` · Prazo: ${s.due_date.split("-").reverse().join("/")}`
+                            : ""}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold text-primary">
+                        {s.percent}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={s.percent}
+                      aria-label={`Progresso da etapa ${s.name}`}
+                      className="mt-3 h-1.5"
+                    />
+                    <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">
+                          {taskProgress.total > 0
+                            ? `${taskProgress.done}/${taskProgress.total} tarefas concluídas · ${taskProgress.pct}%`
+                            : "Nenhuma tarefa"}
+                        </p>
+                        {taskProgress.total > 0 && (
+                          <Progress
+                            value={taskProgress.pct}
+                            aria-label={`Progresso das tarefas de ${s.name}`}
+                            className="mt-2 h-1"
+                          />
+                        )}
+                      </div>
+                      <Button
+                        variant={expanded.has(s.id) ? "secondary" : "outline"}
+                        size="sm"
+                        onClick={() =>
+                          setExpanded((cur) => {
+                            const n = new Set(cur);
+                            if (n.has(s.id)) n.delete(s.id);
+                            else n.add(s.id);
+                            return n;
+                          })
+                        }
+                        className="shrink-0"
+                        aria-expanded={expanded.has(s.id)}
+                        aria-label={`Tarefas da etapa ${s.name}`}
+                      >
+                        {expanded.has(s.id) ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                        {expanded.has(s.id) ? "Fechar" : "Abrir tarefas"}
+                      </Button>
+                    </div>
+                    {expanded.has(s.id) && (
+                      <div className="mt-4 border-t pt-4">
+                        <StageTasksPanel
+                          tasks={tasksByStage.get(s.id) ?? []}
+                          loading={stageTasksQ.isLoading}
+                          assignees={assignees}
+                          canManageTeam={canManageTeam}
+                          onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
+                          onPatch={(v) => clientFlagM.mutate(v)}
+                          onAdd={(title, due_date, who, file) =>
+                            addTaskM.mutate({
+                              stage_id: s.id,
+                              title,
+                              due_date: due_date ?? s.due_date ?? null,
+                              ...responsibleFrom(who),
+                              file,
+                            })
+                          }
+                          adding={addTaskM.isPending}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <div className="overflow-x-auto pb-2">
+            <div className="relative" style={{ minWidth: total * 120 }}>
+              <div className="absolute left-0 right-0 top-4 h-1 bg-muted rounded-full" />
+              <div
+                className="absolute left-0 top-4 h-1 bg-primary rounded-full transition-all"
+                style={{ width: `${percent}%` }}
+              />
+
+              <ol
+                className="relative grid gap-2"
+                style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
+              >
+                {stages.map((s, i) => {
+                  const isDone = s.status === "done";
+                  const isCurrent = !isDone && i === currentIdx;
+                  return (
+                    <li key={s.id} className="flex flex-col items-center min-w-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          progressM.mutate({
+                            stage_id: s.id,
+                            status: isDone ? "not_started" : "done",
+                          })
+                        }
+                        disabled={progressM.isPending}
+                        className={[
+                          "relative z-10 h-9 w-9 rounded-full grid place-items-center border-2 transition-all",
+                          isDone
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : isCurrent
+                              ? "bg-background border-primary text-primary ring-4 ring-primary/15"
+                              : "bg-background border-muted-foreground/30 text-muted-foreground hover:border-primary/60",
+                        ].join(" ")}
+                        aria-label={`Etapa ${s.name}`}
+                      >
+                        {isDone ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
+                      </button>
+                      <p
+                        className={[
+                          "mt-2 text-[11px] text-center font-medium truncate w-full px-1",
+                          isDone || isCurrent ? "text-foreground" : "text-muted-foreground",
+                        ].join(" ")}
+                        title={s.name}
+                      >
+                        {s.name}
+                      </p>
+                      {s.due_date && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {s.due_date.split("-").reverse().join("/")}
+                        </p>
+                      )}
+                      {(() => {
+                        const p = stageProgress(s.id);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setOpenStage(s)}
+                            className="mt-1.5 w-full rounded-lg border px-1.5 py-1 text-[10px] leading-tight hover:bg-accent/50 transition"
+                            title={`Tarefas da etapa ${s.name}`}
+                          >
+                            <span className="flex items-center justify-center gap-1 font-semibold">
+                              <ListChecks className="h-3 w-3" />
+                              {p.total > 0 ? `${p.pct}%` : "Tarefas"}
                             </span>
-                          )}
-                        </button>
-                      );
-                    })()}
-                  </li>
-                );
-              })}
-            </ol>
+                            <span className="block text-muted-foreground">
+                              {p.total > 0 ? `${p.done}/${p.total} tarefas` : "adicionar"}
+                            </span>
+                            {p.total > 0 && (
+                              <span className="mt-1 block h-1 w-full rounded-full bg-muted">
+                                <span
+                                  className="block h-1 rounded-full bg-primary transition-all"
+                                  style={{ width: `${p.pct}%` }}
+                                />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })()}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <p className="text-[11px] text-muted-foreground mt-4">
-        Clique numa etapa para avançar até ela. Clique numa etapa concluída para retroceder. Quando
-        todas as tarefas de uma etapa são concluídas, ela é concluída sozinha.
-      </p>
+        <p className="text-[11px] text-muted-foreground mt-4">
+          Clique numa etapa para avançar até ela. Clique numa etapa concluída para retroceder.
+          Quando todas as tarefas de uma etapa são concluídas, ela é concluída sozinha.
+        </p>
 
-      <StageTasksDialog
-        stage={openStage}
-        onOpenChange={(o) => !o && setOpenStage(null)}
-        tasks={openStage ? (tasksByStage.get(openStage.id) ?? []) : []}
-        loading={stageTasksQ.isLoading}
-        assignees={assignees}
-        canManageTeam={canManageTeam}
-        onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
-        onPatch={(v) => clientFlagM.mutate(v)}
-        onAdd={(title, due_date, who) =>
-          openStage &&
-          addTaskM.mutate({
-            stage_id: openStage.id,
-            title,
-            // sem data informada, usa a data da etapa para aparecer na Agenda
-            due_date: due_date ?? openStage.due_date ?? null,
-            ...responsibleFrom(who),
-          })
-        }
-        adding={addTaskM.isPending}
-      />
+        <StageTasksDialog
+          stage={openStage}
+          onOpenChange={(o) => !o && setOpenStage(null)}
+          tasks={openStage ? (tasksByStage.get(openStage.id) ?? []) : []}
+          loading={stageTasksQ.isLoading}
+          assignees={assignees}
+          canManageTeam={canManageTeam}
+          onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
+          onPatch={(v) => clientFlagM.mutate(v)}
+          onAdd={(title, due_date, who, file) =>
+            openStage &&
+            addTaskM.mutate({
+              stage_id: openStage.id,
+              title,
+              // sem data informada, usa a data da etapa para aparecer na Agenda
+              due_date: due_date ?? openStage.due_date ?? null,
+              ...responsibleFrom(who),
+              file,
+            })
+          }
+          adding={addTaskM.isPending}
+        />
 
-      <EditStagesDialog
-        open={editing}
-        onOpenChange={setEditing}
-        stages={
-          stages.length
-            ? stages.map((s) => ({
-                id: s.id,
-                name: s.name,
-                due_date: s.due_date,
-                status: s.status,
-                percent: s.percent,
-              }))
-            : DEFAULT_STAGES
-        }
-        onSave={(next) => {
-          saveM.mutate(next);
-          setEditing(false);
-        }}
-      />
-    </Card>
+        <EditStagesDialog
+          open={editing}
+          onOpenChange={setEditing}
+          stages={
+            stages.length
+              ? stages.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  due_date: s.due_date,
+                  status: s.status,
+                  percent: s.percent,
+                }))
+              : DEFAULT_STAGES
+          }
+          onSave={(next) => {
+            saveM.mutate(next);
+            setEditing(false);
+          }}
+        />
+      </Card>
+    </AttachmentsContext.Provider>
   );
 }
 
@@ -842,7 +938,7 @@ type StageTasksProps = {
   canManageTeam: boolean;
   onToggle: (taskId: string, done: boolean) => void;
   onPatch: (v: TaskPatch) => void;
-  onAdd: (title: string, dueDate: string | null, who: Who) => void;
+  onAdd: (title: string, dueDate: string | null, who: Who, file: File | null) => void;
   adding: boolean;
 };
 
@@ -861,6 +957,8 @@ function StageTasksPanel({
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
   const [who, setWho] = useState<Who>("equipe");
+  const [file, setFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const pending = tasks.filter((t) => t.status !== "concluido");
   const finished = tasks.filter((t) => t.status === "concluido");
 
@@ -870,9 +968,11 @@ function StageTasksPanel({
       toast.error("Informe o título da tarefa");
       return;
     }
-    onAdd(t, due || null, who);
+    onAdd(t, due || null, who, file);
     setTitle("");
     setDue("");
+    setFile(null);
+    if (fileInput.current) fileInput.current.value = "";
   }
 
   const rowProps = { onToggle, onPatch, assignees, canManageTeam };
@@ -937,6 +1037,49 @@ function StageTasksPanel({
         <Button onClick={submit} disabled={adding} className="h-9">
           <Plus className="h-4 w-4" /> Adicionar
         </Button>
+        <div className="flex flex-wrap items-center gap-2 sm:col-span-4">
+          {file ? (
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs">
+              <Paperclip className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{file.name}</span>
+              <button
+                type="button"
+                className="grid h-5 w-5 place-items-center rounded-full hover:bg-muted"
+                aria-label="Tirar arquivo"
+                onClick={() => {
+                  setFile(null);
+                  if (fileInput.current) fileInput.current.value = "";
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Paperclip className="h-3.5 w-3.5" /> Anexar arquivo à nova tarefa (PDF, planilha,
+              imagem)
+            </button>
+          )}
+          <input
+            ref={fileInput}
+            type="file"
+            accept={ACCEPT_ATTACHMENTS}
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f && f.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
+                toast.error(`O arquivo deve ter no máximo ${MAX_ATTACHMENT_MB} MB.`);
+                e.target.value = "";
+                return;
+              }
+              setFile(f ?? null);
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -999,6 +1142,9 @@ function StageTaskRow({
 }) {
   const isDone = t.status === "concluido";
   const isClient = t.responsible_type === "cliente";
+  const attach = useContext(AttachmentsContext);
+  const files = attach?.byTask.get(t.id) ?? [];
+  const [showFiles, setShowFiles] = useState(false);
   const who: Who = isClient
     ? t.assignee_id
       ? `c:${t.assignee_id}`
@@ -1007,64 +1153,95 @@ function StageTaskRow({
       ? `u:${t.assignee_id}`
       : "equipe";
   return (
-    <div
-      className={[
-        "flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5 sm:flex-nowrap",
-        isDone ? "bg-accent/50" : "hover:bg-accent/40",
-      ].join(" ")}
-    >
-      <Checkbox
-        checked={isDone}
-        onCheckedChange={(v) => onToggle(t.id, v === true)}
-        aria-label="Concluir tarefa"
-      />
-      <span
-        className={[
-          "min-w-0 flex-1 text-sm",
-          isDone ? "text-muted-foreground line-through" : "",
-        ].join(" ")}
-      >
-        {t.title}
-      </span>
-      <ResponsibleSelect
-        value={who}
-        onChange={(v) => {
-          const r = responsibleFrom(v);
-          onPatch({
-            task_id: t.id,
-            responsible_type: r.responsible_type,
-            assignee_id: r.assignee_id,
-          });
-        }}
-        assignees={assignees}
-        canManageTeam={canManageTeam}
-        compact
-        className={[
-          "h-7 w-[11rem] shrink-0 rounded-full px-2.5 text-[11px] font-medium",
-          isClient ? "border-amber-300 bg-amber-50 text-amber-800" : "",
-        ].join(" ")}
-      />
-      {!isClient && (
-        <button
-          type="button"
-          onClick={() => onPatch({ task_id: t.id, visible_to_client: !t.visible_to_client })}
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-          title={
-            t.visible_to_client ? "O cliente acompanha esta tarefa no portal" : "Oculta do cliente"
-          }
-          aria-label="Visível para o cliente"
+    <div className={["rounded-lg", isDone ? "bg-accent/50" : "hover:bg-accent/40"].join(" ")}>
+      <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 sm:flex-nowrap">
+        <Checkbox
+          checked={isDone}
+          onCheckedChange={(v) => onToggle(t.id, v === true)}
+          aria-label="Concluir tarefa"
+        />
+        <span
+          className={[
+            "min-w-0 flex-1 text-sm",
+            isDone ? "text-muted-foreground line-through" : "",
+          ].join(" ")}
         >
-          {t.visible_to_client ? (
-            <Eye className="h-3.5 w-3.5" />
-          ) : (
-            <EyeOff className="h-3.5 w-3.5" />
-          )}
-        </button>
-      )}
-      {t.due_date && (
-        <span className="shrink-0 text-[11px] text-muted-foreground">
-          {new Date(t.due_date).toLocaleDateString("pt-BR")}
+          {t.title}
         </span>
+        <ResponsibleSelect
+          value={who}
+          onChange={(v) => {
+            const r = responsibleFrom(v);
+            onPatch({
+              task_id: t.id,
+              responsible_type: r.responsible_type,
+              assignee_id: r.assignee_id,
+            });
+          }}
+          assignees={assignees}
+          canManageTeam={canManageTeam}
+          compact
+          className={[
+            "h-7 w-[11rem] shrink-0 rounded-full px-2.5 text-[11px] font-medium",
+            isClient ? "border-amber-300 bg-amber-50 text-amber-800" : "",
+          ].join(" ")}
+        />
+        {!isClient && (
+          <button
+            type="button"
+            onClick={() => onPatch({ task_id: t.id, visible_to_client: !t.visible_to_client })}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            title={
+              t.visible_to_client
+                ? "O cliente acompanha esta tarefa no portal"
+                : "Oculta do cliente"
+            }
+            aria-label="Visível para o cliente"
+          >
+            {t.visible_to_client ? (
+              <Eye className="h-3.5 w-3.5" />
+            ) : (
+              <EyeOff className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
+        {t.due_date && (
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            {new Date(t.due_date).toLocaleDateString("pt-BR")}
+          </span>
+        )}
+        {attach && (
+          <button
+            type="button"
+            onClick={() => setShowFiles((v) => !v)}
+            aria-expanded={showFiles}
+            className={[
+              "inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px]",
+              files.length
+                ? "bg-sky-100 font-medium text-sky-800 dark:bg-sky-500/15 dark:text-sky-300"
+                : "text-muted-foreground hover:text-foreground",
+            ].join(" ")}
+            title="Arquivos da tarefa"
+            aria-label={`Arquivos da tarefa (${files.length})`}
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+            {files.length > 0 && files.length}
+          </button>
+        )}
+      </div>
+      {attach && showFiles && (
+        <div className="px-2 pb-2.5 pl-8">
+          <TaskAttachments
+            items={files.map((a) => ({ ...a, created_at: a.uploaded_at }))}
+            canUpload
+            showDrive
+            onUpload={(file, note) => attach.upload(t.id, file, note)}
+            onOpen={attach.open}
+            onRemove={(a) => attach.remove(a.id)}
+            canRemove={(a) => a.mine || attach.canManage}
+            onRetryDrive={attach.retry}
+          />
+        </div>
       )}
     </div>
   );

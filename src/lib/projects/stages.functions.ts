@@ -584,7 +584,10 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
     const organization_id = await orgOfProject(db, data.project_id);
     const assignee = data.assignee_id ?? null;
     if (assignee) await assertAssignable(db, data.project_id, assignee, data.responsible_type);
+    // id gerado aqui: permite anexar arquivos logo após criar (insert sem "returning")
+    const id = crypto.randomUUID();
     const { error } = await db.from("tasks").insert({
+      id,
       owner_id: context.userId,
       organization_id,
       project_id: data.project_id,
@@ -599,7 +602,7 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
       assignee_id: assignee,
     });
     if (error) throw new Error(error.message);
-    return { ok: true as const };
+    return { ok: true as const, id };
   });
 
 /** Responsável pela tarefa (equipe ou cliente) e se o cliente acompanha pelo portal. */

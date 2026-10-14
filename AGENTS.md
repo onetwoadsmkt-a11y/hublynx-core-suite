@@ -5,4 +5,4 @@
 - Internal roadmap orientations share existing stage/task queries, mutations and dialogs; browser-local layout preference is separate from the portal to avoid coupling their access models.
 - Public signup trials are provisioned atomically by a database auth trigger into existing organization tables; server-generated expiry and restrictive data policies prevent client-side trial extensions and cross-tenant access.
 - Workspace access and branding are scoped to the authenticated identity; access queries fail closed instead of turning errors into empty memberships.
-- Server-function requests use framework CSRF middleware while preserving bearer authentication to reject cross-site mutations.
+- Server-function requests use framework CSRF middleware while preserving bearer authentication to reject cross-site mutations.- Task attachments are written only by server functions after permission checks, kept in a private bucket with soft delete and a SHA-256 trail, and copied best-effort to the organization's connected Google Drive; the project journey is read through one definer function that limits clients to their own or client-visible events.

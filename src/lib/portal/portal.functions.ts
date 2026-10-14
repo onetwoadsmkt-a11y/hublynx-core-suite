@@ -45,6 +45,29 @@ export type PortalTask = {
   completed_at: string | null;
   responsible_type: "equipe" | "cliente";
   comments: PortalComment[];
+  attachments?: PortalAttachment[];
+};
+export type PortalAttachment = {
+  id: string;
+  name: string;
+  size: number;
+  mime: string | null;
+  created_at: string;
+  note: string | null;
+  author: string;
+  mine: boolean;
+};
+export type PortalJourneyEvent = {
+  at: string;
+  kind: string;
+  task_id: string | null;
+  task: string | null;
+  stage: string | null;
+  detail: string | null;
+  old: string | null;
+  actor: string;
+  actor_kind: "cliente" | "equipe" | "sistema";
+  mine: boolean;
 };
 export type PortalStage = {
   id: string;
@@ -185,6 +208,108 @@ export const portalAddComment = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const db = await portalDb(data.token);
     const { error } = await db.rpc("portal_add_comment", { _task: data.taskId, _body: data.body });
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+async function adminDb() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin as unknown as Db & { storage: any };
+}
+
+/** Cliente anexa um arquivo numa tarefa dele (ou visível para ele). */
+export const portalUploadAttachment = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => {
+    if (!(d instanceof FormData)) throw new Error("Envio inválido.");
+    const file = d.get("file");
+    const note = d.get("note");
+    if (!(file instanceof File)) throw new Error("Selecione um arquivo.");
+    return {
+      token: token.parse(d.get("token")),
+      taskId: uuid.parse(d.get("taskId")),
+      file,
+      note: typeof note === "string" ? note.slice(0, 500) : null,
+    };
+  })
+  .handler(async ({ data }) => {
+    const db = await portalDb(data.token);
+    const { data: target, error } = await db.rpc("portal_attach_target", { _task: data.taskId });
+    if (error) throw new Error(error.message);
+    const t = target as {
+      task_id: string;
+      project_id: string;
+      organization_id: string | null;
+      user_id: string;
+    };
+    const { storeAttachment } = await import("@/lib/projects/attachments.server");
+    const out = await storeAttachment(await adminDb(), {
+      taskId: t.task_id,
+      projectId: t.project_id,
+      organizationId: t.organization_id,
+      userId: t.user_id,
+      kind: "cliente",
+      file: data.file,
+      note: data.note,
+    });
+    return { id: out.id, name: out.name, size: out.size };
+  });
+
+export const portalAttachmentUrl = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ token, id: uuid }).parse(d))
+  .handler(async ({ data }) => {
+    const db = await portalDb(data.token);
+    const { data: target, error } = await db.rpc("portal_attachment_target", {
+      _attachment: data.id,
+    });
+    if (error) throw new Error(error.message);
+    const t = target as { storage_path: string; name: string };
+    const { signedDownloadUrl } = await import("@/lib/projects/attachments.server");
+    return { url: await signedDownloadUrl(await adminDb(), t.storage_path, t.name) };
+  });
+
+/** Cliente tira da lista um arquivo que ele mesmo enviou (continua no histórico). */
+export const portalRemoveAttachment = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ token, id: uuid }).parse(d))
+  .handler(async ({ data }) => {
+    const db = await portalDb(data.token);
+    const { data: target, error } = await db.rpc("portal_attachment_target", {
+      _attachment: data.id,
+    });
+    if (error) throw new Error(error.message);
+    const t = target as { id: string; mine: boolean; user_id: string };
+    if (!t.mine) throw new Error("Você só pode remover arquivos que você enviou.");
+    const { error: upErr } = await (
+      await adminDb()
+    )
+      .from("task_attachments")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: t.user_id })
+      .eq("id", t.id);
+    if (upErr) throw new Error(upErr.message);
+    return { ok: true as const };
+  });
+
+export const portalJourney = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ token, projectId: uuid }).parse(d))
+  .handler(async ({ data }) => {
+    const db = await portalDb(data.token);
+    const { data: rows, error } = await db.rpc("project_journey", {
+      _project: data.projectId,
+      _limit: 300,
+    });
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as PortalJourneyEvent[];
+  });
+
+export const portalAddMessage = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ token, projectId: uuid, body: z.string().trim().min(1).max(4000) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const db = await portalDb(data.token);
+    const { error } = await db.rpc("portal_add_message", {
+      _project: data.projectId,
+      _body: data.body,
+    });
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });

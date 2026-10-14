@@ -10,6 +10,7 @@ import {
   Circle,
   Columns3,
   ListChecks,
+  History,
   MessageSquare,
   Rows3,
   Send,
@@ -21,10 +22,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { PortalShell, usePortalSession } from "@/components/portal/PortalShell";
 import { portalAuth, portalLoginPath } from "@/lib/portal/portal-client";
+import { JourneyTimeline } from "@/components/projects/JourneyTimeline";
+import { TaskAttachments } from "@/components/projects/TaskAttachments";
 import {
   portalAddComment,
+  portalAddMessage,
+  portalAttachmentUrl,
+  portalJourney,
   portalProject,
+  portalRemoveAttachment,
   portalSetTaskDone,
+  portalUploadAttachment,
   type PortalProject,
   type PortalStage,
   type PortalTask,
@@ -182,10 +190,29 @@ function PortalProjectPage() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: ["portal-journey", projectId] });
     },
   });
 
   const d = q.data;
+  const journeyFn = useServerFn(portalJourney);
+  const messageFn = useServerFn(portalAddMessage);
+  const projectUuid = d?.project.id ?? null;
+  const journey = useQuery({
+    queryKey: ["portal-journey", projectId],
+    queryFn: () => session.call((token) => journeyFn({ data: { token, projectId: projectUuid! } })),
+    enabled: session.ready && !!projectUuid,
+    refetchInterval: 30_000,
+  });
+  const sendMessage = useMutation({
+    mutationFn: (body: string) =>
+      session.call((token) => messageFn({ data: { token, projectId: projectUuid!, body } })),
+    onSuccess: () => {
+      toast.success("Mensagem enviada à equipe.");
+      qc.invalidateQueries({ queryKey: ["portal-journey", projectId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const stages = useMemo(() => buildStageViews(d), [d]);
 
   const realStages = stages.filter((s) => s.stage.id !== "_");
@@ -286,6 +313,23 @@ function PortalProjectPage() {
               projectId={projectId}
             />
           )}
+
+          <section className="rounded-2xl border bg-card p-4 sm:p-5">
+            <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+              <History className="h-4 w-4" /> Histórico e mensagens
+            </h2>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Tudo o que acontece no projeto fica registrado aqui, com data, hora e quem fez.
+            </p>
+            <JourneyTimeline
+              audience="cliente"
+              events={journey.data ?? []}
+              loading={journey.isLoading}
+              onSend={(body) => sendMessage.mutateAsync(body)}
+              sending={sendMessage.isPending}
+              placeholder="Escreva uma mensagem para a equipe do projeto…"
+            />
+          </section>
 
           {d.team.length > 0 && (
             <section className="rounded-2xl border bg-card p-4 sm:p-5">
@@ -653,6 +697,14 @@ function TaskRow({
 }) {
   const qc = useQueryClient();
   const commentFn = useServerFn(portalAddComment);
+  const uploadFn = useServerFn(portalUploadAttachment);
+  const urlFn = useServerFn(portalAttachmentUrl);
+  const removeFn = useServerFn(portalRemoveAttachment);
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["portal-project", projectId] });
+    qc.invalidateQueries({ queryKey: ["portal-journey", projectId] });
+  };
+  const attachments = task.attachments ?? [];
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
   const isMine = task.responsible_type === "cliente";
@@ -665,7 +717,7 @@ function TaskRow({
       session.call((token) => commentFn({ data: { token, taskId: task.id, body } })),
     onSuccess: () => {
       setBody("");
-      qc.invalidateQueries({ queryKey: ["portal-project", projectId] });
+      refresh();
       toast.success("Mensagem enviada à equipe.");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -753,6 +805,36 @@ function TaskRow({
               {task.comments.length > 0 ? `${task.comments.length} mensagem(ns)` : "Mensagem"}
             </button>
           </div>
+
+          {(isMine || attachments.length > 0) && (
+            <div className="mt-2.5">
+              <TaskAttachments
+                items={attachments}
+                canUpload={isMine}
+                hint={isDone ? undefined : "Ex.: contrato assinado, comprovante, planilha"}
+                onUpload={async (file, note) => {
+                  await session.call((token) => {
+                    const fd = new FormData();
+                    fd.append("token", token);
+                    fd.append("taskId", task.id);
+                    fd.append("file", file);
+                    if (note.trim()) fd.append("note", note.trim());
+                    return uploadFn({ data: fd });
+                  });
+                  toast.success("Arquivo enviado. A equipe foi avisada.");
+                  refresh();
+                }}
+                onOpen={async (id) =>
+                  (await session.call((token) => urlFn({ data: { token, id } }))).url
+                }
+                onRemove={async (a) => {
+                  await session.call((token) => removeFn({ data: { token, id: a.id } }));
+                  toast.success("Arquivo removido da tarefa.");
+                  refresh();
+                }}
+              />
+            </div>
+          )}
 
           {open && (
             <div className="mt-3 space-y-2">

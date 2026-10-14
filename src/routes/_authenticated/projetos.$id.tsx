@@ -39,6 +39,7 @@ import {
 } from "recharts";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
+import { ProjectAttachmentsPanel, ProjectJourneyPanel } from "@/components/projects/ProjectJourneyPanel";
 import { ProjectTeamPanel, useProjectAccess } from "@/components/projects/ProjectTeamPanel";
 import { ProjectDepartmentsPanel } from "@/components/projects/ProjectDepartmentsPanel";
 import { RichTextEditor } from "@/components/tasks/RichTextEditor";
@@ -195,6 +196,7 @@ function ProjectCommandCenter() {
             <TabsList aria-label="Seções do projeto" className="h-auto w-max justify-start gap-1 rounded-none bg-transparent p-0 text-sidebar-foreground">
               {[
                 ["evolution", "Evolução do projeto", TrendingUp], ["stages", "Etapas", Flag],
+                ["journey", "Histórico e mensagens", ActivityIcon],
                 ["commercial", "Comercial", Briefcase], ["deliveries", "Próximas entregas", CalIcon],
                 ["kanban", "Kanban", ListChecks], ["activity", "Atividade recente", ActivityIcon],
                 ["team", "Equipe e permissões", UsersIcon], ["risks", "Riscos & Bloqueios", AlertTriangle],
@@ -207,13 +209,14 @@ function ProjectCommandCenter() {
           </div>
           <TabsContent value="evolution"><ProjectEvolution projectId={id} disabled={p.commercial_model === "mensal_recorrente"} dueDate={p.due_date} /></TabsContent>
           <TabsContent value="stages"><RoadmapStagesPanel projectId={id} disabled={p.commercial_model === "mensal_recorrente"} disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente." /></TabsContent>
+          <TabsContent value="journey"><ProjectJourneyPanel projectId={id} /></TabsContent>
           <TabsContent value="commercial"><CommercialPanel commercial={d.commercial} projectId={id} /><ProjectDepartmentsPanel projectId={id} templateId={p.template_id ?? null} canEdit={canEdit} /></TabsContent>
           <TabsContent value="deliveries"><UpcomingDeliveries upcoming={d.upcomingDeliveries} /></TabsContent>
           <TabsContent value="kanban"><KanbanCompact counts={d.kanbanCounts} /></TabsContent>
           <TabsContent value="activity"><ActivityFeed activity={d.activity} /></TabsContent>
           <TabsContent value="team"><h2 className="my-5 text-xl font-semibold">Equipe e permissões</h2><ProjectTeamPanel projectId={id} defaultClient={{ name: p.client?.name ?? null, email: p.client?.email ?? null }} /></TabsContent>
           <TabsContent value="risks"><h2 className="my-5 text-xl font-semibold">Riscos & Bloqueios</h2><RisksSection risks={d.risks} projectId={id} /></TabsContent>
-          <TabsContent value="files"><h2 className="my-5 text-xl font-semibold">Arquivos</h2><FilesSection files={d.files} /></TabsContent>
+          <TabsContent value="files"><h2 className="my-5 text-xl font-semibold">Arquivos</h2><ProjectAttachmentsPanel projectId={id} /><FilesSection files={d.files} /></TabsContent>
           <TabsContent value="notes"><h2 className="my-5 text-xl font-semibold">Notas & Decisões</h2><NotesSection notes={d.notes} projectId={id} /></TabsContent>
         </Tabs>
       </div>
