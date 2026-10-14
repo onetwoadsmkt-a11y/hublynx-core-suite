@@ -306,6 +306,8 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
         projectId: uuid,
         email: z.string().trim().toLowerCase().email().max(200),
         name: z.string().trim().min(1).max(160),
+        /** edição: acesso de cliente que este convite substitui (troca de e-mail) */
+        replaceId: uuid.optional(),
       })
       .parse(d),
   )
@@ -375,14 +377,12 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
       );
     }
     if (!membership) {
-      const { error } = await admin
-        .from("organization_members")
-        .insert({
-          organization_id: project.organization_id,
-          user_id: userId,
-          role: "guest",
-          status: "active",
-        });
+      const { error } = await admin.from("organization_members").insert({
+        organization_id: project.organization_id,
+        user_id: userId,
+        role: "guest",
+        status: "active",
+      });
       if (error) throw new Error(error.message);
     } else if (membership.status !== "active") {
       await admin.from("organization_members").update({ status: "active" }).eq("id", membership.id);
@@ -411,7 +411,45 @@ export const inviteProjectClient = createServerFn({ method: "POST" })
       : await admin.from("project_members").insert(payload);
     if (pmErr) throw new Error(pmErr.message);
 
-    return { ok: true as const, emailSent, link, existed, portalUrl: `${appOrigin()}${portalPath}` };
+    // 4) Edição com e-mail novo: tira o acesso antigo deste projeto
+    if (data.replaceId) {
+      const { data: old } = await admin
+        .from("project_members")
+        .select("id, user_id")
+        .eq("id", data.replaceId)
+        .eq("project_id", data.projectId)
+        .eq("access_role", "cliente")
+        .maybeSingle();
+      if (old && old.user_id !== userId) {
+        await admin.from("project_members").delete().eq("id", old.id);
+        if (old.user_id) {
+          // sem outro projeto como cliente nesta empresa: sai do vínculo guest
+          const { data: others } = await admin
+            .from("project_members")
+            .select("id")
+            .eq("user_id", old.user_id)
+            .eq("organization_id", project.organization_id)
+            .eq("access_role", "cliente")
+            .limit(1);
+          if (!others?.length) {
+            await admin
+              .from("organization_members")
+              .delete()
+              .eq("organization_id", project.organization_id)
+              .eq("user_id", old.user_id)
+              .eq("role", "guest");
+          }
+        }
+      }
+    }
+
+    return {
+      ok: true as const,
+      emailSent,
+      link,
+      existed,
+      portalUrl: `${appOrigin()}${portalPath}`,
+    };
   });
 
 /** Remove o acesso do cliente ao projeto (a conta continua existindo). */
@@ -460,9 +498,13 @@ export const updatePortalSlug = createServerFn({ method: "POST" })
       .select("portal_slug")
       .maybeSingle();
     if (error) {
-      if (/duplicate|unique/i.test(error.message)) throw new Error("Este link já está em uso em outro projeto.");
+      if (/duplicate|unique/i.test(error.message))
+        throw new Error("Este link já está em uso em outro projeto.");
       throw new Error(error.message);
     }
     if (!row) throw new Error("Sem permissão para alterar o link.");
-    return { slug: row.portal_slug as string, portalUrl: `${appOrigin()}/portal/${row.portal_slug}` };
+    return {
+      slug: row.portal_slug as string,
+      portalUrl: `${appOrigin()}/portal/${row.portal_slug}`,
+    };
   });

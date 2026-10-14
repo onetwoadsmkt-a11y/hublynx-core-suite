@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Copy, Lock, Mail, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { Copy, Lock, Mail, Pencil, Plus, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +90,7 @@ export function ProjectTeamPanel({
   const restrictFn = useServerFn(setProjectsRestricted);
   const [addOpen, setAddOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [editClient, setEditClient] = useState<ProjectMemberRow | null>(null);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["project-access", projectId] });
@@ -198,6 +199,7 @@ export function ProjectTeamPanel({
                 m={m}
                 canManage={a.canManage}
                 onRemove={() => removeM.mutate(m)}
+                onEdit={() => setEditClient(m)}
               />
             ))}
           </div>
@@ -253,6 +255,17 @@ export function ProjectTeamPanel({
         existing={a.members}
         onDone={refresh}
       />
+      {editClient && (
+        <InviteClientDialog
+          key={editClient.id}
+          open
+          onOpenChange={(v) => !v && setEditClient(null)}
+          projectId={projectId}
+          editId={editClient.id}
+          defaultClient={{ name: editClient.name, email: editClient.email }}
+          onDone={refresh}
+        />
+      )}
       <InviteClientDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
@@ -269,10 +282,12 @@ function MemberCard({
   canManage,
   onRemove,
   onRole,
+  onEdit,
 }: {
   m: ProjectMemberRow;
   canManage: boolean;
   onRemove: () => void;
+  onEdit?: () => void;
   onRole?: (r: (typeof STAFF_ROLES)[number]) => void;
 }) {
   const info = ROLE_INFO[m.access_role] ?? ROLE_INFO.editor;
@@ -314,6 +329,18 @@ function MemberCard({
         <Badge variant="outline" className={`shrink-0 text-[10px] ${info.tone}`}>
           {info.label}
         </Badge>
+      )}
+      {canManage && onEdit && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 shrink-0"
+          aria-label="Editar nome e e-mail / reenviar acesso"
+          title="Editar nome e e-mail / reenviar acesso"
+          onClick={onEdit}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
       )}
       {canManage && (
         <Button
@@ -444,12 +471,15 @@ export function InviteClientDialog({
   onOpenChange,
   projectId,
   defaultClient,
+  editId,
   onDone,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   projectId: string;
   defaultClient?: { name?: string | null; email?: string | null } | null;
+  /** editar um cliente já convidado (nome/e-mail) */
+  editId?: string;
   onDone?: () => void;
 }) {
   const inviteFn = useServerFn(inviteProjectClient);
@@ -457,7 +487,10 @@ export function InviteClientDialog({
   const [email, setEmail] = useState(defaultClient?.email ?? "");
   const [result, setResult] = useState<{ link: string | null; emailSent: boolean } | null>(null);
   const invite = useMutation({
-    mutationFn: () => inviteFn({ data: { projectId, name: name.trim(), email: email.trim() } }),
+    mutationFn: () =>
+      inviteFn({
+        data: { projectId, name: name.trim(), email: email.trim(), replaceId: editId },
+      }),
     onSuccess: (r) => {
       setResult({ link: r.link, emailSent: r.emailSent });
       onDone?.();
@@ -472,7 +505,9 @@ export function InviteClientDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Convidar cliente para o portal</DialogTitle>
+          <DialogTitle>
+            {editId ? "Editar cliente do portal" : "Convidar cliente para o portal"}
+          </DialogTitle>
           <DialogDescription>
             O cliente vê o roadmap, conclui as tarefas marcadas como dele e comenta. Não vê valores,
             leads nem tarefas internas.
@@ -481,6 +516,7 @@ export function InviteClientDialog({
         {result ? (
           <div className="space-y-3 text-sm">
             <p>
+              {editId ? "Dados do cliente atualizados. " : ""}
               {result.emailSent
                 ? "Convite enviado por e-mail."
                 : "Acesso criado. O e-mail não pôde ser enviado automaticamente."}{" "}
@@ -529,6 +565,12 @@ export function InviteClientDialog({
                   placeholder="cliente@empresa.com"
                 />
               </div>
+              {editId && (
+                <p className="text-xs text-muted-foreground">
+                  Ao salvar, o cliente recebe um novo acesso no e-mail informado. Se trocar o
+                  e-mail, o acesso do e-mail antigo a este projeto é removido.
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => close(false)}>
@@ -538,7 +580,12 @@ export function InviteClientDialog({
                 disabled={!name.trim() || !email.trim() || invite.isPending}
                 onClick={() => invite.mutate()}
               >
-                <Mail className="h-4 w-4" /> {invite.isPending ? "Enviando…" : "Enviar convite"}
+                <Mail className="h-4 w-4" />{" "}
+                {invite.isPending
+                  ? "Enviando…"
+                  : editId
+                    ? "Salvar e enviar acesso"
+                    : "Enviar convite"}
               </Button>
             </DialogFooter>
           </>
@@ -549,7 +596,12 @@ export function InviteClientDialog({
 }
 
 function PortalLinkCard({
-  projectId, url, slug, number, canManage, onSaved,
+  projectId,
+  url,
+  slug,
+  number,
+  canManage,
+  onSaved,
 }: {
   projectId: string;
   url: string;
@@ -604,8 +656,8 @@ function PortalLinkCard({
             />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Padrão: número do projeto, nome do cliente e empresa (ex.: 12-joao-silva-valesafe-expansao).
-            Deixe em branco para voltar ao padrão.
+            Padrão: número do projeto, nome do cliente e empresa (ex.:
+            12-joao-silva-valesafe-expansao). Deixe em branco para voltar ao padrão.
           </p>
           <div className="flex gap-2">
             <Button size="sm" disabled={save.isPending} onClick={() => save.mutate(value)}>
@@ -618,20 +670,28 @@ function PortalLinkCard({
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <Input readOnly value={url} className="h-8 text-xs" onFocus={(e) => e.currentTarget.select()} />
+          <Input
+            readOnly
+            value={url}
+            className="h-8 text-xs"
+            onFocus={(e) => e.currentTarget.select()}
+          />
           <Button
             size="icon"
             variant="outline"
             className="h-8 w-8 shrink-0"
             aria-label="Copiar link"
-            onClick={() => navigator.clipboard?.writeText(url).then(() => toast.success("Link copiado"))}
+            onClick={() =>
+              navigator.clipboard?.writeText(url).then(() => toast.success("Link copiado"))
+            }
           >
             <Copy className="h-4 w-4" />
           </Button>
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">
-        O cliente precisa estar convidado (abaixo). Sem login, o link pede para entrar e depois abre o projeto.
+        O cliente precisa estar convidado (abaixo). Sem login, o link pede para entrar e depois abre
+        o projeto.
       </p>
     </Card>
   );
