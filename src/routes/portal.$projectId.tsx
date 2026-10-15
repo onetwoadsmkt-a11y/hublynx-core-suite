@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -6,10 +6,8 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  ChevronUp,
   Circle,
   Columns3,
-  ListChecks,
   History,
   MessageSquare,
   Rows3,
@@ -18,7 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { PortalShell, usePortalSession } from "@/components/portal/PortalShell";
 import { portalAuth, portalLoginPath } from "@/lib/portal/portal-client";
@@ -221,8 +218,55 @@ function PortalProjectPage() {
     ? Math.round(realStages.reduce((a, s) => a + s.percent, 0) / realStages.length)
     : 0;
   const mineOpen = stages.reduce((a, s) => a + s.mineOpen, 0);
-  // destaque na cor da empresa (variável aplicada pelo PortalShell; sem cor, Core Suite)
-  const color = "var(--primary)";
+  const mineTasks = stages.flatMap((s) => s.tasks.filter((t) => t.responsible_type === "cliente"));
+  const mineTotal = mineTasks.length;
+  const mineDone = mineTasks.filter(isTaskDone).length;
+  const current = stages.find((s) => s.current) ?? null;
+  const next = (() => {
+    for (const st of stages) {
+      const t = st.tasks.find((x) => x.responsible_type === "cliente" && !isTaskDone(x));
+      if (t) return { task: t, stage: st };
+    }
+    return null;
+  })();
+
+  // filtro "Minhas tarefas" e etapas abertas (a etapa atual começa aberta)
+  const [mineOnly, setMineOnly] = useState(false);
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || !stages.length) return;
+    opened.current = true;
+    const first = stages.find((s) => s.current) ?? stages[stages.length - 1];
+    setOpenIds(new Set([first.stage.id]));
+  }, [stages]);
+  const flipStage = (id: string) =>
+    setOpenIds((cur) => {
+      const n = new Set(cur);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  function goToStage(id: string) {
+    setOpenIds((cur) => new Set(cur).add(id));
+    setSelectedId(id);
+    requestAnimationFrame(() =>
+      document
+        .getElementById(`etapa-${id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+  }
+  const shown = useMemo(
+    () =>
+      mineOnly
+        ? stages.map((s) => ({
+            ...s,
+            tasks: s.tasks.filter((t) => t.responsible_type === "cliente"),
+          }))
+        : stages,
+    [stages, mineOnly],
+  );
   const notClient = q.isError && String((q.error as Error)?.message).includes("NOT_CLIENT");
 
   return (
@@ -252,67 +296,150 @@ function PortalProjectPage() {
       ) : (
         <div className="space-y-5">
           {/* Resumo */}
-          <section className="rounded-2xl border bg-card p-4 sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="mb-1.5 flex items-baseline justify-between gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    {doneStages} de {realStages.length} etapas concluídas
+          <section
+            aria-label="Resumo do projeto"
+            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            <div className="flex items-center gap-4 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+              <ProgressRing value={progress} />
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Progresso geral
+                </p>
+                <p className="font-display text-lg font-semibold leading-tight">
+                  {doneStages} de {realStages.length} etapas
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Suas tarefas: {mineDone} de {mineTotal} feitas
+                </p>
+                {(d.project.start_date || d.project.due_date) && (
+                  <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    {fmtDate(d.project.start_date) ?? "—"} → {fmtDate(d.project.due_date) ?? "—"}
                   </p>
-                  <p className="font-display text-2xl font-semibold tabular-nums">{progress}%</p>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${progress}%`,
-                      backgroundColor: "var(--primary)",
-                    }}
-                  />
-                </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  {(d.project.start_date || d.project.due_date) && (
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      {fmtDate(d.project.start_date) ?? "—"} → {fmtDate(d.project.due_date) ?? "—"}
-                    </span>
-                  )}
-                  {mineOpen > 0 ? (
-                    <span className="inline-flex items-center gap-1 font-medium text-amber-700">
-                      <ListChecks className="h-3.5 w-3.5" /> {mineOpen} tarefa(s) sua(s) pendente(s)
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
-                      <Check className="h-3.5 w-3.5" /> Nenhuma pendência sua
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
-              <ViewToggle view={view} onChange={changeView} />
+            </div>
+
+            <div className="flex flex-col gap-2 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Etapa atual
+              </p>
+              {current ? (
+                <>
+                  <p className="font-display text-lg font-semibold leading-tight">
+                    {current.stage.name}
+                  </p>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${current.percent}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {current.doneCount} de {current.tasks.length} tarefas feitas
+                    {current.stage.due_date ? ` · prazo ${fmtDate(current.stage.due_date)}` : ""}
+                  </p>
+                </>
+              ) : (
+                <p className="font-display text-lg font-semibold text-emerald-700 dark:text-emerald-400">
+                  Todas as etapas concluídas
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/5 sm:col-span-2 sm:p-5 lg:col-span-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Sua próxima ação
+              </p>
+              {next ? (
+                <>
+                  <p className="font-display text-lg font-semibold leading-tight">
+                    {next.task.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Etapa: {next.stage.stage.name}
+                    {next.task.due_date ? ` · prazo ${fmtDate(next.task.due_date)}` : ""}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <Button
+                      className="h-11"
+                      onClick={() => toggle.mutate({ taskId: next.task.id, done: true })}
+                    >
+                      <Check className="h-4 w-4" /> Marcar como feita
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-11"
+                      onClick={() => goToStage(next.stage.stage.id)}
+                    >
+                      Ver tarefa
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="font-display text-lg font-semibold text-emerald-700 dark:text-emerald-400">
+                    Tudo em dia por aqui
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Nenhuma tarefa sua pendente agora.
+                  </p>
+                </>
+              )}
             </div>
           </section>
 
-          {stages.length === 0 ? (
-            <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
-              O roadmap deste projeto ainda está sendo montado pela equipe.
-            </p>
-          ) : view === "vertical" ? (
-            <VerticalRoadmap
-              stages={stages}
-              color={color}
-              onToggle={(taskId, done) => toggle.mutate({ taskId, done })}
-              session={session}
-              projectId={projectId}
-            />
-          ) : (
-            <HorizontalRoadmap
-              stages={stages}
-              color={color}
-              onToggle={(taskId, done) => toggle.mutate({ taskId, done })}
-              session={session}
-              projectId={projectId}
-            />
-          )}
+          <section
+            id="roadmap"
+            aria-label="Roadmap"
+            className="scroll-mt-4 space-y-5 rounded-2xl border bg-card p-4 shadow-sm sm:p-6"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-xl font-semibold">Roadmap</h2>
+              <div className="flex flex-wrap gap-2">
+                <Segmented
+                  label="Filtro de tarefas"
+                  value={mineOnly ? "mine" : "all"}
+                  onChange={(v) => setMineOnly(v === "mine")}
+                  options={[
+                    { v: "all", label: "Todas" },
+                    { v: "mine", label: `Minhas tarefas${mineOpen ? ` (${mineOpen})` : ""}` },
+                  ]}
+                />
+                <ViewToggle view={view} onChange={changeView} />
+              </div>
+            </div>
+
+            {stages.length === 0 ? (
+              <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+                O roadmap deste projeto ainda está sendo montado pela equipe.
+              </p>
+            ) : view === "vertical" ? (
+              <VerticalRoadmap
+                stages={shown}
+                openIds={openIds}
+                onFlip={flipStage}
+                onToggle={(taskId, done) => toggle.mutate({ taskId, done })}
+                session={session}
+                projectId={projectId}
+                mineOnly={mineOnly}
+              />
+            ) : (
+              <HorizontalRoadmap
+                stages={shown}
+                selectedId={
+                  selectedId ?? current?.stage.id ?? shown[shown.length - 1]?.stage.id ?? null
+                }
+                onSelect={setSelectedId}
+                onToggle={(taskId, done) => toggle.mutate({ taskId, done })}
+                session={session}
+                projectId={projectId}
+                mineOnly={mineOnly}
+              />
+            )}
+            <Legend />
+          </section>
 
           <section className="rounded-2xl border bg-card p-4 sm:p-5">
             <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
@@ -353,86 +480,247 @@ function PortalProjectPage() {
 }
 
 export function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => void }) {
-  const opts: { v: View; label: string; icon: typeof Rows3 }[] = [
-    { v: "vertical", label: "Vertical", icon: Rows3 },
-    { v: "horizontal", label: "Horizontal", icon: Columns3 },
-  ];
   return (
-    <div
-      role="radiogroup"
-      aria-label="Visualização do roadmap"
-      className="inline-flex shrink-0 self-start rounded-lg border bg-muted/50 p-1 sm:self-center"
-    >
-      {opts.map(({ v, label, icon: Icon }) => (
+    <Segmented
+      label="Visualização do roadmap"
+      value={view}
+      onChange={(v) => onChange(v as View)}
+      options={[
+        { v: "vertical", label: "Vertical", icon: Rows3 },
+        { v: "horizontal", label: "Horizontal", icon: Columns3 },
+      ]}
+    />
+  );
+}
+
+function Segmented({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { v: string; label: string; icon?: typeof Rows3 }[];
+}) {
+  return (
+    <div role="group" aria-label={label} className="inline-flex gap-1 rounded-xl bg-muted p-1">
+      {options.map(({ v, label: l, icon: Icon }) => (
         <button
           key={v}
           type="button"
-          role="radio"
-          aria-checked={view === v}
+          aria-pressed={value === v}
           onClick={() => onChange(v)}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition",
-            view === v
+            "inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition",
+            value === v
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <Icon className="h-4 w-4" /> {label}
+          {Icon && <Icon className="h-4 w-4" />} {l}
         </button>
       ))}
     </div>
   );
 }
 
+function ProgressRing({ value }: { value: number }) {
+  const r = 32;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg
+      width="76"
+      height="76"
+      viewBox="0 0 76 76"
+      role="img"
+      aria-label={`Progresso geral ${value}%`}
+      className="shrink-0"
+    >
+      <circle cx="38" cy="38" r={r} fill="none" strokeWidth="9" className="stroke-muted" />
+      <circle
+        cx="38"
+        cy="38"
+        r={r}
+        fill="none"
+        strokeWidth="9"
+        strokeLinecap="round"
+        stroke="#00D084"
+        strokeDasharray={`${(c * value) / 100} ${c}`}
+        transform="rotate(-90 38 38)"
+        className="transition-all"
+      />
+      <text
+        x="38"
+        y="44"
+        textAnchor="middle"
+        className="fill-foreground font-display text-[17px] font-semibold"
+      >
+        {value}%
+      </text>
+    </svg>
+  );
+}
+
 type RoadmapProps = {
   stages: StageView[];
-  color: string;
   onToggle: (taskId: string, done: boolean) => void;
   session: ReturnType<typeof usePortalSession>;
   projectId: string;
+  mineOnly: boolean;
 };
+
+const statusOf = (s: StageView) => (s.done ? "done" : s.current ? "current" : "next");
+
+function StagePill({ s }: { s: StageView }) {
+  const st = statusOf(s);
+  return (
+    <span
+      className={cn(
+        "whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+        st === "done" &&
+          "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+        st === "current" && "bg-primary text-primary-foreground",
+        st === "next" && "bg-muted text-muted-foreground",
+      )}
+    >
+      {st === "done" ? "Concluída" : st === "current" ? "Em andamento" : "A seguir"}
+    </span>
+  );
+}
+
+function StageNode({ s, size = "lg" }: { s: StageView; size?: "lg" | "sm" }) {
+  const st = statusOf(s);
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full border-2 font-display font-semibold transition",
+        size === "lg" ? "h-11 w-11 text-base" : "h-8 w-8 text-xs",
+        st === "done" && "border-emerald-500 bg-[#00D084] text-[#063B2A]",
+        st === "current" &&
+          "border-primary bg-primary text-primary-foreground ring-[6px] ring-primary/15",
+        st === "next" && "border-border bg-background text-muted-foreground",
+      )}
+    >
+      {st === "done" ? (
+        <Check className={size === "lg" ? "h-5 w-5" : "h-4 w-4"} strokeWidth={3} />
+      ) : s.stage.id === "_" ? (
+        "•"
+      ) : (
+        s.index + 1
+      )}
+    </span>
+  );
+}
+
+function StageBar({ s, className }: { s: StageView; className?: string }) {
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <span className="text-xs font-semibold text-muted-foreground">
+        {s.doneCount}/{s.tasks.length || 0} tarefas
+      </span>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all",
+            s.done ? "bg-[#00D084]" : "bg-primary",
+          )}
+          style={{ width: `${s.percent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+const cardTone = (s: StageView) =>
+  s.done
+    ? "border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10"
+    : s.current
+      ? "border-2 border-primary bg-card shadow-md"
+      : "bg-card";
 
 /* ------------------------------- Vertical ------------------------------- */
 
-export function VerticalRoadmap({ stages, color, onToggle, session, projectId }: RoadmapProps) {
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const flip = (id: string) =>
-    setOpen((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
+export function VerticalRoadmap({
+  stages,
+  openIds,
+  onFlip,
+  onToggle,
+  session,
+  projectId,
+  mineOnly,
+}: RoadmapProps & { openIds: Set<string>; onFlip: (id: string) => void }) {
   return (
-    <ol className="relative space-y-3">
+    <ol className="flex flex-col">
       {stages.map((s, i) => {
-        const isOpen = open.has(s.stage.id);
+        const isOpen = openIds.has(s.stage.id);
         const last = i === stages.length - 1;
         return (
-          <li key={s.stage.id} className="relative flex gap-3 sm:gap-4">
-            {/* linha do tempo */}
-            <div className="relative flex w-9 shrink-0 flex-col items-center">
-              <StageDot s={s} color={color} />
-              {!last && (
-                <span
-                  className={cn(
-                    "mt-1 w-0.5 flex-1 rounded-full",
-                    s.done ? "bg-emerald-400" : "bg-border",
-                  )}
-                />
-              )}
+          <li
+            key={s.stage.id}
+            id={`etapa-${s.stage.id}`}
+            className="flex scroll-mt-4 gap-3 sm:gap-4"
+          >
+            <div className="flex w-11 shrink-0 flex-col items-center">
+              <StageNode s={s} />
+              <span
+                className={cn(
+                  "w-[3px] flex-1 rounded-full",
+                  last ? "bg-transparent" : s.done ? "bg-[#00D084]" : "bg-border",
+                )}
+              />
             </div>
-            <div className="min-w-0 flex-1 pb-1">
-              <StageCard s={s} color={color} open={isOpen} onOpen={() => flip(s.stage.id)}>
+            <div className="min-w-0 flex-1 pb-4">
+              <div className={cn("rounded-2xl border p-4 transition", cardTone(s))}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {s.stage.id === "_" ? "Avulsas" : `Etapa ${s.index + 1}`}
+                      </span>
+                      <StagePill s={s} />
+                      {s.mineOpen > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                          {s.mineOpen} sua{s.mineOpen > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-display text-lg font-semibold leading-snug">
+                      {s.stage.name}
+                    </h3>
+                    {(s.stage.start_date || s.stage.due_date) && (
+                      <p className="text-xs text-muted-foreground">
+                        {fmtDate(s.stage.start_date) ?? "—"} → {fmtDate(s.stage.due_date) ?? "—"}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
+                    <StageBar s={s} className="min-w-0 max-w-[140px] flex-1 sm:w-32" />
+                    <Button
+                      variant="outline"
+                      className="h-11 shrink-0 bg-background"
+                      onClick={() => onFlip(s.stage.id)}
+                      aria-expanded={isOpen}
+                    >
+                      {isOpen ? "Fechar" : "Abrir"}
+                      <ChevronDown
+                        className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")}
+                      />
+                    </Button>
+                  </div>
+                </div>
                 {isOpen && (
-                  <TaskList
+                  <StageTasks
                     tasks={s.tasks}
                     onToggle={onToggle}
                     session={session}
                     projectId={projectId}
+                    mineOnly={mineOnly}
                   />
                 )}
-              </StageCard>
+              </div>
             </div>
           </li>
         );
@@ -443,216 +731,131 @@ export function VerticalRoadmap({ stages, color, onToggle, session, projectId }:
 
 /* ------------------------------ Horizontal ------------------------------ */
 
-export function HorizontalRoadmap({ stages, color, onToggle, session, projectId }: RoadmapProps) {
-  const [openId, setOpenId] = useState<string | null>(null);
-  const selected = stages.find((s) => s.stage.id === openId) ?? null;
+export function HorizontalRoadmap({
+  stages,
+  selectedId,
+  onSelect,
+  onToggle,
+  session,
+  projectId,
+  mineOnly,
+}: RoadmapProps & { selectedId: string | null; onSelect: (id: string) => void }) {
+  const selected = stages.find((s) => s.stage.id === selectedId) ?? stages[0];
   return (
     <div className="space-y-4">
-      <div className="-mx-4 overflow-x-auto px-4 pb-3 [scrollbar-width:thin]">
-        <ol className="flex snap-x snap-mandatory gap-3">
-          {stages.map((s, i) => (
-            <li
-              key={s.stage.id}
-              className="relative flex w-[82%] shrink-0 snap-start flex-col sm:w-64 lg:w-72"
-            >
-              {/* trilho entre as etapas */}
-              <div className="mb-2 flex items-center gap-2">
-                <StageDot s={s} color={color} />
-                {i < stages.length - 1 && (
+      <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
+        <ol className="flex gap-3">
+          {stages.map((s) => {
+            const sel = s.stage.id === selected?.stage.id;
+            return (
+              <li key={s.stage.id} className="w-[46%] min-w-[180px] shrink-0 sm:w-auto sm:flex-1">
+                <button
+                  type="button"
+                  onClick={() => onSelect(s.stage.id)}
+                  aria-pressed={sel}
+                  className={cn(
+                    "flex h-full min-h-[136px] w-full flex-col gap-2.5 overflow-hidden rounded-2xl border px-3.5 pb-3.5 text-left transition",
+                    s.done &&
+                      !sel &&
+                      "border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10",
+                    !s.done && !sel && "bg-card hover:border-foreground/30",
+                    sel && "border-2 border-foreground bg-card shadow-md",
+                  )}
+                >
                   <span
-                    className={cn(
-                      "h-0.5 flex-1 rounded-full",
-                      s.done ? "bg-emerald-400" : "bg-border",
-                    )}
+                    className="-mx-3.5 block h-1.5"
+                    style={{
+                      background: s.done
+                        ? "#00D084"
+                        : s.current
+                          ? `linear-gradient(90deg, var(--primary) ${s.percent}%, var(--muted) ${s.percent}%)`
+                          : "var(--muted)",
+                    }}
                   />
-                )}
-              </div>
-              <StageCard
-                s={s}
-                color={color}
-                open={openId === s.stage.id}
-                onOpen={() => setOpenId((cur) => (cur === s.stage.id ? null : s.stage.id))}
-                compact
-              />
-            </li>
-          ))}
+                  <span className="flex items-center gap-2">
+                    <StageNode s={s} size="sm" />
+                    <StagePill s={s} />
+                  </span>
+                  <span className="font-display text-[15px] font-semibold leading-snug">
+                    {s.stage.name}
+                  </span>
+                  <span className="mt-auto text-xs font-semibold text-muted-foreground">
+                    {s.doneCount}/{s.tasks.length} tarefas
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ol>
       </div>
 
       {selected && (
-        <section
-          className={cn(
-            "rounded-2xl border p-4 sm:p-5",
-            selected.done ? "border-emerald-300 bg-emerald-50/60" : "bg-card",
-          )}
+        <div
+          id={`etapa-${selected.stage.id}`}
+          className={cn("scroll-mt-4 rounded-2xl border p-4 sm:p-5", cardTone(selected))}
         >
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs text-muted-foreground">Etapa {selected.index + 1}</p>
-              <h3 className="font-display font-semibold">{selected.stage.name}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                {selected.stage.id === "_" ? "Avulsas" : `Etapa ${selected.index + 1}`} ·{" "}
+                {selected.done ? "Concluída" : selected.current ? "Em andamento" : "A seguir"}
+              </p>
+              <h3 className="font-display text-xl font-semibold">{selected.stage.name}</h3>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setOpenId(null)}>
-              <ChevronUp className="h-4 w-4" /> Fechar
-            </Button>
+            <StageBar s={selected} className="w-40" />
           </div>
-          <TaskList
+          <StageTasks
             tasks={selected.tasks}
             onToggle={onToggle}
             session={session}
             projectId={projectId}
-            bare
+            mineOnly={mineOnly}
           />
-        </section>
+        </div>
       )}
     </div>
   );
 }
 
-/* ------------------------------- Peças --------------------------------- */
-
-function StageDot({ s, color }: { s: StageView; color: string }) {
-  return (
-    <span
-      className={cn(
-        "grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 text-sm font-semibold",
-        s.done
-          ? "border-emerald-500 bg-emerald-500 text-white"
-          : s.current
-            ? "bg-background"
-            : "border-border bg-background text-muted-foreground",
-      )}
-      style={
-        !s.done && s.current
-          ? { borderColor: color, color: "var(--accent-strong, var(--primary))" }
-          : undefined
-      }
-      aria-hidden
-    >
-      {s.done ? <Check className="h-4 w-4" /> : s.stage.id === "_" ? "•" : s.index + 1}
-    </span>
-  );
+function StageTasks(props: {
+  tasks: PortalTask[];
+  onToggle: (taskId: string, done: boolean) => void;
+  session: ReturnType<typeof usePortalSession>;
+  projectId: string;
+  mineOnly: boolean;
+}) {
+  if (props.tasks.length === 0) {
+    return (
+      <p className="mt-4 rounded-xl bg-muted/60 p-3.5 text-sm text-muted-foreground">
+        {props.mineOnly
+          ? "Nenhuma tarefa sua nesta etapa. A equipe cuida do restante."
+          : "Nenhuma tarefa nesta etapa ainda."}
+      </p>
+    );
+  }
+  return <TaskList {...props} />;
 }
 
-function StageCard({
-  s,
-  color,
-  open,
-  onOpen,
-  compact = false,
-  children,
-}: {
-  s: StageView;
-  color: string;
-  open: boolean;
-  onOpen: () => void;
-  compact?: boolean;
-  children?: React.ReactNode;
-}) {
-  const total = s.tasks.length;
+function Legend() {
+  const item = "inline-flex items-center gap-2";
   return (
-    <div
-      className={cn(
-        "rounded-2xl border p-4 transition",
-        compact && "flex flex-1 flex-col",
-        s.done
-          ? "border-emerald-300 bg-emerald-50 dark:border-emerald-500/40 dark:bg-emerald-500/10"
-          : "bg-card",
-        !s.done && s.current && "shadow-sm ring-2",
-        open && !s.done && "shadow-md",
-      )}
-      style={
-        !s.done && s.current
-          ? ({
-              "--tw-ring-color": "color-mix(in oklab, var(--primary) 25%, transparent)",
-            } as React.CSSProperties)
-          : undefined
-      }
-    >
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3
-              className={cn(
-                "font-display font-semibold leading-snug",
-                s.done && "text-emerald-900 dark:text-emerald-200",
-              )}
-            >
-              {s.stage.name}
-            </h3>
-            {s.done ? (
-              <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
-                Concluída
-              </span>
-            ) : s.current ? (
-              <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-primary-foreground"
-                style={{ backgroundColor: color }}
-              >
-                Etapa atual
-              </span>
-            ) : null}
-          </div>
-          {(s.stage.start_date || s.stage.due_date) && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {fmtDate(s.stage.start_date) ?? "—"} → {fmtDate(s.stage.due_date) ?? "—"}
-            </p>
-          )}
-        </div>
-        {!compact && (
-          <span
-            className={cn(
-              "shrink-0 text-sm font-semibold tabular-nums",
-              s.done ? "text-emerald-700 dark:text-emerald-400" : "",
-            )}
-          >
-            {s.percent}%
-          </span>
-        )}
-      </div>
-
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
-        <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${s.percent}%`, backgroundColor: s.done ? "#00D084" : color }}
-        />
-      </div>
-
-      <div
-        className={cn(
-          "mt-3 flex flex-wrap items-center justify-between gap-2",
-          compact && "mt-auto pt-3",
-        )}
-      >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span>
-            {s.doneCount}/{total} tarefa{total === 1 ? "" : "s"}
-          </span>
-          {s.mineOpen > 0 && (
-            <span className="font-medium text-amber-700">{s.mineOpen} sua(s) para fazer</span>
-          )}
-        </div>
-        <Button
-          size="sm"
-          variant={open ? "secondary" : "outline"}
-          className="h-8"
-          onClick={onOpen}
-          aria-expanded={open}
-          disabled={total === 0}
-        >
-          {total === 0 ? (
-            "Sem tarefas"
-          ) : open ? (
-            <>
-              <ChevronUp className="h-4 w-4" /> Fechar
-            </>
-          ) : (
-            <>
-              <ChevronDown className="h-4 w-4" /> Abrir
-            </>
-          )}
-        </Button>
-      </div>
-      {children}
+    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t pt-4 text-xs text-muted-foreground">
+      <span className={item}>
+        <span className="h-3 w-3 rounded-full bg-[#00D084]" /> Concluída
+      </span>
+      <span className={item}>
+        <span className="h-3 w-3 rounded-full bg-primary" /> Em andamento
+      </span>
+      <span className={item}>
+        <span className="h-3 w-3 rounded-full border-2 border-muted-foreground/50 bg-background" />{" "}
+        A seguir
+      </span>
+      <span className={item}>
+        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+          Sua tarefa
+        </span>
+        você executa e pode anexar documentos
+      </span>
     </div>
   );
 }
@@ -662,13 +865,12 @@ function TaskList({
   onToggle,
   session,
   projectId,
-  bare = false,
 }: {
   tasks: PortalTask[];
   onToggle: (taskId: string, done: boolean) => void;
   session: ReturnType<typeof usePortalSession>;
   projectId: string;
-  bare?: boolean;
+  mineOnly?: boolean;
 }) {
   // suas tarefas pendentes primeiro, concluídas por último
   const ordered = [...tasks].sort((a, b) => {
@@ -676,7 +878,7 @@ function TaskList({
     return rank(a) - rank(b);
   });
   return (
-    <ul className={cn("space-y-2", !bare && "mt-4 border-t pt-4")}>
+    <ul className="mt-4 space-y-2">
       {ordered.map((t) => (
         <TaskRow key={t.id} task={t} onToggle={onToggle} session={session} projectId={projectId} />
       ))}
@@ -726,60 +928,69 @@ function TaskRow({
   return (
     <li
       className={cn(
-        "rounded-xl border p-3 transition",
+        "rounded-xl border py-1.5 pl-1 pr-3 transition",
         isDone
-          ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-500/30 dark:bg-emerald-500/10"
-          : isMine
-            ? "border-amber-300/80 bg-background"
-            : "bg-background",
+          ? "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10"
+          : "bg-background",
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-1.5">
         {isMine ? (
-          <Checkbox
-            className={cn(
-              "mt-0.5 h-6 w-6 rounded-md",
-              isDone &&
-                "border-emerald-600 data-[state=checked]:bg-emerald-600 data-[state=checked]:text-white",
-            )}
-            checked={isDone}
-            onCheckedChange={(v) => onToggle(task.id, v === true)}
-            aria-label={isDone ? "Reabrir tarefa" : "Marcar como concluída"}
-          />
+          <button
+            type="button"
+            onClick={() => onToggle(task.id, !isDone)}
+            aria-pressed={isDone}
+            aria-label={isDone ? `Reabrir: ${task.title}` : `Concluir: ${task.title}`}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg"
+          >
+            <span
+              className={cn(
+                "grid h-6 w-6 place-items-center rounded-md border-2 transition",
+                isDone
+                  ? "border-emerald-500 bg-[#00D084] text-[#063B2A]"
+                  : "border-muted-foreground/50 bg-background",
+              )}
+            >
+              {isDone && <Check className="h-4 w-4" strokeWidth={3.2} />}
+            </span>
+          </button>
         ) : (
           <span
-            className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center"
+            className="grid h-11 w-11 shrink-0 place-items-center"
             title="Responsabilidade da equipe"
           >
             {isDone ? (
-              <Check className="h-4 w-4 text-emerald-600" />
+              <Check className="h-4 w-4 text-emerald-600" strokeWidth={3} />
             ) : (
               <Circle className="h-3.5 w-3.5 text-muted-foreground" />
             )}
           </span>
         )}
-        <div className="min-w-0 flex-1">
-          <p
-            className={cn(
-              "text-sm font-medium",
-              isDone &&
-                "text-emerald-900 line-through decoration-emerald-600/50 dark:text-emerald-200",
-            )}
-          >
-            {task.title}
-          </p>
-          {task.description && (
-            <p className="mt-0.5 text-xs text-muted-foreground">{task.description}</p>
-          )}
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+        <div className="min-w-0 flex-1 py-2">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+            <p
+              className={cn(
+                "min-w-0 flex-[1_1_160px] text-[15px] font-semibold leading-snug",
+                isDone && "text-emerald-800 dark:text-emerald-200",
+              )}
+            >
+              {task.title}
+            </p>
             <span
               className={cn(
-                "rounded-full border px-2 py-0.5 font-medium",
-                isMine ? "border-amber-300 text-amber-700" : "text-muted-foreground",
+                "shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+                isMine
+                  ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+                  : "bg-muted text-muted-foreground",
               )}
             >
               {isMine ? "Sua tarefa" : "Equipe"}
             </span>
+          </div>
+          {task.description && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{task.description}</p>
+          )}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
             {!isMine && !isDone && (
               <span className="text-muted-foreground">
                 {STATUS_LABEL[task.status] ?? task.status}

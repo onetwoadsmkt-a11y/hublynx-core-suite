@@ -253,7 +253,11 @@ export function TaskAttachments({
             >
               <Paperclip className="h-3.5 w-3.5" /> Anexar arquivo
             </Button>
-            {hint && <span className="ml-2 text-[11px] text-muted-foreground">{hint}</span>}
+            {hint && (
+              <span className="ml-2 hidden text-[11px] text-muted-foreground sm:inline">
+                {hint}
+              </span>
+            )}
           </div>
         ))}
       <input
