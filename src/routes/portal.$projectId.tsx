@@ -294,19 +294,22 @@ function PortalProjectPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* Resumo */}
           <section
             aria-label="Resumo do projeto"
-            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           >
-            <div className="flex items-center gap-4 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+            <div className="flex items-center gap-4 rounded-3xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_16px_40px_-20px_rgba(16,24,40,0.22)] dark:ring-1 dark:ring-white/10 p-5 sm:p-6">
               <ProgressRing value={progress} />
               <div className="min-w-0 space-y-0.5">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                   Progresso geral
                 </p>
-                <p className="font-display text-lg font-semibold leading-tight">
+                <p
+                  className="font-display text-lg font-semibold leading-tight"
+                  style={{ color: "var(--brand-ink)" }}
+                >
                   {doneStages} de {realStages.length} etapas
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -321,13 +324,16 @@ function PortalProjectPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-2 rounded-3xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_16px_40px_-20px_rgba(16,24,40,0.22)] dark:ring-1 dark:ring-white/10 p-5 sm:p-6">
               <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 Etapa atual
               </p>
               {current ? (
                 <>
-                  <p className="font-display text-lg font-semibold leading-tight">
+                  <p
+                    className="font-display text-lg font-semibold leading-tight"
+                    style={{ color: "var(--brand-ink)" }}
+                  >
                     {current.stage.name}
                   </p>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -348,8 +354,14 @@ function PortalProjectPage() {
               )}
             </div>
 
-            <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/5 sm:col-span-2 sm:p-5 lg:col-span-1">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+            <div
+              className="flex flex-col gap-2 rounded-3xl p-5 text-white shadow-[0_16px_40px_-20px_rgba(16,24,40,0.45)] sm:col-span-2 sm:p-6 lg:col-span-1"
+              style={{
+                background:
+                  "linear-gradient(140deg, var(--brand-ink) 0%, color-mix(in oklab, var(--brand-ink) 75%, var(--primary)) 100%)",
+              }}
+            >
+              <p className="text-[11px] font-bold uppercase tracking-wider text-white/70">
                 Sua próxima ação
               </p>
               {next ? (
@@ -357,20 +369,20 @@ function PortalProjectPage() {
                   <p className="font-display text-lg font-semibold leading-tight">
                     {next.task.title}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-white/70">
                     Etapa: {next.stage.stage.name}
                     {next.task.due_date ? ` · prazo ${fmtDate(next.task.due_date)}` : ""}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-2">
                     <Button
-                      className="h-11"
+                      className="h-11 rounded-xl"
                       onClick={() => toggle.mutate({ taskId: next.task.id, done: true })}
                     >
                       <Check className="h-4 w-4" /> Marcar como feita
                     </Button>
                     <Button
                       variant="outline"
-                      className="h-11"
+                      className="h-11 rounded-xl border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
                       onClick={() => goToStage(next.stage.stage.id)}
                     >
                       Ver tarefa
@@ -379,12 +391,10 @@ function PortalProjectPage() {
                 </>
               ) : (
                 <>
-                  <p className="font-display text-lg font-semibold text-emerald-700 dark:text-emerald-400">
+                  <p className="font-display text-lg font-semibold text-white">
                     Tudo em dia por aqui
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Nenhuma tarefa sua pendente agora.
-                  </p>
+                  <p className="text-xs text-white/70">Nenhuma tarefa sua pendente agora.</p>
                 </>
               )}
             </div>
@@ -393,10 +403,15 @@ function PortalProjectPage() {
           <section
             id="roadmap"
             aria-label="Roadmap"
-            className="scroll-mt-4 space-y-5 rounded-2xl border bg-card p-4 shadow-sm sm:p-6"
+            className="scroll-mt-4 space-y-6 rounded-3xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_16px_40px_-20px_rgba(16,24,40,0.22)] dark:ring-1 dark:ring-white/10 p-4 sm:p-7"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-xl font-semibold">Roadmap</h2>
+              <h2
+                className="font-display text-2xl font-semibold tracking-tight"
+                style={{ color: "var(--brand-ink)" }}
+              >
+                Roadmap
+              </h2>
               <div className="flex flex-wrap gap-2">
                 <Segmented
                   label="Filtro de tarefas"
@@ -441,7 +456,7 @@ function PortalProjectPage() {
             <Legend />
           </section>
 
-          <section className="rounded-2xl border bg-card p-4 sm:p-5">
+          <section className="rounded-3xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_16px_40px_-20px_rgba(16,24,40,0.22)] dark:ring-1 dark:ring-white/10 p-5 sm:p-7">
             <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
               <History className="h-4 w-4" /> Histórico e mensagens
             </h2>
@@ -459,7 +474,7 @@ function PortalProjectPage() {
           </section>
 
           {d.team.length > 0 && (
-            <section className="rounded-2xl border bg-card p-4 sm:p-5">
+            <section className="rounded-3xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_16px_40px_-20px_rgba(16,24,40,0.22)] dark:ring-1 dark:ring-white/10 p-5 sm:p-7">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <Users className="h-4 w-4" /> Equipe do projeto
               </h2>
@@ -505,7 +520,7 @@ function Segmented({
   options: { v: string; label: string; icon?: typeof Rows3 }[];
 }) {
   return (
-    <div role="group" aria-label={label} className="inline-flex gap-1 rounded-xl bg-muted p-1">
+    <div role="group" aria-label={label} className="inline-flex gap-1 rounded-full bg-muted/70 p-1">
       {options.map(({ v, label: l, icon: Icon }) => (
         <button
           key={v}
@@ -513,7 +528,7 @@ function Segmented({
           aria-pressed={value === v}
           onClick={() => onChange(v)}
           className={cn(
-            "inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition",
+            "inline-flex min-h-10 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition",
             value === v
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
@@ -636,10 +651,10 @@ function StageBar({ s, className }: { s: StageView; className?: string }) {
 
 const cardTone = (s: StageView) =>
   s.done
-    ? "border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10"
+    ? "bg-emerald-50/80 ring-1 ring-emerald-200/80 dark:bg-emerald-500/10 dark:ring-emerald-500/30"
     : s.current
-      ? "border-2 border-primary bg-card shadow-md"
-      : "bg-card";
+      ? "bg-card ring-2 ring-primary shadow-[0_18px_40px_-22px_rgba(16,24,40,0.35)]"
+      : "bg-muted/40 ring-1 ring-black/5 dark:ring-white/10";
 
 /* ------------------------------- Vertical ------------------------------- */
 
@@ -673,7 +688,7 @@ export function VerticalRoadmap({
               />
             </div>
             <div className="min-w-0 flex-1 pb-4">
-              <div className={cn("rounded-2xl border p-4 transition", cardTone(s))}>
+              <div className={cn("rounded-2xl p-4 transition sm:p-5", cardTone(s))}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -687,7 +702,10 @@ export function VerticalRoadmap({
                         </span>
                       )}
                     </div>
-                    <h3 className="font-display text-lg font-semibold leading-snug">
+                    <h3
+                      className="font-display text-lg font-semibold leading-snug"
+                      style={{ color: "var(--brand-ink)" }}
+                    >
                       {s.stage.name}
                     </h3>
                     {(s.stage.start_date || s.stage.due_date) && (
@@ -700,7 +718,7 @@ export function VerticalRoadmap({
                     <StageBar s={s} className="min-w-0 max-w-[140px] flex-1 sm:w-32" />
                     <Button
                       variant="outline"
-                      className="h-11 shrink-0 bg-background"
+                      className="h-11 shrink-0 rounded-full border-black/10 bg-background px-4"
                       onClick={() => onFlip(s.stage.id)}
                       aria-expanded={isOpen}
                     >
@@ -754,12 +772,13 @@ export function HorizontalRoadmap({
                   onClick={() => onSelect(s.stage.id)}
                   aria-pressed={sel}
                   className={cn(
-                    "flex h-full min-h-[136px] w-full flex-col gap-2.5 overflow-hidden rounded-2xl border px-3.5 pb-3.5 text-left transition",
+                    "flex h-full min-h-[136px] w-full flex-col gap-2.5 overflow-hidden rounded-2xl px-3.5 pb-3.5 text-left transition",
                     s.done &&
                       !sel &&
-                      "border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10",
-                    !s.done && !sel && "bg-card hover:border-foreground/30",
-                    sel && "border-2 border-foreground bg-card shadow-md",
+                      "bg-emerald-50/80 ring-1 ring-emerald-200/80 dark:bg-emerald-500/10 dark:ring-emerald-500/30",
+                    !s.done && !sel && "bg-muted/40 ring-1 ring-black/5 hover:ring-black/15",
+                    sel &&
+                      "bg-card shadow-[0_18px_40px_-22px_rgba(16,24,40,0.35)] ring-2 ring-[color:var(--brand-ink)]",
                   )}
                 >
                   <span
@@ -792,7 +811,7 @@ export function HorizontalRoadmap({
       {selected && (
         <div
           id={`etapa-${selected.stage.id}`}
-          className={cn("scroll-mt-4 rounded-2xl border p-4 sm:p-5", cardTone(selected))}
+          className={cn("scroll-mt-4 rounded-2xl p-4 sm:p-6", cardTone(selected))}
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
@@ -826,7 +845,7 @@ function StageTasks(props: {
 }) {
   if (props.tasks.length === 0) {
     return (
-      <p className="mt-4 rounded-xl bg-muted/60 p-3.5 text-sm text-muted-foreground">
+      <p className="mt-4 rounded-xl bg-background/70 p-3.5 text-sm text-muted-foreground ring-1 ring-black/5">
         {props.mineOnly
           ? "Nenhuma tarefa sua nesta etapa. A equipe cuida do restante."
           : "Nenhuma tarefa nesta etapa ainda."}
@@ -839,7 +858,7 @@ function StageTasks(props: {
 function Legend() {
   const item = "inline-flex items-center gap-2";
   return (
-    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t pt-4 text-xs text-muted-foreground">
+    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-black/5 pt-5 text-xs text-muted-foreground">
       <span className={item}>
         <span className="h-3 w-3 rounded-full bg-[#00D084]" /> Concluída
       </span>
@@ -928,10 +947,10 @@ function TaskRow({
   return (
     <li
       className={cn(
-        "rounded-xl border py-1.5 pl-1 pr-3 transition",
+        "rounded-xl py-1.5 pl-1 pr-3 transition",
         isDone
-          ? "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10"
-          : "bg-background",
+          ? "bg-emerald-50 ring-1 ring-emerald-200/70 dark:bg-emerald-500/10 dark:ring-emerald-500/30"
+          : "bg-background ring-1 ring-black/[0.06] dark:ring-white/10",
       )}
     >
       <div className="flex items-start gap-1.5">

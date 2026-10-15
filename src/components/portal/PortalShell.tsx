@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { portalAuth, portalLoginPath, portalToken } from "@/lib/portal/portal-client";
 import { PORTAL_AUTH_ERROR } from "@/lib/portal/portal.functions";
-import { brandVars, HEX_RE, readableOn } from "@/components/BrandTheme";
+import { brandVars, HEX_RE } from "@/components/BrandTheme";
+import { extractLogoPalette } from "@/lib/portal/logo-palette";
 
 export type PortalBrand = { name: string; logo_url: string | null; brand_color: string | null };
 
@@ -27,19 +28,43 @@ export const CORE_GRADIENT = "linear-gradient(135deg,#071A3D 0%,#0a2557 60%,#00D
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
- * Cores da empresa dentro do portal (mesma regra do Core): troca só as cores de
- * destaque (botões, etapa atual, progresso). Verde continua sendo "concluído".
- * Sem cor cadastrada, fica a identidade do Core Suite.
+ * Cores da empresa dentro do portal: tiradas do logo (cor viva = destaque,
+ * cor escura = títulos). Sem logo legível, usa a cor cadastrada; sem nenhuma,
+ * a identidade do Core Suite. Verde continua sendo "concluído".
  */
-function usePortalBrandColors(hex: string | null) {
+function usePortalPalette(logoUrl: string | null, fallback: string | null) {
+  const [pal, setPal] = useState<{ primary: string | null; ink: string | null }>({
+    primary: fallback,
+    ink: null,
+  });
+  useEffect(() => {
+    let alive = true;
+    setPal({ primary: fallback, ink: null });
+    if (logoUrl) {
+      extractLogoPalette(logoUrl).then((p) => {
+        if (!alive) return;
+        setPal({ primary: p.primary ?? fallback, ink: p.ink || null });
+      });
+    }
+    return () => {
+      alive = false;
+    };
+  }, [logoUrl, fallback]);
+
+  const primary = pal.primary && HEX_RE.test(pal.primary) ? pal.primary : null;
+  const ink = pal.ink && HEX_RE.test(pal.ink) ? pal.ink : null;
   useIsoLayoutEffect(() => {
-    if (typeof document === "undefined" || !hex) return;
+    if (typeof document === "undefined") return;
     const root = document.documentElement;
-    const vars = brandVars(hex);
-    const keys = Object.keys(vars) as (keyof typeof vars)[];
+    const vars: Record<string, string> = primary ? { ...brandVars(primary) } : {};
+    vars["--brand-ink"] =
+      ink ?? (primary ? `color-mix(in oklab, ${primary} 22%, #0b1220)` : CORE_NAVY);
+    vars["--portal-bg"] = `color-mix(in oklab, ${primary ?? CORE_GREEN} 5%, #f6f7f9)`;
+    const keys = Object.keys(vars);
     keys.forEach((k) => root.style.setProperty(k, vars[k]));
     return () => keys.forEach((k) => root.style.removeProperty(k));
-  }, [hex]);
+  }, [primary, ink]);
+  return { primary, ink };
 }
 
 type SessionState = {
@@ -133,54 +158,45 @@ export function PortalShell({
 }) {
   const logoUrl = logo || brand?.logo_url || null;
   const hex = brand?.brand_color && HEX_RE.test(brand.brand_color) ? brand.brand_color : null;
-  usePortalBrandColors(hex);
-  // texto do cabeçalho legível sobre a cor da empresa (escuro em cores claras)
-  const lightBrand = hex ? readableOn(hex) !== "oklch(1 0 0)" : false;
-  const headerStyle = hex
-    ? {
-        background: `linear-gradient(135deg, ${hex} 0%, color-mix(in oklab, ${hex} 80%, black) 100%)`,
-        color: lightBrand ? "#071A3D" : "#ffffff",
-        borderBottomColor: `color-mix(in oklab, ${hex} 65%, black)`,
-      }
-    : { background: CORE_GRADIENT, color: "#ffffff", borderBottomColor: CORE_GREEN };
-  const headerBtn = lightBrand
-    ? "text-inherit hover:bg-black/10 hover:text-inherit"
-    : "text-inherit hover:bg-white/15 hover:text-inherit";
+  // paleta do logo da empresa (o logo do projeto é só imagem)
+  usePortalPalette(brand?.logo_url ?? null, hex);
   const [pwOpen, setPwOpen] = useState(false);
   async function signOut() {
     await portalAuth().auth.signOut();
     window.location.replace(portalLoginPath(projectRef, session.email));
   }
   return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-20 border-b-2 shadow-sm" style={headerStyle}>
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+    <div className="min-h-screen" style={{ background: "var(--portal-bg, #f6f7f9)" }}>
+      <header className="sticky top-0 z-20 border-b border-black/5 bg-white/85 backdrop-blur-md dark:bg-background/85">
+        <div
+          className="h-1 w-full"
+          style={{ background: "linear-gradient(90deg, var(--primary), var(--brand-ink))" }}
+        />
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link to="/portal" className="flex min-w-0 items-center gap-3">
             {logoUrl ? (
-              <span className="grid h-10 shrink-0 place-items-center rounded-lg bg-white px-2">
-                <img
-                  src={logoUrl}
-                  alt={title ?? brand?.name ?? "Logo"}
-                  className="h-7 w-auto max-w-[110px] object-contain"
-                />
-              </span>
+              <img
+                src={logoUrl}
+                alt={title ?? brand?.name ?? "Logo"}
+                className="h-9 w-auto max-w-[120px] shrink-0 object-contain"
+              />
             ) : (
               <span
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg font-display text-base font-bold"
-                style={
-                  hex
-                    ? { backgroundColor: "rgba(255,255,255,0.92)", color: "#071A3D" }
-                    : { backgroundColor: CORE_GREEN, color: "#071A3D" }
-                }
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl font-display text-base font-bold"
+                style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}
               >
                 {(brand?.name ?? "P").slice(0, 1).toUpperCase()}
               </span>
             )}
+            <span className="hidden h-8 w-px shrink-0 bg-black/10 sm:block" aria-hidden />
             <div className="min-w-0">
-              <p className="line-clamp-2 font-display text-[15px] font-semibold leading-tight sm:truncate sm:text-lg">
+              <p
+                className="line-clamp-2 font-display text-[15px] font-semibold leading-tight sm:truncate sm:text-lg"
+                style={{ color: "var(--brand-ink)" }}
+              >
                 {title || brand?.name || "Portal do cliente"}
               </p>
-              <p className="truncate text-xs opacity-75">
+              <p className="truncate text-xs text-muted-foreground">
                 {subtitle ??
                   (brand?.name ? `${brand.name} · Portal do cliente` : "Portal do cliente")}
               </p>
@@ -188,13 +204,25 @@ export function PortalShell({
           </Link>
           <div className="flex shrink-0 items-center gap-1">
             {session.email && (
-              <span className="mr-1 hidden text-xs opacity-75 lg:inline">{session.email}</span>
+              <span className="mr-2 hidden text-xs text-muted-foreground lg:inline">
+                {session.email}
+              </span>
             )}
-            <Button variant="ghost" size="sm" className={headerBtn} onClick={() => setPwOpen(true)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 text-muted-foreground hover:text-foreground"
+              onClick={() => setPwOpen(true)}
+            >
               <KeyRound className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Alterar senha</span>
             </Button>
-            <Button variant="ghost" size="sm" className={headerBtn} onClick={signOut}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 text-muted-foreground hover:text-foreground"
+              onClick={signOut}
+            >
               <LogOut className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Sair</span>
             </Button>
@@ -211,7 +239,7 @@ export function PortalShell({
           </div>
         </div>
       )}
-      <main className="mx-auto max-w-6xl px-4 py-5 sm:py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       <ChangePasswordDialog
         open={pwOpen}
         onOpenChange={setPwOpen}
