@@ -156,6 +156,30 @@ export const listOrgTeam = createServerFn({ method: "GET" })
   });
 
 /** Adiciona ou altera o papel de uma pessoa da equipe no projeto. */
+/**
+ * Quem entra na equipe de um projeto precisa do módulo Projetos (e de Tarefas,
+ * do qual ele depende) liberado na empresa; sem isso o Core bloqueia a tela do
+ * projeto. Só libera esses dois módulos; o resto continua como o admin definiu.
+ */
+async function grantProjectModules(admin: Db, organizationId: string, userId: string) {
+  const { data: mods } = await admin
+    .from("modules")
+    .select("id, code")
+    .in("code", ["projects", "tasks"]);
+  const rows = ((mods ?? []) as { id: string }[]).map((m) => ({
+    organization_id: organizationId,
+    user_id: userId,
+    module_id: m.id,
+    can_access: true,
+    updated_at: new Date().toISOString(),
+  }));
+  if (!rows.length) return;
+  const { error } = await admin
+    .from("user_module_permissions")
+    .upsert(rows, { onConflict: "organization_id,user_id,module_id" });
+  if (error) throw new Error(`Não foi possível liberar o módulo Projetos: ${error.message}`);
+}
+
 export const setProjectMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -212,6 +236,10 @@ export const setProjectMember = createServerFn({ method: "POST" })
       ? await db.from("project_members").update(payload).eq("id", existing.id)
       : await db.from("project_members").insert(payload);
     if (error) throw new Error(error.message);
+    const project = await projectOrg(db, data.projectId);
+    if (project.organization_id) {
+      await grantProjectModules(admin, project.organization_id, data.userId);
+    }
     return { ok: true as const };
   });
 
@@ -313,6 +341,8 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
       ? await admin.from("project_members").update(payload).eq("id", existing.id)
       : await admin.from("project_members").insert(payload);
     if (pmErr) throw new Error(pmErr.message);
+    if (project.organization_id)
+      await grantProjectModules(admin, project.organization_id, userId as string);
 
     // 4) Convite por e-mail
     const loginUrl = `${appOrigin()}/projetos/${data.projectId}`;
