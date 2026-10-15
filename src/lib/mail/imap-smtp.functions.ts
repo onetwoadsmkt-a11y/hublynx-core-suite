@@ -76,12 +76,10 @@ export const testMyMailAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => accountSchema.partial({ password: true }).parse(d))
   .handler(async ({ data, context }) => {
-    const { getAccount, getAccountPassword, setAccountStatus } = await import(
-      "@/server/mailAccounts.server"
-    );
-    const { testImapConnection, testSmtpConnection } = await import(
-      "@/server/mailConnectionTest.server"
-    );
+    const { getAccount, getAccountPassword, setAccountStatus } =
+      await import("@/server/mailAccounts.server");
+    const { testImapConnection, testSmtpConnection } =
+      await import("@/server/mailConnectionTest.server");
 
     let password = data.password || "";
     if (!password) {
@@ -119,7 +117,12 @@ export const testMyMailAccount = createServerFn({ method: "POST" })
       await setAccountStatus(
         existing.id,
         ok ? "conectado" : "erro",
-        ok ? null : [imap, smtp].filter((r) => !r.ok).map((r) => r.message).join(" • "),
+        ok
+          ? null
+          : [imap, smtp]
+              .filter((r) => !r.ok)
+              .map((r) => r.message)
+              .join(" • "),
       );
     }
     return { results: [imap, smtp] };
@@ -132,4 +135,117 @@ export const disconnectMyMailAccount = createServerFn({ method: "POST" })
     const account = await getAccount(context.userId);
     if (account) await deleteAccount(context.userId, account.id);
     return { ok: true as const };
+  });
+
+export type MailSuggestion = {
+  provider: string;
+  imapHost: string;
+  imapPort: number;
+  imapSecurity: "ssl" | "starttls" | "none";
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: "ssl" | "starttls" | "none";
+  note: string | null;
+};
+
+/**
+ * Sugere servidor e portas pelo domínio do e-mail (registro MX).
+ * Provedores conhecidos têm configuração própria; hospedagens cPanel (i7host,
+ * HostGator, KingHost...) usam o próprio servidor de e-mail com IMAP 993 SSL e
+ * SMTP 465 SSL — o nome do servidor bate com o certificado, ao contrário de
+ * "mail.dominio", que muitas vezes não tem certificado válido.
+ */
+export const suggestMailSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(200) }).parse(d))
+  .handler(async ({ data }): Promise<MailSuggestion | null> => {
+    const domain = data.email.split("@")[1]?.toLowerCase() ?? "";
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return null;
+    const ssl = (
+      provider: string,
+      imapHost: string,
+      smtpHost: string,
+      note: string | null = null,
+    ) => ({
+      provider,
+      imapHost,
+      imapPort: 993,
+      imapSecurity: "ssl" as const,
+      smtpHost,
+      smtpPort: 465,
+      smtpSecurity: "ssl" as const,
+      note,
+    });
+    if (domain === "gmail.com" || domain === "googlemail.com")
+      return ssl(
+        "Gmail",
+        "imap.gmail.com",
+        "smtp.gmail.com",
+        "Use uma senha de app do Google (com verificação em duas etapas ligada).",
+      );
+    if (/^(outlook|hotmail|live)\.com(\.br)?$/.test(domain))
+      return {
+        ...ssl("Outlook", "outlook.office365.com", "smtp-mail.outlook.com"),
+        smtpPort: 587,
+        smtpSecurity: "starttls",
+      };
+
+    let mx: string[] = [];
+    try {
+      const res = await fetch(
+        `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`,
+        {
+          headers: { accept: "application/dns-json" },
+        },
+      );
+      const json = (await res.json()) as { Answer?: { type: number; data: string }[] };
+      mx = (json.Answer ?? [])
+        .filter((a) => a.type === 15)
+        .map((a) => a.data.trim().split(/\s+/))
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map((p) => (p[1] ?? "").replace(/\.$/, "").toLowerCase())
+        .filter(Boolean);
+    } catch {
+      /* sem DNS: tenta o padrão abaixo */
+    }
+    const first = mx[0] ?? "";
+    const any = (re: RegExp) => mx.some((h) => re.test(h));
+    if (any(/google\.com$|googlemail\.com$/))
+      return ssl(
+        "Google Workspace",
+        "imap.gmail.com",
+        "smtp.gmail.com",
+        "Use uma senha de app do Google (com verificação em duas etapas ligada).",
+      );
+    if (any(/outlook\.com$|protection\.outlook\.com$/))
+      return {
+        ...ssl(
+          "Microsoft 365",
+          "outlook.office365.com",
+          "smtp.office365.com",
+          "O administrador do Microsoft 365 precisa permitir SMTP autenticado nesta caixa.",
+        ),
+        smtpPort: 587,
+        smtpSecurity: "starttls",
+      };
+    if (any(/zoho\./)) return ssl("Zoho Mail", "imap.zoho.com", "smtp.zoho.com");
+    if (any(/hostinger/)) return ssl("Hostinger", "imap.hostinger.com", "smtp.hostinger.com");
+    if (any(/locaweb/))
+      return { ...ssl("Locaweb", "email-ssl.com.br", "email-ssl.com.br"), smtpPort: 465 };
+    if (any(/titan\.email$/)) return ssl("Titan", "imap.titan.email", "smtp.titan.email");
+    if (first) {
+      const hosting = /i7host/.test(first) ? "i7host (cPanel)" : "hospedagem própria";
+      return ssl(
+        hosting,
+        first,
+        first,
+        "Usuário: o e-mail completo. Se a porta 465 não conectar, use 587 com STARTTLS no envio.",
+      );
+    }
+    return ssl(
+      "padrão",
+      `mail.${domain}`,
+      `mail.${domain}`,
+      "Confirme o servidor com a sua hospedagem.",
+    );
   });

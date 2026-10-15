@@ -14,13 +14,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Mail, PlugZap, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2, Mail, PlugZap, Trash2, Wand2 } from "lucide-react";
 import {
   getMyMailAccount,
   saveMyMailAccount,
   testMyMailAccount,
   disconnectMyMailAccount,
+  suggestMailSettings,
 } from "@/lib/mail/imap-smtp.functions";
 
 type Security = "ssl" | "starttls" | "none";
@@ -105,6 +112,39 @@ export function ImapSmtpCard() {
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const [detecting, setDetecting] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+  async function autoFill(force = false) {
+    const email = form.email.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      if (force) toast.error("Digite o e-mail completo primeiro.");
+      return;
+    }
+    if (!force && form.imapHost && form.smtpHost) return;
+    setDetecting(true);
+    try {
+      const s = await suggestMailSettings({ data: { email } });
+      if (!s) return;
+      setForm((f) => ({
+        ...f,
+        imapHost: s.imapHost,
+        imapPort: s.imapPort,
+        imapSecurity: s.imapSecurity,
+        smtpHost: s.smtpHost,
+        smtpPort: s.smtpPort,
+        smtpSecurity: s.smtpSecurity,
+        smtpAuth: true,
+        imapUsername: userTouched ? f.imapUsername : email,
+        smtpUsername: userTouched ? f.smtpUsername : email,
+      }));
+      setHint(`Configuração de ${s.provider} preenchida.${s.note ? ` ${s.note}` : ""}`);
+    } catch (e) {
+      if (force) toast.error((e as Error).message);
+    } finally {
+      setDetecting(false);
+    }
+  }
 
   const onEmailChange = (value: string) =>
     setForm((f) => ({
@@ -224,7 +264,11 @@ export function ImapSmtpCard() {
             ) : null}
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => runTest(false)} disabled={busy !== null}>
-                {busy === "test" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlugZap className="mr-2 h-4 w-4" />}
+                {busy === "test" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <PlugZap className="mr-2 h-4 w-4" />
+                )}
                 Testar conexão
               </Button>
               <Button variant="outline" onClick={() => setOpen(true)} disabled={busy !== null}>
@@ -271,8 +315,25 @@ export function ImapSmtpCard() {
                 autoComplete="off"
                 value={form.email}
                 onChange={(e) => onEmailChange(e.target.value)}
+                onBlur={() => autoFill(false)}
                 placeholder="contato@empresa.com.br"
               />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => autoFill(true)}
+                disabled={detecting}
+              >
+                {detecting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="h-3.5 w-3.5" />
+                )}
+                Preencher servidor e portas automaticamente
+              </Button>
+              {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="mail-pass">Senha</Label>
@@ -291,19 +352,36 @@ export function ImapSmtpCard() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="imap-host">Servidor IMAP</Label>
-              <Input id="imap-host" value={form.imapHost} onChange={(e) => set("imapHost", e.target.value)} placeholder="imap.empresa.com.br" />
+              <Input
+                id="imap-host"
+                value={form.imapHost}
+                onChange={(e) => set("imapHost", e.target.value)}
+                placeholder="imap.empresa.com.br"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="imap-port">Porta IMAP</Label>
-              <Input id="imap-port" type="number" value={form.imapPort} onChange={(e) => set("imapPort", Number(e.target.value))} />
+              <Input
+                id="imap-port"
+                type="number"
+                value={form.imapPort}
+                onChange={(e) => set("imapPort", Number(e.target.value))}
+              />
             </div>
             <div className="space-y-2">
               <Label>Segurança IMAP</Label>
-              <Select value={form.imapSecurity} onValueChange={(v) => set("imapSecurity", v as Security)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.imapSecurity}
+                onValueChange={(v) => set("imapSecurity", v as Security)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {SECURITY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -326,19 +404,36 @@ export function ImapSmtpCard() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="smtp-host">Servidor SMTP</Label>
-              <Input id="smtp-host" value={form.smtpHost} onChange={(e) => set("smtpHost", e.target.value)} placeholder="smtp.empresa.com.br" />
+              <Input
+                id="smtp-host"
+                value={form.smtpHost}
+                onChange={(e) => set("smtpHost", e.target.value)}
+                placeholder="smtp.empresa.com.br"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="smtp-port">Porta SMTP</Label>
-              <Input id="smtp-port" type="number" value={form.smtpPort} onChange={(e) => set("smtpPort", Number(e.target.value))} />
+              <Input
+                id="smtp-port"
+                type="number"
+                value={form.smtpPort}
+                onChange={(e) => set("smtpPort", Number(e.target.value))}
+              />
             </div>
             <div className="space-y-2">
               <Label>Segurança SMTP</Label>
-              <Select value={form.smtpSecurity} onValueChange={(v) => set("smtpSecurity", v as Security)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.smtpSecurity}
+                onValueChange={(v) => set("smtpSecurity", v as Security)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {SECURITY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -374,7 +469,11 @@ export function ImapSmtpCard() {
 
           <div className="mt-2 flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={() => runTest(true)} disabled={busy !== null}>
-              {busy === "test" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlugZap className="mr-2 h-4 w-4" />}
+              {busy === "test" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <PlugZap className="mr-2 h-4 w-4" />
+              )}
               Testar conexão
             </Button>
             <Button onClick={save} disabled={busy !== null}>
