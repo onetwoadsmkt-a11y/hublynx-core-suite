@@ -40,6 +40,7 @@ import {
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
 import { usePortalAppIcon } from "@/components/projects/usePortalAppIcon";
+import { useProjectEvents } from "@/lib/realtime/project-events";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { ProjectAttachmentsPanel, ProjectJourneyPanel } from "@/components/projects/ProjectJourneyPanel";
 import { ProjectTeamPanel, useProjectAccess } from "@/components/projects/ProjectTeamPanel";
@@ -153,6 +154,14 @@ function ProjectCommandCenter() {
   const accessQ = useProjectAccess(id);
   const canEdit = accessQ.data?.canEdit ?? false;
   const canManage = accessQ.data?.canManage ?? false;
+  // tempo real: mudança no projeto (Core ou portal) recarrega o que mostra este projeto
+  const qcLive = useQueryClient();
+  useProjectEvents(supabase, id, () => {
+    qcLive.invalidateQueries({
+      predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes(id),
+    });
+    qcLive.invalidateQueries({ queryKey: ["tasks"] });
+  });
   // ícone do app do portal deste projeto (logo do cliente + nome do projeto)
   const { brand } = useWorkspace();
   const proj = dashQ.data?.project as { name?: string; logo_url?: string | null } | undefined;

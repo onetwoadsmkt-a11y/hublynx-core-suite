@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PortalShell, usePortalSession } from "@/components/portal/PortalShell";
 import { portalAuth, portalLoginPath } from "@/lib/portal/portal-client";
+import { useProjectEvents } from "@/lib/realtime/project-events";
 import { JourneyTimeline } from "@/components/projects/JourneyTimeline";
 import { TaskAttachments } from "@/components/projects/TaskAttachments";
 import {
@@ -133,7 +134,7 @@ function PortalProjectPage() {
     queryKey: key,
     queryFn: () => session.call((token) => getFn({ data: { token, projectId } })),
     enabled: session.ready,
-    refetchInterval: 30_000,
+    refetchInterval: 120_000,
     retry: (n, e) => !String((e as Error)?.message).includes("NOT_CLIENT") && n < 2,
   });
 
@@ -199,7 +200,7 @@ function PortalProjectPage() {
     queryKey: ["portal-journey", projectId],
     queryFn: () => session.call((token) => journeyFn({ data: { token, projectId: projectUuid! } })),
     enabled: session.ready && !!projectUuid,
-    refetchInterval: 30_000,
+    refetchInterval: 120_000,
   });
   const sendMessage = useMutation({
     mutationFn: (body: string) =>
@@ -209,6 +210,11 @@ function PortalProjectPage() {
       qc.invalidateQueries({ queryKey: ["portal-journey", projectId] });
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+  // tempo real: qualquer mudança no projeto (Core ou portal) atualiza esta tela
+  useProjectEvents(session.ready ? portalAuth() : null, projectUuid, () => {
+    qc.invalidateQueries({ queryKey: key });
+    qc.invalidateQueries({ queryKey: ["portal-journey", projectId] });
   });
   const stages = useMemo(() => buildStageViews(d), [d]);
 
