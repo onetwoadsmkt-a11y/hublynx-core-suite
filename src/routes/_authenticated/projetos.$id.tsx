@@ -31,7 +31,7 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock,
   TrendingUp, DollarSign, Users as UsersIcon, Calendar as CalIcon, AlertCircle,
   Activity as ActivityIcon, FileText, Target, Briefcase, Flag, Hourglass,
-  ListChecks, ArrowRight, Sparkles, Wallet,
+  ListChecks, ArrowRight, Sparkles, Wallet, MessagesSquare,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
@@ -192,18 +192,18 @@ function ProjectCommandCenter() {
         <ExecutiveHeader p={p} d={d} />
         <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
         <Tabs defaultValue="evolution" className="min-w-0">
-          <div className="max-w-full overflow-x-auto border-b">
-            <TabsList aria-label="Seções do projeto" className="h-auto w-max justify-start gap-1 rounded-none bg-transparent p-0 text-sidebar-foreground">
+          <div className="border-b">
+            <TabsList aria-label="Seções do projeto" className="flex h-auto w-full flex-wrap justify-start gap-x-1 gap-y-0 rounded-none bg-transparent p-0 text-sidebar-foreground">
               {[
-                ["evolution", "Evolução do projeto", TrendingUp], ["stages", "Etapas", Flag],
-                ["journey", "Histórico e mensagens", ActivityIcon],
-                ["commercial", "Comercial", Briefcase], ["deliveries", "Próximas entregas", CalIcon],
-                ["kanban", "Kanban", ListChecks], ["activity", "Atividade recente", ActivityIcon],
-                ["team", "Equipe e permissões", UsersIcon], ["risks", "Riscos & Bloqueios", AlertTriangle],
-                ["files", "Arquivos", FileText], ["notes", "Notas & Decisões", FileText],
+                ["evolution", "Evolução", TrendingUp], ["stages", "Etapas", Flag],
+                ["team", "Equipe e permissões", UsersIcon], ["journey", "Histórico e mensagens", MessagesSquare],
+                ["files", "Arquivos", FileText], ["commercial", "Comercial", Briefcase],
+                ["deliveries", "Próximas entregas", CalIcon], ["kanban", "Kanban", ListChecks],
+                ["activity", "Atividade", ActivityIcon], ["risks", "Riscos & Bloqueios", AlertTriangle],
+                ["notes", "Notas & Decisões", FileText],
               ].map(([value, label, Icon]) => {
                 const TabIcon = Icon as typeof TrendingUp;
-                return <TabsTrigger key={String(value)} value={String(value)} className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 text-sidebar-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-sidebar-foreground data-[state=active]:shadow-none"><TabIcon className="h-4 w-4" />{String(label)}</TabsTrigger>;
+                return <TabsTrigger key={String(value)} value={String(value)} className="flex-none gap-2 rounded-none border-b-2 border-transparent px-3 py-3 text-sidebar-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-sidebar-foreground data-[state=active]:shadow-none"><TabIcon className="h-4 w-4" />{String(label)}</TabsTrigger>;
               })}
             </TabsList>
           </div>
