@@ -1,3 +1,4 @@
+import { DuplicateBadge } from "@/components/pipeline/DuplicateLeadDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -334,6 +335,7 @@ export function LeadDrawer({
                     score={leadScore}
                     className="h-6 px-2.5 text-[11px] shadow-sm ring-1 ring-white/40 bg-white"
                   />
+                  <DuplicateBadge lead={lead as never} />
                   {(
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

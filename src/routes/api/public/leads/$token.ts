@@ -136,29 +136,24 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           }
         }
 
-        // Mesmo lead chegando por mais de um caminho (Make + Lead Pro + formulário Core):
-        // em vez de duplicar, completa o cadastro existente da mesma empresa.
-        const digits = (v?: string | null) => (v ?? "").replace(/\D/g, "").slice(-11);
-        const email = parsed.data.email?.trim().toLowerCase() || null;
-        const phone = digits(parsed.data.phone) || null;
-        if (organizationId && (email || (phone && phone.length >= 10))) {
-          const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-          const { data: recent } = await (supabaseAdmin as any)
-            .from("leads")
-            .select("*")
-            .eq("organization_id", organizationId)
-            .gte("created_at", since)
-            .order("created_at", { ascending: false })
-            .limit(1000);
-          const existing = ((recent ?? []) as Record<string, any>[]).find(
-            (l) =>
-              (email &&
-                String(l.email ?? "")
-                  .trim()
-                  .toLowerCase() === email) ||
-              (phone && phone.length >= 10 && digits(l.phone) === phone),
-          );
-          if (existing) {
+        // Contato repetido:
+        // - mesmo envio chegando por outro caminho (Lead Pro direto + Make) em poucos
+        //   minutos → completa o mesmo lead, sem novo card;
+        // - nova inscrição do mesmo contato → card NOVO com alerta de duplicata,
+        //   e a equipe decide se une ao contato anterior.
+        const { findDuplicate, isSameSubmission, duplicateMark } =
+          await import("@/lib/pipeline/duplicates.server");
+        const dup = organizationId
+          ? await findDuplicate(
+              supabaseAdmin as never,
+              organizationId,
+              parsed.data.email,
+              parsed.data.phone,
+            )
+          : null;
+        if (dup) {
+          const existing = dup.lead;
+          if (existing && isSameSubmission(existing, raw)) {
             const patch: Record<string, unknown> = {};
             for (const [k, v] of Object.entries(parsed.data)) {
               if (v === null || v === undefined || v === "") continue;
@@ -197,6 +192,7 @@ export const Route = createFileRoute("/api/public/leads/$token")({
             return Response.json({ ok: true, lead_id: existing.id, merged: true }, { status: 200 });
           }
         }
+        const dupMark = dup ? duplicateMark(dup) : null;
 
         const { data: lead, error } = await supabaseAdmin
           .from("leads")
@@ -205,7 +201,7 @@ export const Route = createFileRoute("/api/public/leads/$token")({
             owner_id: hook.owner_id,
             ...(organizationId ? { organization_id: organizationId } : {}),
             stage_id: stageId,
-            metadata: raw as never,
+            metadata: (dupMark ? { ...(raw as object), ...dupMark } : raw) as never,
           } as never)
           .select("id")
           .single();
@@ -223,7 +219,30 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           })
           .eq("id", hook.id);
 
-        return Response.json({ ok: true, lead_id: lead.id }, { status: 201 });
+        if (dupMark) {
+          await (supabaseAdmin as any)
+            .from("lead_events")
+            .insert({
+              lead_id: lead.id,
+              owner_id: hook.owner_id,
+              kind: "duplicate_detected",
+              title: "Possível contato duplicado",
+              description: `Mesmo ${dupMark.duplicate_by} de ${dupMark.duplicate_of_name ?? "outro lead"}. Revise e una se for a mesma pessoa.`,
+            })
+            .then(
+              () => null,
+              () => null,
+            );
+        }
+
+        return Response.json(
+          {
+            ok: true,
+            lead_id: lead.id,
+            ...(dupMark ? { duplicate_of: dupMark.duplicate_of } : {}),
+          },
+          { status: 201 },
+        );
       },
     },
   },

@@ -294,8 +294,13 @@ export const submitPublicForm = createServerFn({ method: "POST" })
     const name = identity("name") ?? identity("email") ?? identity("phone") ?? `Lead — ${form.name}`;
     const respostas = readableAnswers(definition, clean);
 
-    // 1) Lead no pipeline da empresa
+    // 1) Lead no pipeline da empresa (contato repetido vira card novo com alerta de duplicata)
     const stageId = await resolveStage(db, form);
+    const { findDuplicate, duplicateMark } = await import("@/lib/pipeline/duplicates.server");
+    const dup = await findDuplicate(db, form.organization_id, identity("email"), identity("phone")).catch(
+      () => null,
+    );
+    const dupMark = dup ? duplicateMark(dup) : null;
     const { data: lead, error: leadError } = await db
       .from("leads")
       .insert({
@@ -325,6 +330,7 @@ export const submitPublicForm = createServerFn({ method: "POST" })
           classificacao: classification.label,
           tags_formulario: rules.tags,
           respostas,
+          ...(dupMark ?? {}),
         },
       })
       .select("id")

@@ -1,7 +1,25 @@
 import { useEffect, useState } from "react";
+import { DuplicateBadge } from "@/components/pipeline/DuplicateLeadDialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Ban, Flame, Snowflake, Sun, Building2, Mail, MapPin, Phone, Tag, TagIcon, MoreVertical, Trash2, Pencil, FileSpreadsheet, AlarmClock, Lock } from "lucide-react";
+import {
+  Ban,
+  Flame,
+  Snowflake,
+  Sun,
+  Building2,
+  Mail,
+  MapPin,
+  Phone,
+  Tag,
+  TagIcon,
+  MoreVertical,
+  Trash2,
+  Pencil,
+  FileSpreadsheet,
+  AlarmClock,
+  Lock,
+} from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
@@ -22,8 +40,6 @@ import { cn } from "@/lib/utils";
 import { useLeadCardLayout } from "./card-layout";
 import type { Lead } from "./types";
 import { maskBRL } from "@/lib/security/value-lock";
-
-
 
 export function relativeTime(iso: string | null) {
   if (!iso) return "";
@@ -46,10 +62,15 @@ export type ScoreTone = "hot" | "warm" | "cold" | "nutrition" | "neutral";
 
 // Aceita as chaves em inglês (Lead Pro / webhooks) e os nomes em português das faixas.
 const SCORE_ALIASES: Record<string, ScoreTone> = {
-  hot: "hot", quente: "hot",
-  warm: "warm", morno: "warm",
-  cold: "cold", frio: "cold",
-  nutrition: "nutrition", "nutrição": "nutrition", nutricao: "nutrition",
+  hot: "hot",
+  quente: "hot",
+  warm: "warm",
+  morno: "warm",
+  cold: "cold",
+  frio: "cold",
+  nutrition: "nutrition",
+  nutrição: "nutrition",
+  nutricao: "nutrition",
 };
 
 /** Normaliza a classificação do lead scoring (pt/en) para quente/morno/frio/nutrição. */
@@ -57,7 +78,13 @@ export function leadScoreTone(classification: string | null | undefined): ScoreT
   return SCORE_ALIASES[classification?.trim().toLowerCase() ?? ""] ?? "neutral";
 }
 
-const DISQUALIFIED = new Set(["desqualificado", "desqualificada", "disqualified", "unqualified", "descartado"]);
+const DISQUALIFIED = new Set([
+  "desqualificado",
+  "desqualificada",
+  "disqualified",
+  "unqualified",
+  "descartado",
+]);
 
 /** Rótulo e cor da qualificação definida pelo formulário (Lead Pro ou formulário Core). */
 export function leadScorePresentation(classification: string | null | undefined) {
@@ -95,7 +122,12 @@ export function leadScorePresentation(classification: string | null | undefined)
   return { tone, label: labels[tone], className: classes[tone] };
 }
 
-const SCORE_ICON: Record<string, typeof Flame> = { hot: Flame, warm: Sun, cold: Snowflake, disqualified: Ban };
+const SCORE_ICON: Record<string, typeof Flame> = {
+  hot: Flame,
+  warm: Sun,
+  cold: Snowflake,
+  disqualified: Ban,
+};
 
 /** Selo de qualificação exibido ao lado do nome. */
 export function LeadQualificationBadge({
@@ -121,7 +153,9 @@ export function LeadQualificationBadge({
       {Icon && <Icon aria-hidden className="h-3 w-3" />}
       {p.label}
       {score != null && (
-        <span className="font-semibold opacity-80">· {Number.isInteger(score) ? score : score.toLocaleString("pt-BR")}</span>
+        <span className="font-semibold opacity-80">
+          · {Number.isInteger(score) ? score : score.toLocaleString("pt-BR")}
+        </span>
       )}
     </span>
   );
@@ -189,7 +223,6 @@ export function LeadCard({
     onError: (e: Error) => toast.error(e.message),
   });
 
-
   // Card ordenável: arrasta para qualquer posição, na mesma etapa ou em outra.
   const { attributes, listeners, setNodeRef, isDragging, transform, transition } = useSortable({
     id: overlay ? `${lead.id}__overlay` : lead.id,
@@ -217,7 +250,8 @@ export function LeadCard({
       className={cn(
         "group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md",
         isDragging && "opacity-40",
-        locked && "cursor-not-allowed border-dashed bg-muted/40 hover:border-border hover:shadow-sm",
+        locked &&
+          "cursor-not-allowed border-dashed bg-muted/40 hover:border-border hover:shadow-sm",
       )}
       onClick={() => onOpen(lead)}
       onPointerDown={() => locked && onLockedDrag?.()}
@@ -227,6 +261,7 @@ export function LeadCard({
           {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           <span className="line-clamp-2 min-w-0 break-words">{lead.name}</span>
           <LeadQualificationBadge classification={lead.lead_classification} score={leadScore} />
+          <DuplicateBadge lead={lead as never} />
           {tags.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -258,7 +293,10 @@ export function LeadCard({
                     onCheckedChange={() => toggleTag(t.slug)}
                   >
                     <span className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: t.color }}
+                      />
                       {t.name}
                     </span>
                   </DropdownMenuCheckboxItem>
@@ -285,7 +323,10 @@ export function LeadCard({
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={exportJourney.isPending}
-              onSelect={(e) => { e.preventDefault(); exportJourney.mutate(); }}
+              onSelect={(e) => {
+                e.preventDefault();
+                exportJourney.mutate();
+              }}
             >
               <FileSpreadsheet className="mr-2 h-3.5 w-3.5" /> Exportar jornada (Excel)
             </DropdownMenuItem>
@@ -330,9 +371,7 @@ export function LeadCard({
           <AlarmClock className="h-3 w-3 shrink-0" />
           <span className="truncate">
             {nextAction || "Próxima ação"}
-            {nextActionAt
-              ? ` · ${new Date(nextActionAt).toLocaleDateString("pt-BR")}`
-              : ""}
+            {nextActionAt ? ` · ${new Date(nextActionAt).toLocaleDateString("pt-BR")}` : ""}
             {nextActionOverdue ? " (atrasada)" : ""}
           </span>
         </p>
@@ -383,5 +422,4 @@ export function LeadCard({
       )}
     </div>
   );
-
 }
