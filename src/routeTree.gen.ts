@@ -66,6 +66,7 @@ import { Route as ApiPublicFormAssetsSplatRouteImport } from './routes/api/publi
 import { Route as ApiPublicHooksRunRemindersRouteImport } from './routes/api/public/hooks/run-reminders'
 import { Route as ApiPublicLeadsTokenRouteImport } from './routes/api/public/leads/$token'
 import { Route as ApiPublicGoogleOauthCallbackRouteImport } from './routes/api/public/google/oauth/callback'
+import { Route as ApiPublicPortalManifestRefRouteImport } from './routes/api/public/portal/manifest/$ref'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -378,6 +379,12 @@ const ApiPublicGoogleOauthCallbackRoute =
     path: '/api/public/google/oauth/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPortalManifestRefRoute =
+  ApiPublicPortalManifestRefRouteImport.update({
+    id: '/api/public/portal/manifest/$ref',
+    path: '/api/public/portal/manifest/$ref',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -436,6 +443,7 @@ export interface FileRoutesByFullPath {
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
   '/api/public/google/oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
+  '/api/public/portal/manifest/$ref': typeof ApiPublicPortalManifestRefRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -491,6 +499,7 @@ export interface FileRoutesByTo {
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
   '/api/public/google/oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
+  '/api/public/portal/manifest/$ref': typeof ApiPublicPortalManifestRefRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -551,6 +560,7 @@ export interface FileRoutesById {
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/_authenticated/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
   '/api/public/google/oauth/callback': typeof ApiPublicGoogleOauthCallbackRoute
+  '/api/public/portal/manifest/$ref': typeof ApiPublicPortalManifestRefRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -611,6 +621,7 @@ export interface FileRouteTypes {
     | '/api/public/leads/$token'
     | '/configuracoes/integracoes/'
     | '/api/public/google/oauth/callback'
+    | '/api/public/portal/manifest/$ref'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -666,6 +677,7 @@ export interface FileRouteTypes {
     | '/api/public/leads/$token'
     | '/configuracoes/integracoes'
     | '/api/public/google/oauth/callback'
+    | '/api/public/portal/manifest/$ref'
   id:
     | '__root__'
     | '/'
@@ -725,6 +737,7 @@ export interface FileRouteTypes {
     | '/api/public/leads/$token'
     | '/_authenticated/configuracoes/integracoes/'
     | '/api/public/google/oauth/callback'
+    | '/api/public/portal/manifest/$ref'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -742,6 +755,7 @@ export interface RootRouteChildren {
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
   ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
+  ApiPublicPortalManifestRefRoute: typeof ApiPublicPortalManifestRefRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1145,6 +1159,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicGoogleOauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/portal/manifest/$ref': {
+      id: '/api/public/portal/manifest/$ref'
+      path: '/api/public/portal/manifest/$ref'
+      fullPath: '/api/public/portal/manifest/$ref'
+      preLoaderRoute: typeof ApiPublicPortalManifestRefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1325,6 +1346,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
   ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,
+  ApiPublicPortalManifestRefRoute: ApiPublicPortalManifestRefRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

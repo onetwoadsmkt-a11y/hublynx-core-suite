@@ -17,6 +17,7 @@ import { portalAuth, portalLoginPath, portalToken } from "@/lib/portal/portal-cl
 import { PORTAL_AUTH_ERROR } from "@/lib/portal/portal.functions";
 import { brandVars, HEX_RE } from "@/components/BrandTheme";
 import { extractLogoPalette } from "@/lib/portal/logo-palette";
+import { PortalInstallButton, usePortalPwa } from "@/components/portal/PortalPwa";
 
 export type PortalBrand = { name: string; logo_url: string | null; brand_color: string | null };
 
@@ -160,6 +161,8 @@ export function PortalShell({
   const hex = brand?.brand_color && HEX_RE.test(brand.brand_color) ? brand.brand_color : null;
   // paleta do logo da empresa (o logo do projeto é só imagem)
   usePortalPalette(brand?.logo_url ?? null, hex);
+  // app (PWA) do portal deste projeto, separado do Core
+  usePortalPwa(projectRef, "#ffffff");
   const [pwOpen, setPwOpen] = useState(false);
   async function signOut() {
     await portalAuth().auth.signOut();
@@ -208,6 +211,7 @@ export function PortalShell({
                 {session.email}
               </span>
             )}
+            <PortalInstallButton />
             <Button
               variant="ghost"
               size="sm"

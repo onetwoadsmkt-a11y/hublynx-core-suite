@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { portalAuth } from "@/lib/portal/portal-client";
 import { CORE_GRADIENT, CORE_GREEN } from "@/components/portal/PortalShell";
+import { usePortalPwa } from "@/components/portal/PortalPwa";
 import coreLogo from "@/assets/core-suite-logo-horizontal.png.asset.json";
 import { portalMyProjects, portalPublicInfo } from "@/lib/portal/portal.functions";
 
@@ -24,6 +25,8 @@ export const Route = createFileRoute("/portal/entrar")({
 
 function PortalLoginPage() {
   const { p, e } = Route.useSearch();
+  // instalar daqui também gera o app do portal deste projeto
+  usePortalPwa(p ?? null, "#0a2557");
   const infoFn = useServerFn(portalPublicInfo);
   const listFn = useServerFn(portalMyProjects);
   const info = useQuery({
