@@ -70,6 +70,12 @@ export const Route = createFileRoute("/api/public/portal/manifest/$ref")({
         const orgName = org?.name?.trim() || "";
         const color = org?.brand_color && HEX.test(org.brand_color) ? org.brand_color : "#0a2557";
         const slug = (row?.portal_slug as string | undefined) || ref;
+        const projectIcons = [192, 512].map((n) => ({
+          src: `/api/public/portal/icon/${slug}?s=${n}`,
+          sizes: `${n}x${n}`,
+          type: "image/png",
+          purpose: "any maskable",
+        }));
         return json({
           ...base,
           // id próprio: cada projeto instala como um app separado
@@ -82,6 +88,7 @@ export const Route = createFileRoute("/api/public/portal/manifest/$ref")({
           start_url: `/portal/${slug}`,
           background_color: "#f6f7f9",
           theme_color: color,
+          icons: projectIcons,
         });
       },
     },

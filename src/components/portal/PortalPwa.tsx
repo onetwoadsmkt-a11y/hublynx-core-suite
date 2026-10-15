@@ -58,7 +58,7 @@ export function usePortalPwa(projectRef: string | null | undefined, themeColor?:
     setHead(
       'link[rel="apple-touch-icon"]',
       () => Object.assign(document.createElement("link"), { rel: "apple-touch-icon" }),
-      (el) => el.setAttribute("href", "/icons/portal-192.png"),
+      (el) => el.setAttribute("href", `/api/public/portal/icon/${ref}?s=192`),
     );
     const metas: [string, string][] = [
       ["apple-mobile-web-app-capable", "yes"],

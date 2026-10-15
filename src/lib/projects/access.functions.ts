@@ -738,3 +738,45 @@ export const updatePortalSlug = createServerFn({ method: "POST" })
       portalUrl: `${appOrigin()}/portal/${row.portal_slug}`,
     };
   });
+
+/**
+ * Ícone do app do portal do projeto (logo do cliente + nome do projeto), gerado no
+ * navegador da equipe. Guardado na pasta pública da empresa com nome fixo por projeto.
+ */
+export const setPortalAppIcon = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        projectId: uuid,
+        icon192: z.string().min(100).max(200_000),
+        icon512: z.string().min(100).max(900_000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    if (!(await rpcBool(db, "can_view_project", data.projectId))) {
+      throw new Error("Sem acesso a este projeto.");
+    }
+    const project = await projectOrg(db, data.projectId);
+    if (!project.organization_id) throw new Error("Projeto sem empresa.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as Db & { storage: any };
+    for (const [size, b64] of [
+      [192, data.icon192],
+      [512, data.icon512],
+    ] as const) {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const png = [0x89, 0x50, 0x4e, 0x47].every((b, i) => bytes[i] === b);
+      if (!png) throw new Error("Ícone inválido.");
+      const path = `${project.organization_id}/portal-icon-${data.projectId}-${size}.png`;
+      const up = await admin.storage
+        .from("org-branding")
+        .upload(path, bytes, { contentType: "image/png", upsert: true, cacheControl: "300" });
+      if (up.error) throw new Error(up.error.message);
+    }
+    return { ok: true as const };
+  });

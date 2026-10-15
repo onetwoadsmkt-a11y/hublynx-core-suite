@@ -39,6 +39,8 @@ import {
 } from "recharts";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
+import { usePortalAppIcon } from "@/components/projects/usePortalAppIcon";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { ProjectAttachmentsPanel, ProjectJourneyPanel } from "@/components/projects/ProjectJourneyPanel";
 import { ProjectTeamPanel, useProjectAccess } from "@/components/projects/ProjectTeamPanel";
 import { ProjectDepartmentsPanel } from "@/components/projects/ProjectDepartmentsPanel";
@@ -151,6 +153,17 @@ function ProjectCommandCenter() {
   const accessQ = useProjectAccess(id);
   const canEdit = accessQ.data?.canEdit ?? false;
   const canManage = accessQ.data?.canManage ?? false;
+  // ícone do app do portal deste projeto (logo do cliente + nome do projeto)
+  const { brand } = useWorkspace();
+  const proj = dashQ.data?.project as { name?: string; logo_url?: string | null } | undefined;
+  usePortalAppIcon({
+    projectId: id,
+    name: proj?.name,
+    projectLogo: proj?.logo_url,
+    orgLogo: brand?.logoUrl,
+    brandColor: brand?.brandColor,
+    enabled: !!proj,
+  });
   const delFn = useServerFn(deleteProject);
   const delM = useMutation({
     mutationFn: () => delFn({ data: { id } }),
