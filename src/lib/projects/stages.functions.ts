@@ -16,6 +16,12 @@ export type ProjectStage = {
   status: StageStatus;
   percent: number;
   notes: string | null;
+  /** cronograma por fases/semanas */
+  phase: string | null;
+  week_label: string | null;
+  start_offset_days: number | null;
+  duration_days: number | null;
+  alert: string | null;
 };
 
 export type TemplateTask = {
@@ -38,6 +44,10 @@ export type ProjectTemplate = {
     description: string | null;
     sort_order: number;
     duration_days: number | null;
+    phase?: string | null;
+    week_label?: string | null;
+    start_offset_days?: number | null;
+    alert?: string | null;
     tasks: TemplateTask[];
   }[];
 };
@@ -54,7 +64,17 @@ const stageInput = z.object({
   status: statusEnum.default("not_started"),
   percent: z.number().int().min(0).max(100).default(0),
   notes: z.string().max(2000).nullable().optional(),
+  phase: z.string().trim().max(120).nullable().optional(),
+  week_label: z.string().trim().max(60).nullable().optional(),
+  alert: z.string().trim().max(1000).nullable().optional(),
 });
+
+const dayMs = 86_400_000;
+const toDay = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00Z`);
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const addDaysIso = (iso: string, n: number) => isoDay(new Date(toDay(iso).getTime() + n * dayMs));
+const diffDays = (a: string, b: string) =>
+  Math.round((toDay(a).getTime() - toDay(b).getTime()) / dayMs);
 
 function percentForStatus(status: StageStatus, current: number) {
   if (status === "done") return 100;
@@ -82,7 +102,7 @@ export const listProjectStages = createServerFn({ method: "GET" })
     const { data: rows, error } = await db
       .from("project_stages")
       .select(
-        "id, project_id, name, description, sort_order, start_date, due_date, status, percent, notes",
+        "id, project_id, name, description, sort_order, start_date, due_date, status, percent, notes, phase, week_label, start_offset_days, duration_days, alert",
       )
       .eq("project_id", data.project_id)
       .order("sort_order");
@@ -99,6 +119,12 @@ export const saveProjectStages = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
     const organization_id = await orgOfProject(db, data.project_id);
+    const { data: proj } = await db
+      .from("projects")
+      .select("start_date")
+      .eq("id", data.project_id)
+      .maybeSingle();
+    const projectStart = (proj?.start_date as string | null) ?? null;
 
     const keep = data.stages.map((s) => s.id).filter(Boolean) as string[];
     const del = db.from("project_stages").delete().eq("project_id", data.project_id);
@@ -119,6 +145,13 @@ export const saveProjectStages = createServerFn({ method: "POST" })
       status: s.status,
       percent: percentForStatus(s.status, s.percent),
       notes: s.notes ?? null,
+      phase: s.phase || null,
+      week_label: s.week_label || null,
+      alert: s.alert || null,
+      // dia de início e duração acompanham as datas digitadas (base do recálculo)
+      start_offset_days: projectStart && s.start_date ? diffDays(s.start_date, projectStart) : null,
+      duration_days:
+        s.start_date && s.due_date ? Math.max(1, diffDays(s.due_date, s.start_date) + 1) : null,
       updated_at: new Date().toISOString(),
     }));
     if (rows.length) {
@@ -196,7 +229,9 @@ export const listProjectTemplates = createServerFn({ method: "GET" })
     if (ids.length === 0) return [];
     const { data: stages, error: sErr } = await db
       .from("project_template_stages")
-      .select("id, template_id, name, description, sort_order, duration_days")
+      .select(
+        "id, template_id, name, description, sort_order, duration_days, phase, week_label, start_offset_days, alert",
+      )
       .in("template_id", ids)
       .order("sort_order");
     if (sErr) throw new Error(sErr.message);
@@ -249,6 +284,10 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
               name: z.string().trim().min(1).max(120),
               description: z.string().trim().max(500).nullable().optional(),
               duration_days: z.number().int().min(0).max(365).nullable().optional(),
+              phase: z.string().trim().max(120).nullable().optional(),
+              week_label: z.string().trim().max(60).nullable().optional(),
+              start_offset_days: z.number().int().min(0).max(1500).nullable().optional(),
+              alert: z.string().trim().max(1000).nullable().optional(),
               tasks: z
                 .array(
                   z.object({
@@ -259,7 +298,7 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
                     visible_to_client: z.boolean().default(false),
                   }),
                 )
-                .max(30)
+                .max(60)
                 .optional(),
             }),
           )
@@ -309,6 +348,10 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
       description: s.description ?? null,
       sort_order: i,
       duration_days: s.duration_days ?? null,
+      phase: s.phase || null,
+      week_label: s.week_label || null,
+      start_offset_days: s.start_offset_days ?? null,
+      alert: s.alert || null,
     }));
     const { data: insertedStages, error: iErr } = await db
       .from("project_template_stages")
@@ -366,24 +409,34 @@ export async function applyTemplateStages(
 ) {
   const { data: stages, error } = await db
     .from("project_template_stages")
-    .select("id, name, description, sort_order, duration_days")
+    .select(
+      "id, name, description, sort_order, duration_days, phase, week_label, start_offset_days, alert",
+    )
     .eq("template_id", opts.templateId)
     .order("sort_order");
   if (error) throw new Error(error.message);
   const list = (stages ?? []) as any[];
   if (list.length === 0) return 0;
 
-  let cursor = opts.startDate ? new Date(`${opts.startDate}T12:00:00`) : null;
+  // Dia inicial definido no modelo (cronograma por fases): início do projeto + dia.
+  // Sem dia inicial: etapas em sequência, como antes.
+  const base = opts.startDate ? opts.startDate.slice(0, 10) : null;
+  let cursor = base;
   const startByOrder = new Map<number, string | null>();
   const rows = list.map((s, i) => {
+    const dur = s.duration_days ?? 7;
     let start: string | null = null;
     let due: string | null = null;
-    if (cursor) {
-      start = cursor.toISOString().slice(0, 10);
-      const d = new Date(cursor);
-      d.setDate(d.getDate() + (s.duration_days ?? 7));
-      due = d.toISOString().slice(0, 10);
-      cursor = d;
+    if (base) {
+      if (s.start_offset_days != null) {
+        start = addDaysIso(base, Number(s.start_offset_days));
+        due = addDaysIso(start, Math.max(1, dur) - 1);
+        cursor = addDaysIso(due, 1);
+      } else if (cursor) {
+        start = cursor;
+        due = addDaysIso(start, dur);
+        cursor = due;
+      }
     }
     startByOrder.set(i, start);
     return {
@@ -396,6 +449,11 @@ export async function applyTemplateStages(
       due_date: due,
       status: "not_started",
       percent: 0,
+      phase: s.phase ?? null,
+      week_label: s.week_label ?? null,
+      alert: s.alert ?? null,
+      start_offset_days: s.start_offset_days ?? (base && start ? diffDays(start, base) : null),
+      duration_days: s.duration_days ?? null,
     };
   });
   const { data: createdStages, error: iErr } = await db
@@ -670,4 +728,165 @@ export const setProjectStageTaskDone = createServerFn({ method: "POST" })
       .eq("id", data.task_id);
     if (error) throw new Error(error.message);
     return { ok: true as const };
+  });
+
+// ---------- Cronograma: recalcular e deslocar datas ----------
+
+type StageRow = {
+  id: string;
+  sort_order: number;
+  start_date: string | null;
+  due_date: string | null;
+  start_offset_days: number | null;
+  duration_days: number | null;
+};
+
+/** Move as tarefas em aberto das etapas indicadas (mantém a distância dentro da etapa). */
+async function shiftStageTasks(db: any, projectId: string, deltas: Map<string, number>) {
+  const ids = [...deltas.entries()].filter(([, d]) => d !== 0).map(([id]) => id);
+  if (!ids.length) return 0;
+  const { data: tasks, error } = await db
+    .from("tasks")
+    .select("id, stage_id, due_date, start_date, status")
+    .eq("project_id", projectId)
+    .in("stage_id", ids);
+  if (error) throw new Error(error.message);
+  const list = ((tasks ?? []) as any[]).filter(
+    (t) => t.status !== "concluido" && t.status !== "cancelado" && (t.due_date || t.start_date),
+  );
+  const shift = (iso: string | null, n: number) =>
+    iso ? new Date(new Date(iso).getTime() + n * dayMs).toISOString() : null;
+  for (let i = 0; i < list.length; i += 20) {
+    await Promise.all(
+      list.slice(i, i + 20).map(async (t) => {
+        const n = deltas.get(t.stage_id) ?? 0;
+        const { error: e } = await db
+          .from("tasks")
+          .update({ due_date: shift(t.due_date, n), start_date: shift(t.start_date, n) })
+          .eq("id", t.id);
+        if (e) throw new Error(e.message);
+      }),
+    );
+  }
+  return list.length;
+}
+
+async function updateProjectDue(db: any, projectId: string) {
+  const { data } = await db
+    .from("project_stages")
+    .select("due_date")
+    .eq("project_id", projectId)
+    .not("due_date", "is", null)
+    .order("due_date", { ascending: false })
+    .limit(1);
+  const last = (data?.[0]?.due_date as string | undefined) ?? null;
+  if (last) await db.from("projects").update({ due_date: last }).eq("id", projectId);
+}
+
+/**
+ * Nova data de início do projeto: recalcula todas as etapas pelo dia inicial e
+ * duração de cada uma (cronograma por fases/semanas) e leva junto as tarefas em aberto.
+ */
+export const rescheduleProject = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ project_id: uuid, start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
+    const { data: rows, error } = await db
+      .from("project_stages")
+      .select("id, sort_order, start_date, due_date, start_offset_days, duration_days")
+      .eq("project_id", data.project_id)
+      .order("sort_order");
+    if (error) throw new Error(error.message);
+    const stages = (rows ?? []) as StageRow[];
+    const { data: proj } = await db
+      .from("projects")
+      .select("start_date")
+      .eq("id", data.project_id)
+      .maybeSingle();
+    const oldBase = (proj?.start_date as string | null) ?? null;
+
+    const deltas = new Map<string, number>();
+    let cursor = data.start_date;
+    for (const s of stages) {
+      const dur =
+        s.duration_days ??
+        (s.start_date && s.due_date ? Math.max(1, diffDays(s.due_date, s.start_date) + 1) : 7);
+      const offset =
+        s.start_offset_days ??
+        (s.start_date && oldBase
+          ? diffDays(s.start_date, oldBase)
+          : diffDays(cursor, data.start_date));
+      const start = addDaysIso(data.start_date, offset);
+      const due = addDaysIso(start, dur - 1);
+      cursor = addDaysIso(due, 1);
+      if (s.start_date) deltas.set(s.id, diffDays(start, s.start_date));
+      const { error: e } = await db
+        .from("project_stages")
+        .update({
+          start_date: start,
+          due_date: due,
+          start_offset_days: offset,
+          duration_days: dur,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", s.id);
+      if (e) throw new Error(e.message);
+    }
+    const { error: pErr } = await db
+      .from("projects")
+      .update({ start_date: data.start_date })
+      .eq("id", data.project_id);
+    if (pErr) throw new Error(pErr.message);
+    const moved = await shiftStageTasks(db, data.project_id, deltas);
+    await updateProjectDue(db, data.project_id);
+    return { ok: true as const, stages: stages.length, tasks: moved };
+  });
+
+/** Adia (+) ou adianta (−) uma etapa — e, se pedido, todas as seguintes — com as tarefas. */
+export const shiftProjectStages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        project_id: uuid,
+        stage_id: uuid,
+        days: z.number().int().min(-365).max(365),
+        following: z.boolean().default(true),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    if (data.days === 0) return { ok: true as const, stages: 0, tasks: 0 };
+    const db = context.supabase as any;
+    const { data: rows, error } = await db
+      .from("project_stages")
+      .select("id, sort_order, start_date, due_date, start_offset_days, duration_days")
+      .eq("project_id", data.project_id)
+      .order("sort_order");
+    if (error) throw new Error(error.message);
+    const stages = (rows ?? []) as StageRow[];
+    const idx = stages.findIndex((s) => s.id === data.stage_id);
+    if (idx < 0) throw new Error("Etapa não encontrada.");
+    const target = data.following ? stages.slice(idx) : [stages[idx]];
+    const deltas = new Map<string, number>();
+    for (const s of target) {
+      deltas.set(s.id, data.days);
+      const { error: e } = await db
+        .from("project_stages")
+        .update({
+          start_date: s.start_date ? addDaysIso(s.start_date, data.days) : null,
+          due_date: s.due_date ? addDaysIso(s.due_date, data.days) : null,
+          start_offset_days:
+            s.start_offset_days != null ? Math.max(0, s.start_offset_days + data.days) : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", s.id);
+      if (e) throw new Error(e.message);
+    }
+    const moved = await shiftStageTasks(db, data.project_id, deltas);
+    await updateProjectDue(db, data.project_id);
+    return { ok: true as const, stages: target.length, tasks: moved };
   });

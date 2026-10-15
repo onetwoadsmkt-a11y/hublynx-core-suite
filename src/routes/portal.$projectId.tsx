@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  AlertTriangle,
   CalendarDays,
   Check,
   ChevronDown,
@@ -679,74 +680,88 @@ export function VerticalRoadmap({
         const isOpen = openIds.has(s.stage.id);
         const last = i === stages.length - 1;
         return (
-          <li
-            key={s.stage.id}
-            id={`etapa-${s.stage.id}`}
-            className="flex scroll-mt-4 gap-3 sm:gap-4"
-          >
-            <div className="flex w-11 shrink-0 flex-col items-center">
-              <StageNode s={s} />
-              <span
-                className={cn(
-                  "w-[3px] flex-1 rounded-full",
-                  last ? "bg-transparent" : s.done ? "bg-[#00D084]" : "bg-border",
-                )}
-              />
-            </div>
-            <div className="min-w-0 flex-1 pb-4">
-              <div className={cn("rounded-2xl p-4 transition sm:p-5", cardTone(s))}>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                        {s.stage.id === "_" ? "Avulsas" : `Etapa ${s.index + 1}`}
-                      </span>
-                      <StagePill s={s} />
-                      {s.mineOpen > 0 && (
-                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
-                          {s.mineOpen} sua{s.mineOpen > 1 ? "s" : ""}
+          <Fragment key={s.stage.id}>
+            {!!s.stage.phase && s.stage.phase !== stages[i - 1]?.stage.phase && (
+              <li className="pb-3 pt-1">
+                <PhaseBanner
+                  name={s.stage.phase}
+                  stages={stages.filter((x) => x.stage.phase === s.stage.phase)}
+                />
+              </li>
+            )}
+            <li id={`etapa-${s.stage.id}`} className="flex scroll-mt-4 gap-3 sm:gap-4">
+              <div className="flex w-11 shrink-0 flex-col items-center">
+                <StageNode s={s} />
+                <span
+                  className={cn(
+                    "w-[3px] flex-1 rounded-full",
+                    last ? "bg-transparent" : s.done ? "bg-[#00D084]" : "bg-border",
+                  )}
+                />
+              </div>
+              <div className="min-w-0 flex-1 pb-4">
+                <div className={cn("rounded-2xl p-4 transition sm:p-5", cardTone(s))}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                          {s.stage.id === "_"
+                            ? "Avulsas"
+                            : s.stage.week_label || `Etapa ${s.index + 1}`}
                         </span>
+                        <StagePill s={s} />
+                        {s.mineOpen > 0 && (
+                          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                            {s.mineOpen} sua{s.mineOpen > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
+                      <h3
+                        className="font-display text-lg font-semibold leading-snug"
+                        style={{ color: "var(--brand-ink)" }}
+                      >
+                        {s.stage.name}
+                      </h3>
+                      {(s.stage.start_date || s.stage.due_date) && (
+                        <p className="text-xs text-muted-foreground">
+                          {fmtDate(s.stage.start_date) ?? "—"} → {fmtDate(s.stage.due_date) ?? "—"}
+                        </p>
                       )}
                     </div>
-                    <h3
-                      className="font-display text-lg font-semibold leading-snug"
-                      style={{ color: "var(--brand-ink)" }}
-                    >
-                      {s.stage.name}
-                    </h3>
-                    {(s.stage.start_date || s.stage.due_date) && (
-                      <p className="text-xs text-muted-foreground">
-                        {fmtDate(s.stage.start_date) ?? "—"} → {fmtDate(s.stage.due_date) ?? "—"}
-                      </p>
-                    )}
+                    <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
+                      <StageBar s={s} className="min-w-0 max-w-[140px] flex-1 sm:w-32" />
+                      <Button
+                        variant="outline"
+                        className="h-11 shrink-0 rounded-full border-black/10 bg-background px-4"
+                        onClick={() => onFlip(s.stage.id)}
+                        aria-expanded={isOpen}
+                      >
+                        {isOpen ? "Fechar" : "Abrir"}
+                        <ChevronDown
+                          className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")}
+                        />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
-                    <StageBar s={s} className="min-w-0 max-w-[140px] flex-1 sm:w-32" />
-                    <Button
-                      variant="outline"
-                      className="h-11 shrink-0 rounded-full border-black/10 bg-background px-4"
-                      onClick={() => onFlip(s.stage.id)}
-                      aria-expanded={isOpen}
-                    >
-                      {isOpen ? "Fechar" : "Abrir"}
-                      <ChevronDown
-                        className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")}
-                      />
-                    </Button>
-                  </div>
+                  {s.stage.alert && (
+                    <p className="mt-3 flex gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{s.stage.alert}</span>
+                    </p>
+                  )}
+                  {isOpen && (
+                    <StageTasks
+                      tasks={s.tasks}
+                      onToggle={onToggle}
+                      session={session}
+                      projectId={projectId}
+                      mineOnly={mineOnly}
+                    />
+                  )}
                 </div>
-                {isOpen && (
-                  <StageTasks
-                    tasks={s.tasks}
-                    onToggle={onToggle}
-                    session={session}
-                    projectId={projectId}
-                    mineOnly={mineOnly}
-                  />
-                )}
               </div>
-            </div>
-          </li>
+            </li>
+          </Fragment>
         );
       })}
     </ol>
@@ -801,6 +816,13 @@ export function HorizontalRoadmap({
                     <StageNode s={s} size="sm" />
                     <StagePill s={s} />
                   </span>
+                  {(s.stage.phase || s.stage.week_label) && (
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {[s.stage.phase?.split("·")[0]?.trim(), s.stage.week_label]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
                   <span className="font-display text-[15px] font-semibold leading-snug">
                     {s.stage.name}
                   </span>
@@ -829,6 +851,12 @@ export function HorizontalRoadmap({
             </div>
             <StageBar s={selected} className="w-40" />
           </div>
+          {selected.stage.alert && (
+            <p className="mt-3 flex gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{selected.stage.alert}</span>
+            </p>
+          )}
           <StageTasks
             tasks={selected.tasks}
             onToggle={onToggle}
@@ -859,6 +887,48 @@ function StageTasks(props: {
     );
   }
   return <TaskList {...props} />;
+}
+
+function PhaseBanner({ name, stages }: { name: string; stages: StageView[] }) {
+  const done = stages.filter((x) => x.done).length;
+  const pct = stages.length
+    ? Math.round(stages.reduce((a, x) => a + x.percent, 0) / stages.length)
+    : 0;
+  const starts = stages
+    .map((x) => x.stage.start_date)
+    .filter(Boolean)
+    .sort() as string[];
+  const dues = stages
+    .map((x) => x.stage.due_date)
+    .filter(Boolean)
+    .sort() as string[];
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3"
+      style={{ background: "color-mix(in oklab, var(--brand-ink, #0a2557) 6%, transparent)" }}
+    >
+      <div className="min-w-0">
+        <p className="font-display text-base font-semibold" style={{ color: "var(--brand-ink)" }}>
+          {name}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {starts[0] && dues.length
+            ? `${fmtDate(starts[0])} a ${fmtDate(dues[dues.length - 1])} · `
+            : ""}
+          {done} de {stages.length} semanas concluídas
+        </p>
+      </div>
+      <div className="flex w-36 items-center gap-2">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn("h-full rounded-full", pct >= 100 ? "bg-[#00D084]" : "bg-primary")}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className="text-xs font-semibold tabular-nums">{pct}%</span>
+      </div>
+    </div>
+  );
 }
 
 function Legend() {

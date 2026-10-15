@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -20,6 +20,9 @@ import {
   Columns3,
   Paperclip,
   X,
+  CalendarClock,
+  CalendarRange,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -72,6 +75,8 @@ import {
   addProjectStageTask,
   setProjectStageTaskDone,
   setStageTaskClient,
+  rescheduleProject,
+  shiftProjectStages,
   type ProjectStage,
   type StageTask,
 } from "@/lib/projects/stages.functions";
@@ -90,10 +95,25 @@ const AttachmentsContext = createContext<AttachCtx | null>(null);
 type Draft = {
   id?: string;
   name: string;
+  start_date?: string | null;
   due_date: string | null;
   status: ProjectStage["status"];
   percent: number;
+  phase?: string | null;
+  week_label?: string | null;
+  alert?: string | null;
 };
+
+const fmtBr = (d: string | null | undefined) =>
+  d ? d.slice(0, 10).split("-").reverse().join("/") : null;
+const fmtShort = (d: string | null | undefined) =>
+  d ? d.slice(0, 10).split("-").reverse().slice(0, 2).join("/") : null;
+function rangeLabel(start: string | null | undefined, due: string | null | undefined) {
+  if (start && due) return `${fmtShort(start)} a ${fmtBr(due)}`;
+  if (due) return `Prazo: ${fmtBr(due)}`;
+  if (start) return `Início: ${fmtBr(start)}`;
+  return null;
+}
 
 const DEFAULT_STAGES: Draft[] = [
   { name: "Briefing", due_date: null, status: "not_started", percent: 0 },
@@ -278,6 +298,35 @@ export function RoadmapStagesPanel({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const rescheduleFn = useServerFn(rescheduleProject);
+  const shiftFn = useServerFn(shiftProjectStages);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [shiftStage, setShiftStage] = useState<ProjectStage | null>(null);
+  const rescheduleM = useMutation({
+    mutationFn: (start_date: string) =>
+      rescheduleFn({ data: { project_id: projectId, start_date } }),
+    onSuccess: (r) => {
+      toast.success(
+        `Cronograma recalculado: ${r.stages} etapa(s) e ${r.tasks} tarefa(s) em aberto.`,
+      );
+      invalidate();
+      setScheduleOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const shiftM = useMutation({
+    mutationFn: (v: { stage_id: string; days: number; following: boolean }) =>
+      shiftFn({ data: { project_id: projectId, ...v } }),
+    onSuccess: (r, v) => {
+      toast.success(
+        `${v.days > 0 ? "Adiado" : "Adiantado"} ${Math.abs(v.days)} dia(s): ${r.stages} etapa(s), ${r.tasks} tarefa(s).`,
+      );
+      invalidate();
+      setShiftStage(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const saveM = useMutation({
     mutationFn: (next: Draft[]) =>
       saveFn({
@@ -286,9 +335,13 @@ export function RoadmapStagesPanel({
           stages: next.map((s) => ({
             id: s.id,
             name: s.name,
+            start_date: s.start_date ?? null,
             due_date: s.due_date,
             status: s.status,
             percent: s.percent,
+            phase: s.phase ?? null,
+            week_label: s.week_label ?? null,
+            alert: s.alert ?? null,
           })),
         },
       }),
@@ -411,6 +464,11 @@ export function RoadmapStagesPanel({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            {total > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)}>
+                <CalendarRange className="h-3.5 w-3.5" /> Reprogramar cronograma
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <Pencil className="h-3.5 w-3.5" /> Editar etapas
             </Button>
@@ -436,120 +494,154 @@ export function RoadmapStagesPanel({
                 blocked: "Bloqueada",
                 done: "Concluída",
               }[s.status];
+              const newPhase = !!s.phase && s.phase !== stages[i - 1]?.phase;
+              const phaseStages = newPhase ? stages.filter((x) => x.phase === s.phase) : [];
               return (
-                <li
-                  key={s.id}
-                  className="grid min-w-0 grid-cols-[36px_minmax(0,1fr)] gap-3 sm:gap-4"
-                >
-                  <div className="flex flex-col items-center">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        progressM.mutate({
-                          stage_id: s.id,
-                          status: isDone ? "not_started" : "done",
-                        })
-                      }
-                      disabled={progressM.isPending}
-                      className={`z-10 h-9 w-9 shrink-0 rounded-full border-2 ${isDone ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : isCurrent ? "border-primary text-primary ring-4 ring-primary/15" : "border-border text-muted-foreground"}`}
-                      aria-label={`Etapa ${s.name}`}
-                      title={isDone ? "Retroceder etapa" : "Avançar etapa"}
-                    >
-                      {isDone ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
-                    </Button>
-                    {i < total - 1 && (
-                      <span
-                        className={`mt-1 w-0.5 flex-1 ${isDone ? "bg-primary" : "bg-border"}`}
-                      />
-                    )}
-                  </div>
-                  <div
-                    className={`min-w-0 rounded-lg border bg-background p-4 ${isCurrent ? "border-primary/50" : "border-border"}`}
-                  >
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                      <div className="min-w-0">
-                        <h4 className="break-words text-sm font-semibold">
-                          {i + 1}. {s.name}
-                        </h4>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {statusLabel}
-                          {s.due_date
-                            ? ` · Prazo: ${s.due_date.split("-").reverse().join("/")}`
-                            : ""}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-sm font-semibold text-primary">
-                        {s.percent}%
-                      </span>
-                    </div>
-                    <Progress
-                      value={s.percent}
-                      aria-label={`Progresso da etapa ${s.name}`}
-                      className="mt-3 h-1.5"
-                    />
-                    <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted-foreground">
-                          {taskProgress.total > 0
-                            ? `${taskProgress.done}/${taskProgress.total} tarefas concluídas · ${taskProgress.pct}%`
-                            : "Nenhuma tarefa"}
-                        </p>
-                        {taskProgress.total > 0 && (
-                          <Progress
-                            value={taskProgress.pct}
-                            aria-label={`Progresso das tarefas de ${s.name}`}
-                            className="mt-2 h-1"
-                          />
-                        )}
-                      </div>
+                <Fragment key={s.id}>
+                  {newPhase && (
+                    <li className="list-none pt-2 first:pt-0">
+                      <PhaseHeader name={s.phase as string} stages={phaseStages} />
+                    </li>
+                  )}
+                  <li className="grid min-w-0 grid-cols-[36px_minmax(0,1fr)] gap-3 sm:gap-4">
+                    <div className="flex flex-col items-center">
                       <Button
-                        variant={expanded.has(s.id) ? "secondary" : "outline"}
-                        size="sm"
+                        variant="outline"
+                        size="icon"
                         onClick={() =>
-                          setExpanded((cur) => {
-                            const n = new Set(cur);
-                            if (n.has(s.id)) n.delete(s.id);
-                            else n.add(s.id);
-                            return n;
+                          progressM.mutate({
+                            stage_id: s.id,
+                            status: isDone ? "not_started" : "done",
                           })
                         }
-                        className="shrink-0"
-                        aria-expanded={expanded.has(s.id)}
-                        aria-label={`Tarefas da etapa ${s.name}`}
+                        disabled={progressM.isPending}
+                        className={`z-10 h-9 w-9 shrink-0 rounded-full border-2 ${isDone ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : isCurrent ? "border-primary text-primary ring-4 ring-primary/15" : "border-border text-muted-foreground"}`}
+                        aria-label={`Etapa ${s.name}`}
+                        title={isDone ? "Retroceder etapa" : "Avançar etapa"}
                       >
-                        {expanded.has(s.id) ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                        {expanded.has(s.id) ? "Fechar" : "Abrir tarefas"}
+                        {isDone ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
                       </Button>
+                      {i < total - 1 && (
+                        <span
+                          className={`mt-1 w-0.5 flex-1 ${isDone ? "bg-primary" : "bg-border"}`}
+                        />
+                      )}
                     </div>
-                    {expanded.has(s.id) && (
-                      <div className="mt-4 border-t pt-4">
-                        <StageTasksPanel
-                          tasks={tasksByStage.get(s.id) ?? []}
-                          loading={stageTasksQ.isLoading}
-                          assignees={assignees}
-                          canManageTeam={canManageTeam}
-                          onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
-                          onPatch={(v) => clientFlagM.mutate(v)}
-                          onAdd={(title, due_date, who, file) =>
-                            addTaskM.mutate({
-                              stage_id: s.id,
-                              title,
-                              due_date: due_date ?? s.due_date ?? null,
-                              ...responsibleFrom(who),
-                              file,
+                    <div
+                      className={`min-w-0 rounded-lg border bg-background p-4 ${isCurrent ? "border-primary/50" : "border-border"}`}
+                    >
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                        <div className="min-w-0">
+                          {s.week_label && (
+                            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                              {s.week_label}
+                            </p>
+                          )}
+                          <h4 className="break-words text-sm font-semibold">
+                            {s.week_label ? s.name : `${i + 1}. ${s.name}`}
+                          </h4>
+                          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                            <span>{statusLabel}</span>
+                            {rangeLabel(s.start_date, s.due_date) && (
+                              <button
+                                type="button"
+                                onClick={() => setShiftStage(s)}
+                                className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-accent hover:text-foreground"
+                                title="Adiar ou adiantar esta etapa"
+                              >
+                                <CalendarClock className="h-3.5 w-3.5" />
+                                {rangeLabel(s.start_date, s.due_date)}
+                              </button>
+                            )}
+                            {!rangeLabel(s.start_date, s.due_date) && (
+                              <button
+                                type="button"
+                                onClick={() => setShiftStage(s)}
+                                className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-accent hover:text-foreground"
+                              >
+                                <CalendarClock className="h-3.5 w-3.5" /> Datas
+                              </button>
+                            )}
+                          </p>
+                          {s.alert && (
+                            <p className="mt-2 flex gap-1.5 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                              <span>{s.alert}</span>
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold text-primary">
+                          {s.percent}%
+                        </span>
+                      </div>
+                      <Progress
+                        value={s.percent}
+                        aria-label={`Progresso da etapa ${s.name}`}
+                        className="mt-3 h-1.5"
+                      />
+                      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground">
+                            {taskProgress.total > 0
+                              ? `${taskProgress.done}/${taskProgress.total} tarefas concluídas · ${taskProgress.pct}%`
+                              : "Nenhuma tarefa"}
+                          </p>
+                          {taskProgress.total > 0 && (
+                            <Progress
+                              value={taskProgress.pct}
+                              aria-label={`Progresso das tarefas de ${s.name}`}
+                              className="mt-2 h-1"
+                            />
+                          )}
+                        </div>
+                        <Button
+                          variant={expanded.has(s.id) ? "secondary" : "outline"}
+                          size="sm"
+                          onClick={() =>
+                            setExpanded((cur) => {
+                              const n = new Set(cur);
+                              if (n.has(s.id)) n.delete(s.id);
+                              else n.add(s.id);
+                              return n;
                             })
                           }
-                          adding={addTaskM.isPending}
-                        />
+                          className="shrink-0"
+                          aria-expanded={expanded.has(s.id)}
+                          aria-label={`Tarefas da etapa ${s.name}`}
+                        >
+                          {expanded.has(s.id) ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                          {expanded.has(s.id) ? "Fechar" : "Abrir tarefas"}
+                        </Button>
                       </div>
-                    )}
-                  </div>
-                </li>
+                      {expanded.has(s.id) && (
+                        <div className="mt-4 border-t pt-4">
+                          <StageTasksPanel
+                            tasks={tasksByStage.get(s.id) ?? []}
+                            loading={stageTasksQ.isLoading}
+                            assignees={assignees}
+                            canManageTeam={canManageTeam}
+                            onToggle={(task_id, done) => doneTaskM.mutate({ task_id, done })}
+                            onPatch={(v) => clientFlagM.mutate(v)}
+                            onAdd={(title, due_date, who, file) =>
+                              addTaskM.mutate({
+                                stage_id: s.id,
+                                title,
+                                due_date: due_date ?? s.due_date ?? null,
+                                ...responsibleFrom(who),
+                                file,
+                              })
+                            }
+                            adding={addTaskM.isPending}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                </Fragment>
               );
             })}
           </ol>
@@ -601,10 +693,25 @@ export function RoadmapStagesPanel({
                       >
                         {s.name}
                       </p>
-                      {s.due_date && (
-                        <p className="text-[10px] text-muted-foreground">
-                          {s.due_date.split("-").reverse().join("/")}
+                      {(s.phase || s.week_label) && (
+                        <p
+                          className="w-full truncate px-1 text-center text-[10px] font-semibold text-primary"
+                          title={[s.phase, s.week_label].filter(Boolean).join(" · ")}
+                        >
+                          {[s.phase?.split("·")[0]?.trim(), s.week_label]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </p>
+                      )}
+                      {(s.start_date || s.due_date) && (
+                        <button
+                          type="button"
+                          onClick={() => setShiftStage(s)}
+                          className="text-[10px] text-muted-foreground hover:text-foreground"
+                          title="Adiar ou adiantar esta etapa"
+                        >
+                          {rangeLabel(s.start_date, s.due_date)}
+                        </button>
                       )}
                       {(() => {
                         const p = stageProgress(s.id);
@@ -677,9 +784,13 @@ export function RoadmapStagesPanel({
               ? stages.map((s) => ({
                   id: s.id,
                   name: s.name,
+                  start_date: s.start_date,
                   due_date: s.due_date,
                   status: s.status,
                   percent: s.percent,
+                  phase: s.phase,
+                  week_label: s.week_label,
+                  alert: s.alert,
                 }))
               : DEFAULT_STAGES
           }
@@ -688,8 +799,230 @@ export function RoadmapStagesPanel({
             setEditing(false);
           }}
         />
+
+        <RescheduleDialog
+          open={scheduleOpen}
+          onOpenChange={setScheduleOpen}
+          initial={stages.find((x) => x.start_date)?.start_date ?? null}
+          pending={rescheduleM.isPending}
+          onConfirm={(d) => rescheduleM.mutate(d)}
+        />
+        <ShiftStageDialog
+          stage={shiftStage}
+          isLast={!!shiftStage && stages[stages.length - 1]?.id === shiftStage.id}
+          onOpenChange={(o) => !o && setShiftStage(null)}
+          pending={shiftM.isPending}
+          onConfirm={(days, following) =>
+            shiftStage && shiftM.mutate({ stage_id: shiftStage.id, days, following })
+          }
+        />
       </Card>
     </AttachmentsContext.Provider>
+  );
+}
+
+/** Cabeçalho de fase: nome, período e andamento das etapas da fase. */
+function PhaseHeader({ name, stages }: { name: string; stages: ProjectStage[] }) {
+  const starts = stages
+    .map((s) => s.start_date)
+    .filter(Boolean)
+    .sort() as string[];
+  const dues = stages
+    .map((s) => s.due_date)
+    .filter(Boolean)
+    .sort() as string[];
+  const done = stages.filter((s) => s.status === "done").length;
+  const pct = stages.length
+    ? Math.round(stages.reduce((a, s) => a + (s.percent ?? 0), 0) / stages.length)
+    : 0;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/60 px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">{name}</p>
+        <p className="text-xs text-muted-foreground">
+          {starts[0] && dues.length
+            ? `${fmtBr(starts[0])} a ${fmtBr(dues[dues.length - 1])} · `
+            : ""}
+          {done} de {stages.length} semanas concluídas
+        </p>
+      </div>
+      <div className="flex w-32 items-center gap-2">
+        <Progress value={pct} className="h-1.5" aria-label={`Andamento da ${name}`} />
+        <span className="text-xs font-semibold tabular-nums">{pct}%</span>
+      </div>
+    </div>
+  );
+}
+
+/** Nova data de início: recalcula todas as etapas e leva as tarefas em aberto junto. */
+function RescheduleDialog({
+  open,
+  onOpenChange,
+  initial,
+  pending,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  initial: string | null;
+  pending: boolean;
+  onConfirm: (date: string) => void;
+}) {
+  const [date, setDate] = useState("");
+  useEffect(() => {
+    if (open) setDate(initial?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+  }, [open, initial]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Reprogramar cronograma</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+            Escolha a nova data de início do projeto. Cada etapa é recalculada pelo dia em que
+            começa e pela duração dela (fases e semanas), e as tarefas em aberto vão junto. Tarefas
+            concluídas não mudam.
+          </p>
+          <label className="grid gap-1">
+            <span className="text-xs font-medium">Início do projeto (dia 1)</span>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button disabled={!date || pending} onClick={() => onConfirm(date)}>
+            Recalcular datas
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Adia ou adianta uma etapa (e as seguintes, se marcado). */
+function ShiftStageDialog({
+  stage,
+  isLast,
+  onOpenChange,
+  pending,
+  onConfirm,
+}: {
+  stage: ProjectStage | null;
+  isLast: boolean;
+  onOpenChange: (o: boolean) => void;
+  pending: boolean;
+  onConfirm: (days: number, following: boolean) => void;
+}) {
+  const [days, setDays] = useState(7);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const [following, setFollowing] = useState(true);
+  useEffect(() => {
+    if (stage) {
+      setDays(7);
+      setDir(1);
+      setFollowing(true);
+    }
+  }, [stage]);
+  const preview = (iso: string | null) => {
+    if (!iso) return null;
+    const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+    d.setDate(d.getDate() + dir * (days || 0));
+    return d.toLocaleDateString("pt-BR");
+  };
+  return (
+    <Dialog open={!!stage} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Datas da etapa</DialogTitle>
+        </DialogHeader>
+        {stage && (
+          <div className="space-y-3 text-sm">
+            <p>
+              <span className="font-medium">{stage.name}</span>
+              {stage.week_label ? ` · ${stage.week_label}` : ""}
+              <br />
+              <span className="text-muted-foreground">
+                Hoje: {rangeLabel(stage.start_date, stage.due_date) ?? "sem datas"}
+              </span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className="inline-flex rounded-lg border p-0.5"
+                role="group"
+                aria-label="Direção"
+              >
+                {(
+                  [
+                    [1, "Adiar"],
+                    [-1, "Adiantar"],
+                  ] as const
+                ).map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={dir === v}
+                    onClick={() => setDir(v)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${dir === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={days}
+                onChange={(e) => setDays(Math.max(0, Math.min(365, Number(e.target.value || 0))))}
+                className="w-20"
+                aria-label="Quantidade de dias"
+              />
+              <span className="text-muted-foreground">dias</span>
+              <div className="flex gap-1">
+                {[7, 14, 30].map((n) => (
+                  <Button
+                    key={n}
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDays(n)}
+                  >
+                    {n === 7 ? "1 semana" : n === 14 ? "2 semanas" : "30 dias"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            {!isLast && (
+              <label className="flex items-center gap-2">
+                <Checkbox checked={following} onCheckedChange={(v) => setFollowing(v === true)} />
+                Levar as etapas seguintes junto (mantém a sequência do cronograma)
+              </label>
+            )}
+            {(stage.start_date || stage.due_date) && (
+              <p className="rounded-md bg-muted px-3 py-2 text-xs">
+                Nova data: {preview(stage.start_date) ?? "—"} a {preview(stage.due_date) ?? "—"}
+                {following && !isLast ? " · as etapas seguintes também mudam" : ""}. As tarefas em
+                aberto da etapa vão junto.
+              </p>
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button
+            disabled={pending || !days || (!stage?.start_date && !stage?.due_date)}
+            onClick={() => onConfirm(dir * days, following && !isLast)}
+          >
+            {dir > 0 ? "Adiar" : "Adiantar"} {days} dia(s)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -745,52 +1078,95 @@ function EditStagesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Editar etapas do roadmap</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2 max-h-[55vh] overflow-y-auto py-1">
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Fase e semana organizam o cronograma (ex.: “1ª Fase · Dias 1 a 30” e “2ª semana”). As
+          datas de início e fim definem o período de cada etapa; o aviso aparece em destaque para a
+          equipe e para o cliente.
+        </p>
+        <div className="max-h-[60vh] space-y-2 overflow-y-auto py-1">
           {draft.map((s, i) => (
-            <div key={s.id ?? `new-${i}`} className="flex items-center gap-2">
-              <div className="flex flex-col">
+            <div key={s.id ?? `new-${i}`} className="flex gap-2 rounded-xl border p-2.5">
+              <div className="flex flex-col items-center gap-1 pt-1">
                 <button
                   type="button"
                   onClick={() => move(i, -1)}
                   disabled={i === 0}
-                  className="text-muted-foreground hover:text-foreground disabled:opacity-30 text-xs leading-none"
+                  className="text-xs leading-none text-muted-foreground hover:text-foreground disabled:opacity-30"
                   aria-label="Mover para cima"
                 >
                   ▲
                 </button>
+                <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <button
                   type="button"
                   onClick={() => move(i, 1)}
                   disabled={i === draft.length - 1}
-                  className="text-muted-foreground hover:text-foreground disabled:opacity-30 text-xs leading-none"
+                  className="text-xs leading-none text-muted-foreground hover:text-foreground disabled:opacity-30"
                   aria-label="Mover para baixo"
                 >
                   ▼
                 </button>
               </div>
-              <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-              <Input
-                value={s.name}
-                onChange={(e) => update(i, { name: e.target.value })}
-                placeholder="Nome da etapa"
-              />
-              <Input
-                type="date"
-                className="w-[9.5rem] shrink-0"
-                value={s.due_date ?? ""}
-                onChange={(e) => update(i, { due_date: e.target.value || null })}
-                aria-label="Prazo da etapa"
-              />
+              <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-6">
+                <Input
+                  value={s.name}
+                  onChange={(e) => update(i, { name: e.target.value })}
+                  placeholder="Nome da etapa"
+                  className="sm:col-span-6"
+                  aria-label="Nome da etapa"
+                />
+                <Input
+                  value={s.phase ?? ""}
+                  onChange={(e) => update(i, { phase: e.target.value || null })}
+                  placeholder="Fase (opcional)"
+                  className="sm:col-span-2"
+                  aria-label="Fase"
+                />
+                <Input
+                  value={s.week_label ?? ""}
+                  onChange={(e) => update(i, { week_label: e.target.value || null })}
+                  placeholder="Semana (opcional)"
+                  className="sm:col-span-2"
+                  aria-label="Semana"
+                />
+                <div className="grid grid-cols-2 gap-2 sm:col-span-2 sm:grid-cols-1">
+                  <label className="grid gap-0.5 text-[11px] text-muted-foreground">
+                    Início
+                    <Input
+                      type="date"
+                      value={s.start_date ?? ""}
+                      onChange={(e) => update(i, { start_date: e.target.value || null })}
+                      className="h-9"
+                    />
+                  </label>
+                  <label className="grid gap-0.5 text-[11px] text-muted-foreground">
+                    Fim
+                    <Input
+                      type="date"
+                      value={s.due_date ?? ""}
+                      onChange={(e) => update(i, { due_date: e.target.value || null })}
+                      className="h-9"
+                    />
+                  </label>
+                </div>
+                <Input
+                  value={s.alert ?? ""}
+                  onChange={(e) => update(i, { alert: e.target.value || null })}
+                  placeholder="Aviso importante desta etapa (opcional)"
+                  className="sm:col-span-6"
+                  aria-label="Aviso"
+                />
+              </div>
               <Button
                 type="button"
                 size="icon"
                 variant="ghost"
                 onClick={() => remove(i)}
-                className="text-rose-600 hover:text-rose-700 shrink-0"
+                className="shrink-0 text-rose-600 hover:text-rose-700"
                 aria-label="Remover etapa"
               >
                 <Trash2 className="h-4 w-4" />

@@ -10,7 +10,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,7 +47,28 @@ export const Route = createFileRoute("/_authenticated/configuracoes/modelos")({
 });
 
 type TaskDraft = { title: string; due_offset_days: number; responsible_type: "equipe" | "cliente" };
-type StageDraft = { name: string; duration_days: number | null; tasks: TaskDraft[] };
+type StageDraft = {
+  name: string;
+  duration_days: number | null;
+  phase: string | null;
+  week_label: string | null;
+  start_offset_days: number | null;
+  alert: string | null;
+  tasks: TaskDraft[];
+};
+const blank = { phase: null, week_label: null, start_offset_days: null, alert: null };
+
+/** Dia de início de cada etapa: o definido no modelo ou em sequência após a anterior. */
+function stageStarts(stages: StageDraft[]) {
+  const out: number[] = [];
+  let cursor = 0;
+  for (const s of stages) {
+    const start = s.start_offset_days ?? cursor;
+    out.push(start);
+    cursor = start + (s.duration_days ?? 0);
+  }
+  return out;
+}
 
 function TemplatesPage() {
   const qc = useQueryClient();
@@ -113,7 +138,9 @@ function TemplatesPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">{t.description}</p>
                 )}
                 <p className="text-xs text-muted-foreground mt-2">
-                  {t.stages.map((s) => s.name).join(" → ") || "Sem etapas"}
+                  {t.stages.some((s) => s.phase)
+                    ? `${[...new Set(t.stages.map((s) => s.phase).filter(Boolean))].join(" → ")} · ${t.stages.length} semanas`
+                    : t.stages.map((s) => s.name).join(" → ") || "Sem etapas"}
                 </p>
                 {t.stages.some((s) => s.tasks?.length) && (
                   <p className="text-[11px] text-muted-foreground mt-1">
@@ -185,7 +212,7 @@ function TemplateDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [stages, setStages] = useState<StageDraft[]>([
-    { name: "Briefing", duration_days: 7, tasks: [] },
+    { name: "Briefing", duration_days: 7, ...blank, tasks: [] },
   ]);
 
   useEffect(() => {
@@ -197,6 +224,10 @@ function TemplateDialog({
         ? template.stages.map((s) => ({
             name: s.name,
             duration_days: s.duration_days,
+            phase: s.phase ?? null,
+            week_label: s.week_label ?? null,
+            start_offset_days: s.start_offset_days ?? null,
+            alert: s.alert ?? null,
             tasks: (s.tasks ?? []).map((t) => ({
               title: t.title,
               due_offset_days: t.due_offset_days ?? 0,
@@ -204,11 +235,11 @@ function TemplateDialog({
             })),
           }))
         : [
-            { name: "Briefing", duration_days: 3, tasks: [] },
-            { name: "Planejamento", duration_days: 5, tasks: [] },
-            { name: "Produção", duration_days: 14, tasks: [] },
-            { name: "Aprovação", duration_days: 3, tasks: [] },
-            { name: "Entrega", duration_days: 2, tasks: [] },
+            { name: "Briefing", duration_days: 3, ...blank, tasks: [] },
+            { name: "Planejamento", duration_days: 5, ...blank, tasks: [] },
+            { name: "Produção", duration_days: 14, ...blank, tasks: [] },
+            { name: "Aprovação", duration_days: 3, ...blank, tasks: [] },
+            { name: "Entrega", duration_days: 2, ...blank, tasks: [] },
           ],
     );
   }, [open, template]);
@@ -224,6 +255,10 @@ function TemplateDialog({
           .map((s) => ({
             name: s.name.trim(),
             duration_days: s.duration_days,
+            phase: s.phase?.trim() || null,
+            week_label: s.week_label?.trim() || null,
+            start_offset_days: s.start_offset_days,
+            alert: s.alert?.trim() || null,
             tasks: s.tasks
               .map((t) => ({
                 title: t.title.trim(),
@@ -244,14 +279,18 @@ function TemplateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{template ? "Editar modelo" : "Novo modelo de projeto"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>Nome</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Tráfego pago" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex.: Tráfego pago"
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Descrição</Label>
@@ -265,59 +304,127 @@ function TemplateDialog({
             <div className="space-y-1">
               <Label>Etapas</Label>
               <p className="text-xs text-muted-foreground">
-                Cada etapa é uma fase do projeto e acontece na ordem da lista. O número ao lado do
-                nome é o prazo da fase, em dias.
+                Cada etapa acontece na ordem da lista. Para um cronograma por fases e semanas,
+                preencha a fase, a semana e o dia em que a etapa começa (dia 1 = início do projeto).
+                Sem dia definido, a etapa começa logo após a anterior.
               </p>
             </div>
-            <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+            <div className="space-y-2 max-h-[55vh] overflow-y-auto">
               {stages.map((s, i) => (
                 <div key={i} className="rounded-xl border p-2 space-y-2">
                   <div className="flex items-center gap-2">
-                  <Input
-                    value={s.name}
-                    onChange={(e) =>
-                      setStages((d) => d.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
-                    }
-                    placeholder="Nome da etapa"
-                  />
-                  <div
-                    className="flex items-center gap-1 shrink-0"
-                    title="Prazo previsto desta etapa, em dias, contado a partir do início do projeto"
-                  >
                     <Input
-                      type="number"
-                      min={0}
-                      className="w-16"
-                      value={s.duration_days ?? ""}
+                      value={s.name}
+                      onChange={(e) =>
+                        setStages((d) =>
+                          d.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
+                        )
+                      }
+                      placeholder="Nome da etapa"
+                    />
+                    <div
+                      className="flex items-center gap-1 shrink-0"
+                      title="Prazo previsto desta etapa, em dias, contado a partir do início do projeto"
+                    >
+                      <Input
+                        type="number"
+                        min={0}
+                        className="w-16"
+                        value={s.duration_days ?? ""}
+                        onChange={(e) =>
+                          setStages((d) =>
+                            d.map((x, j) =>
+                              j === i
+                                ? {
+                                    ...x,
+                                    duration_days: e.target.value ? Number(e.target.value) : null,
+                                  }
+                                : x,
+                            ),
+                          )
+                        }
+                        aria-label="Prazo da etapa em dias"
+                      />
+                      <span className="text-xs text-muted-foreground">dias</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-rose-600 shrink-0"
+                      aria-label="Remover etapa"
+                      onClick={() => setStages((d) => d.filter((_, j) => j !== i))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr_auto]">
+                    <Input
+                      value={s.phase ?? ""}
+                      placeholder="Fase (ex.: 1ª Fase · Dias 1 a 30)"
+                      className="h-8 text-sm"
+                      aria-label="Fase"
+                      onChange={(e) =>
+                        setStages((d) =>
+                          d.map((x, j) => (j === i ? { ...x, phase: e.target.value || null } : x)),
+                        )
+                      }
+                    />
+                    <Input
+                      value={s.week_label ?? ""}
+                      placeholder="Semana (ex.: 1ª semana)"
+                      className="h-8 text-sm"
+                      aria-label="Semana"
                       onChange={(e) =>
                         setStages((d) =>
                           d.map((x, j) =>
-                            j === i
-                              ? { ...x, duration_days: e.target.value ? Number(e.target.value) : null }
-                              : x,
+                            j === i ? { ...x, week_label: e.target.value || null } : x,
                           ),
                         )
                       }
-                      aria-label="Prazo da etapa em dias"
                     />
-                    <span className="text-xs text-muted-foreground">dias</span>
+                    <label
+                      className="flex items-center gap-1 text-xs text-muted-foreground"
+                      title="Dia do projeto em que a etapa começa (1 = primeiro dia)"
+                    >
+                      Começa no dia
+                      <Input
+                        type="number"
+                        min={1}
+                        className="h-8 w-16 text-sm"
+                        value={s.start_offset_days != null ? s.start_offset_days + 1 : ""}
+                        placeholder={String(stageStarts(stages)[i] + 1)}
+                        onChange={(e) =>
+                          setStages((d) =>
+                            d.map((x, j) =>
+                              j === i
+                                ? {
+                                    ...x,
+                                    start_offset_days: e.target.value
+                                      ? Math.max(0, Number(e.target.value) - 1)
+                                      : null,
+                                  }
+                                : x,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-rose-600 shrink-0"
-                    aria-label="Remover etapa"
-                    onClick={() => setStages((d) => d.filter((_, j) => j !== i))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                  </div>
+                  <Input
+                    value={s.alert ?? ""}
+                    placeholder="⚠️ Aviso importante da etapa (opcional)"
+                    className="h-8 text-sm"
+                    aria-label="Aviso da etapa"
+                    onChange={(e) =>
+                      setStages((d) =>
+                        d.map((x, j) => (j === i ? { ...x, alert: e.target.value || null } : x)),
+                      )
+                    }
+                  />
 
                   <div className="space-y-1.5 pl-1">
                     {(() => {
-                      const startOffset = stages
-                        .slice(0, i)
-                        .reduce((n, x) => n + (x.duration_days ?? 0), 0);
+                      const startOffset = stageStarts(stages)[i];
                       return s.tasks.length > 0 ? (
                         <p className="text-[11px] text-muted-foreground">
                           Se o projeto começasse hoje, esta etapa iniciaria em{" "}
@@ -383,7 +490,13 @@ function TemplateDialog({
                                       ...x,
                                       tasks: x.tasks.map((y, m) =>
                                         m === k
-                                          ? { ...y, responsible_type: y.responsible_type === "cliente" ? "equipe" : "cliente" }
+                                          ? {
+                                              ...y,
+                                              responsible_type:
+                                                y.responsible_type === "cliente"
+                                                  ? "equipe"
+                                                  : "cliente",
+                                            }
                                           : y,
                                       ),
                                     }
@@ -396,11 +509,7 @@ function TemplateDialog({
                         </Button>
                         <span className="text-[11px] text-muted-foreground shrink-0 w-[68px] tabular-nums">
                           {format(
-                            addDays(
-                              new Date(),
-                              stages.slice(0, i).reduce((n, x) => n + (x.duration_days ?? 0), 0) +
-                                (t.due_offset_days || 0),
-                            ),
+                            addDays(new Date(), stageStarts(stages)[i] + (t.due_offset_days || 0)),
                             "dd/MM/yyyy",
                           )}
                         </span>
@@ -429,7 +538,13 @@ function TemplateDialog({
                         setStages((d) =>
                           d.map((x, j) =>
                             j === i
-                              ? { ...x, tasks: [...x.tasks, { title: "", due_offset_days: 0, responsible_type: "equipe" }] }
+                              ? {
+                                  ...x,
+                                  tasks: [
+                                    ...x.tasks,
+                                    { title: "", due_offset_days: 0, responsible_type: "equipe" },
+                                  ],
+                                }
                               : x,
                           ),
                         )
@@ -444,7 +559,9 @@ function TemplateDialog({
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => setStages((d) => [...d, { name: "", duration_days: 7, tasks: [] }])}
+                onClick={() =>
+                  setStages((d) => [...d, { name: "", duration_days: 7, ...blank, tasks: [] }])
+                }
               >
                 <Plus className="h-4 w-4" /> Adicionar etapa
               </Button>
@@ -456,12 +573,16 @@ function TemplateDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
           <Button
             onClick={() => {
               if (!name.trim()) return toast.error("Informe o nome do modelo");
-              if (!(template?.organization_id ?? organizationId)) return toast.error("Empresa não identificada");
-              if (!stages.some((s) => s.name.trim())) return toast.error("Adicione ao menos uma etapa");
+              if (!(template?.organization_id ?? organizationId))
+                return toast.error("Empresa não identificada");
+              if (!stages.some((s) => s.name.trim()))
+                return toast.error("Adicione ao menos uma etapa");
               m.mutate();
             }}
             disabled={m.isPending}

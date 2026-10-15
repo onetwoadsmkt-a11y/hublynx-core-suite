@@ -76,6 +76,9 @@ export type PortalStage = {
   percent: number;
   start_date: string | null;
   due_date: string | null;
+  phase?: string | null;
+  week_label?: string | null;
+  alert?: string | null;
 };
 export type PortalProject = {
   project: {
