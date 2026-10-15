@@ -2,26 +2,38 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { buildLeadFromPayload, type FieldMap } from "@/lib/pipeline/lead-mapping";
 
+// Textos longos demais são cortados (não recusam o lead): o valor completo continua
+// guardado nos dados brutos (metadata). Ex.: fbclid do Facebook passa de 200 caracteres.
+const cut = (n: number) =>
+  z
+    .string()
+    .transform((v) => v.slice(0, n))
+    .optional()
+    .nullable();
+
 const payloadSchema = z.object({
-  name: z.string().min(1).max(200),
-  company: z.string().max(200).optional().nullable(),
-  email: z.string().max(200).optional().nullable(),
-  phone: z.string().max(60).optional().nullable(),
-  city: z.string().max(120).optional().nullable(),
-  state: z.string().max(60).optional().nullable(),
-  source: z.string().max(120).optional().nullable(),
+  name: z
+    .string()
+    .min(1)
+    .transform((v) => v.slice(0, 200)),
+  company: cut(200),
+  email: cut(200),
+  phone: cut(60),
+  city: cut(120),
+  state: cut(60),
+  source: cut(120),
   value: z.coerce.number().nonnegative().optional().nullable(),
   lead_score: z.coerce.number().optional().nullable(),
-  lead_classification: z.string().max(40).optional().nullable(),
-  utm_source: z.string().max(200).optional().nullable(),
-  utm_medium: z.string().max(200).optional().nullable(),
-  utm_campaign: z.string().max(200).optional().nullable(),
-  utm_term: z.string().max(200).optional().nullable(),
-  utm_content: z.string().max(200).optional().nullable(),
-  gclid: z.string().max(200).optional().nullable(),
-  fbclid: z.string().max(200).optional().nullable(),
-  landing_url: z.string().max(600).optional().nullable(),
-  referrer: z.string().max(600).optional().nullable(),
+  lead_classification: cut(40),
+  utm_source: cut(200),
+  utm_medium: cut(200),
+  utm_campaign: cut(200),
+  utm_term: cut(200),
+  utm_content: cut(200),
+  gclid: cut(500),
+  fbclid: cut(500),
+  landing_url: cut(1000),
+  referrer: cut(1000),
 });
 
 export const Route = createFileRoute("/api/public/leads/$token")({
@@ -103,9 +115,8 @@ export const Route = createFileRoute("/api/public/leads/$token")({
             .eq("owner_id", hook.owner_id)
             .order("position")
             .limit(1);
-          const { data: firstStage } = await (firstPipeline
-            ? query.eq("pipeline_id", firstPipeline.id)
-            : query
+          const { data: firstStage } = await (
+            firstPipeline ? query.eq("pipeline_id", firstPipeline.id) : query
           ).maybeSingle();
           stageId = firstStage?.id ?? null;
         }
@@ -141,7 +152,10 @@ export const Route = createFileRoute("/api/public/leads/$token")({
             .limit(1000);
           const existing = ((recent ?? []) as Record<string, any>[]).find(
             (l) =>
-              (email && String(l.email ?? "").trim().toLowerCase() === email) ||
+              (email &&
+                String(l.email ?? "")
+                  .trim()
+                  .toLowerCase() === email) ||
               (phone && phone.length >= 10 && digits(l.phone) === phone),
           );
           if (existing) {
@@ -153,12 +167,15 @@ export const Route = createFileRoute("/api/public/leads/$token")({
               if (cur === null || cur === undefined || cur === "") patch[k] = v;
             }
             // a qualificação do formulário é a referência: sempre atualiza quando vier
-            if (parsed.data.lead_classification) patch.lead_classification = parsed.data.lead_classification;
+            if (parsed.data.lead_classification)
+              patch.lead_classification = parsed.data.lead_classification;
             if (parsed.data.lead_score !== null && parsed.data.lead_score !== undefined) {
               patch.lead_score = parsed.data.lead_score;
             }
             const prevMeta =
-              existing.metadata && typeof existing.metadata === "object" && !Array.isArray(existing.metadata)
+              existing.metadata &&
+              typeof existing.metadata === "object" &&
+              !Array.isArray(existing.metadata)
                 ? (existing.metadata as Record<string, unknown>)
                 : {};
             patch.metadata = { ...prevMeta, ...raw, merged_at: new Date().toISOString() };
@@ -172,7 +189,10 @@ export const Route = createFileRoute("/api/public/leads/$token")({
             }
             await supabaseAdmin
               .from("lead_webhooks")
-              .update({ call_count: (hook.call_count ?? 0) + 1, last_called_at: new Date().toISOString() })
+              .update({
+                call_count: (hook.call_count ?? 0) + 1,
+                last_called_at: new Date().toISOString(),
+              })
               .eq("id", hook.id);
             return Response.json({ ok: true, lead_id: existing.id, merged: true }, { status: 200 });
           }
@@ -197,7 +217,10 @@ export const Route = createFileRoute("/api/public/leads/$token")({
 
         await supabaseAdmin
           .from("lead_webhooks")
-          .update({ call_count: (hook.call_count ?? 0) + 1, last_called_at: new Date().toISOString() })
+          .update({
+            call_count: (hook.call_count ?? 0) + 1,
+            last_called_at: new Date().toISOString(),
+          })
           .eq("id", hook.id);
 
         return Response.json({ ok: true, lead_id: lead.id }, { status: 201 });
