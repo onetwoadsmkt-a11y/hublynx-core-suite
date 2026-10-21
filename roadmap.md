@@ -1,5 +1,7 @@
 # Roadmap — Reestruturação Hublynx (plano aprovado 09/09/2026)
 
+- [x] Tarefas — filtro por intervalo de datas compartilhado entre Lista, Kanban e Calendário, incluindo agendamentos de leads.
+
 - [x] Pipeline — agendamentos integrados às visualizações Lista, Kanban e Calendário de Tarefas, com ações na origem, escopo da empresa e seis testes aprovados.
 - [ ] Pipeline — conferir a tarefa agendada do lead demo na conta real; bloqueado pela ausência de sessão autenticada no banco externo.
 
