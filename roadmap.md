@@ -1,5 +1,8 @@
 # Roadmap — Reestruturação Hublynx (plano aprovado 09/09/2026)
 
+- [x] Pipeline — agendamentos integrados às visualizações Lista, Kanban e Calendário de Tarefas, com ações na origem, escopo da empresa e seis testes aprovados.
+- [ ] Pipeline — conferir a tarefa agendada do lead demo na conta real; bloqueado pela ausência de sessão autenticada no banco externo.
+
 - [x] Etapa 1 — SQL 01..05 aplicado no Supabase + backfill final dos registros sem organização
 - [x] Nomenclatura "Core Suite" → "Hublynx" (títulos, logo, hub)
 - [x] Etapa 2 — acesso por organização/módulo (`getMyOrgAccess`, `useOrgAccess`, `AccessGate`, menu filtrado). Financeiro só para empresas com o módulo

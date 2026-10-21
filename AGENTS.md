@@ -1,5 +1,7 @@
 # Architecture rules
 
+- The task center merges general tasks and lead schedules through a source-aware display adapter; lead schedules remain in their existing table, tenant-scoped through their parent lead, and use existing scheduling mutations rather than general-task actions.
+
 - Pipeline floating navigation controls the existing board scroll container and observes its size and scroll position; it never changes lead movement or stage ordering.
 
 - Project detail sections use the shared Tabs controls, keeping the project header and alerts visible outside the panels to preserve context.
