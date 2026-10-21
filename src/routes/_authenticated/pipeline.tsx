@@ -33,6 +33,7 @@ import {
 import { LeadCard, currency } from "@/components/pipeline/LeadCard";
 import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
+import { PipelineScrollBar } from "@/components/pipeline/PipelineScrollBar";
 import { StagesDialog } from "@/components/pipeline/StagesDialog";
 import { TagsDialog } from "@/components/pipeline/TagsDialog";
 import { listPipelineTags } from "@/lib/pipeline/tags.functions";
@@ -507,7 +508,7 @@ function PipelinePage() {
             ref={boardRef}
             onMouseDown={onBoardMouseDown}
             className={cn(
-              "-mx-4 flex flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:gap-4 md:px-0",
+              "-mx-4 flex flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-20 md:mx-0 md:snap-none md:gap-4 md:px-0",
               "md:cursor-grab [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
               panning && "select-none md:cursor-grabbing",
             )}
@@ -530,6 +531,7 @@ function PipelinePage() {
             ))}
           </div>
           </SortableContext>
+          <PipelineScrollBar key={`${current?.id ?? "none"}:${stages.length}`} boardRef={boardRef} />
           <DragOverlay>
             {dragging && (
               <div className="w-[85vw] max-w-72 rotate-2 sm:w-72">
