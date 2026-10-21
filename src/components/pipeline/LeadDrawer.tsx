@@ -165,6 +165,10 @@ export function LeadDrawer({
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["lead-detail", lead?.id] });
+  const refreshTasks = () => {
+    refresh();
+    for (const key of [["tasks"], ["agenda"], ["week"]]) qc.invalidateQueries({ queryKey: key });
+  };
 
   // Mover o lead: primeiro o pipeline, depois a etapa daquele pipeline.
   const allStagesQ = useQuery({
@@ -229,7 +233,7 @@ export function LeadDrawer({
         if (res?.syncError) toast.error(`Salvo, mas o Google Agenda falhou: ${res.syncError}`);
         else if (res?.synced) toast.success("Agendado e sincronizado com o Google Agenda.");
       }
-      refresh();
+      refreshTasks();
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao agendar"),
   });
@@ -242,11 +246,13 @@ export function LeadDrawer({
 
   const toggleTask = useMutation({
     mutationFn: (v: { id: string; done: boolean }) => toggleFn({ data: v }),
-    onSuccess: refresh,
+    onSuccess: refreshTasks,
+    onError: (error: Error) => toast.error(error.message),
   });
   const removeTask = useMutation({
     mutationFn: (id: string) => delTaskFn({ data: { id } }),
-    onSuccess: refresh,
+    onSuccess: refreshTasks,
+    onError: (error: Error) => toast.error(error.message),
   });
   const removeFile = useMutation({
     mutationFn: (id: string) => delFileFn({ data: { id } }),

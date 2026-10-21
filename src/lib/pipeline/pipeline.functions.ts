@@ -667,9 +667,11 @@ export const upsertLeadTask = createServerFn({ method: "POST" })
 
     const { data: lead } = await supabase
       .from("leads")
-      .select("id, name, email")
+      .select("id, name, email, organization_id")
       .eq("id", data.leadId)
       .maybeSingle();
+
+    if (!lead) throw new Error("Lead não encontrado ou sem permissão.");
 
     let existingEventId: string | null = null;
     if (data.id) {
@@ -708,6 +710,7 @@ export const upsertLeadTask = createServerFn({ method: "POST" })
       lead_id: data.leadId,
       owner_id: userId,
       title: data.title,
+      ...organizationFields((lead.organization_id as string | null) ?? null),
       kind: data.kind,
       notes: data.notes ?? null,
       due_at: data.due_at || null,

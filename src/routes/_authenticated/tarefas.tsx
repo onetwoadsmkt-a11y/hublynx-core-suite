@@ -38,11 +38,24 @@ import { TaskCalendarView } from "@/components/tasks/TaskCalendarView";
 import { TaskFiltersSheet } from "@/components/tasks/TaskFiltersSheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { scopeOrganization } from "@/lib/org/filter";
+import { listLeadScheduledTasks } from "@/lib/pipeline/tasks.functions";
+import { leadTaskDisplay, type LeadScheduledTask } from "@/lib/pipeline/task-display";
+import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
+import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
 
 type ViewMode = "kanban" | "lista" | "calendario";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
-  head: () => ({ meta: [{ title: "Tarefas — Hublynx Core" }] }),
+  head: () => ({ meta: [
+    { title: "Tarefas — Hublynx Core" },
+    { name: "description", content: "Tarefas de projetos e agendamentos de leads em Lista, Kanban e Calendário." },
+    { property: "og:title", content: "Tarefas — Hublynx Core" },
+    { property: "og:description", content: "Prioridades, tarefas e agendamentos da sua empresa." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   validateSearch: (s: Record<string, unknown>): { task?: string; view?: ViewMode } => ({
     task: typeof s.task === "string" ? s.task : undefined,
     view: (["kanban", "lista", "calendario"].includes(String(s.view)) ? s.view : undefined) as ViewMode | undefined,
@@ -62,10 +75,16 @@ type Task = {
   position: number;
   created_at: string;
   briefing?: any;
+  leadTask?: LeadScheduledTask;
 };
 
 function TarefasPage() {
   const qc = useQueryClient();
+  const { activeOrganizationId } = useWorkspace();
+  const tasksKey = ["tasks", "central", activeOrganizationId ?? "none"] as const;
+  const leadTasksKey = ["tasks", "lead-schedules", activeOrganizationId ?? "none"] as const;
+  const listSchedules = useServerFn(listLeadScheduledTasks);
+  const toggleSchedule = useServerFn(toggleLeadTask);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const search = useSearch({ from: "/_authenticated/tarefas" });
@@ -92,15 +111,29 @@ function TarefasPage() {
   const setSelectedId = (id: string | null) =>
     navigate({ to: "/tarefas", search: { task: id ?? undefined, view }, replace: true });
 
-  const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["tasks"],
+  const { data: generalTasks = [], isLoading: tasksLoading, error: tasksError } = useQuery({
+    queryKey: tasksKey,
     queryFn: async () => {
-      const { data, error } = await supabase.from("tasks").select("*").order("position");
+      const { data, error } = await scopeOrganization(supabase.from("tasks").select("*"), activeOrganizationId).order("position");
       if (error) throw error;
       return data as Task[];
     },
     staleTime: 60_000,
+    enabled: !!activeOrganizationId,
   });
+
+  const { data: schedules = [], isLoading: schedulesLoading, error: schedulesError } = useQuery({
+    queryKey: leadTasksKey,
+    queryFn: () => {
+      if (!activeOrganizationId) throw new Error("Selecione uma empresa.");
+      return listSchedules({ data: { organizationId: activeOrganizationId } });
+    },
+    enabled: !!activeOrganizationId,
+    staleTime: 60_000,
+  });
+  const tasks = useMemo<Task[]>(() => [...generalTasks, ...schedules.map(leadTaskDisplay)], [generalTasks, schedules]);
+  const isLoading = tasksLoading || schedulesLoading;
+  const selectedSchedule = tasks.find((task) => task.id === selectedId)?.leadTask;
 
   const { data: labelsIndex = {} } = useQuery({
     queryKey: ["tasks-labels-index"],
@@ -160,23 +193,35 @@ function TarefasPage() {
   const syncSheet = useServerFn(syncEntityToSheets);
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
+      const schedule = tasks.find((task) => task.id === id)?.leadTask;
+      if (schedule) {
+        if (status !== "a_fazer" && status !== "concluido") throw new Error("Agendamentos de leads podem ficar a fazer ou concluídos.");
+        await toggleSchedule({ data: { id: schedule.id, done: status === "concluido" } });
+        return id;
+      }
       const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
       if (error) throw error;
       return id;
     },
     onMutate: async ({ id, status }) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
-      const prev = qc.getQueryData<Task[]>(["tasks"]);
-      qc.setQueryData<Task[]>(["tasks"], (old) =>
+      const prev = qc.getQueryData<Task[]>(tasksKey);
+      qc.setQueryData<Task[]>(tasksKey, (old) =>
         (old ?? []).map((t) => (t.id === id ? { ...t, status } : t)),
       );
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["tasks"], ctx.prev);
+      if (ctx?.prev) qc.setQueryData(tasksKey, ctx.prev);
       toast.error("Não foi possível mover a tarefa.");
     },
     onSuccess: (id) => {
+      const schedule = tasks.find((task) => task.id === id)?.leadTask;
+      if (schedule) {
+        qc.invalidateQueries({ queryKey: ["lead-detail", schedule.lead_id] });
+        qc.invalidateQueries({ queryKey: ["agenda"] });
+        return;
+      }
       syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
@@ -213,6 +258,10 @@ function TarefasPage() {
     if (!targetStatus) return;
     const task = tasks.find((t) => t.id === active.id);
     if (!task || task.status === targetStatus) return;
+    if (task.leadTask && targetStatus !== "a_fazer" && targetStatus !== "concluido") {
+      toast.info("Agendamentos de leads podem ficar a fazer ou concluídos.");
+      return;
+    }
     updateStatus.mutate({ id: String(active.id), status: targetStatus });
   }
 
@@ -307,6 +356,7 @@ function TarefasPage() {
         </div>
       )}
 
+      {(tasksError || schedulesError) && <p role="alert" className="text-sm text-destructive">Não foi possível carregar todas as tarefas. <Button variant="link" onClick={() => qc.invalidateQueries({ queryKey: ["tasks"] })}>Tentar novamente</Button></p>}
       <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
         <TabsContent value="lista" className="mt-2">
           {isLoading ? (
@@ -388,7 +438,7 @@ function TarefasPage() {
         </button>
       )}
 
-      <TaskDrawer taskId={selectedId} open={!!selectedId} onClose={() => setSelectedId(null)} />
+      {selectedSchedule ? <LeadTaskDialog key={selectedSchedule.id} task={selectedSchedule} onClose={() => setSelectedId(null)} /> : <TaskDrawer taskId={selectedId?.startsWith("lead:") ? null : selectedId} open={!!selectedId && !selectedId.startsWith("lead:")} onClose={() => setSelectedId(null)} />}
       <EditKanbanDialog open={openEditKanban} onOpenChange={setOpenEditKanban} />
       <TaskQuickForm
         open={openNew}
@@ -628,6 +678,7 @@ function TaskListItem({
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground truncate">{task.title}</p>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                {task.leadTask && <span className="inline-flex items-center gap-1"><UserIcon className="h-3 w-3 shrink-0" />Lead · {task.leadTask.leads.name}</span>}
                 {client && (
                   <span className="inline-flex items-center gap-1 truncate max-w-[180px]">
                     <UserIcon className="h-3 w-3 shrink-0" />
@@ -863,7 +914,7 @@ function TaskCard({
             {meeting && <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-primary" />}
             {task.title}
           </p>
-          <DropdownMenu>
+          {!task.leadTask && <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={stop} onPointerDown={stop}>
               <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100" title="Ações">
                 <MoreVertical className="h-3.5 w-3.5" />
@@ -886,9 +937,10 @@ function TaskCard({
                 <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
         </div>
 
+        {task.leadTask && <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><UserIcon className="h-3 w-3 shrink-0" />Lead · {task.leadTask.leads.name}</p>}
         {client && (
           <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
             <Building2 className="h-3 w-3 shrink-0" /> <span className="truncate">{client.name}</span>
