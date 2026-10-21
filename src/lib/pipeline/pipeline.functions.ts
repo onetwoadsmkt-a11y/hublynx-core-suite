@@ -665,13 +665,15 @@ export const upsertLeadTask = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const { data: lead } = await supabase
+    const { data: leadRow, error: leadError } = await supabase
       .from("leads")
-      .select("id, name, email, organization_id")
+      .select("*")
       .eq("id", data.leadId)
       .maybeSingle();
 
-    if (!lead) throw new Error("Lead não encontrado ou sem permissão.");
+    if (leadError) throw new Error(leadError.message);
+    if (!leadRow) throw new Error("Lead não encontrado ou sem permissão.");
+    const lead = leadRow as typeof leadRow & { organization_id?: string | null };
 
     let existingEventId: string | null = null;
     if (data.id) {
