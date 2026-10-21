@@ -44,6 +44,7 @@ import { listLeadScheduledTasks } from "@/lib/pipeline/tasks.functions";
 import { leadTaskDisplay, type LeadScheduledTask } from "@/lib/pipeline/task-display";
 import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
 import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
+import { matchesTaskDateRange } from "@/lib/tasks/date-filter";
 
 type ViewMode = "kanban" | "lista" | "calendario";
 
@@ -96,6 +97,8 @@ function TarefasPage() {
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterClient, setFilterClient] = useState<string>("all");
+  const [filterDateFrom, setFilterDateFrom] = useState<Date>();
+  const [filterDateTo, setFilterDateTo] = useState<Date>();
   const [openFilters, setOpenFilters] = useState(false);
   const [openNew, setOpenNew] = useState(false);
   const [newDefaults, setNewDefaults] = useState<TaskQuickFormDefaults | undefined>(undefined);
@@ -178,16 +181,19 @@ function TarefasPage() {
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterProject !== "all" && t.project_id !== filterProject) return false;
       if (filterClient !== "all" && t.client_id !== filterClient) return false;
+      if (!matchesTaskDateRange(t.due_date, filterDateFrom, filterDateTo)) return false;
       return true;
     });
-  }, [tasks, searchText, filterPriority, filterProject, filterClient]);
+  }, [tasks, searchText, filterPriority, filterProject, filterClient, filterDateFrom, filterDateTo]);
 
   const activeFiltersCount =
     (filterPriority !== "all" ? 1 : 0) +
     (filterProject !== "all" ? 1 : 0) +
-    (filterClient !== "all" ? 1 : 0);
+    (filterClient !== "all" ? 1 : 0) +
+    (filterDateFrom || filterDateTo ? 1 : 0);
   const clearFilters = () => {
     setFilterPriority("all"); setFilterProject("all"); setFilterClient("all");
+    setFilterDateFrom(undefined); setFilterDateTo(undefined);
   };
 
   const syncSheet = useServerFn(syncEntityToSheets);
@@ -451,6 +457,8 @@ function TarefasPage() {
         filterPriority={filterPriority} setFilterPriority={setFilterPriority}
         filterProject={filterProject} setFilterProject={setFilterProject}
         filterClient={filterClient} setFilterClient={setFilterClient}
+        filterDateFrom={filterDateFrom} setFilterDateFrom={setFilterDateFrom}
+        filterDateTo={filterDateTo} setFilterDateTo={setFilterDateTo}
         projects={projects as any[]} clients={clients as any[]}
         onClear={clearFilters}
       />
