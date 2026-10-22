@@ -1,5 +1,7 @@
 # Architecture rules
 
+- There is a single calendar (`/agenda`, with Google Calendar); `/tarefas` keeps List and Kanban and redirects to it for the calendar view, both linked by `TasksViewSwitch`. Items open in place on the calendar. Google sync is immediate per change (`syncTasksNow`/`unsyncTaskFromCalendar` via `useGoogleTaskSync`); the general backfill only sends missing/changed tasks from 30 days back, in parallel, at most every 15 minutes. Task mirrors (`task_communications.metadata.mirror`) and lead schedule events are never shown twice.
+
 - Lead schedules follow a Kommo-style loop in one shared component (`LeadTaskActions`, used by the lead card and the schedule dialog): dated observations append to `lead_tasks.notes`, "Tarefa concluída" completes with an optional result and can schedule the next action in the same server call (`completeLeadTask`, reusing `saveLeadTask` for Google Calendar sync). Journey entries: database triggers log created/done; server functions add `task_note`, `task_result` and `next_action`.
 
 - Agenda and Tasks read pending items through one shared hook (`usePendingItems`) with the same query keys, so any change refreshes both; agenda server events only add meetings and Google Calendar (`skipPending`). Overdue, all-day and priority rules live in `src/lib/tasks/pending.ts`, and every mutation refreshes through `invalidatePendingQueries`.

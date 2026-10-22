@@ -59,7 +59,7 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
     // Meetings
     const { data: meetings } = await supabase
       .from("task_communications")
-      .select("id, subject, start_at, meet_link, task_id, tasks(title, client_id, clients(name))")
+      .select("id, subject, start_at, meet_link, task_id, provider_id, metadata, tasks(title, due_date, client_id, clients(name))")
       .eq("owner_id", userId)
       .eq("kind", "meeting")
       .not("start_at", "is", null)
@@ -67,8 +67,17 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
       .lte("start_at", toISO)
       .limit(500);
 
+    // Eventos do Google que já aparecem como item do Core (não repetir no calendário).
+    const knownGoogleIds = new Set<string>();
     for (const m of meetings ?? []) {
+      if ((m as any).provider_id) knownGoogleIds.add((m as any).provider_id as string);
       const start = m.start_at as string;
+      // Espelho da tarefa no Google: a tarefa já está no calendário, não mostra de novo como reunião.
+      const taskDue = (m as any).tasks?.due_date as string | null | undefined;
+      const isMirror =
+        (m as any).metadata?.mirror === true ||
+        (!!taskDue && !!start && new Date(taskDue).getTime() === new Date(start).getTime());
+      if (isMirror) continue;
       const end = new Date(new Date(start).getTime() + 30 * 60_000).toISOString();
       events.push({
         id: `meet-${m.id}`,
@@ -111,6 +120,19 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
     }
 
 
+    // Agendamentos de lead também viram evento no Google: guarda os ids para não duplicar.
+    {
+      const { data: ltIds } = await supabase
+        .from("lead_tasks")
+        .select("gcal_event_id")
+        .eq("owner_id", userId)
+        .not("gcal_event_id", "is", null)
+        .gte("due_at", fromISO)
+        .lte("due_at", toISO)
+        .limit(1000);
+      for (const r of ltIds ?? []) if (r.gcal_event_id) knownGoogleIds.add(r.gcal_event_id as string);
+    }
+
     // Eventos do Google Calendar via OAuth próprio do usuário
     try {
       const headers = await googleHeaders(userId);
@@ -127,6 +149,7 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
           const s = ev.start?.dateTime ?? (ev.start?.date ? `${ev.start.date}T00:00:00Z` : null);
           const e = ev.end?.dateTime ?? (ev.end?.date ? `${ev.end.date}T00:00:00Z` : null);
           if (!s) continue;
+          if (knownGoogleIds.has(ev.id)) continue;
           events.push({
             id: `gcal-${ev.id}`,
             source: "gcal",
@@ -159,6 +182,7 @@ export const rescheduleTask = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
 
 export const completeTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

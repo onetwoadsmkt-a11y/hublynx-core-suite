@@ -177,10 +177,115 @@ const syncTaskSchema = z.object({
   withMeet: z.boolean().default(false),
 });
 
+type SyncTask = {
+  id: string;
+  owner_id: string;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  briefing: any;
+};
+type MirrorRow = { id: string; task_id: string; provider_id: string | null; subject: string | null; start_at: string | null };
+
+/**
+ * Cria ou atualiza o evento do Google espelhado de uma tarefa e grava o vínculo
+ * em task_communications (metadata.mirror = true). Não consulta nada além do necessário.
+ */
+async function pushTaskEvent(
+  supabase: any,
+  userId: string,
+  headers: Record<string, string>,
+  task: SyncTask,
+  existing: MirrorRow | null,
+  opts: { durationMinutes: number; withMeet?: boolean },
+) {
+  const type = task.briefing?.type ?? "tarefa";
+  const wantsMeet = !!opts.withMeet || type === "reuniao";
+  const start = new Date(task.due_date as string);
+  const end = new Date(start.getTime() + opts.durationMinutes * 60_000);
+  const body: any = {
+    summary: task.title,
+    description: task.description ?? undefined,
+    start: { dateTime: start.toISOString() },
+    end: { dateTime: end.toISOString() },
+  };
+  if (wantsMeet && !existing?.provider_id) {
+    body.conferenceData = {
+      createRequest: { requestId: `task-${task.id}-${Date.now()}`, conferenceSolutionKey: { type: "hangoutsMeet" } },
+    };
+  }
+  const url = existing?.provider_id
+    ? `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`
+    : `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?conferenceDataVersion=1`;
+  const res = await fetch(url, {
+    method: existing?.provider_id ? "PATCH" : "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}) as any);
+  if (!res.ok) throw new Error(`Falha ao sincronizar (${res.status}): ${json?.error?.message || JSON.stringify(json)}`);
+  const eventId = json?.id as string;
+  const meetLink: string | null =
+    json?.hangoutLink ?? json?.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === "video")?.uri ?? null;
+
+  if (existing?.id) {
+    await supabase
+      .from("task_communications")
+      .update({ subject: task.title, start_at: start.toISOString(), meet_link: meetLink, provider_id: eventId, metadata: { mirror: true } })
+      .eq("id", existing.id);
+  } else {
+    const { error } = await supabase.from("task_communications").insert({
+      task_id: task.id,
+      owner_id: task.owner_id,
+      actor_id: userId,
+      kind: "meeting",
+      subject: task.title,
+      recipients: [],
+      provider_id: eventId,
+      meet_link: meetLink,
+      start_at: start.toISOString(),
+      metadata: { mirror: true },
+    });
+    if (error) throw new Error(error.message);
+  }
+  return { eventId, meetLink, htmlLink: (json?.htmlLink as string | undefined) ?? null, created: !existing?.id };
+}
+
+/** Já está igual no Google? (mesmo título e mesmo horário) */
+function mirrorUpToDate(task: SyncTask, m: MirrorRow | null | undefined) {
+  if (!m?.provider_id || !m.start_at || !task.due_date) return false;
+  return m.subject === task.title && new Date(m.start_at).getTime() === new Date(task.due_date).getTime();
+}
+
+async function latestMirrors(supabase: any, taskIds: string[]): Promise<Map<string, MirrorRow>> {
+  const map = new Map<string, MirrorRow>();
+  for (let i = 0; i < taskIds.length; i += 200) {
+    const { data } = await supabase
+      .from("task_communications")
+      .select("id, task_id, provider_id, subject, start_at, created_at")
+      .in("task_id", taskIds.slice(i, i + 200))
+      .eq("kind", "meeting")
+      .order("created_at", { ascending: false });
+    for (const r of (data ?? []) as MirrorRow[]) if (!map.has(r.task_id)) map.set(r.task_id, r);
+  }
+  return map;
+}
+
+/** Executa em paralelo com limite, para não demorar nem estourar a cota do Google. */
+async function runPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const item = items[i++];
+      await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 /**
  * Sincroniza uma tarefa com Google Calendar criando um evento no calendário
- * primário. Idempotente por tarefa: se já existe um task_communications de
- * sincronização para a tarefa, atualiza o evento ao invés de criar outro.
+ * primário. Idempotente por tarefa: se já existe um evento espelhado, atualiza.
  */
 export const syncTaskToCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -194,93 +299,89 @@ export const syncTaskToCalendar = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error || !task) throw new Error("Tarefa não encontrada");
     if (!task.due_date) return { ok: false as const, reason: "no_due_date" };
-
-    const type = (task.briefing as any)?.type ?? "tarefa";
-    const wantsMeet = data.withMeet || type === "reuniao";
-
-    const start = new Date(task.due_date as string);
-    const end = new Date(start.getTime() + data.durationMinutes * 60_000);
-
     const headers = await googleHeaders(userId);
-    const body: any = {
-      summary: task.title,
-      description: (task.description as string | null) ?? undefined,
-      start: { dateTime: start.toISOString() },
-      end: { dateTime: end.toISOString() },
-    };
-    if (wantsMeet) {
-      body.conferenceData = {
-        createRequest: {
-          requestId: `task-${task.id}-${Date.now()}`,
-          conferenceSolutionKey: { type: "hangoutsMeet" },
-        },
-      };
-    }
-
-    // Verifica se já existe evento sincronizado
-    const { data: existing } = await supabase
-      .from("task_communications")
-      .select("id, provider_id")
-      .eq("task_id", task.id)
-      .eq("kind", "meeting")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let res: Response;
-    if (existing?.provider_id) {
-      res = await fetch(
-        `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`,
-        { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
-      );
-    } else {
-      res = await fetch(
-        `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
-        { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
-      );
-    }
-    const json = await res.json().catch(() => ({}) as any);
-    if (!res.ok) {
-      throw new Error(`Falha ao sincronizar (${res.status}): ${json?.error?.message || JSON.stringify(json)}`);
-    }
-    const eventId = json?.id as string;
-    const meetLink: string | null =
-      json?.hangoutLink ??
-      json?.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === "video")?.uri ??
-      null;
-
-    if (existing?.id) {
-      await supabase
-        .from("task_communications")
-        .update({ subject: task.title, start_at: start.toISOString(), meet_link: meetLink, provider_id: eventId })
-        .eq("id", existing.id);
-    } else {
-      await recordMeeting(supabase, task.owner_id as string, userId, {
-        taskId: task.id as string,
-        summary: task.title as string,
-        startISO: start.toISOString(),
-        attendees: [],
-        eventId,
-        meetLink,
-      });
-    }
-
-    return { ok: true as const, eventId, meetLink, htmlLink: json?.htmlLink ?? null };
+    const existing = (await latestMirrors(supabase, [task.id as string])).get(task.id as string) ?? null;
+    const r = await pushTaskEvent(supabase, userId, headers, task as SyncTask, existing, {
+      durationMinutes: data.durationMinutes,
+      withMeet: data.withMeet,
+    });
+    return { ok: true as const, eventId: r.eventId, meetLink: r.meetLink, htmlLink: r.htmlLink };
   });
 
 /**
- * Backfill: sincroniza com Google Calendar todas as tarefas do usuário
- * com data definida que ainda não possuem evento espelhado.
+ * Sincronização rápida logo após editar: só as tarefas indicadas, em paralelo.
+ * Tarefa sem data cujo evento existia tem o evento removido do Google.
+ * Nunca lança: o Core continua salvo mesmo se o Google falhar.
+ */
+export const syncTasksNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ taskIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    let headers: Record<string, string>;
+    try {
+      headers = await googleHeaders(userId);
+    } catch {
+      return { ok: false as const, synced: 0 };
+    }
+    const { data: tasks } = await supabase
+      .from("tasks")
+      .select("id, owner_id, title, description, due_date, briefing")
+      .in("id", data.taskIds);
+    const mirrors = await latestMirrors(supabase, data.taskIds);
+    let synced = 0;
+    await runPool((tasks ?? []) as SyncTask[], 5, async (t) => {
+      const m = mirrors.get(t.id) ?? null;
+      try {
+        if (!t.due_date) {
+          if (m?.provider_id) {
+            await fetch(`${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${m.provider_id}`, { method: "DELETE", headers });
+            await supabase.from("task_communications").delete().eq("id", m.id);
+          }
+          return;
+        }
+        // Pedido explícito após editar: envia mesmo se título e horário não mudaram (descrição pode ter mudado).
+        await pushTaskEvent(supabase, userId, headers, t, m, { durationMinutes: 60 });
+        synced++;
+      } catch {
+        // segue com as demais
+      }
+    });
+    return { ok: true as const, synced };
+  });
+
+/** Remove do Google o evento espelhado de uma tarefa (antes de excluir a tarefa). */
+export const unsyncTaskFromCalendar = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ taskId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const m = (await latestMirrors(supabase, [data.taskId])).get(data.taskId);
+    if (!m?.provider_id) return { ok: true as const, removed: false };
+    try {
+      const headers = await googleHeaders(userId);
+      await fetch(`${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${m.provider_id}`, { method: "DELETE", headers });
+      return { ok: true as const, removed: true };
+    } catch {
+      return { ok: false as const, removed: false };
+    }
+  });
+
+/**
+ * Conferência geral (reserva): envia ao Google só o que falta ou mudou, dos
+ * últimos 30 dias em diante, em paralelo. Antes reenviava tudo, uma a uma.
  */
 export const syncAllPendingTasksToCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
     const { data: tasks, error } = await supabase
       .from("tasks")
       .select("id, owner_id, title, description, due_date, briefing")
       .eq("owner_id", userId)
       .not("due_date", "is", null)
+      .gte("due_date", since)
       .limit(500);
     if (error) throw new Error(error.message);
 
@@ -295,86 +396,21 @@ export const syncAllPendingTasksToCalendar = createServerFn({ method: "POST" })
         created: 0, updated: 0, failed: 0, total: 0, errors: [] as string[],
       };
     }
+
+    const list = (tasks ?? []) as SyncTask[];
+    const mirrors = await latestMirrors(supabase, list.map((t) => t.id));
+    const todo = list.filter((t) => !mirrorUpToDate(t, mirrors.get(t.id)));
     let created = 0, updated = 0, failed = 0;
     const errors: string[] = [];
-
-    for (const task of tasks ?? []) {
+    await runPool(todo, 5, async (t) => {
       try {
-        const type = (task.briefing as any)?.type ?? "tarefa";
-        const wantsMeet = type === "reuniao";
-        const start = new Date(task.due_date as string);
-        const end = new Date(start.getTime() + 60 * 60_000);
-        const body: any = {
-          summary: task.title,
-          description: (task.description as string | null) ?? undefined,
-          start: { dateTime: start.toISOString() },
-          end: { dateTime: end.toISOString() },
-        };
-        if (wantsMeet) {
-          body.conferenceData = {
-            createRequest: {
-              requestId: `task-${task.id}-${Date.now()}`,
-              conferenceSolutionKey: { type: "hangoutsMeet" },
-            },
-          };
-        }
-        const { data: existing } = await supabase
-          .from("task_communications")
-          .select("id, provider_id")
-          .eq("task_id", task.id as string)
-          .eq("kind", "meeting")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        let res: Response;
-        if (existing?.provider_id) {
-          res = await fetch(
-            `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`,
-            { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
-          );
-        } else {
-          res = await fetch(
-            `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
-            { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) },
-          );
-        }
-        const json = await res.json().catch(() => ({}) as any);
-        if (!res.ok) {
-          failed++;
-          errors.push(`${task.title}: ${json?.error?.message || res.status}`);
-          continue;
-        }
-        const eventId = json?.id as string;
-        const meetLink: string | null =
-          json?.hangoutLink ??
-          json?.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === "video")?.uri ??
-          null;
-
-        if (existing?.id) {
-          await supabase
-            .from("task_communications")
-            .update({ subject: task.title, start_at: start.toISOString(), meet_link: meetLink, provider_id: eventId })
-            .eq("id", existing.id);
-          updated++;
-        } else {
-          await recordMeeting(supabase, task.owner_id as string, userId, {
-            taskId: task.id as string,
-            summary: task.title as string,
-            startISO: start.toISOString(),
-            attendees: [],
-            eventId,
-            meetLink,
-          });
-          created++;
-        }
+        const r = await pushTaskEvent(supabase, userId, headers, t, mirrors.get(t.id) ?? null, { durationMinutes: 60 });
+        if (r.created) created++; else updated++;
       } catch (e: any) {
         failed++;
-        errors.push(`${task.title}: ${e?.message ?? "erro"}`);
+        errors.push(`${t.title}: ${e?.message ?? "erro"}`);
       }
-    }
+    });
 
-    return { ok: true as const, created, updated, failed, total: tasks?.length ?? 0, errors: errors.slice(0, 5) };
+    return { ok: true as const, created, updated, failed, total: list.length, errors: errors.slice(0, 5) };
   });
-
-

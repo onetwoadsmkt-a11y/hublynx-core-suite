@@ -1,5 +1,7 @@
 # Roadmap — Reestruturação Hublynx (plano aprovado 09/09/2026)
 
+- [x] Calendário único (Tarefas + Calendário + Google), menu "Tarefas e Calendário", "Meus eventos", itens abertos no próprio calendário; sincronização com o Google imediata por edição e conferência geral só do que mudou.
+
 - [x] Cartão do lead — observação em cada agendamento, "Tarefa concluída" com resultado e próxima ação (follow-up, reunião, ligação ou outra) agendada no mesmo passo, no Core e no Google Agenda; tudo na jornada do lead. Mesmo fluxo no modal aberto por Tarefas/Calendário.
 
 - [x] Calendário e Tarefas — mesma fonte de pendências (tarefas + agendamentos de lead da empresa ativa), visão Mês por padrão, atrasadas em vermelho, painel do dia igual nas duas telas e nome do lead abrindo o cartão do Pipeline.

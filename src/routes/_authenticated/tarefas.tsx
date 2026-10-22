@@ -34,16 +34,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { createInstantMeet } from "@/lib/google/calendar.functions";
 import { syncEntityToSheets } from "@/lib/google/sheets-sync.functions";
 import { TaskQuickForm, type TaskQuickFormDefaults } from "@/components/tasks/TaskQuickForm";
-import { TaskCalendarView } from "@/components/tasks/TaskCalendarView";
 import { TaskFiltersSheet } from "@/components/tasks/TaskFiltersSheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { type LeadScheduledTask } from "@/lib/pipeline/task-display";
 import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
 import { usePendingItems, invalidatePendingQueries } from "@/hooks/usePendingItems";
-import { DayPendingSheet } from "@/components/tasks/DayPendingSheet";
+import { useGoogleTaskSync } from "@/hooks/useGoogleSync";
+import { TasksViewSwitch } from "@/components/tasks/TasksViewSwitch";
 import { LeadLink } from "@/components/pipeline/LeadCardHost";
-import { dueDayKey, isPriorityLevel } from "@/lib/tasks/pending";
+import { isPriorityLevel } from "@/lib/tasks/pending";
 import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
 import { matchesTaskDateRange } from "@/lib/tasks/date-filter";
 
@@ -87,8 +87,15 @@ function TarefasPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const search = useSearch({ from: "/_authenticated/tarefas" });
-  // Visão principal: calendário do mês.
-  const view: ViewMode = (search.view as ViewMode) ?? (search.prioridade ? "lista" : "calendario");
+  // Calendário é um só (com Google), em /agenda. Aqui ficam Lista e Kanban.
+  const view: ViewMode = search.view === "kanban" ? "kanban" : "lista";
+  // Entrar em Tarefas sem escolher visão abre o calendário do mês, como no Kommo.
+  useEffect(() => {
+    if (search.view === "calendario" || (!search.view && !search.task && !search.prioridade)) {
+      navigate({ to: "/agenda", search: { view: "month" } as any, replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.view, search.task, search.prioridade]);
   const setView = (v: ViewMode) =>
     navigate({ to: "/tarefas", search: { task: search.task, view: v, prioridade: search.prioridade }, replace: true });
 
@@ -104,7 +111,6 @@ function TarefasPage() {
       navigate({ to: "/tarefas", search: { task: search.task, view: search.view }, replace: true });
     }
   };
-  const [dayOpen, setDayOpen] = useState<Date | null>(null);
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterClient, setFilterClient] = useState<string>("all");
   const [filterDateFrom, setFilterDateFrom] = useState<Date>();
@@ -269,7 +275,7 @@ function TarefasPage() {
         <div className="min-w-0">
           <h1 className="truncate text-2xl md:text-3xl font-semibold tracking-tight">Tarefas</h1>
           <p className="hidden md:block text-muted-foreground mt-1 text-sm">
-            Lista de prioridades. Alterne para Kanban ou Calendário quando precisar.
+            Lista e Kanban. O Calendário (com Google Agenda) mostra as mesmas tarefas.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -325,19 +331,7 @@ function TarefasPage() {
           )}
         </Button>
 
-        <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)} className="ml-auto">
-          <TabsList className="h-9">
-            <TabsTrigger value="lista" className="gap-1.5 px-3">
-              <ListIcon className="h-4 w-4" /> <span className="hidden sm:inline">Lista</span>
-            </TabsTrigger>
-            <TabsTrigger value="kanban" className="gap-1.5 px-3">
-              <LayoutGrid className="h-4 w-4" /> <span className="hidden sm:inline">Kanban</span>
-            </TabsTrigger>
-            <TabsTrigger value="calendario" className="gap-1.5 px-3">
-              <CalendarIcon className="h-4 w-4" /> <span className="hidden sm:inline">Calendário</span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <TasksViewSwitch current={view} className="ml-auto" />
 
         <div className="text-xs md:text-sm font-medium text-muted-foreground tabular-nums hidden sm:block">
           {filtered.length} {filtered.length === 1 ? "tarefa" : "tarefas"}
@@ -415,14 +409,6 @@ function TarefasPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="calendario" className="mt-2">
-          <TaskCalendarView
-            tasks={filtered as any}
-            onSelectTask={setSelectedId}
-            onCreateAt={(dateISO) => openNewIn({ date: dateISO })}
-            onPickDay={setDayOpen}
-          />
-        </TabsContent>
       </Tabs>
 
       {/* FAB mobile */}
@@ -437,13 +423,6 @@ function TarefasPage() {
       )}
 
       {selectedSchedule ? <LeadTaskDialog key={selectedSchedule.id} task={selectedSchedule} onClose={() => setSelectedId(null)} /> : <TaskDrawer taskId={selectedId?.startsWith("lead:") ? null : selectedId} open={!!selectedId && !selectedId.startsWith("lead:")} onClose={() => setSelectedId(null)} />}
-      <DayPendingSheet
-        date={dayOpen}
-        items={dayOpen ? filtered.filter((t) => dueDayKey(t.due_date) === format(dayOpen, "yyyy-MM-dd")) : []}
-        onOpenChange={(o) => { if (!o) setDayOpen(null); }}
-        onSelect={(id) => { setDayOpen(null); setSelectedId(id); }}
-        onAdd={(dateKey) => { setDayOpen(null); openNewIn({ date: dateKey }); }}
-      />
       <EditKanbanDialog open={openEditKanban} onOpenChange={setOpenEditKanban} />
       <TaskQuickForm
         open={openNew}
@@ -877,13 +856,15 @@ function TaskCard({
   const dueKey = due ? (allDay ? due.toISOString().slice(0, 10) : format(due, "yyyy-MM-dd")) : null;
   const overdue = !!dueKey && dueKey < todayKey && !done;
 
+  const { unsync } = useGoogleTaskSync();
   const del = useMutation({
     mutationFn: async () => {
+      await unsync(task.id);
       const { error } = await supabase.from("tasks").delete().eq("id", task.id);
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+      invalidatePendingQueries(qc);
       toast.success("Tarefa excluída.");
       setConfirmDel(false);
     },

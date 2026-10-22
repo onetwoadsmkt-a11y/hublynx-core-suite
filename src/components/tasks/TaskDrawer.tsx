@@ -36,6 +36,7 @@ import { SendEmailDialog } from "./SendEmailDialog";
 import { ScheduleMeetingDialog } from "./ScheduleMeetingDialog";
 import { createInstantMeet } from "@/lib/google/calendar.functions";
 import { syncEntityToSheets, deleteEntityRowFromSheets } from "@/lib/google/sheets-sync.functions";
+import { useGoogleTaskSync, touchesGoogle } from "@/hooks/useGoogleSync";
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -109,26 +110,31 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
 
   const syncSheet = useServerFn(syncEntityToSheets);
   const deleteSheetRow = useServerFn(deleteEntityRowFromSheets);
+  const { syncNow, unsync } = useGoogleTaskSync();
 
   const update = useMutation({
     mutationFn: async (patch: any) => {
       const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_r, patch) => {
       qc.invalidateQueries({ queryKey: ["task", taskId] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["project-dashboard"] });
       qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
       qc.invalidateQueries({ queryKey: ["hub-today"] });
       qc.invalidateQueries({ queryKey: ["agenda"] });
+      qc.invalidateQueries({ queryKey: ["priority-alerts"] });
       syncSheet({ data: { entityType: "task", recordId: taskId } }).catch(() => {});
+      // Data, título ou descrição mudaram: atualiza o Google na hora.
+      if (taskId && touchesGoogle(patch)) syncNow([taskId]);
     },
     onError: (e: any) => toast.error(e.message),
   });
 
   const del = useMutation({
     mutationFn: async () => {
+      if (taskId) await unsync(taskId);
       const { error } = await supabase.from("tasks").delete().eq("id", taskId);
       if (error) throw error;
     },

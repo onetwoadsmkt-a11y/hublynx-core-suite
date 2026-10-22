@@ -24,12 +24,22 @@ import {
 import { syncAllPendingTasksToCalendar } from "@/lib/google/calendar.functions";
 import type { AgendaEvent, AgendaSource } from "@/lib/agenda/types";
 import { usePendingItems, invalidatePendingQueries } from "@/hooks/usePendingItems";
+import { useGoogleTaskSync } from "@/hooks/useGoogleSync";
 import { DayPendingSheet, type DayExtra } from "@/components/tasks/DayPendingSheet";
 import { LeadLink } from "@/components/pipeline/LeadCardHost";
 import { dueDayKey, isOverdue, isPriorityLevel } from "@/lib/tasks/pending";
 import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
 import { PRIORITY_LABEL, PRIORITY_TONE } from "@/components/tasks/TaskDrawer";
 import { AlertTriangle } from "lucide-react";
+import { createContext, useContext } from "react";
+import { TasksViewSwitch } from "@/components/tasks/TasksViewSwitch";
+import { TaskDrawer } from "@/components/tasks/TaskDrawer";
+import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
+
+/** Abre a tarefa/agendamento aqui mesmo no calendário (id da central: "<uuid>" ou "lead:<uuid>"). */
+const OpenItemContext = createContext<(pendingId: string) => void>(() => {});
+const BACKFILL_KEY = "core_gcal_backfill_at";
+const BACKFILL_EVERY_MS = 15 * 60_000;
 
 const DEFAULT_SOURCES = "task,lead,meeting,gcal";
 
@@ -38,11 +48,12 @@ type View = "day" | "week" | "month";
 
 export const Route = createFileRoute("/_authenticated/agenda")({
   head: () => ({ meta: [{ title: "Agenda — Hublynx Core" }] }),
-  validateSearch: (s: Record<string, unknown>): { view?: View; date?: string; sources?: string; clientId?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { view?: View; date?: string; sources?: string; clientId?: string; mine?: number } => ({
     view: (s.view === "day" || s.view === "week" || s.view === "month" ? s.view : "month") as View,
     date: typeof s.date === "string" ? s.date : undefined,
     sources: typeof s.sources === "string" ? s.sources : DEFAULT_SOURCES,
     clientId: typeof s.clientId === "string" ? s.clientId : undefined,
+    mine: s.mine === 1 || s.mine === "1" ? 1 : undefined,
   }),
   component: AgendaPage,
 });
@@ -105,7 +116,7 @@ function AgendaPage() {
   const { data, isFetching, refetch } = useQuery({
     queryKey,
     queryFn: () => fetchEvents({ data: { from: range.from.toISOString(), to: range.to.toISOString(), skipPending: true } }),
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
 
@@ -133,7 +144,20 @@ function AgendaPage() {
   });
 
   // Tarefas e agendamentos de lead: mesma fonte (e mesmo cache) da tela Tarefas.
-  const { items: pendingItems } = usePendingItems();
+  const { items: allPendingItems } = usePendingItems();
+  const { data: meId } = useQuery({
+    queryKey: ["me-id"],
+    queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null,
+    staleTime: Infinity,
+  });
+  // "Meus eventos": o que está comigo (responsável, ou dono quando não há responsável).
+  const pendingItems = useMemo(() => {
+    if (!search.mine || !meId) return allPendingItems;
+    return allPendingItems.filter((i) =>
+      i.leadTask ? i.leadTask.owner_id === meId : (i.assignee_id ?? i.owner_id) === meId);
+  }, [allPendingItems, search.mine, meId]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const selectedLead = selected?.startsWith("lead:") ? allPendingItems.find((i) => i.id === selected)?.leadTask : undefined;
   const clientName = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
   const pendingEvents = useMemo<AgendaEvent[]>(() => {
     const out: AgendaEvent[] = [];
@@ -224,8 +248,12 @@ function AgendaPage() {
     onError: (e: any) => toast.error(`Falha ao sincronizar: ${e.message}`),
   });
 
-  // Backfill automático ao abrir a Agenda
+  // Conferência geral com o Google no máximo a cada 15 min (as edições já sincronizam na hora).
   useEffect(() => {
+    let last = 0;
+    try { last = Number(localStorage.getItem(BACKFILL_KEY) ?? 0); } catch { /* sem armazenamento */ }
+    if (Date.now() - last < BACKFILL_EVERY_MS) return;
+    try { localStorage.setItem(BACKFILL_KEY, String(Date.now())); } catch { /* sem armazenamento */ }
     backfill.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -240,8 +268,9 @@ function AgendaPage() {
             <div className="rounded-xl bg-primary/10 p-2">
               <CalendarDays className="h-5 w-5 text-primary" />
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">Agenda</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Calendário</h1>
           </div>
+          <TasksViewSwitch current="calendario" />
 
           <Button
             variant="outline"
@@ -304,6 +333,15 @@ function AgendaPage() {
 
         {/* Filtros leves */}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, mine: p.mine ? undefined : 1 }), replace: true })}
+            aria-pressed={!!search.mine}
+            className={`rounded-full border px-3 h-7 text-xs font-medium transition-all ${
+              search.mine ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"
+            }`}
+          >
+            Meus eventos
+          </button>
           <div className="flex items-center gap-1.5">
             {(Object.keys(SOURCE_META) as AgendaSource[]).map((s) => {
               const active = activeSources.has(s);
@@ -332,9 +370,11 @@ function AgendaPage() {
         </div>
 
         {/* Grid */}
+        <OpenItemContext.Provider value={setSelected}>
         {view === "day" && <DayView anchor={anchor} events={events} />}
         {view === "week" && <WeekView anchor={anchor} events={events} onPickDay={setDayOpen} />}
         {view === "month" && <MonthView anchor={anchor} events={events} onPickDay={setDayOpen} />}
+        </OpenItemContext.Provider>
       </div>
 
       <ScheduleMeetingStandalone open={meetingOpen} onClose={() => setMeetingOpen(false)} />
@@ -360,9 +400,18 @@ function AgendaPage() {
             href: e.source === "meeting" ? e.meetLink : e.htmlLink,
           })) : []}
         onOpenChange={(o) => { if (!o) setDayOpen(null); }}
-        onSelect={(id) => { setDayOpen(null); navigate({ to: "/tarefas", search: { task: id, view: "calendario" } as any }); }}
+        onSelect={(id) => { setDayOpen(null); setSelected(id); }}
         onAdd={() => { setDayOpen(null); setNewTaskOpen(true); }}
       />
+      {selectedLead ? (
+        <LeadTaskDialog key={selectedLead.id} task={selectedLead} onClose={() => setSelected(null)} />
+      ) : (
+        <TaskDrawer
+          taskId={selected && !selected.startsWith("lead:") ? selected : null}
+          open={!!selected && !selected.startsWith("lead:")}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
@@ -621,6 +670,8 @@ function EventDetails({ event }: { event: AgendaEvent }) {
   const completeFn = useServerFn(completeTask);
   const rescheduleFn = useServerFn(rescheduleTask);
   const toggleLeadFn = useServerFn(toggleLeadTask);
+  const openItem = useContext(OpenItemContext);
+  const { syncNow } = useGoogleTaskSync();
   const meta = SOURCE_META[event.source];
   const leadTaskId = event.source === "lead" && event.pendingId?.startsWith("lead:") ? event.pendingId.slice(5) : null;
 
@@ -636,7 +687,7 @@ function EventDetails({ event }: { event: AgendaEvent }) {
   });
   const reschedule = useMutation({
     mutationFn: (iso: string) => rescheduleFn({ data: { taskId: event.taskId!, dueDate: iso } }),
-    onSuccess: () => { toast.success("Tarefa reagendada"); invalidatePendingQueries(qc); },
+    onSuccess: () => { toast.success("Tarefa reagendada"); invalidatePendingQueries(qc); if (event.taskId) syncNow([event.taskId]); },
     onError: (e: any) => toast.error(e.message ?? "Erro"),
   });
 
@@ -676,8 +727,8 @@ function EventDetails({ event }: { event: AgendaEvent }) {
         <div className="flex flex-wrap gap-1.5 pt-1">
           {event.source === "task" && event.taskId && (
             <>
-              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                <Link to="/tarefas" search={{ task: event.taskId }}>Abrir tarefa</Link>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openItem(event.taskId!)}>
+                Abrir tarefa
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => complete.mutate()}>
                 <CheckCircle2 className="h-3 w-3 mr-1" /> Concluir
@@ -695,8 +746,8 @@ function EventDetails({ event }: { event: AgendaEvent }) {
           )}
           {event.source === "lead" && event.pendingId && (
             <>
-              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                <Link to="/tarefas" search={{ task: event.pendingId } as any}>Abrir agendamento</Link>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openItem(event.pendingId!)}>
+                Abrir agendamento
               </Button>
               {leadTaskId && event.status !== "concluido" && (
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => completeLead.mutate()} disabled={completeLead.isPending}>
@@ -716,8 +767,8 @@ function EventDetails({ event }: { event: AgendaEvent }) {
             </Button>
           )}
           {event.source === "meeting" && event.taskId && (
-            <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-              <Link to="/tarefas" search={{ task: event.taskId }}>Tarefa</Link>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openItem(event.taskId!)}>
+              Tarefa
             </Button>
           )}
           {event.source === "gcal" && event.htmlLink && (
