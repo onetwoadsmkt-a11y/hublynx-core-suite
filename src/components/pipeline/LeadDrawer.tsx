@@ -30,6 +30,8 @@ import { buildLeadAnswers, leadOrigins, useLeadAnswerLabels } from "./lead-answe
 import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { invalidatePendingQueries } from "@/hooks/usePendingItems";
+import { PRIORITY_LABEL, PRIORITY_TONE, type Priority } from "@/components/tasks/TaskDrawer";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -51,6 +53,13 @@ const EVENT_ICON: Record<string, typeof Activity> = {
   tag_added: Tag,
   tag_removed: Tag,
 };
+
+const LEAD_TASK_PRIORITIES = [
+  { value: "baixa", label: "Baixa" },
+  { value: "media", label: "Média" },
+  { value: "alta", label: "Alta" },
+  { value: "critica", label: "Urgente" },
+] as const;
 
 const TASK_KINDS = [
   { value: "tarefa", label: "Tarefa" },
@@ -116,6 +125,7 @@ export function LeadDrawer({
   const [taskKind, setTaskKind] = useState<string>("tarefa");
   const [taskDue, setTaskDue] = useState("");
   const [taskDuration, setTaskDuration] = useState("30");
+  const [taskPriority, setTaskPriority] = useState<"baixa" | "media" | "alta" | "critica">("media");
   const [inviteLead, setInviteLead] = useState(true);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -165,10 +175,7 @@ export function LeadDrawer({
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["lead-detail", lead?.id] });
-  const refreshTasks = () => {
-    refresh();
-    for (const key of [["tasks"], ["agenda"], ["week"]]) qc.invalidateQueries({ queryKey: key });
-  };
+  const refreshTasks = () => invalidatePendingQueries(qc, lead?.id);
 
   // Mover o lead: primeiro o pipeline, depois a etapa daquele pipeline.
   const allStagesQ = useQuery({
@@ -225,10 +232,12 @@ export function LeadDrawer({
           due_at: taskDue ? new Date(taskDue).toISOString() : null,
           duration_minutes: Number(taskDuration),
           invite_lead: inviteLead,
+          priority: taskPriority,
         },
       }),
     onSuccess: (res: any) => {
-      setTaskTitle(""); setTaskDue("");
+      setTaskTitle(""); setTaskDue(""); setTaskPriority("media");
+      if (res?.priorityPending) toast.warning("Agendado, mas a prioridade só é salva depois de rodar a migração 21 no banco.");
       if (taskDue) {
         if (res?.syncError) toast.error(`Salvo, mas o Google Agenda falhou: ${res.syncError}`);
         else if (res?.synced) toast.success("Agendado e sincronizado com o Google Agenda.");
@@ -688,6 +697,14 @@ export function LeadDrawer({
                           onChange={(e) => setTaskDue(e.target.value)}
                           className="w-[210px]"
                         />
+                        <Select value={taskPriority} onValueChange={(v) => setTaskPriority(v as typeof taskPriority)}>
+                          <SelectTrigger className="w-[130px]" aria-label="Prioridade"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {LEAD_TASK_PRIORITIES.map((p) => (
+                              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <Select value={taskDuration} onValueChange={setTaskDuration}>
                           <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -726,6 +743,11 @@ export function LeadDrawer({
                                 <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                                   {TASK_KINDS.find((k) => k.value === t.kind)?.label ?? t.kind}
                                 </Badge>
+                                {(t as any).priority && (t as any).priority !== "media" && (
+                                  <Badge variant="outline" className={`h-4 px-1.5 text-[10px] ${PRIORITY_TONE[(t as any).priority as Priority]}`}>
+                                    {PRIORITY_LABEL[(t as any).priority as Priority]}
+                                  </Badge>
+                                )}
                                 {t.due_at && <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" />{fmt(t.due_at)}</span>}
                                 {(t as any).duration_minutes && <span>{(t as any).duration_minutes} min</span>}
                                 {(t as any).gcal_event_id && (

@@ -7,6 +7,8 @@ import type { AgendaEvent } from "./types";
 const rangeSchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
+  /** true: tarefas e agendamentos de lead vêm da fonte compartilhada com Tarefas. */
+  skipPending: z.boolean().optional(),
 });
 
 const rescheduleSchema = z.object({
@@ -24,7 +26,7 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
     const events: AgendaEvent[] = [];
 
     // Tasks
-    const { data: tasks } = await supabase
+    const { data: tasks } = data.skipPending ? { data: [] as any[] } : await supabase
       .from("tasks")
       .select("id, title, due_date, status, priority, client_id, project_id, description, clients(name), projects(name)")
       .eq("owner_id", userId)
@@ -83,7 +85,7 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
     }
 
     // Agendamentos de leads (pipeline)
-    const { data: leadTasks } = await supabase
+    const { data: leadTasks } = data.skipPending ? { data: [] as any[] } : await supabase
       .from("lead_tasks")
       .select("id, title, kind, due_at, duration_minutes, meet_link, notes, lead_id, leads(name)")
       .eq("owner_id", userId)

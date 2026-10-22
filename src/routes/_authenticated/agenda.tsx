@@ -23,6 +23,15 @@ import {
 } from "@/lib/agenda/agenda.functions";
 import { syncAllPendingTasksToCalendar } from "@/lib/google/calendar.functions";
 import type { AgendaEvent, AgendaSource } from "@/lib/agenda/types";
+import { usePendingItems, invalidatePendingQueries } from "@/hooks/usePendingItems";
+import { DayPendingSheet, type DayExtra } from "@/components/tasks/DayPendingSheet";
+import { LeadLink } from "@/components/pipeline/LeadCardHost";
+import { dueDayKey, isOverdue, isPriorityLevel } from "@/lib/tasks/pending";
+import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
+import { PRIORITY_LABEL, PRIORITY_TONE } from "@/components/tasks/TaskDrawer";
+import { AlertTriangle } from "lucide-react";
+
+const DEFAULT_SOURCES = "task,lead,meeting,gcal";
 
 
 type View = "day" | "week" | "month";
@@ -30,9 +39,9 @@ type View = "day" | "week" | "month";
 export const Route = createFileRoute("/_authenticated/agenda")({
   head: () => ({ meta: [{ title: "Agenda — Hublynx Core" }] }),
   validateSearch: (s: Record<string, unknown>): { view?: View; date?: string; sources?: string; clientId?: string } => ({
-    view: (s.view === "day" || s.view === "week" || s.view === "month" ? s.view : "week") as View,
+    view: (s.view === "day" || s.view === "week" || s.view === "month" ? s.view : "month") as View,
     date: typeof s.date === "string" ? s.date : undefined,
-    sources: typeof s.sources === "string" ? s.sources : "task,meeting,gcal",
+    sources: typeof s.sources === "string" ? s.sources : DEFAULT_SOURCES,
     clientId: typeof s.clientId === "string" ? s.clientId : undefined,
   }),
   component: AgendaPage,
@@ -53,6 +62,7 @@ const startOfWeek = (d: Date) => { const x = startOfDay(d); x.setDate(x.getDate(
 const startOfMonth = (d: Date) => { const x = new Date(d.getFullYear(), d.getMonth(), 1); return x; };
 const endOfMonth = (d: Date) => { const x = new Date(d.getFullYear(), d.getMonth()+1, 0); x.setHours(23,59,59,999); return x; };
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+const toKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("pt-BR", opts).format(d);
 
 function parseDate(s?: string): Date {
@@ -77,10 +87,11 @@ function AgendaPage() {
   const navigate = useNavigate({ from: "/agenda" });
   const qc = useQueryClient();
   const search = Route.useSearch();
-  const view: View = search.view ?? "week";
+  // Visão principal: mês.
+  const view: View = search.view ?? "month";
   const anchor = useMemo(() => parseDate(search.date), [search.date]);
   const activeSources = useMemo(
-    () => new Set((search.sources ?? "task,meeting,gcal").split(",").filter(Boolean) as AgendaSource[]),
+    () => new Set((search.sources ?? DEFAULT_SOURCES).split(",").filter(Boolean) as AgendaSource[]),
     [search.sources]
   );
 
@@ -93,7 +104,7 @@ function AgendaPage() {
   const fetchEvents = useServerFn(getAgendaEvents);
   const { data, isFetching, refetch } = useQuery({
     queryKey,
-    queryFn: () => fetchEvents({ data: { from: range.from.toISOString(), to: range.to.toISOString() } }),
+    queryFn: () => fetchEvents({ data: { from: range.from.toISOString(), to: range.to.toISOString(), skipPending: true } }),
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });
@@ -121,7 +132,49 @@ function AgendaPage() {
     },
   });
 
-  const allEvents = (data?.events ?? []) as AgendaEvent[];
+  // Tarefas e agendamentos de lead: mesma fonte (e mesmo cache) da tela Tarefas.
+  const { items: pendingItems } = usePendingItems();
+  const clientName = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
+  const pendingEvents = useMemo<AgendaEvent[]>(() => {
+    const out: AgendaEvent[] = [];
+    for (const i of pendingItems) {
+      const key = dueDayKey(i.due_date);
+      if (!key || !i.due_date) continue;
+      const lead = i.leadTask;
+      const allDay = !lead && key === i.due_date.slice(0, 10) && /T00:00(:00(\.0+)?)?(Z|\+00:?00)?$|^\d{4}-\d{2}-\d{2}$/.test(i.due_date);
+      // Dia inteiro: posiciona na meia-noite local do dia gravado.
+      const start = allDay ? `${key}T00:00:00` : i.due_date;
+      const s0 = new Date(start);
+      if (s0 < range.from || s0 > range.to) continue;
+      const mins = lead?.duration_minutes ?? 30;
+      out.push({
+        id: lead ? `lead-${lead.id}` : `task-${i.id}`,
+        source: lead ? "lead" : "task",
+        title: i.title,
+        start,
+        end: allDay ? null : new Date(s0.getTime() + mins * 60_000).toISOString(),
+        allDay,
+        taskId: lead ? null : i.id,
+        leadId: lead?.lead_id ?? null,
+        leadName: lead?.leads.name ?? null,
+        clientId: i.client_id,
+        clientName: i.client_id ? clientName.get(i.client_id) ?? null : null,
+        projectId: i.project_id,
+        status: i.status,
+        description: i.description,
+        meetLink: lead?.meet_link ?? null,
+        priority: i.priority,
+        overdue: isOverdue(i),
+        pendingId: i.id,
+      });
+    }
+    return out;
+  }, [pendingItems, range.from, range.to, clientName]);
+  const allEvents = useMemo(
+    () => [...pendingEvents, ...((data?.events ?? []) as AgendaEvent[])].sort((a, b) => a.start.localeCompare(b.start)),
+    [pendingEvents, data?.events],
+  );
+  const [dayOpen, setDayOpen] = useState<Date | null>(null);
   const events = useMemo(() => allEvents.filter((e) => {
     if (!activeSources.has(e.source)) return false;
     if (search.clientId && e.clientId !== search.clientId) return false;
@@ -280,15 +333,35 @@ function AgendaPage() {
 
         {/* Grid */}
         {view === "day" && <DayView anchor={anchor} events={events} />}
-        {view === "week" && <WeekView anchor={anchor} events={events} onPickDay={(d) => { setAnchor(d); setView("day"); }} />}
-        {view === "month" && <MonthView anchor={anchor} events={events} onPickDay={(d) => { setAnchor(d); setView("day"); }} />}
+        {view === "week" && <WeekView anchor={anchor} events={events} onPickDay={setDayOpen} />}
+        {view === "month" && <MonthView anchor={anchor} events={events} onPickDay={setDayOpen} />}
       </div>
 
       <ScheduleMeetingStandalone open={meetingOpen} onClose={() => setMeetingOpen(false)} />
       <NewTaskSheet
         open={newTaskOpen}
         onOpenChange={setNewTaskOpen}
-        onCreated={() => qc.invalidateQueries({ queryKey: ["agenda"] })}
+        onCreated={() => invalidatePendingQueries(qc)}
+      />
+      <DayPendingSheet
+        date={dayOpen}
+        items={dayOpen ? pendingItems.filter((i) => {
+          if (dueDayKey(i.due_date) !== toKey(dayOpen)) return false;
+          if (i.leadTask ? !activeSources.has("lead") : !activeSources.has("task")) return false;
+          return !search.clientId || i.client_id === search.clientId;
+        }) : []}
+        extras={dayOpen ? events
+          .filter((e) => (e.source === "meeting" || e.source === "gcal") && sameDay(new Date(e.start), dayOpen))
+          .map<DayExtra>((e) => ({
+            id: e.id,
+            title: e.title,
+            time: e.allDay ? null : fmt(new Date(e.start), { hour: "2-digit", minute: "2-digit" }),
+            label: e.source === "meeting" ? (e.meetLink ? "Entrar no Meet" : "Reunião") : "Google",
+            href: e.source === "meeting" ? e.meetLink : e.htmlLink,
+          })) : []}
+        onOpenChange={(o) => { if (!o) setDayOpen(null); }}
+        onSelect={(id) => { setDayOpen(null); navigate({ to: "/tarefas", search: { task: id, view: "calendario" } as any }); }}
+        onAdd={() => { setDayOpen(null); setNewTaskOpen(true); }}
       />
     </div>
   );
@@ -425,12 +498,18 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
             .sort((a, b) => a.start.localeCompare(b.start));
           const isToday = sameDay(d, today);
           const isFirstOfMonth = d.getDate() === 1;
+          const overdueCount = dayEvents.filter((e) => e.overdue).length;
           return (
             <button
               key={d.toISOString()}
               onClick={() => onPickDay(d)}
-              className={`text-left border-r border-b border-border/40 p-1.5 min-h-[112px] hover:bg-muted/30 transition-colors flex flex-col ${inMonth ? "" : "bg-muted/10"}`}
+              className={`relative text-left border-r border-b border-border/40 p-1.5 min-h-[112px] hover:bg-muted/30 transition-colors flex flex-col ${inMonth ? "" : "bg-muted/10"} ${overdueCount ? "ring-1 ring-inset ring-destructive/40" : ""}`}
             >
+              {overdueCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" title={`${overdueCount} atrasada(s)`}>
+                  {overdueCount}
+                </span>
+              )}
               <div className="flex items-center justify-center mb-1">
                 <span className={`inline-flex items-center justify-center h-7 min-w-[28px] px-1.5 rounded-full text-xs font-medium ${
                   isToday
@@ -459,11 +538,30 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
   const meta = SOURCE_META[event.source];
   const time = event.allDay ? null : fmt(new Date(event.start), { hour: "2-digit", minute: "2-digit" });
 
+  // Atrasadas: destaque em vermelho, em qualquer visão.
+  if (event.overdue) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            onClick={(e) => e.stopPropagation()}
+            className="w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-semibold bg-destructive text-destructive-foreground shadow-sm hover:brightness-95 flex items-center gap-1"
+          >
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            {time && <span className="tabular-nums">{time}</span>}
+            <span className="truncate">{event.title}</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+      </Popover>
+    );
+  }
+
   if (event.allDay) {
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <button className={`w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${meta.bg} hover:brightness-95`}>
+          <button onClick={(e) => e.stopPropagation()} className={`w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${meta.bg} hover:brightness-95`}>
             {event.title}
           </button>
         </PopoverTrigger>
@@ -475,8 +573,8 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className={`w-full text-left truncate rounded px-1 ${compact ? "py-0" : "py-0.5"} text-[11px] hover:bg-muted/50 transition flex items-center gap-1.5`}>
-          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${meta.dot}`} />
+        <button onClick={(e) => e.stopPropagation()} className={`w-full text-left truncate rounded px-1 ${compact ? "py-0" : "py-0.5"} text-[11px] hover:bg-muted/50 transition flex items-center gap-1.5`}>
+          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${isPriorityLevel(event.priority) ? "bg-rose-500 ring-2 ring-rose-500/30" : meta.dot}`} />
           {time && <span className="tabular-nums text-muted-foreground">{time}</span>}
           <span className="truncate text-foreground">{event.title}</span>
         </button>
@@ -497,7 +595,7 @@ function EventChip({ event, expanded }: { event: AgendaEvent; expanded?: boolean
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className={`w-full text-left rounded-lg px-2 py-1.5 text-[11px] ring-1 ${meta.bg} ${meta.ring} hover:brightness-95 transition`}
+          className={`w-full text-left rounded-lg px-2 py-1.5 text-[11px] ring-1 ${event.overdue ? "bg-destructive text-destructive-foreground ring-destructive font-semibold" : `${meta.bg} ${meta.ring}`} hover:brightness-95 transition`}
         >
           <div className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 rounded-full ${meta.dot} flex-shrink-0`} />
@@ -522,16 +620,23 @@ function EventDetails({ event }: { event: AgendaEvent }) {
   const qc = useQueryClient();
   const completeFn = useServerFn(completeTask);
   const rescheduleFn = useServerFn(rescheduleTask);
+  const toggleLeadFn = useServerFn(toggleLeadTask);
   const meta = SOURCE_META[event.source];
+  const leadTaskId = event.source === "lead" && event.pendingId?.startsWith("lead:") ? event.pendingId.slice(5) : null;
 
   const complete = useMutation({
     mutationFn: () => completeFn({ data: { taskId: event.taskId! } }),
-    onSuccess: () => { toast.success("Tarefa concluída"); qc.invalidateQueries({ queryKey: ["agenda"] }); },
+    onSuccess: () => { toast.success("Tarefa concluída"); invalidatePendingQueries(qc); },
+    onError: (e: any) => toast.error(e.message ?? "Erro"),
+  });
+  const completeLead = useMutation({
+    mutationFn: () => toggleLeadFn({ data: { id: leadTaskId!, done: true } }),
+    onSuccess: () => { toast.success("Agendamento concluído"); invalidatePendingQueries(qc, event.leadId); },
     onError: (e: any) => toast.error(e.message ?? "Erro"),
   });
   const reschedule = useMutation({
     mutationFn: (iso: string) => rescheduleFn({ data: { taskId: event.taskId!, dueDate: iso } }),
-    onSuccess: () => { toast.success("Tarefa reagendada"); qc.invalidateQueries({ queryKey: ["agenda"] }); },
+    onSuccess: () => { toast.success("Tarefa reagendada"); invalidatePendingQueries(qc); },
     onError: (e: any) => toast.error(e.message ?? "Erro"),
   });
 
@@ -543,6 +648,19 @@ function EventDetails({ event }: { event: AgendaEvent }) {
       </div>
       <div className="p-3 space-y-2">
         <div className="font-medium leading-snug">{event.title}</div>
+        {(event.overdue || event.priority) && (
+          <div className="flex flex-wrap gap-1.5">
+            {event.overdue && (
+              <Badge className="bg-destructive text-destructive-foreground text-[10px]"><AlertTriangle className="h-3 w-3 mr-1" />Atrasada</Badge>
+            )}
+            {event.priority && (
+              <Badge variant="outline" className={`text-[10px] ${PRIORITY_TONE[event.priority]}`}>{PRIORITY_LABEL[event.priority]}</Badge>
+            )}
+          </div>
+        )}
+        {event.leadId && event.leadName && (
+          <div className="text-xs"><LeadLink leadId={event.leadId} name={event.leadName} /></div>
+        )}
         <div className="text-xs text-muted-foreground">
           {event.allDay ? "Dia inteiro" : fmt(new Date(event.start), { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
         </div>
@@ -573,6 +691,23 @@ function EventDetails({ event }: { event: AgendaEvent }) {
                   if (v) reschedule.mutate(new Date(v).toISOString());
                 }}
               />
+            </>
+          )}
+          {event.source === "lead" && event.pendingId && (
+            <>
+              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                <Link to="/tarefas" search={{ task: event.pendingId } as any}>Abrir agendamento</Link>
+              </Button>
+              {leadTaskId && event.status !== "concluido" && (
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => completeLead.mutate()} disabled={completeLead.isPending}>
+                  <CheckCircle2 className="h-3 w-3 mr-1" /> Concluir
+                </Button>
+              )}
+              {event.meetLink && (
+                <Button asChild size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <a href={event.meetLink} target="_blank" rel="noreferrer"><Video className="h-3 w-3 mr-1" /> Meet</a>
+                </Button>
+              )}
             </>
           )}
           {event.source === "meeting" && event.meetLink && (

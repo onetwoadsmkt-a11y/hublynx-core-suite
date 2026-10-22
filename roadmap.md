@@ -1,5 +1,10 @@
 # Roadmap — Reestruturação Hublynx (plano aprovado 09/09/2026)
 
+- [x] Calendário e Tarefas — mesma fonte de pendências (tarefas + agendamentos de lead da empresa ativa), visão Mês por padrão, atrasadas em vermelho, painel do dia igual nas duas telas e nome do lead abrindo o cartão do Pipeline.
+- [x] Prioridade — campo nos agendamentos do lead, aviso flutuante com CIENTE após o login, contador vermelho e submenu "Prioridade" em Tarefas.
+- [ ] Rodar `supabase/migrations-org/21_prioridade_e_avisos.sql` no SQL Editor (prioridade dos agendamentos e CIENTE gravado no banco; até lá o CIENTE fica só no navegador).
+- [ ] Conferir aviso, contador e cartão do lead com login real.
+
 - [x] Tarefas — filtro por intervalo de datas compartilhado entre Lista, Kanban e Calendário, incluindo agendamentos de leads.
 
 - [x] Pipeline — agendamentos integrados às visualizações Lista, Kanban e Calendário de Tarefas, com ações na origem, escopo da empresa e seis testes aprovados.

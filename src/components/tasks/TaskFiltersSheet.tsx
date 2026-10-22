@@ -81,6 +81,7 @@ export function TaskFiltersSheet({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas prioridades</SelectItem>
+                <SelectItem value="prioritarias">Prioritárias (Alta e Urgente)</SelectItem>
                 {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => (
                   <SelectItem key={p} value={p}>{PRIORITY_LABEL[p]}</SelectItem>
                 ))}

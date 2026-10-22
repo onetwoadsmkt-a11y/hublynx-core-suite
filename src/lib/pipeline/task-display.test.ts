@@ -33,3 +33,11 @@ describe("agendamentos de leads na central de tarefas", () => {
     assert.equal(task.project_id, "project-1");
   });
 });
+describe("prioridade dos agendamentos de lead", () => {
+  it("usa a prioridade gravada", () => {
+    assert.equal(leadTaskDisplay({ ...scheduled, priority: "critica" }).priority, "critica");
+  });
+  it("sem a coluna (antes da migração 21) conta como média", () => {
+    assert.equal(leadTaskDisplay(scheduled).priority, "media");
+  });
+});

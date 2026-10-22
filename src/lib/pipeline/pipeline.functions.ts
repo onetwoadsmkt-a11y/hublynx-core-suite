@@ -659,6 +659,7 @@ export const upsertLeadTask = createServerFn({ method: "POST" })
         due_at: z.string().nullable().optional(),
         duration_minutes: z.number().int().min(10).max(480).default(30),
         invite_lead: z.boolean().default(false),
+        priority: z.enum(["baixa", "media", "alta", "critica"]).optional(),
       })
       .parse(d),
   )
@@ -720,11 +721,19 @@ export const upsertLeadTask = createServerFn({ method: "POST" })
       gcal_event_id: gcalEventId,
       meet_link: meetLink,
     };
-    const { error } = data.id
-      ? await supabase.from("lead_tasks").update(row).eq("id", data.id)
-      : await supabase.from("lead_tasks").insert(row);
+    const save = (values: Record<string, unknown>) =>
+      data.id
+        ? supabase.from("lead_tasks").update(values as any).eq("id", data.id)
+        : supabase.from("lead_tasks").insert(values as any);
+    let priorityPending = false;
+    let { error } = await save(data.priority ? { ...row, priority: data.priority } : row);
+    // Antes da migração 21 a coluna priority não existe: salva sem ela e avisa.
+    if (error && data.priority && /priority/i.test(error.message)) {
+      priorityPending = true;
+      ({ error } = await save(row));
+    }
     if (error) throw new Error(error.message);
-    return { ok: true as const, synced: !!gcalEventId, meetLink, syncError };
+    return { ok: true as const, synced: !!gcalEventId, meetLink, syncError, priorityPending };
   });
 
 export const toggleLeadTask = createServerFn({ method: "POST" })

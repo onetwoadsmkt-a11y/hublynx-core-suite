@@ -34,6 +34,9 @@ import { useOrgAccess } from "@/hooks/useOrgAccess";
 import { orgModuleForPath } from "@/lib/org/modules-map";
 import { CreditCard } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
+import { PriorityAlertModal, usePriorityAlerts } from "@/components/tasks/PriorityAlerts";
+import { LeadCardHost } from "@/components/pipeline/LeadCardHost";
+import { AlertTriangle } from "lucide-react";
 
 function HeaderInstallModule() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -76,7 +79,9 @@ const NAV_GROUPS: NavGroup[] = [
 
 function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const prioritySearch = useRouterState({ select: (s) => (s.location.search as { prioridade?: number }).prioridade });
   const { isAdmin } = useIsAdmin();
+  const { count: priorityCount } = usePriorityAlerts();
   const listMods = useServerFn(listUserModules);
   const { data: modules } = useQuery({
     queryKey: ["user-modules"],
@@ -146,31 +151,61 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
               const slug = item.moduleSlug;
               const row = slug ? modules?.find((r) => r.module_slug === slug) : undefined;
               const disabled = slug && row ? !row.enabled : false;
+              const isTasks = item.to === "/tarefas";
+              const badge = isTasks && priorityCount > 0 ? priorityCount : 0;
               const link = (
                 <Link
                   key={item.to}
                   to={item.to}
                   onClick={onNavigate}
-                  className={`flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium text-nav-label-fixed transition-colors ${
-                    active
+                  className={`relative flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium text-nav-label-fixed transition-colors ${
+                    active && !(isTasks && prioritySearch)
                       ? "bg-primary/10"
                       : "hover:bg-muted"
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
+                  {collapsed && badge > 0 && (
+                    <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-sidebar" aria-label={`${badge} prioritárias`} />
+                  )}
                   {!collapsed && (
-                    <span className="flex-1 flex items-center justify-between">
+                    <span className="flex-1 flex items-center justify-between gap-2">
                       {item.label}
+                      {badge > 0 && (
+                        <span className="min-w-[20px] rounded-full bg-destructive px-1.5 text-center text-[11px] font-bold leading-5 text-destructive-foreground" aria-label={`${badge} tarefas prioritárias`}>
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      )}
                       {disabled && <Lock className="h-3 w-3 opacity-60" />}
                     </span>
                   )}
                 </Link>
               );
+              // Submenu "Prioridade" logo abaixo de Tarefas.
+              const sub = isTasks && !collapsed && (
+                <Link
+                  key="/tarefas?prioridade"
+                  to="/tarefas"
+                  search={{ prioridade: 1 } as any}
+                  onClick={onNavigate}
+                  className={`ml-7 flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium text-nav-label-fixed transition-colors ${
+                    active && prioritySearch ? "bg-destructive/10" : "hover:bg-muted"
+                  }`}
+                >
+                  <AlertTriangle className={`h-3.5 w-3.5 shrink-0 ${badge > 0 ? "text-destructive" : ""}`} />
+                  <span className="flex-1">Prioridade</span>
+                  {badge > 0 && <span className="text-[11px] font-bold text-destructive tabular-nums">{badge > 99 ? "99+" : badge}</span>}
+                </Link>
+              );
               return collapsed ? (
                 <Tooltip key={item.to}>
                   <TooltipTrigger asChild>{link}</TooltipTrigger>
-                  <TooltipContent side="right">{item.label}{disabled ? " (inativo)" : ""}</TooltipContent>
+                  <TooltipContent side="right">
+                    {item.label}{disabled ? " (inativo)" : ""}{badge > 0 ? ` · ${badge} prioritária${badge === 1 ? "" : "s"}` : ""}
+                  </TooltipContent>
                 </Tooltip>
+              ) : sub ? (
+                <div key={item.to} className="flex flex-col gap-0.5">{link}{sub}</div>
               ) : (
                 link
               );
@@ -336,6 +371,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             HubLynx Core Suite · Todos os direitos reservados
           </footer>
         </main>
+        <PriorityAlertModal />
+        <LeadCardHost />
       </div>
     </div>
   );

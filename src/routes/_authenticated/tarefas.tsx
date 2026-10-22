@@ -1,5 +1,5 @@
 import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -38,11 +38,12 @@ import { TaskCalendarView } from "@/components/tasks/TaskCalendarView";
 import { TaskFiltersSheet } from "@/components/tasks/TaskFiltersSheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { useWorkspace } from "@/hooks/useWorkspace";
-import { scopeOrganization } from "@/lib/org/filter";
-import { listLeadScheduledTasks } from "@/lib/pipeline/tasks.functions";
-import { leadTaskDisplay, type LeadScheduledTask } from "@/lib/pipeline/task-display";
+import { type LeadScheduledTask } from "@/lib/pipeline/task-display";
 import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
+import { usePendingItems, invalidatePendingQueries } from "@/hooks/usePendingItems";
+import { DayPendingSheet } from "@/components/tasks/DayPendingSheet";
+import { LeadLink } from "@/components/pipeline/LeadCardHost";
+import { dueDayKey, isPriorityLevel } from "@/lib/tasks/pending";
 import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
 import { matchesTaskDateRange } from "@/lib/tasks/date-filter";
 
@@ -57,9 +58,10 @@ export const Route = createFileRoute("/_authenticated/tarefas")({
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },
   ] }),
-  validateSearch: (s: Record<string, unknown>): { task?: string; view?: ViewMode } => ({
+  validateSearch: (s: Record<string, unknown>): { task?: string; view?: ViewMode; prioridade?: number } => ({
     task: typeof s.task === "string" ? s.task : undefined,
     view: (["kanban", "lista", "calendario"].includes(String(s.view)) ? s.view : undefined) as ViewMode | undefined,
+    prioridade: s.prioridade === 1 || s.prioridade === "1" ? 1 : undefined,
   }),
   component: TarefasPage,
 });
@@ -81,20 +83,28 @@ type Task = {
 
 function TarefasPage() {
   const qc = useQueryClient();
-  const { activeOrganizationId } = useWorkspace();
-  const tasksKey = ["tasks", "central", activeOrganizationId ?? "none"] as const;
-  const leadTasksKey = ["tasks", "lead-schedules", activeOrganizationId ?? "none"] as const;
-  const listSchedules = useServerFn(listLeadScheduledTasks);
   const toggleSchedule = useServerFn(toggleLeadTask);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const search = useSearch({ from: "/_authenticated/tarefas" });
-  const view: ViewMode = (search.view as ViewMode) ?? "lista";
+  // Visão principal: calendário do mês.
+  const view: ViewMode = (search.view as ViewMode) ?? (search.prioridade ? "lista" : "calendario");
   const setView = (v: ViewMode) =>
-    navigate({ to: "/tarefas", search: { task: search.task, view: v }, replace: true });
+    navigate({ to: "/tarefas", search: { task: search.task, view: v, prioridade: search.prioridade }, replace: true });
 
   const [searchText, setSearchText] = useState("");
-  const [filterPriority, setFilterPriority] = useState<string>("all");
+  const [filterPriority, setFilterPriorityState] = useState<string>(search.prioridade ? "prioritarias" : "all");
+  // Submenu "Prioridade" abre com o filtro de Alta + Urgente.
+  useEffect(() => {
+    if (search.prioridade) setFilterPriorityState("prioritarias");
+  }, [search.prioridade]);
+  const setFilterPriority = (v: string) => {
+    setFilterPriorityState(v);
+    if (search.prioridade && v !== "prioritarias") {
+      navigate({ to: "/tarefas", search: { task: search.task, view: search.view }, replace: true });
+    }
+  };
+  const [dayOpen, setDayOpen] = useState<Date | null>(null);
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterClient, setFilterClient] = useState<string>("all");
   const [filterDateFrom, setFilterDateFrom] = useState<Date>();
@@ -112,30 +122,10 @@ function TarefasPage() {
 
   const selectedId = search.task ?? null;
   const setSelectedId = (id: string | null) =>
-    navigate({ to: "/tarefas", search: { task: id ?? undefined, view }, replace: true });
+    navigate({ to: "/tarefas", search: { task: id ?? undefined, view, prioridade: search.prioridade }, replace: true });
 
-  const { data: generalTasks = [], isLoading: tasksLoading, error: tasksError } = useQuery({
-    queryKey: tasksKey,
-    queryFn: async () => {
-      const { data, error } = await scopeOrganization(supabase.from("tasks").select("*"), activeOrganizationId).order("position");
-      if (error) throw error;
-      return data as Task[];
-    },
-    staleTime: 60_000,
-    enabled: !!activeOrganizationId,
-  });
-
-  const { data: schedules = [], isLoading: schedulesLoading, error: schedulesError } = useQuery({
-    queryKey: leadTasksKey,
-    queryFn: () => {
-      if (!activeOrganizationId) throw new Error("Selecione uma empresa.");
-      return listSchedules({ data: { organizationId: activeOrganizationId } });
-    },
-    enabled: !!activeOrganizationId,
-    staleTime: 60_000,
-  });
-  const tasks = useMemo<Task[]>(() => [...generalTasks, ...schedules.map(leadTaskDisplay)], [generalTasks, schedules]);
-  const isLoading = tasksLoading || schedulesLoading;
+  const { items, isLoading, error: pendingError, tasksKey } = usePendingItems();
+  const tasks = items as Task[];
   const selectedSchedule = tasks.find((task) => task.id === selectedId)?.leadTask;
 
   const { data: labelsIndex = {} } = useQuery({
@@ -178,7 +168,9 @@ function TarefasPage() {
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
       if (searchText && !t.title.toLowerCase().includes(searchText.toLowerCase())) return false;
-      if (filterPriority !== "all" && t.priority !== filterPriority) return false;
+      if (filterPriority === "prioritarias") {
+        if (!isPriorityLevel(t.priority) || t.status === "concluido" || t.status === "cancelado") return false;
+      } else if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterProject !== "all" && t.project_id !== filterProject) return false;
       if (filterClient !== "all" && t.client_id !== filterClient) return false;
       if (!matchesTaskDateRange(t.due_date, filterDateFrom, filterDateTo)) return false;
@@ -224,13 +216,12 @@ function TarefasPage() {
     onSuccess: (id) => {
       const schedule = tasks.find((task) => task.id === id)?.leadTask;
       if (schedule) {
-        qc.invalidateQueries({ queryKey: ["lead-detail", schedule.lead_id] });
-        qc.invalidateQueries({ queryKey: ["agenda"] });
+        invalidatePendingQueries(qc, schedule.lead_id);
         return;
       }
       syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onSettled: () => invalidatePendingQueries(qc),
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -362,7 +353,7 @@ function TarefasPage() {
         </div>
       )}
 
-      {(tasksError || schedulesError) && <p role="alert" className="text-sm text-destructive">Não foi possível carregar todas as tarefas. <Button variant="link" onClick={() => qc.invalidateQueries({ queryKey: ["tasks"] })}>Tentar novamente</Button></p>}
+      {pendingError && <p role="alert" className="text-sm text-destructive">Não foi possível carregar todas as tarefas. <Button variant="link" onClick={() => qc.invalidateQueries({ queryKey: ["tasks"] })}>Tentar novamente</Button></p>}
       <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
         <TabsContent value="lista" className="mt-2">
           {isLoading ? (
@@ -429,6 +420,7 @@ function TarefasPage() {
             tasks={filtered as any}
             onSelectTask={setSelectedId}
             onCreateAt={(dateISO) => openNewIn({ date: dateISO })}
+            onPickDay={setDayOpen}
           />
         </TabsContent>
       </Tabs>
@@ -445,6 +437,13 @@ function TarefasPage() {
       )}
 
       {selectedSchedule ? <LeadTaskDialog key={selectedSchedule.id} task={selectedSchedule} onClose={() => setSelectedId(null)} /> : <TaskDrawer taskId={selectedId?.startsWith("lead:") ? null : selectedId} open={!!selectedId && !selectedId.startsWith("lead:")} onClose={() => setSelectedId(null)} />}
+      <DayPendingSheet
+        date={dayOpen}
+        items={dayOpen ? filtered.filter((t) => dueDayKey(t.due_date) === format(dayOpen, "yyyy-MM-dd")) : []}
+        onOpenChange={(o) => { if (!o) setDayOpen(null); }}
+        onSelect={(id) => { setDayOpen(null); setSelectedId(id); }}
+        onAdd={(dateKey) => { setDayOpen(null); openNewIn({ date: dateKey }); }}
+      />
       <EditKanbanDialog open={openEditKanban} onOpenChange={setOpenEditKanban} />
       <TaskQuickForm
         open={openNew}
@@ -686,7 +685,7 @@ function TaskListItem({
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground truncate">{task.title}</p>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                {task.leadTask && <span className="inline-flex items-center gap-1"><UserIcon className="h-3 w-3 shrink-0" />Lead · {task.leadTask.leads.name}</span>}
+                {task.leadTask && <span className="inline-flex min-w-0 items-center gap-1"><UserIcon className="h-3 w-3 shrink-0" /><LeadLink leadId={task.leadTask.lead_id} name={task.leadTask.leads.name} /></span>}
                 {client && (
                   <span className="inline-flex items-center gap-1 truncate max-w-[180px]">
                     <UserIcon className="h-3 w-3 shrink-0" />
@@ -948,7 +947,7 @@ function TaskCard({
           </DropdownMenu>}
         </div>
 
-        {task.leadTask && <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><UserIcon className="h-3 w-3 shrink-0" />Lead · {task.leadTask.leads.name}</p>}
+        {task.leadTask && <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><UserIcon className="h-3 w-3 shrink-0" /><LeadLink leadId={task.leadTask.lead_id} name={task.leadTask.leads.name} /></p>}
         {client && (
           <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
             <Building2 className="h-3 w-3 shrink-0" /> <span className="truncate">{client.name}</span>

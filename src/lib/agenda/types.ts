@@ -17,4 +17,10 @@ export type AgendaEvent = {
   htmlLink?: string | null;
   status?: string | null;
   description?: string | null;
+  /** Pendências (tarefas e agendamentos de lead) vindas da fonte compartilhada com Tarefas. */
+  priority?: "baixa" | "media" | "alta" | "critica" | null;
+  overdue?: boolean;
+  leadName?: string | null;
+  /** Id do item na central de Tarefas ("<uuid>" ou "lead:<uuid>"). */
+  pendingId?: string | null;
 };
