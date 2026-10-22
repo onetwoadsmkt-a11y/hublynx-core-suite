@@ -2,18 +2,18 @@ import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, RotateCcw, Save, Trash2 } from "lucide-react";
+import { RotateCcw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { deleteLeadTask, toggleLeadTask, upsertLeadTask } from "@/lib/pipeline/pipeline.functions";
 import type { LeadScheduledTask } from "@/lib/pipeline/task-display";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { invalidatePendingQueries } from "@/hooks/usePendingItems";
 import { LeadLink } from "@/components/pipeline/LeadCardHost";
+import { LeadTaskActions, LeadTaskNotes } from "@/components/pipeline/LeadTaskActions";
 
 const PRIORITIES = [
   { value: "baixa", label: "Baixa" },
@@ -29,7 +29,7 @@ export function LeadTaskDialog({ task, onClose }: { task: LeadScheduledTask; onC
   const toggleFn = useServerFn(toggleLeadTask);
   const deleteFn = useServerFn(deleteLeadTask);
   const [title, setTitle] = useState(task.title);
-  const [notes, setNotes] = useState(task.notes ?? "");
+  const notes = task.notes ?? "";
   const [due, setDue] = useState(task.due_at ? format(parseISO(task.due_at), "yyyy-MM-dd'T'HH:mm") : "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [priority, setPriority] = useState<LeadPriority>((task.priority ?? "media") as LeadPriority);
@@ -68,7 +68,13 @@ export function LeadTaskDialog({ task, onClose }: { task: LeadScheduledTask; onC
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1"><Label htmlFor="lead-task-notes">Anotações</Label><Textarea id="lead-task-notes" value={notes} maxLength={2000} onChange={(e) => setNotes(e.target.value)} /></div>
+          <div className="space-y-1">
+            <Label>Observações</Label>
+            <LeadTaskNotes notes={task.notes} />
+            {!task.notes && task.done && <p className="text-xs text-muted-foreground">Sem observações.</p>}
+            {/* Observação, conclusão com resultado e próxima ação: tudo vai para a jornada do lead. */}
+            <LeadTaskActions task={task} onCompleted={onClose} />
+          </div>
           {task.meet_link && <a className="text-sm text-primary underline" href={task.meet_link} target="_blank" rel="noreferrer">Abrir reunião</a>}
         </div>
         {confirmDelete ? (
@@ -80,7 +86,7 @@ export function LeadTaskDialog({ task, onClose }: { task: LeadScheduledTask; onC
         ) : (
           <DialogFooter className="gap-2">
             <Button variant="ghost" size="icon" aria-label="Excluir agendamento" title="Excluir agendamento" onClick={() => setConfirmDelete(true)} disabled={mutate.isPending}><Trash2 /></Button>
-            <Button variant="outline" onClick={() => mutate.mutate("toggle")} disabled={mutate.isPending}>{task.done ? <RotateCcw /> : <Check />}{task.done ? "Reabrir" : "Concluir"}</Button>
+            {task.done && <Button variant="outline" onClick={() => mutate.mutate("toggle")} disabled={mutate.isPending}><RotateCcw />Reabrir</Button>}
             <Button onClick={() => mutate.mutate("save")} disabled={mutate.isPending || !title.trim()}><Save />Salvar</Button>
           </DialogFooter>
         )}

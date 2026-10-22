@@ -31,6 +31,7 @@ import { SendLeadEmailDialog } from "./SendLeadEmailDialog";
 import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { invalidatePendingQueries } from "@/hooks/usePendingItems";
+import { LeadTaskActions, LeadTaskNotes } from "./LeadTaskActions";
 import { PRIORITY_LABEL, PRIORITY_TONE, type Priority } from "@/components/tasks/TaskDrawer";
 
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -48,6 +49,9 @@ const EVENT_ICON: Record<string, typeof Activity> = {
   note_added: MessageSquare,
   task_created: CalendarClock,
   task_done: CheckCircle2,
+  task_note: MessageSquare,
+  task_result: CheckCircle2,
+  next_action: CalendarClock,
   file_added: Paperclip,
   email_sent: Mail,
   tag_added: Tag,
@@ -310,7 +314,9 @@ export function LeadDrawer({
       ] as const).filter(([, v]) => !!v)
     : [];
 
-  const tasks = data?.tasks ?? [];
+  // Pendentes primeiro (pelo horário), concluídas por último.
+  const tasks = [...(data?.tasks ?? [])].sort((a: any, b: any) =>
+    Number(a.done) - Number(b.done) || String(a.due_at ?? "9999").localeCompare(String(b.due_at ?? "9999")));
   const files = data?.files ?? [];
 
   const nextTask = tasks
@@ -729,7 +735,8 @@ export function LeadDrawer({
 
                       <div className="space-y-2">
                         {tasks.map((t) => (
-                          <div key={t.id} className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                          <div key={t.id} className={`rounded-lg border p-3 ${t.done ? "bg-muted/30" : "bg-card"}`}>
+                          <div className="flex items-start gap-3">
                             <Checkbox
                               checked={t.done}
                               onCheckedChange={(v) => toggleTask.mutate({ id: t.id, done: !!v })}
@@ -766,9 +773,12 @@ export function LeadDrawer({
                               </p>
                             </div>
 
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeTask.mutate(t.id)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeTask.mutate(t.id)} aria-label="Excluir agendamento">
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
+                          </div>
+                          <LeadTaskNotes notes={(t as any).notes ?? null} className="mt-2" />
+                          <LeadTaskActions task={t as any} leadEmail={lead.email ?? null} />
                           </div>
                         ))}
                         {tasks.length === 0 && (

@@ -5,6 +5,7 @@ import { DEFAULT_STAGES } from "./defaults";
 import { scopeOrganization, organizationFields } from "@/lib/org/filter";
 import { resolveOrganizationId } from "@/lib/org/resolve";
 import { fetchAllRows } from "@/lib/supabase-paging";
+import { appendNote, stamp } from "./lead-task-notes";
 
 const uuid = z.string().uuid();
 
@@ -646,94 +647,211 @@ export const deleteWebhook = createServerFn({ method: "POST" })
 
 /* ---------------- Lead tasks (agendamentos) ---------------- */
 
+const leadTaskSchema = z.object({
+  id: uuid.optional(),
+  leadId: uuid,
+  title: z.string().min(1).max(200),
+  kind: z.enum(["tarefa", "reuniao", "call", "follow_up"]).default("tarefa"),
+  notes: z.string().max(8000).nullable().optional(),
+  due_at: z.string().nullable().optional(),
+  duration_minutes: z.number().int().min(10).max(480).default(30),
+  invite_lead: z.boolean().default(false),
+  priority: z.enum(["baixa", "media", "alta", "critica"]).optional(),
+});
+type LeadTaskInput = z.infer<typeof leadTaskSchema>;
+
+/**
+ * Salva um agendamento de lead e sincroniza com o Google Agenda de quem salva.
+ * Usado ao criar/editar e ao agendar a próxima ação depois de concluir uma tarefa.
+ * O gatilho do banco registra "Agendamento criado" na jornada do lead.
+ */
+async function saveLeadTask(context: { supabase: any; userId: string }, data: LeadTaskInput) {
+  const { supabase, userId } = context;
+
+  const { data: leadRow, error: leadError } = await supabase
+    .from("leads")
+    .select("*")
+    .eq("id", data.leadId)
+    .maybeSingle();
+
+  if (leadError) throw new Error(leadError.message);
+  if (!leadRow) throw new Error("Lead não encontrado ou sem permissão.");
+  const lead = leadRow as { name?: string; email?: string | null; organization_id?: string | null };
+
+  let existingEventId: string | null = null;
+  if (data.id) {
+    const { data: prev } = await supabase
+      .from("lead_tasks")
+      .select("gcal_event_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    existingEventId = (prev?.gcal_event_id as string | null) ?? null;
+  }
+
+  let gcalEventId: string | null = existingEventId;
+  let meetLink: string | null = null;
+  let syncError: string | null = null;
+
+  if (data.due_at) {
+    const { upsertLeadCalendarEvent } = await import("@/lib/google/lead-calendar.server");
+    const res = await upsertLeadCalendarEvent(userId, {
+      title: `[${lead?.name ?? "Lead"}] ${data.title}`,
+      kind: data.kind,
+      description: data.notes ?? null,
+      startISO: data.due_at,
+      durationMinutes: data.duration_minutes,
+      attendees: data.invite_lead && lead?.email ? [lead.email as string] : [],
+      withMeet: data.kind === "reuniao",
+      eventId: existingEventId,
+    });
+    if (res.error) syncError = res.error;
+    else {
+      gcalEventId = res.eventId ?? existingEventId;
+      meetLink = res.meetLink;
+    }
+  }
+
+  const row: Record<string, unknown> = {
+    lead_id: data.leadId,
+    title: data.title,
+    ...organizationFields((lead.organization_id as string | null) ?? null),
+    kind: data.kind,
+    notes: data.notes ?? null,
+    due_at: data.due_at || null,
+    duration_minutes: data.duration_minutes,
+    gcal_event_id: gcalEventId,
+    meet_link: meetLink,
+  };
+  // O dono do agendamento é quem criou; editar não troca o responsável.
+  if (!data.id) row.owner_id = userId;
+
+  const save = (values: Record<string, unknown>) =>
+    data.id
+      ? supabase.from("lead_tasks").update(values).eq("id", data.id).select("id").maybeSingle()
+      : supabase.from("lead_tasks").insert(values).select("id").maybeSingle();
+  let priorityPending = false;
+  let { data: saved, error } = await save(data.priority ? { ...row, priority: data.priority } : row);
+  // Antes da migração 21 a coluna priority não existe: salva sem ela e avisa.
+  if (error && data.priority && /priority/i.test(error.message)) {
+    priorityPending = true;
+    ({ data: saved, error } = await save(row));
+  }
+  if (error) throw new Error(error.message);
+  return {
+    ok: true as const,
+    id: ((saved as { id?: string } | null)?.id ?? data.id ?? null) as string | null,
+    synced: !!gcalEventId,
+    meetLink,
+    syncError,
+    priorityPending,
+  };
+}
+
+/** Registra um evento na jornada do lead (dono e empresa herdados do lead). */
+async function logLeadEvent(
+  supabase: any,
+  userId: string,
+  leadId: string,
+  ev: { kind: string; title: string; description?: string | null; meta?: Record<string, unknown> },
+) {
+  const { data: lead } = await supabase.from("leads").select("*").eq("id", leadId).maybeSingle();
+  if (!lead) return;
+  await supabase.from("lead_events").insert({
+    lead_id: leadId,
+    owner_id: (lead as any).owner_id ?? userId,
+    actor_id: userId,
+    kind: ev.kind,
+    title: ev.title,
+    description: ev.description ?? null,
+    meta: ev.meta ?? null,
+    ...organizationFields(((lead as any).organization_id as string | null) ?? null),
+  });
+}
+
 export const upsertLeadTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => leadTaskSchema.parse(d))
+  .handler(async ({ data, context }) => saveLeadTask(context, data));
+
+/** Observação em um agendamento: fica no próprio agendamento e na jornada do lead. */
+export const addLeadTaskNote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid, text: z.string().trim().min(1).max(2000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: task, error } = await supabase
+      .from("lead_tasks")
+      .select("id, lead_id, title, notes")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!task) throw new Error("Agendamento não encontrado ou sem permissão.");
+    const notes = appendNote(task.notes as string | null, data.text, "");
+    const { error: upErr } = await supabase.from("lead_tasks").update({ notes }).eq("id", data.id);
+    if (upErr) throw new Error(upErr.message);
+    await logLeadEvent(supabase, userId, task.lead_id as string, {
+      kind: "task_note",
+      title: `Observação · ${task.title}`,
+      description: data.text.slice(0, 1000),
+      meta: { lead_task_id: data.id },
+    });
+    return { ok: true as const, notes };
+  });
+
+/**
+ * Conclui um agendamento com o resultado (como no Kommo) e, se pedido, já agenda
+ * a próxima ação. Tudo fica na jornada: resultado, conclusão e novo agendamento.
+ */
+export const completeLeadTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
       .object({
-        id: uuid.optional(),
-        leadId: uuid,
-        title: z.string().min(1).max(200),
-        kind: z.enum(["tarefa", "reuniao", "call", "follow_up"]).default("tarefa"),
-        notes: z.string().max(2000).nullable().optional(),
-        due_at: z.string().nullable().optional(),
-        duration_minutes: z.number().int().min(10).max(480).default(30),
-        invite_lead: z.boolean().default(false),
-        priority: z.enum(["baixa", "media", "alta", "critica"]).optional(),
+        id: uuid,
+        result: z.string().trim().max(2000).optional(),
+        next: leadTaskSchema.omit({ id: true, leadId: true }).optional(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-
-    const { data: leadRow, error: leadError } = await supabase
-      .from("leads")
-      .select("*")
-      .eq("id", data.leadId)
+    const { data: task, error } = await supabase
+      .from("lead_tasks")
+      .select("id, lead_id, title, notes, done")
+      .eq("id", data.id)
       .maybeSingle();
-
-    if (leadError) throw new Error(leadError.message);
-    if (!leadRow) throw new Error("Lead não encontrado ou sem permissão.");
-    const lead = leadRow as typeof leadRow & { organization_id?: string | null };
-
-    let existingEventId: string | null = null;
-    if (data.id) {
-      const { data: prev } = await supabase
-        .from("lead_tasks")
-        .select("gcal_event_id")
-        .eq("id", data.id)
-        .maybeSingle();
-      existingEventId = (prev?.gcal_event_id as string | null) ?? null;
-    }
-
-    let gcalEventId: string | null = existingEventId;
-    let meetLink: string | null = null;
-    let syncError: string | null = null;
-
-    if (data.due_at) {
-      const { upsertLeadCalendarEvent } = await import("@/lib/google/lead-calendar.server");
-      const res = await upsertLeadCalendarEvent(context.userId, {
-        title: `[${lead?.name ?? "Lead"}] ${data.title}`,
-        kind: data.kind,
-        description: data.notes ?? null,
-        startISO: data.due_at,
-        durationMinutes: data.duration_minutes,
-        attendees: data.invite_lead && lead?.email ? [lead.email as string] : [],
-        withMeet: data.kind === "reuniao",
-        eventId: existingEventId,
-      });
-      if (res.error) syncError = res.error;
-      else {
-        gcalEventId = res.eventId ?? existingEventId;
-        meetLink = res.meetLink;
-      }
-    }
-
-    const row = {
-      lead_id: data.leadId,
-      owner_id: userId,
-      title: data.title,
-      ...organizationFields((lead.organization_id as string | null) ?? null),
-      kind: data.kind,
-      notes: data.notes ?? null,
-      due_at: data.due_at || null,
-      duration_minutes: data.duration_minutes,
-      gcal_event_id: gcalEventId,
-      meet_link: meetLink,
-    };
-    const save = (values: Record<string, unknown>) =>
-      data.id
-        ? supabase.from("lead_tasks").update(values as any).eq("id", data.id)
-        : supabase.from("lead_tasks").insert(values as any);
-    let priorityPending = false;
-    let { error } = await save(data.priority ? { ...row, priority: data.priority } : row);
-    // Antes da migração 21 a coluna priority não existe: salva sem ela e avisa.
-    if (error && data.priority && /priority/i.test(error.message)) {
-      priorityPending = true;
-      ({ error } = await save(row));
-    }
     if (error) throw new Error(error.message);
-    return { ok: true as const, synced: !!gcalEventId, meetLink, syncError, priorityPending };
+    if (!task) throw new Error("Agendamento não encontrado ou sem permissão.");
+
+    const result = data.result?.trim() || "";
+    const update: Record<string, unknown> = { done: true, completed_at: new Date().toISOString() };
+    if (result) update.notes = appendNote(task.notes as string | null, result, "Resultado: ");
+    const { error: upErr } = await supabase.from("lead_tasks").update(update as any).eq("id", data.id);
+    if (upErr) throw new Error(upErr.message);
+
+    if (result) {
+      await logLeadEvent(supabase, userId, task.lead_id as string, {
+        kind: "task_result",
+        title: `Resultado · ${task.title}`,
+        description: result.slice(0, 1000),
+        meta: { lead_task_id: data.id },
+      });
+    }
+
+    let next: Awaited<ReturnType<typeof saveLeadTask>> | null = null;
+    if (data.next) {
+      next = await saveLeadTask(context, { ...data.next, leadId: task.lead_id as string });
+      await logLeadEvent(supabase, userId, task.lead_id as string, {
+        kind: "next_action",
+        title: `Próxima ação · ${data.next.title}`,
+        description: data.next.due_at
+          ? `Agendada para ${stamp(new Date(data.next.due_at))}, após concluir "${task.title}"`
+          : `Criada após concluir "${task.title}"`,
+        meta: { from_lead_task_id: data.id, lead_task_id: next.id, kind: data.next.kind },
+      });
+    }
+
+    return { ok: true as const, next };
   });
 
 export const toggleLeadTask = createServerFn({ method: "POST" })

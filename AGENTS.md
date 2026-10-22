@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Lead schedules follow a Kommo-style loop in one shared component (`LeadTaskActions`, used by the lead card and the schedule dialog): dated observations append to `lead_tasks.notes`, "Tarefa concluída" completes with an optional result and can schedule the next action in the same server call (`completeLeadTask`, reusing `saveLeadTask` for Google Calendar sync). Journey entries: database triggers log created/done; server functions add `task_note`, `task_result` and `next_action`.
+
 - Agenda and Tasks read pending items through one shared hook (`usePendingItems`) with the same query keys, so any change refreshes both; agenda server events only add meetings and Google Calendar (`skipPending`). Overdue, all-day and priority rules live in `src/lib/tasks/pending.ts`, and every mutation refreshes through `invalidatePendingQueries`.
 - Priority alerts are read by an authenticated server function scoped to the active organization and the caller's responsibility; "CIENTE" acknowledgements are stored per user and item in `task_priority_acks` (RLS: own rows only), with a browser-local fallback until migration 21 is applied. Lead cards open globally through `LeadCardHost`/`openLeadCard`, reusing the pipeline `LeadDrawer`.
 
