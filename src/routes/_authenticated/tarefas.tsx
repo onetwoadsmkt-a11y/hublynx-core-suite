@@ -51,9 +51,9 @@ type ViewMode = "kanban" | "lista" | "calendario";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
   head: () => ({ meta: [
-    { title: "Tarefas — Hublynx Core" },
+    { title: "Agenda — Hublynx Core" },
     { name: "description", content: "Tarefas de projetos e agendamentos de leads em Lista, Kanban e Calendário." },
-    { property: "og:title", content: "Tarefas — Hublynx Core" },
+    { property: "og:title", content: "Agenda — Hublynx Core" },
     { property: "og:description", content: "Prioridades, tarefas e agendamentos da sua empresa." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },
@@ -273,9 +273,9 @@ function TarefasPage() {
       {/* Header */}
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 md:flex md:items-center md:justify-between md:flex-wrap">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl md:text-3xl font-semibold tracking-tight">Tarefas</h1>
+          <h1 className="truncate text-2xl md:text-3xl font-semibold tracking-tight">Agenda</h1>
           <p className="hidden md:block text-muted-foreground mt-1 text-sm">
-            Lista e Kanban. O Calendário (com Google Agenda) mostra as mesmas tarefas.
+            Lista e Kanban. O calendário (com Google Agenda) mostra as mesmas tarefas.
           </p>
         </div>
         <div className="flex items-center gap-2">

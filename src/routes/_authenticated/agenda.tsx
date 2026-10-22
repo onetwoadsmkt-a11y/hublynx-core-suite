@@ -23,7 +23,8 @@ import {
 } from "@/lib/agenda/agenda.functions";
 import { syncAllPendingTasksToCalendar } from "@/lib/google/calendar.functions";
 import type { AgendaEvent, AgendaSource } from "@/lib/agenda/types";
-import { usePendingItems, invalidatePendingQueries } from "@/hooks/usePendingItems";
+import { usePendingItems, invalidatePendingQueries, type PendingItem } from "@/hooks/usePendingItems";
+import { PendingItemDetails } from "@/components/tasks/PendingItemDetails";
 import { useGoogleTaskSync } from "@/hooks/useGoogleSync";
 import { DayPendingSheet, type DayExtra } from "@/components/tasks/DayPendingSheet";
 import { LeadLink } from "@/components/pipeline/LeadCardHost";
@@ -38,6 +39,8 @@ import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
 
 /** Abre a tarefa/agendamento aqui mesmo no calendário (id da central: "<uuid>" ou "lead:<uuid>"). */
 const OpenItemContext = createContext<(pendingId: string) => void>(() => {});
+/** Pendências por id, para o detalhe no estilo do Google ao clicar no evento. */
+const PendingByIdContext = createContext<Map<string, PendingItem>>(new Map());
 const BACKFILL_KEY = "core_gcal_backfill_at";
 const BACKFILL_EVERY_MS = 15 * 60_000;
 
@@ -157,6 +160,7 @@ function AgendaPage() {
       i.leadTask ? i.leadTask.owner_id === meId : (i.assignee_id ?? i.owner_id) === meId);
   }, [allPendingItems, search.mine, meId]);
   const [selected, setSelected] = useState<string | null>(null);
+  const pendingById = useMemo(() => new Map(allPendingItems.map((i) => [i.id, i])), [allPendingItems]);
   const selectedLead = selected?.startsWith("lead:") ? allPendingItems.find((i) => i.id === selected)?.leadTask : undefined;
   const clientName = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
   const pendingEvents = useMemo<AgendaEvent[]>(() => {
@@ -268,7 +272,7 @@ function AgendaPage() {
             <div className="rounded-xl bg-primary/10 p-2">
               <CalendarDays className="h-5 w-5 text-primary" />
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">Calendário</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Agenda</h1>
           </div>
           <TasksViewSwitch current="calendario" />
 
@@ -370,11 +374,13 @@ function AgendaPage() {
         </div>
 
         {/* Grid */}
+        <PendingByIdContext.Provider value={pendingById}>
         <OpenItemContext.Provider value={setSelected}>
         {view === "day" && <DayView anchor={anchor} events={events} />}
         {view === "week" && <WeekView anchor={anchor} events={events} onPickDay={setDayOpen} />}
         {view === "month" && <MonthView anchor={anchor} events={events} onPickDay={setDayOpen} />}
         </OpenItemContext.Provider>
+        </PendingByIdContext.Provider>
       </div>
 
       <ScheduleMeetingStandalone open={meetingOpen} onClose={() => setMeetingOpen(false)} />
@@ -601,7 +607,7 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
             <span className="truncate">{event.title}</span>
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-80 p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+        <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
       </Popover>
     );
   }
@@ -614,7 +620,7 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
             {event.title}
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-80 p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+        <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
       </Popover>
     );
   }
@@ -628,7 +634,7 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
           <span className="truncate text-foreground">{event.title}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+      <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
     </Popover>
   );
 }
@@ -658,7 +664,7 @@ function EventChip({ event, expanded }: { event: AgendaEvent; expanded?: boolean
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 overflow-hidden">
+      <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden">
         <EventDetails event={event} />
       </PopoverContent>
     </Popover>
@@ -671,6 +677,8 @@ function EventDetails({ event }: { event: AgendaEvent }) {
   const rescheduleFn = useServerFn(rescheduleTask);
   const toggleLeadFn = useServerFn(toggleLeadTask);
   const openItem = useContext(OpenItemContext);
+  const pendingById = useContext(PendingByIdContext);
+  const pendingItem = event.pendingId ? pendingById.get(event.pendingId) : undefined;
   const { syncNow } = useGoogleTaskSync();
   const meta = SOURCE_META[event.source];
   const leadTaskId = event.source === "lead" && event.pendingId?.startsWith("lead:") ? event.pendingId.slice(5) : null;
@@ -690,6 +698,29 @@ function EventDetails({ event }: { event: AgendaEvent }) {
     onSuccess: () => { toast.success("Tarefa reagendada"); invalidatePendingQueries(qc); if (event.taskId) syncNow([event.taskId]); },
     onError: (e: any) => toast.error(e.message ?? "Erro"),
   });
+
+  // Tarefa ou agendamento do Core: detalhe completo, com lead/projeto e botões.
+  if (pendingItem) {
+    return (
+      <div className="max-h-[70vh] overflow-y-auto p-4 text-sm">
+        <PendingItemDetails item={pendingItem} onEdit={() => openItem(pendingItem.id)} />
+        {event.source === "task" && event.taskId && pendingItem.status !== "concluido" && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => complete.mutate()}>
+              <CheckCircle2 className="h-3 w-3 mr-1" /> Concluir
+            </Button>
+            <input
+              type="datetime-local"
+              aria-label="Remarcar"
+              className="h-7 text-xs rounded border border-border bg-background px-1.5"
+              defaultValue={new Date(event.start).toISOString().slice(0,16)}
+              onChange={(e) => { const v = e.target.value; if (v) reschedule.mutate(new Date(v).toISOString()); }}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="text-sm">

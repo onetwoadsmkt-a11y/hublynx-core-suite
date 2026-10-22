@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AlertTriangle, CalendarCheck, CheckCircle2, ListTodo, Plus } from "lucide-react";
@@ -10,6 +11,8 @@ import { PRIORITY_LABEL, PRIORITY_TONE, type Priority } from "@/components/tasks
 import { LeadLink } from "@/components/pipeline/LeadCardHost";
 import { isDoneStatus, isOverdue, type PendingPriority } from "@/lib/tasks/pending";
 import type { LeadScheduledTask } from "@/lib/pipeline/task-display";
+import { PendingItemDetails } from "@/components/tasks/PendingItemDetails";
+import type { PendingItem } from "@/hooks/usePendingItems";
 
 export type DayItem = {
   id: string;
@@ -49,6 +52,8 @@ export function DayPendingSheet({
 }) {
   const isMobile = useIsMobile();
   const open = !!date;
+  // Tarefa aberta dentro do dia (detalhe com lead/projeto).
+  const [expanded, setExpanded] = useState<string | null>(null);
   const pending = items
     .filter((i) => !isDoneStatus(i.status))
     .sort((a, b) =>
@@ -79,13 +84,16 @@ export function DayPendingSheet({
             const overdue = isOverdue(i);
             const meeting = i.briefing?.type === "reuniao";
             const time = timeOf(i.due_date);
+            const isOpen = expanded === i.id;
+            const toggle = () => setExpanded(isOpen ? null : i.id);
             return (
+              <div key={i.id} className="space-y-2">
               <div
-                key={i.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => onSelect(i.id)}
-                onKeyDown={(e) => { if (e.key === "Enter") onSelect(i.id); }}
+                aria-expanded={isOpen}
+                onClick={toggle}
+                onKeyDown={(e) => { if (e.key === "Enter") toggle(); }}
                 className={cn(
                   "flex min-h-[44px] cursor-pointer items-start gap-3 rounded-xl border p-3 transition hover:shadow-sm",
                   overdue ? "border-destructive/40 bg-destructive/10" : "bg-card",
@@ -111,6 +119,15 @@ export function DayPendingSheet({
                 <Badge variant="outline" className={cn("shrink-0 text-[10px]", PRIORITY_TONE[i.priority as Priority])}>
                   {PRIORITY_LABEL[i.priority as Priority]}
                 </Badge>
+              </div>
+              {isOpen && (
+                <PendingItemDetails
+                  item={i as PendingItem}
+                  onEdit={() => onSelect(i.id)}
+                  onNavigate={() => onOpenChange(false)}
+                  className="rounded-xl border bg-background p-3 shadow-sm"
+                />
+              )}
               </div>
             );
           })}
@@ -143,13 +160,21 @@ export function DayPendingSheet({
                 {done.map((i) => (
                   <button
                     key={i.id}
-                    onClick={() => onSelect(i.id)}
+                    onClick={() => setExpanded(expanded === i.id ? null : i.id)}
                     className="flex w-full items-center gap-2 rounded-xl border bg-muted/30 p-3 text-left text-sm text-muted-foreground line-through"
                   >
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     <span className="truncate">{i.title}</span>
                   </button>
                 ))}
+                {done.some((i) => i.id === expanded) && (
+                  <PendingItemDetails
+                    item={done.find((i) => i.id === expanded) as PendingItem}
+                    onEdit={() => onSelect(expanded!)}
+                    onNavigate={() => onOpenChange(false)}
+                    className="rounded-xl border bg-background p-3 shadow-sm"
+                  />
+                )}
               </div>
             </details>
           )}

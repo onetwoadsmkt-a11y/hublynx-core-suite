@@ -63,7 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/pipeline", label: "Pipeline", icon: Filter },
       { to: "/leads", label: "Leads", icon: Users, moduleSlug: "clientes" },
       { to: "/formularios", label: "Formulários", icon: FileText },
-      { to: "/tarefas", label: "Tarefas e Calendário", icon: CheckSquare, moduleSlug: "tarefas" },
+      { to: "/tarefas", label: "Agenda", icon: Calendar, moduleSlug: "tarefas" },
       { to: "/atendimento", label: "Atendimento", icon: MessageSquare },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
       { to: "/clientes", label: "Clientes", icon: Building2 },
@@ -145,7 +145,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                 </span>
               ))}
             {group.items.map((item) => {
-              // Tarefas e Calendário são um módulo só: /agenda acende o mesmo item.
+              // Agenda: Lista/Kanban (/tarefas) e calendário (/agenda) acendem o mesmo item.
               const active =
                 pathname === item.to || pathname.startsWith(item.to + "/") ||
                 (item.to === "/tarefas" && (pathname === "/agenda" || pathname.startsWith("/agenda/")));

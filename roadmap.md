@@ -1,5 +1,7 @@
 # Roadmap — Reestruturação Hublynx (plano aprovado 09/09/2026)
 
+- [x] Agenda — "Tarefas" renomeado para Agenda; tarefa aberta dentro do dia (painel do dia e clique no evento) com lead ou projeto vinculados e botões "Abrir cartão do lead" e "Abrir projeto".
+
 - [x] Calendário único (Tarefas + Calendário + Google), menu "Tarefas e Calendário", "Meus eventos", itens abertos no próprio calendário; sincronização com o Google imediata por edição e conferência geral só do que mudou.
 
 - [x] Cartão do lead — observação em cada agendamento, "Tarefa concluída" com resultado e próxima ação (follow-up, reunião, ligação ou outra) agendada no mesmo passo, no Core e no Google Agenda; tudo na jornada do lead. Mesmo fluxo no modal aberto por Tarefas/Calendário.

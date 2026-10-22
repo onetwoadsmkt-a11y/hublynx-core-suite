@@ -22,7 +22,7 @@ export function TasksViewSwitch({ current, className }: { current: TasksView; cl
     return <Link to="/tarefas" search={{ view } as any} className={cls} aria-current={active ? "page" : undefined} title={label}>{content}</Link>;
   };
   return (
-    <nav aria-label="Visualização de tarefas" className={cn("inline-flex items-center gap-1 rounded-lg bg-muted p-1", className)}>
+    <nav aria-label="Visualização da agenda" className={cn("inline-flex items-center gap-1 rounded-lg bg-muted p-1", className)}>
       {item("lista", "Lista", ListIcon)}
       {item("kanban", "Kanban", LayoutGrid)}
       {item("calendario", "Calendário", CalendarIcon)}
