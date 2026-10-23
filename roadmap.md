@@ -26,4 +26,4 @@
 - [ ] Contas — validar criação administrativa e troca de contas reais; bloqueado pela ausência de sessão autorizada no banco externo
 - [ ] Segurança — retirar compatibilidade do papel admin legado após conferir os administradores atuais; bloqueado pela auditoria do banco externo
 - [ ] Contas — conferir cadastro afetado, administradores atuais e segurança do banco externo; bloqueado por acesso de auditoria e e-mail válido
-- [ ] Ajustar métricas do Dashboard com a situação real do sistema
+- [x] Ajustar métricas do Dashboard com a situação real do sistema

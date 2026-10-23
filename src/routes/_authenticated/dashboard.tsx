@@ -72,10 +72,12 @@ function Dashboard() {
           .not("status", "in", CLOSED_PROJECT), orgId),
         scopeOrganization(sb.from("projects").select("id", { count: "exact", head: true })
           .lt("due_date", today.startDate).not("status", "in", CLOSED_PROJECT), orgId),
-        scopeOrganization(sb.from("events").select("id,start_at")
-          .gte("start_at", today.start).lte("start_at", today.end), orgId),
-        scopeOrganization(sb.from("task_communications").select("id,start_at")
-          .eq("kind", "meeting").gte("start_at", today.start).lte("start_at", today.end), orgId),
+        // events are personal (no company column); RLS keeps them to the user.
+        sb.from("events").select("id,start_at")
+          .gte("start_at", today.start).lte("start_at", today.end),
+        sb.from("task_communications").select("id,start_at,tasks!inner(organization_id)")
+          .eq("kind", "meeting").gte("start_at", today.start).lte("start_at", today.end)
+          .then((r: any) => orgId ? { ...r, data: (r.data ?? []).filter((x: any) => x.tasks?.organization_id === orgId) } : r),
         sb.from("lead_tasks").select("id,due_at,leads!inner(organization_id)")
           .eq("done", false).in("kind", ["reuniao", "call"])
           .gte("due_at", today.start).lte("due_at", today.end)
@@ -90,9 +92,9 @@ function Dashboard() {
           .select("id,name,color,clients(name)")
           .not("status", "in", CLOSED_PROJECT), orgId)
           .order("updated_at", { ascending: false }).limit(5),
-        scopeOrganization(sb.from("events")
+        sb.from("events")
           .select("id,title,start_at,end_at,event_type")
-          .gte("start_at", today.start), orgId)
+          .gte("start_at", today.start)
           .order("start_at").limit(4),
       ]);
 
@@ -142,7 +144,7 @@ function Dashboard() {
         .update({ status: "concluido", completed_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard-data"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dashboard-data"] }); qc.invalidateQueries({ queryKey: ["tasks"] }); qc.invalidateQueries({ queryKey: ["agenda"] }); },
   });
 
   const k = data?.kpi;
@@ -159,7 +161,7 @@ function Dashboard() {
       sub: k?.nextEventTime ? `Próxima: ${k.nextEventTime}` : "Sem reuniões",
       subTone: "text-muted-foreground", icon: CalIcon, color: "bg-warning/15 text-warning-foreground" },
     { title: "Clientes ativos", value: k?.clientsActive ?? 0,
-      sub: "—", subTone: "text-muted-foreground", icon: Users, color: "bg-primary/10 text-primary" },
+      sub: `${k?.clientsTotal ?? 0} cadastrados`, subTone: "text-muted-foreground", icon: Users, color: "bg-primary/10 text-primary" },
   ];
 
   return (
@@ -210,7 +212,7 @@ function Dashboard() {
             {data?.tasks.map((t: any) => (
               <div key={t.id} className="flex items-center gap-3 py-2">
                 <div className={`w-1 h-10 rounded-full ${
-                  t.priority === "alta" ? "bg-destructive" :
+                  t.priority === "alta" || t.priority === "critica" ? "bg-destructive" :
                   t.priority === "media" ? "bg-warning" : "bg-success"}`} />
                 <Checkbox checked={t.status === "concluido"}
                   onCheckedChange={() => completeMut.mutate(t.id)} />
@@ -220,7 +222,7 @@ function Dashboard() {
                     {[t.clients?.name, t.projects?.name].filter(Boolean).join(" • ") || "Sem cliente"}
                   </p>
                 </div>
-                <Badge variant="secondary" className="hidden font-normal capitalize sm:inline-flex">{t.priority}</Badge>
+                <Badge variant="secondary" className="hidden font-normal capitalize sm:inline-flex">{t.priority === "critica" ? "urgente" : t.priority === "media" ? "média" : t.priority}</Badge>
                 <span className="w-11 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                   {t.due_date ? fmtTime(t.due_date) : "—"}
                 </span>
