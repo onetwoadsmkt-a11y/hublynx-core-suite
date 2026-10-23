@@ -25,3 +25,20 @@ export async function writePipelineTags(pipelineId: string, tags: PipelineTag[])
     );
   if (error) throw new Error(error.message);
 }
+
+/** Tags de vários pipelines de uma vez (uma consulta só). */
+export async function readTagsForPipelines(pipelineIds: string[]): Promise<Record<string, PipelineTag[]>> {
+  const out: Record<string, PipelineTag[]> = {};
+  if (pipelineIds.length === 0) return out;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("app_config")
+    .select("key, value")
+    .in("key", pipelineIds.map(keyFor));
+  if (error) console.error("[pipeline-tags] leitura em lote falhou:", error.message);
+  for (const row of data ?? []) {
+    const id = String(row.key).slice("pipeline_tags:".length);
+    out[id] = normalizeTags((row.value as { tags?: unknown } | null)?.tags);
+  }
+  return out;
+}

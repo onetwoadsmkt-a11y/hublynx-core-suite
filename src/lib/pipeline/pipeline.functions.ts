@@ -961,9 +961,17 @@ export const listAllLeads = createServerFn({ method: "GET" })
         ),
       ),
     ]);
+    // Tags dos pipelines visíveis (o RLS já limitou os pipelines a quem pede).
+    const { readTagsForPipelines } = await import("./tags.server");
+    const byPipeline = await readTagsForPipelines((pipelines ?? []).map((p) => p.id as string));
+    const tags = Object.entries(byPipeline).flatMap(([pipelineId, list]) =>
+      list.map((t) => ({ ...t, pipeline_id: pipelineId })));
     return {
       pipelines: pipelines ?? [],
       stages: stages ?? [],
       leads: leads ?? [],
+      tags,
+      wonTagSlugs: [...new Set(tags.filter((t) => t.funnel_key === "ganho").map((t) => t.slug.toLowerCase()))],
+      wonStageIds: (stages ?? []).filter((st) => st.is_won).map((st) => st.id as string),
     };
   });

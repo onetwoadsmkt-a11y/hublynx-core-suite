@@ -18,6 +18,7 @@ import { ClientDocumentsTab } from "./ClientDocumentsTab";
 import { ClientHistoryTab } from "./ClientHistoryTab";
 import { ClientProjectsTab } from "./ClientProjectsTab";
 import { ClientFormDialog } from "./ClientFormDialog";
+import { ClientJourneyTab, ClientTasksTab } from "./ClientJourneyTab";
 import { maskBRL } from "@/lib/security/value-lock";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -46,7 +47,7 @@ export function ClientDrawer({
   const del = useMutation({
     mutationFn: (id: string) => delFn({ data: { id } }),
     onSuccess: () => {
-      toast.success("Lead removido");
+      toast.success("Cliente removido");
       qc.invalidateQueries({ queryKey: ["clients"] });
       onOpenChange(false);
       setConfirmDel(false);
@@ -59,7 +60,7 @@ export function ClientDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col">
+        <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
           <SheetHeader className="px-6 py-4 border-b">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -88,8 +89,10 @@ export function ClientDrawer({
           </SheetHeader>
 
           <Tabs defaultValue="dados" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="mx-6 mt-2 self-start">
+            <TabsList className="mx-6 mt-2 h-auto flex-wrap justify-start self-start">
               <TabsTrigger value="dados">Dados</TabsTrigger>
+              <TabsTrigger value="jornada">Lead e jornada</TabsTrigger>
+              <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
               <TabsTrigger value="projetos">Projetos</TabsTrigger>
               <TabsTrigger value="docs">Contratos & Documentos</TabsTrigger>
               <TabsTrigger value="historico">Histórico</TabsTrigger>
@@ -125,6 +128,14 @@ export function ClientDrawer({
                 )}
               </TabsContent>
 
+              <TabsContent value="jornada" className="px-6 py-4 mt-0">
+                <ClientJourneyTab clientId={client.id} />
+              </TabsContent>
+
+              <TabsContent value="tarefas" className="px-6 py-4 mt-0">
+                <ClientTasksTab clientId={client.id} />
+              </TabsContent>
+
               <TabsContent value="projetos" className="px-6 py-4 mt-0">
                 <ClientProjectsTab clientId={client.id} />
               </TabsContent>
@@ -146,10 +157,10 @@ export function ClientDrawer({
       <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir lead?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação não pode ser desfeita. Projetos, tarefas e finanças vinculados
-              perderão a referência ao lead.
+              perderão a referência ao cliente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

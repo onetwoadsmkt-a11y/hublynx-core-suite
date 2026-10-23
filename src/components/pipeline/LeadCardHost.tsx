@@ -5,6 +5,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { listPipelineTags } from "@/lib/pipeline/tags.functions";
 import { LeadDrawer } from "./LeadDrawer";
+import { WinLeadDialog } from "./WinLeadDialog";
+import { useState } from "react";
 import type { Lead } from "./types";
 import { cn } from "@/lib/utils";
 
@@ -77,14 +79,19 @@ export function LeadCardHost() {
     staleTime: 60_000,
   });
   const tags = (tagsData?.tags ?? []).filter((t: any) => t.active !== false);
+  const [winLead, setWinLead] = useState<Lead | null>(null);
 
   return (
+    <>
+    <WinLeadDialog lead={winLead} onOpenChange={(v) => !v && setWinLead(null)} />
     <LeadDrawer
       lead={leadId && lead ? lead : null}
       stages={stage ? [stage as any] : []}
       tags={tags as any}
       onOpenChange={(v) => { if (!v) setOpenLead(null); }}
       onEdit={() => { setOpenLead(null); navigate({ to: "/pipeline" }); }}
+      onWin={(l) => setWinLead(l)}
     />
+    </>
   );
 }

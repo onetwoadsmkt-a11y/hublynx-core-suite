@@ -120,3 +120,40 @@ export const getClientRelated = createServerFn({ method: "GET" })
       tasks: tasks.data ?? [],
     };
   });
+
+/**
+ * Visão integrada do cliente: lead(s) de origem (convertidos neste cliente ou
+ * vinculados a ele), histórico da jornada, anotações, agendamentos do lead e
+ * tarefas do cliente. Tudo com o RLS de quem pede.
+ */
+export const getClientJourney = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ clientId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: leads } = await supabase
+      .from("leads")
+      .select("*, pipeline_stages(name, pipeline_id, pipelines(name))")
+      .or(`converted_client_id.eq.${data.clientId},client_id.eq.${data.clientId}`)
+      .order("created_at", { ascending: false });
+    const leadIds = (leads ?? []).map((l: any) => l.id as string);
+    const none = ["00000000-0000-0000-0000-000000000000"];
+    const ids = leadIds.length ? leadIds : none;
+    const [events, notes, leadTasks, tasks] = await Promise.all([
+      supabase.from("lead_events").select("id, lead_id, kind, title, description, created_at")
+        .in("lead_id", ids).order("created_at", { ascending: false }).limit(300),
+      supabase.from("lead_notes").select("id, lead_id, body, created_at")
+        .in("lead_id", ids).order("created_at", { ascending: false }).limit(100),
+      supabase.from("lead_tasks").select("*")
+        .in("lead_id", ids).order("due_at", { ascending: true, nullsFirst: false }),
+      supabase.from("tasks").select("id, title, status, priority, due_date, project_id, completed_at")
+        .eq("client_id", data.clientId).order("due_date", { ascending: true, nullsFirst: false }).limit(200),
+    ]);
+    return {
+      leads: (leads ?? []) as any[],
+      events: events.data ?? [],
+      notes: notes.data ?? [],
+      leadTasks: (leadTasks.data ?? []) as any[],
+      tasks: tasks.data ?? [],
+    };
+  });

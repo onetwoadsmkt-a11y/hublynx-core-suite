@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Users, Pencil, Eye, FileSpreadsheet } from "lucide-react";
 import { listAllLeads } from "@/lib/pipeline/pipeline.functions";
+import { isWonLead } from "@/lib/pipeline/lead-status";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { LeadViewDialog } from "@/components/pipeline/LeadViewDialog";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
@@ -86,7 +87,15 @@ function LeadsPage() {
 
   const pipelines = data?.pipelines ?? [];
   const stages = data?.stages ?? [];
-  const all = (data?.leads ?? []) as Lead[];
+  // Leads = quem ainda não foi ganho. Ganhos ficam em Clientes.
+  const wonStageIds = useMemo(() => new Set((data as any)?.wonStageIds ?? []), [data]) as Set<string>;
+  const wonTagSlugs = useMemo(() => new Set((data as any)?.wonTagSlugs ?? []), [data]) as Set<string>;
+  const everyone = (data?.leads ?? []) as Lead[];
+  const all = useMemo(
+    () => everyone.filter((l) => !isWonLead(l as any, wonStageIds, wonTagSlugs)),
+    [everyone, wonStageIds, wonTagSlugs],
+  );
+  const wonCount = everyone.length - all.length;
 
   const stageById = useMemo(() => new Map(stages.map((s) => [s.id, s])), [stages]);
   const pipelineById = useMemo(() => new Map(pipelines.map((p) => [p.id, p])), [pipelines]);
@@ -144,7 +153,10 @@ function LeadsPage() {
               <Users className="h-6 w-6" /> LEADS
             </h1>
             <p className="text-sm text-muted-foreground">
-              Todos os leads do pipeline de vendas — {filtered.length} lead(s) · {currency(total)}
+              Leads em negociação (ainda não ganhos) — {filtered.length} lead(s) · {currency(total)}
+              {wonCount > 0 && (
+                <> · <Link to="/clientes" className="text-primary underline-offset-2 hover:underline">{wonCount} ganho(s) em Clientes</Link></>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">

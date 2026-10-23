@@ -19,6 +19,10 @@ import { listClients, type ClientRow } from "@/lib/clients/clients.functions";
 import { listProjects } from "@/lib/projects/projects.functions";
 import { ClientFormDialog } from "@/components/clients/ClientFormDialog";
 import { ClientDrawer } from "@/components/clients/ClientDrawer";
+import { listAllLeads } from "@/lib/pipeline/pipeline.functions";
+import { isWonLead } from "@/lib/pipeline/lead-status";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { openLeadCard } from "@/components/pipeline/LeadCardHost";
 
 const STATUS_TONE: Record<ClientRow["status"], string> = {
   ativo: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -91,6 +95,21 @@ function GestaoClientesPage() {
   });
   const all = data?.clients ?? [];
 
+  // Clientes = leads ganhos. Ganhos que ainda não viraram cadastro aparecem aqui para converter.
+  const { activeOrganizationId } = useWorkspace();
+  const leadsFn = useServerFn(listAllLeads);
+  const { data: leadsData } = useQuery({
+    queryKey: ["pipeline", "all-leads", activeOrganizationId ?? "none"],
+    queryFn: () => leadsFn({ data: activeOrganizationId ? { organizationId: activeOrganizationId } : {} }),
+  });
+  const wonPending = useMemo(() => {
+    const d = leadsData as any;
+    if (!d) return [];
+    const stages = new Set<string>(d.wonStageIds ?? []);
+    const tags = new Set<string>(d.wonTagSlugs ?? []);
+    return (d.leads ?? []).filter((l: any) => !l.converted_client_id && isWonLead(l, stages, tags));
+  }, [leadsData]);
+
   const projectCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     (projectsData?.projects ?? []).forEach((p: any) => {
@@ -131,7 +150,7 @@ function GestaoClientesPage() {
               <Building2 className="h-6 w-6" /> Clientes
             </h1>
             <p className="text-sm text-muted-foreground">
-              Cadastro e histórico de cada cliente.
+              Leads ganhos: cadastro, card do lead, jornada, tarefas e projetos de cada cliente.
             </p>
           </div>
           <Button onClick={() => setCreateOpen(true)}>
@@ -167,6 +186,24 @@ function GestaoClientesPage() {
             </SelectContent>
           </Select>
         </div>
+
+        {wonPending.length > 0 && (
+          <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
+            <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+              {wonPending.length} lead(s) ganho(s) aguardando cadastro de cliente
+            </p>
+            <p className="mb-3 text-xs text-emerald-800/80 dark:text-emerald-300/80">
+              Abra o cartão e marque a tag de ganho para criar o cliente e o projeto, levando o histórico do lead.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {wonPending.slice(0, 12).map((l: any) => (
+                <Button key={l.id} size="sm" variant="outline" className="bg-background" onClick={() => openLeadCard(l.id)}>
+                  {l.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Carregando clientes…</p>
