@@ -592,6 +592,8 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
 function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean }) {
   const meta = SOURCE_META[event.source];
   const time = event.allDay ? null : fmt(new Date(event.start), { hour: "2-digit", minute: "2-digit" });
+  // Concluída: riscada, apagada e com ✓ (no Google também fica "✓").
+  const done = (event.source === "task" || event.source === "lead") && event.status === "concluido";
 
   // Atrasadas: destaque em vermelho, em qualquer visão.
   if (event.overdue) {
@@ -616,8 +618,8 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <button onClick={(e) => e.stopPropagation()} className={`w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${meta.bg} hover:brightness-95`}>
-            {event.title}
+          <button onClick={(e) => e.stopPropagation()} className={`w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${done ? "bg-muted text-muted-foreground line-through" : meta.bg} hover:brightness-95`}>
+            {done && "✓ "}{event.title}
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
@@ -629,9 +631,13 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
     <Popover>
       <PopoverTrigger asChild>
         <button onClick={(e) => e.stopPropagation()} className={`w-full text-left truncate rounded px-1 ${compact ? "py-0" : "py-0.5"} text-[11px] hover:bg-muted/50 transition flex items-center gap-1.5`}>
-          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${isPriorityLevel(event.priority) ? "bg-rose-500 ring-2 ring-rose-500/30" : meta.dot}`} />
+          {done ? (
+            <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-emerald-600" />
+          ) : (
+            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${isPriorityLevel(event.priority) ? "bg-rose-500 ring-2 ring-rose-500/30" : meta.dot}`} />
+          )}
           {time && <span className="tabular-nums text-muted-foreground">{time}</span>}
-          <span className="truncate text-foreground">{event.title}</span>
+          <span className={`truncate ${done ? "text-muted-foreground line-through" : "text-foreground"}`}>{event.title}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
@@ -642,6 +648,7 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
 // ───────── Event Chip + Popover ─────────
 function EventChip({ event, expanded }: { event: AgendaEvent; expanded?: boolean }) {
   const meta = SOURCE_META[event.source];
+  const done = (event.source === "task" || event.source === "lead") && event.status === "concluido";
   const time = event.allDay
     ? "dia inteiro"
     : fmt(new Date(event.start), { hour: "2-digit", minute: "2-digit" });
@@ -650,7 +657,7 @@ function EventChip({ event, expanded }: { event: AgendaEvent; expanded?: boolean
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className={`w-full text-left rounded-lg px-2 py-1.5 text-[11px] ring-1 ${event.overdue ? "bg-destructive text-destructive-foreground ring-destructive font-semibold" : `${meta.bg} ${meta.ring}`} hover:brightness-95 transition`}
+          className={`w-full text-left rounded-lg px-2 py-1.5 text-[11px] ring-1 ${done ? "bg-muted text-muted-foreground ring-border line-through" : event.overdue ? "bg-destructive text-destructive-foreground ring-destructive font-semibold" : `${meta.bg} ${meta.ring}`} hover:brightness-95 transition`}
         >
           <div className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 rounded-full ${meta.dot} flex-shrink-0`} />
@@ -685,7 +692,7 @@ function EventDetails({ event }: { event: AgendaEvent }) {
 
   const complete = useMutation({
     mutationFn: () => completeFn({ data: { taskId: event.taskId! } }),
-    onSuccess: () => { toast.success("Tarefa concluída"); invalidatePendingQueries(qc); },
+    onSuccess: () => { toast.success("Tarefa concluída"); invalidatePendingQueries(qc); if (event.taskId) syncNow([event.taskId]); },
     onError: (e: any) => toast.error(e.message ?? "Erro"),
   });
   const completeLead = useMutation({

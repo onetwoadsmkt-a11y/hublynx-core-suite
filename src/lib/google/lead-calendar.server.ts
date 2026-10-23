@@ -89,3 +89,30 @@ export async function deleteLeadCalendarEvent(userId: string, eventId: string): 
     // best-effort
   }
 }
+
+/** Prefixo usado no Google para itens concluídos no Core. */
+export const DONE_PREFIX = "✓ ";
+
+/** Título no Google: concluído recebe "✓ " na frente; reaberto volta ao normal. */
+export function googleSummary(title: string, done: boolean) {
+  const clean = title.startsWith(DONE_PREFIX) ? title.slice(DONE_PREFIX.length) : title;
+  return done ? `${DONE_PREFIX}${clean}` : clean;
+}
+
+/**
+ * Marca (ou desmarca) um evento como concluído no Google: "✓ " no título e cor grafite.
+ * Sem convidar ninguém de novo. Nunca lança.
+ */
+export async function markCalendarEventDone(userId: string, eventId: string, title: string, done: boolean) {
+  try {
+    const headers = await googleHeaders(userId);
+    await fetch(`${EVENTS_URL}/${eventId}?sendUpdates=none`, {
+      method: "PATCH",
+      headers: { ...headers, "Content-Type": "application/json" },
+      // colorId 8 = grafite no Google Agenda; "" volta para a cor da agenda.
+      body: JSON.stringify({ summary: googleSummary(title, done), colorId: done ? "8" : null }),
+    });
+  } catch {
+    // best-effort: o Core já está atualizado
+  }
+}

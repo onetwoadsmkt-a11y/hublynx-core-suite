@@ -33,7 +33,7 @@ export function useGoogleTaskSync() {
 }
 
 /** Campos que, se mudarem, precisam ir para o Google. */
-export const GOOGLE_FIELDS = ["due_date", "title", "description"] as const;
+export const GOOGLE_FIELDS = ["due_date", "title", "description", "status"] as const;
 export function touchesGoogle(patch: Record<string, unknown> | null | undefined) {
   return !!patch && GOOGLE_FIELDS.some((f) => f in patch);
 }

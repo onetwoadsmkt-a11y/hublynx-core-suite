@@ -747,6 +747,17 @@ async function saveLeadTask(context: { supabase: any; userId: string }, data: Le
   };
 }
 
+/** Concluído no Core → "✓" e cor grafite no Google (sem reenviar convites). */
+async function markLeadTaskInGoogle(
+  userId: string,
+  row: { title?: string; gcal_event_id?: string | null; leads?: { name?: string } | null } | null,
+  done: boolean,
+) {
+  if (!row?.gcal_event_id || !row.title) return;
+  const { markCalendarEventDone } = await import("@/lib/google/lead-calendar.server");
+  await markCalendarEventDone(userId, row.gcal_event_id, `[${row.leads?.name ?? "Lead"}] ${row.title}`, done);
+}
+
 /** Registra um evento na jornada do lead (dono e empresa herdados do lead). */
 async function logLeadEvent(
   supabase: any,
@@ -817,7 +828,7 @@ export const completeLeadTask = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: task, error } = await supabase
       .from("lead_tasks")
-      .select("id, lead_id, title, notes, done")
+      .select("id, lead_id, title, notes, done, gcal_event_id, leads(name)")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -828,6 +839,7 @@ export const completeLeadTask = createServerFn({ method: "POST" })
     if (result) update.notes = appendNote(task.notes as string | null, result, "Resultado: ");
     const { error: upErr } = await supabase.from("lead_tasks").update(update as any).eq("id", data.id);
     if (upErr) throw new Error(upErr.message);
+    await markLeadTaskInGoogle(userId, task as any, true);
 
     if (result) {
       await logLeadEvent(supabase, userId, task.lead_id as string, {
@@ -858,11 +870,14 @@ export const toggleLeadTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: uuid, done: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { data: row, error } = await context.supabase
       .from("lead_tasks")
       .update({ done: data.done, completed_at: data.done ? new Date().toISOString() : null })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("title, gcal_event_id, leads(name)")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    await markLeadTaskInGoogle(context.userId, row as any, data.done);
     return { ok: true as const };
   });
 

@@ -195,6 +195,7 @@ function TarefasPage() {
   };
 
   const syncSheet = useServerFn(syncEntityToSheets);
+  const { syncNow } = useGoogleTaskSync();
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
       const schedule = tasks.find((task) => task.id === id)?.leadTask;
@@ -226,6 +227,7 @@ function TarefasPage() {
         return;
       }
       syncSheet({ data: { entityType: "task", recordId: id } }).catch(() => {});
+      syncNow([id]);
     },
     onSettled: () => invalidatePendingQueries(qc),
   });

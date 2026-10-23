@@ -184,7 +184,12 @@ type SyncTask = {
   description: string | null;
   due_date: string | null;
   briefing: any;
+  status?: string | null;
 };
+
+const isTaskDone = (t: SyncTask) => t.status === "concluido" || t.status === "cancelado";
+/** Título no Google: tarefa concluída ganha "✓ " na frente. */
+const taskSummary = (t: SyncTask) => (isTaskDone(t) ? `✓ ${t.title}` : t.title);
 type MirrorRow = { id: string; task_id: string; provider_id: string | null; subject: string | null; start_at: string | null };
 
 /**
@@ -204,10 +209,12 @@ async function pushTaskEvent(
   const start = new Date(task.due_date as string);
   const end = new Date(start.getTime() + opts.durationMinutes * 60_000);
   const body: any = {
-    summary: task.title,
+    summary: taskSummary(task),
     description: task.description ?? undefined,
     start: { dateTime: start.toISOString() },
     end: { dateTime: end.toISOString() },
+    // grafite quando concluída; null volta para a cor da agenda
+    colorId: isTaskDone(task) ? "8" : null,
   };
   if (wantsMeet && !existing?.provider_id) {
     body.conferenceData = {
@@ -231,7 +238,7 @@ async function pushTaskEvent(
   if (existing?.id) {
     await supabase
       .from("task_communications")
-      .update({ subject: task.title, start_at: start.toISOString(), meet_link: meetLink, provider_id: eventId, metadata: { mirror: true } })
+      .update({ subject: taskSummary(task), start_at: start.toISOString(), meet_link: meetLink, provider_id: eventId, metadata: { mirror: true } })
       .eq("id", existing.id);
   } else {
     const { error } = await supabase.from("task_communications").insert({
@@ -239,7 +246,7 @@ async function pushTaskEvent(
       owner_id: task.owner_id,
       actor_id: userId,
       kind: "meeting",
-      subject: task.title,
+      subject: taskSummary(task),
       recipients: [],
       provider_id: eventId,
       meet_link: meetLink,
@@ -254,7 +261,7 @@ async function pushTaskEvent(
 /** Já está igual no Google? (mesmo título e mesmo horário) */
 function mirrorUpToDate(task: SyncTask, m: MirrorRow | null | undefined) {
   if (!m?.provider_id || !m.start_at || !task.due_date) return false;
-  return m.subject === task.title && new Date(m.start_at).getTime() === new Date(task.due_date).getTime();
+  return m.subject === taskSummary(task) && new Date(m.start_at).getTime() === new Date(task.due_date).getTime();
 }
 
 async function latestMirrors(supabase: any, taskIds: string[]): Promise<Map<string, MirrorRow>> {
@@ -294,7 +301,7 @@ export const syncTaskToCalendar = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: task, error } = await supabase
       .from("tasks")
-      .select("id, owner_id, title, description, due_date, briefing")
+      .select("id, owner_id, title, description, due_date, briefing, status")
       .eq("id", data.taskId)
       .maybeSingle();
     if (error || !task) throw new Error("Tarefa não encontrada");
@@ -326,7 +333,7 @@ export const syncTasksNow = createServerFn({ method: "POST" })
     }
     const { data: tasks } = await supabase
       .from("tasks")
-      .select("id, owner_id, title, description, due_date, briefing")
+      .select("id, owner_id, title, description, due_date, briefing, status")
       .in("id", data.taskIds);
     const mirrors = await latestMirrors(supabase, data.taskIds);
     let synced = 0;
@@ -378,7 +385,7 @@ export const syncAllPendingTasksToCalendar = createServerFn({ method: "POST" })
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
     const { data: tasks, error } = await supabase
       .from("tasks")
-      .select("id, owner_id, title, description, due_date, briefing")
+      .select("id, owner_id, title, description, due_date, briefing, status")
       .eq("owner_id", userId)
       .not("due_date", "is", null)
       .gte("due_date", since)
