@@ -118,6 +118,31 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
       tags = await readPipelineTags(current.id);
     }
 
+    // Funil por objetivo: etapas por onde cada lead do período passou (histórico da jornada)
+    // e os objetivos definidos para este pipeline.
+    const stageHistory: Record<string, string[]> = {};
+    const ids = [...new Set([...leads, ...previousLeads].map((l) => l.id))];
+    for (let i = 0; i < ids.length; i += 300) {
+      const { data: ev } = await supabase
+        .from("lead_events")
+        .select("lead_id, meta")
+        .eq("kind", "stage_changed")
+        .in("lead_id", ids.slice(i, i + 300))
+        .limit(10000);
+      for (const e of (ev ?? []) as { lead_id: string; meta: any }[]) {
+        const to = e.meta?.to as string | undefined;
+        const from = e.meta?.from as string | undefined;
+        const arr = (stageHistory[e.lead_id] ??= []);
+        if (to) arr.push(to);
+        if (from) arr.push(from);
+      }
+    }
+    let goals = null as Awaited<ReturnType<typeof import("./funnel-goals.server").readFunnelGoals>> | null;
+    if (current) {
+      const { readFunnelGoals } = await import("./funnel-goals.server");
+      goals = await readFunnelGoals(current.id);
+    }
+
     return {
       pipelines: list,
       pipeline: current,
@@ -127,6 +152,8 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
       previousLeads,
       allLeads,
       winEvents,
+      stageHistory,
+      goals,
     };
   });
 

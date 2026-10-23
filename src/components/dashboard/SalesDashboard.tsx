@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowRight, CalendarRange } from "lucide-react";
+import { ArrowRight, CalendarRange, Filter, LayoutGrid, Target } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,15 @@ import { pipelineDashboard } from "@/lib/pipeline/dashboard.functions";
 import { classifyStage, computeFunnel, countByTag } from "@/lib/pipeline/funnel";
 import { maskBRL, useValuesUnlocked } from "@/lib/security/value-lock";
 import { cn } from "@/lib/utils";
+import { computeGoalFunnel, DEFAULT_GOALS } from "@/lib/pipeline/funnel-goals";
+import { FunnelDashboard } from "./FunnelDashboard";
+import { FunnelGoalsDialog } from "./FunnelGoalsDialog";
+
+type View = "padrao" | "funil";
+const VIEW_KEY = "core_dashboard_view";
+const readView = (): View => {
+  try { return typeof window !== "undefined" && window.localStorage.getItem(VIEW_KEY) === "funil" ? "funil" : "padrao"; } catch { return "padrao"; }
+};
 
 type Preset = 7 | 30 | 90 | "custom";
 
@@ -68,6 +77,12 @@ export function SalesDashboard() {
   const [draft, setDraft] = useState(range);
   const [customOpen, setCustomOpen] = useState(false);
   const { from, to } = range;
+  const [view, setViewState] = useState<View>(readView);
+  const [goalsOpen, setGoalsOpen] = useState(false);
+  const setView = (v: View) => {
+    setViewState(v);
+    try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* sem armazenamento: vale só nesta sessão */ }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["comercial-dashboard", pipelineId ?? "default", from, to, activeOrganizationId ?? "none"],
@@ -193,6 +208,16 @@ export function SalesDashboard() {
     };
   }, [data, from, to, prevRange.from, prevRange.to]);
 
+  const goals = data?.goals ?? DEFAULT_GOALS;
+  const goalFunnel = useMemo(() => {
+    const stages = data?.stages ?? [];
+    const opts = { tags: data?.tags ?? [], history: data?.stageHistory ?? {} };
+    return {
+      cur: computeGoalFunnel(stages, data?.leads ?? [], goals, opts),
+      prev: computeGoalFunnel(stages, data?.previousLeads ?? [], goals, opts),
+    };
+  }, [data, goals]);
+
   const choosePreset = (p: Preset) => {
     if (p === "custom") return;
     setPreset(p);
@@ -210,7 +235,30 @@ export function SalesDashboard() {
           {brLong(from)} a {brLong(to)} · comparado aos {prevRange.days} dias anteriores
         </p>
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        <div className="flex gap-2">
+          <div role="group" aria-label="Visão do dashboard" className="flex flex-1 gap-1 rounded-xl bg-muted p-1 sm:flex-none">
+            {([["padrao", "Padrão", LayoutGrid], ["funil", "Funil", Filter]] as const).map(([v, l, Icon]) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={view === v}
+                onClick={() => setView(v)}
+                className={cn(
+                  "flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px] font-semibold text-muted-foreground transition-colors sm:flex-none",
+                  view === v && "bg-card text-foreground shadow-sm",
+                )}
+              >
+                <Icon className="h-4 w-4" /> {l}
+              </button>
+            ))}
+          </div>
+          {current && (
+            <Button variant="outline" className="h-11 rounded-xl bg-card" onClick={() => setGoalsOpen(true)}>
+              <Target className="h-4 w-4" /> Objetivos
+            </Button>
+          )}
+        </div>
         {pipelines.length > 1 && (
           <Select value={current?.id ?? ""} onValueChange={setPipelineId}>
             <SelectTrigger className="h-10 w-full rounded-xl bg-card sm:w-[220px]" aria-label="Pipeline">
@@ -304,6 +352,27 @@ export function SalesDashboard() {
     );
   }
 
+  const goalsDialog = (
+    <FunnelGoalsDialog
+      open={goalsOpen}
+      onOpenChange={setGoalsOpen}
+      pipelineId={current.id}
+      pipelineName={current.name}
+      stages={data?.stages ?? []}
+      goals={goals}
+    />
+  );
+
+  if (view === "funil") {
+    return (
+      <div className="flex flex-col gap-4 sm:gap-5">
+        {header}
+        <FunnelDashboard f={goalFunnel.cur} prev={goalFunnel.prev} onOpenGoals={() => setGoalsOpen(true)} />
+        {goalsDialog}
+      </div>
+    );
+  }
+
   const x = metrics;
   const growth = x.prev4 > 0 ? Math.round(((x.last4 - x.prev4) / x.prev4) * 100) : null;
   const funnel = [
@@ -332,6 +401,7 @@ export function SalesDashboard() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       {header}
+      {goalsDialog}
 
       {/* Indicadores principais */}
       <section aria-label="Indicadores principais" className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
