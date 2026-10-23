@@ -63,6 +63,7 @@ import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authent
 import { Route as AuthenticatedConfiguracoesIntegracoesIndexRouteImport } from './routes/_authenticated/configuracoes.integracoes.index'
 import { Route as AuthenticatedConfiguracoesIntegracoesLogsRouteImport } from './routes/_authenticated/configuracoes.integracoes.logs'
 import { Route as ApiPublicFormAssetsSplatRouteImport } from './routes/api/public/form-assets/$'
+import { Route as ApiPublicHooksRunAutomationsRouteImport } from './routes/api/public/hooks/run-automations'
 import { Route as ApiPublicHooksRunRemindersRouteImport } from './routes/api/public/hooks/run-reminders'
 import { Route as ApiPublicLeadsTokenRouteImport } from './routes/api/public/leads/$token'
 import { Route as ApiPublicGoogleOauthCallbackRouteImport } from './routes/api/public/google/oauth/callback'
@@ -363,6 +364,12 @@ const ApiPublicFormAssetsSplatRoute =
     path: '/api/public/form-assets/$',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksRunAutomationsRoute =
+  ApiPublicHooksRunAutomationsRouteImport.update({
+    id: '/api/public/hooks/run-automations',
+    path: '/api/public/hooks/run-automations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksRunRemindersRoute =
   ApiPublicHooksRunRemindersRouteImport.update({
     id: '/api/public/hooks/run-reminders',
@@ -445,6 +452,7 @@ export interface FileRoutesByFullPath {
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
   '/api/public/form-assets/$': typeof ApiPublicFormAssetsSplatRoute
+  '/api/public/hooks/run-automations': typeof ApiPublicHooksRunAutomationsRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
@@ -502,6 +510,7 @@ export interface FileRoutesByTo {
   '/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
   '/api/public/form-assets/$': typeof ApiPublicFormAssetsSplatRoute
+  '/api/public/hooks/run-automations': typeof ApiPublicHooksRunAutomationsRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/configuracoes/integracoes': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
@@ -564,6 +573,7 @@ export interface FileRoutesById {
   '/_authenticated/app/tarefas/$id': typeof AuthenticatedAppTarefasIdRoute
   '/_authenticated/configuracoes/integracoes/logs': typeof AuthenticatedConfiguracoesIntegracoesLogsRoute
   '/api/public/form-assets/$': typeof ApiPublicFormAssetsSplatRoute
+  '/api/public/hooks/run-automations': typeof ApiPublicHooksRunAutomationsRoute
   '/api/public/hooks/run-reminders': typeof ApiPublicHooksRunRemindersRoute
   '/api/public/leads/$token': typeof ApiPublicLeadsTokenRoute
   '/_authenticated/configuracoes/integracoes/': typeof AuthenticatedConfiguracoesIntegracoesIndexRoute
@@ -626,6 +636,7 @@ export interface FileRouteTypes {
     | '/app/tarefas/$id'
     | '/configuracoes/integracoes/logs'
     | '/api/public/form-assets/$'
+    | '/api/public/hooks/run-automations'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/configuracoes/integracoes/'
@@ -683,6 +694,7 @@ export interface FileRouteTypes {
     | '/app/tarefas/$id'
     | '/configuracoes/integracoes/logs'
     | '/api/public/form-assets/$'
+    | '/api/public/hooks/run-automations'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/configuracoes/integracoes'
@@ -744,6 +756,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/tarefas/$id'
     | '/_authenticated/configuracoes/integracoes/logs'
     | '/api/public/form-assets/$'
+    | '/api/public/hooks/run-automations'
     | '/api/public/hooks/run-reminders'
     | '/api/public/leads/$token'
     | '/_authenticated/configuracoes/integracoes/'
@@ -764,6 +777,7 @@ export interface RootRouteChildren {
   PortalEntrarRoute: typeof PortalEntrarRoute
   PortalIndexRoute: typeof PortalIndexRoute
   ApiPublicFormAssetsSplatRoute: typeof ApiPublicFormAssetsSplatRoute
+  ApiPublicHooksRunAutomationsRoute: typeof ApiPublicHooksRunAutomationsRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
   ApiPublicLeadsTokenRoute: typeof ApiPublicLeadsTokenRoute
   ApiPublicGoogleOauthCallbackRoute: typeof ApiPublicGoogleOauthCallbackRoute
@@ -1151,6 +1165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFormAssetsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/run-automations': {
+      id: '/api/public/hooks/run-automations'
+      path: '/api/public/hooks/run-automations'
+      fullPath: '/api/public/hooks/run-automations'
+      preLoaderRoute: typeof ApiPublicHooksRunAutomationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/run-reminders': {
       id: '/api/public/hooks/run-reminders'
       path: '/api/public/hooks/run-reminders'
@@ -1363,6 +1384,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalEntrarRoute: PortalEntrarRoute,
   PortalIndexRoute: PortalIndexRoute,
   ApiPublicFormAssetsSplatRoute: ApiPublicFormAssetsSplatRoute,
+  ApiPublicHooksRunAutomationsRoute: ApiPublicHooksRunAutomationsRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
   ApiPublicLeadsTokenRoute: ApiPublicLeadsTokenRoute,
   ApiPublicGoogleOauthCallbackRoute: ApiPublicGoogleOauthCallbackRoute,

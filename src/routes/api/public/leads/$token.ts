@@ -219,6 +219,12 @@ export const Route = createFileRoute("/api/public/leads/$token")({
           })
           .eq("id", hook.id);
 
+        // Lead novo entrou na etapa do webhook: automações da etapa.
+        if (stageId) {
+          const { fireLeadAutomations } = await import("@/lib/automations/engine.server");
+          await fireLeadAutomations({ leadId: lead.id as string, event: { kind: "enter" } });
+        }
+
         if (dupMark) {
           await (supabaseAdmin as any)
             .from("lead_events")

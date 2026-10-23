@@ -1,5 +1,12 @@
 # Roadmap — Reestruturação Hublynx (plano aprovado 09/09/2026)
 
+- [x] Tarefa concluída registrada (Agenda riscada/✓, completed_at, "✓" no Google).
+- [x] Leads × Clientes com definição única de ganho; painel do cliente com lead, jornada e tarefas.
+- [x] Relatório comercial com painel de filtros e Excel do filtrado.
+- [x] Modelos de projeto por datas e prazos, nas cores da marca.
+- [x] Automações do Kanban + modelos de e-mail + log de execuções.
+- [ ] Rodar `supabase/migrations-org/22_conclusao_automacoes.sql` no SQL Editor (e, opcional, o agendamento pg_cron no fim do arquivo com AUTOMATIONS_CRON_SECRET).
+
 - [x] Agenda — "Tarefas" renomeado para Agenda; tarefa aberta dentro do dia (painel do dia e clique no evento) com lead ou projeto vinculados e botões "Abrir cartão do lead" e "Abrir projeto".
 
 - [x] Calendário único (Tarefas + Calendário + Google), menu "Tarefas e Calendário", "Meus eventos", itens abertos no próprio calendário; sincronização com o Google imediata por edição e conferência geral só do que mudou.

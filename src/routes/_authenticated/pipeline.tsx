@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  CalendarDays, GripVertical, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Tags, Trash2, Webhook,
+  CalendarDays, GripVertical, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Tags, Trash2, Webhook, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,8 @@ import { listPipelineTags } from "@/lib/pipeline/tags.functions";
 import { CardLayoutDialog } from "@/components/pipeline/CardLayoutDialog";
 import { WebhooksDialog } from "@/components/pipeline/WebhooksDialog";
 import { WinLeadDialog } from "@/components/pipeline/WinLeadDialog";
+import { AutomationsDialog, type AutomationsTab } from "@/components/pipeline/AutomationsDialog";
+import { runDueAutomationsNow } from "@/lib/automations/automations.functions";
 import type { Lead, PipelineStage } from "@/components/pipeline/types";
 import {
   createPipeline, deletePipeline, listPipeline, moveLead, renamePipeline,
@@ -120,6 +122,7 @@ function PipelinePage() {
   const [hooksOpen, setHooksOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
+  const [autoTab, setAutoTab] = useState<AutomationsTab | null>(null);
   const [targetStage, setTargetStage] = useState<string | undefined>();
   const [pipeDialog, setPipeDialog] = useState<"new" | "rename" | null>(null);
   const [pipeName, setPipeName] = useState("");
@@ -156,6 +159,21 @@ function PipelinePage() {
   );
 
   const stages = (data?.stages ?? []) as PipelineStage[];
+
+  // Automações por tempo ("X dias na etapa"): confere ao abrir o Pipeline (no máximo a cada 5 min).
+  const runDueFn = useServerFn(runDueAutomationsNow);
+  useEffect(() => {
+    if (!activeOrganizationId) return;
+    const key = `core_auto_due_${activeOrganizationId}`;
+    let last = 0;
+    try { last = Number(localStorage.getItem(key) ?? 0); } catch { /* sem armazenamento */ }
+    if (Date.now() - last < 5 * 60_000) return;
+    try { localStorage.setItem(key, String(Date.now())); } catch { /* sem armazenamento */ }
+    runDueFn({ data: { organizationId: activeOrganizationId } })
+      .then((r: any) => { if (r?.ran) qc.invalidateQueries({ queryKey: ["pipeline"] }); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOrganizationId]);
   const leads = useMemo(
     () =>
       [...((data?.leads ?? []) as Lead[])].sort(
@@ -448,6 +466,15 @@ function PipelinePage() {
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
+              <DropdownMenuLabel>Automação</DropdownMenuLabel>
+              <DropdownMenuItem disabled={!current} onSelect={() => setAutoTab("automacoes")}>
+                <Zap className="mr-2 h-4 w-4" /> Automações do Kanban
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAutoTab("emails")}>
+                <Mail className="mr-2 h-4 w-4" /> Modelos de e-mail
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
               <DropdownMenuLabel>Integrações</DropdownMenuLabel>
               <DropdownMenuItem asChild>
                 <Link to="/configuracoes/integracoes">
@@ -589,6 +616,15 @@ function PipelinePage() {
       <CardLayoutDialog open={layoutOpen} onOpenChange={setLayoutOpen} />
       <WebhooksDialog open={hooksOpen} onOpenChange={setHooksOpen} stages={stages} />
       <WinLeadDialog lead={winLead} onOpenChange={(v) => !v && setWinLead(null)} />
+      <AutomationsDialog
+        open={!!autoTab}
+        onOpenChange={(v) => !v && setAutoTab(null)}
+        initialTab={autoTab ?? "automacoes"}
+        pipeline={current}
+        stages={stages}
+        tags={tags.map((t) => ({ slug: t.slug, name: t.name, color: t.color }))}
+        organizationId={activeOrganizationId ?? null}
+      />
 
       <LeadDrawer
         lead={openLead}

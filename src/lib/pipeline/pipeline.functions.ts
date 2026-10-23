@@ -315,6 +315,9 @@ export const upsertLead = createServerFn({ method: "POST" })
     const orgId = lead.id
       ? null
       : await resolveOrganizationId(supabase as never, userId, organizationId);
+    const { data: before } = lead.id
+      ? await supabase.from("leads").select("stage_id").eq("id", lead.id).maybeSingle()
+      : { data: null };
     const payload = lead.id
       ? { ...lead, owner_id: userId }
       : { ...lead, owner_id: userId, ...organizationFields(orgId) };
@@ -324,6 +327,11 @@ export const upsertLead = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    // Lead novo ou trocado de etapa: automações da etapa.
+    if (row?.stage_id && (!lead.id || before?.stage_id !== row.stage_id)) {
+      const { fireLeadAutomations } = await import("@/lib/automations/engine.server");
+      await fireLeadAutomations({ leadId: row.id as string, event: { kind: "enter" } });
+    }
     return row;
   });
 
@@ -367,6 +375,11 @@ export const moveLead = createServerFn({ method: "POST" })
       .update({ stage_id: data.stage_id, position: data.position ?? 0, status })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
+    // Entrou numa etapa nova: automações da etapa (mover, tag, e-mail, tarefa…).
+    if (current?.stage_id !== data.stage_id) {
+      const { fireLeadAutomations } = await import("@/lib/automations/engine.server");
+      await fireLeadAutomations({ leadId: data.id, event: { kind: "enter" } });
+    }
     return { ok: true as const, is_won: !!stage?.is_won, is_lost: !!stage?.is_lost };
   });
 

@@ -340,6 +340,14 @@ export const submitPublicForm = createServerFn({ method: "POST" })
       throw new Error("Não foi possível registrar suas respostas. Tente novamente.");
     }
 
+    // Lead novo entrou na etapa do formulário: automações da etapa (não bloqueia a resposta).
+    if (stageId) {
+      try {
+        const { fireLeadAutomations } = await import("@/lib/automations/engine.server");
+        await fireLeadAutomations({ leadId: lead.id as string, event: { kind: "enter" } });
+      } catch { /* automação nunca impede o envio do formulário */ }
+    }
+
     // 2) Registro da resposta (histórico do formulário)
     const evaluation = {
       score: scoring,

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Activity, ArrowRightLeft, Building2, CalendarClock, CalendarDays, CheckCircle2, Download, FileUp,
-  AlertTriangle, Mail, MapPin, MessageSquare, Paperclip, Pencil, Phone, Plus, Tag, Trash2, X,
+  AlertTriangle, Mail, MapPin, MessageSquare, Paperclip, Pencil, Phone, Plus, Tag, Trash2, X, Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,7 @@ const EVENT_ICON: Record<string, typeof Activity> = {
   task_note: MessageSquare,
   task_result: CheckCircle2,
   next_action: CalendarClock,
+  automation: Zap,
   file_added: Paperclip,
   email_sent: Mail,
   tag_added: Tag,

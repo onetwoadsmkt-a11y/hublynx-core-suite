@@ -129,6 +129,11 @@ export const setLeadTags = createServerFn({ method: "POST" })
       ];
       const { error: eventError } = await supabase.from("lead_events").insert(rows);
       if (eventError) throw new Error(`Não foi possível registrar a jornada: ${eventError.message}`);
+      // Tag recebida: automações "ao receber a tag" da etapa atual.
+      if (added.length) {
+        const { fireLeadAutomations } = await import("@/lib/automations/engine.server");
+        for (const t of added) await fireLeadAutomations({ leadId: data.leadId, event: { kind: "tag_added", tag: t } });
+      }
     }
 
     return { ok: true as const, tags: data.tags };
