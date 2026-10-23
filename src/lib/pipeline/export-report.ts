@@ -54,10 +54,11 @@ export function exportLeadsReportToExcel(
     pipelines: { id: string; name: string }[];
     notes: ReportNote[];
     events: ReportEvent[];
+    taskStats?: Map<string, { open: number; overdue: number; next: string | null }>;
   },
   opts: ReportOptions,
 ) {
-  const { leads, stages, pipelines, notes, events } = input;
+  const { leads, stages, pipelines, notes, events, taskStats } = input;
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const pipelineById = new Map(pipelines.map((p) => [p.id, p.name]));
   const notesByLead = groupBy(notes);
@@ -76,6 +77,7 @@ export function exportLeadsReportToExcel(
     return {
       stageName: stage?.name,
       pipelineName: stage?.pipeline_id ? pipelineById.get(stage.pipeline_id) : undefined,
+      tasks: taskStats?.get(l.id),
       notesText: (notesByLead.get(l.id) ?? [])
         .map((n) => `${fmtDateTimeBR(n.created_at)} — ${n.body}`)
         .join("\n"),

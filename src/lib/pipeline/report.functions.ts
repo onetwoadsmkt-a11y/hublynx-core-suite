@@ -55,10 +55,11 @@ export const getLeadsReport = createServerFn({ method: "GET" })
       description: string | null;
       created_at: string;
     }[] = [];
+    let leadTasks: { lead_id: string; done: boolean; due_at: string | null }[] = [];
 
     for (let i = 0; i < leadIds.length; i += 300) {
       const chunk = leadIds.slice(i, i + 300);
-      const [n, e] = await Promise.all([
+      const [n, e, t] = await Promise.all([
         supabase
           .from("lead_notes")
           .select("id, lead_id, body, created_at")
@@ -69,10 +70,21 @@ export const getLeadsReport = createServerFn({ method: "GET" })
           .select("id, lead_id, kind, title, description, created_at")
           .in("lead_id", chunk)
           .order("created_at", { ascending: true }),
+        supabase
+          .from("lead_tasks")
+          .select("lead_id, done, due_at")
+          .in("lead_id", chunk),
       ]);
       notes = notes.concat(n.data ?? []);
       events = events.concat(e.data ?? []);
+      leadTasks = leadTasks.concat((t.data ?? []) as typeof leadTasks);
     }
+
+    // Tags configuradas nos pipelines (para o filtro) e regras de ganho.
+    const { readTagsForPipelines } = await import("./tags.server");
+    const byPipeline = await readTagsForPipelines((pipelines ?? []).map((p) => p.id as string));
+    const tags = Object.entries(byPipeline).flatMap(([pipelineId, list]) =>
+      list.map((tg) => ({ ...tg, pipeline_id: pipelineId })));
 
     return {
       pipelines: pipelines ?? [],
@@ -80,5 +92,9 @@ export const getLeadsReport = createServerFn({ method: "GET" })
       leads: leads ?? [],
       notes,
       events,
+      leadTasks,
+      tags,
+      wonTagSlugs: [...new Set(tags.filter((tg) => tg.funnel_key === "ganho").map((tg) => tg.slug.toLowerCase()))],
+      wonStageIds: (stages ?? []).filter((st) => st.is_won).map((st) => st.id as string),
     };
   });

@@ -24,6 +24,9 @@ export type LeadFieldKey =
   | "referrer"
   | "tags"
   | "notes"
+  | "open_tasks"
+  | "overdue_tasks"
+  | "next_task"
   | "last_contact_at"
   | "created_at"
   | "updated_at";
@@ -48,6 +51,9 @@ export const LEAD_FIELDS: FieldDef[] = [
   { key: "value", label: "Valor", group: "Comercial" },
   { key: "tags", label: "Tags", group: "Comercial" },
   { key: "notes", label: "Notas", group: "Comercial" },
+  { key: "open_tasks", label: "Tarefas em aberto", group: "Comercial" },
+  { key: "overdue_tasks", label: "Tarefas atrasadas", group: "Comercial" },
+  { key: "next_task", label: "Próxima tarefa", group: "Comercial" },
   { key: "source", label: "Origem", group: "Trackeamento" },
   { key: "utm_source", label: "UTM Source", group: "Trackeamento" },
   { key: "utm_medium", label: "UTM Medium", group: "Trackeamento" },
@@ -74,9 +80,15 @@ export function fmtDateTimeBR(v?: string | null) {
 export function leadFieldValue(
   lead: Lead,
   key: LeadFieldKey,
-  ctx: { stageName?: string; pipelineName?: string; notesText?: string },
+  ctx: { stageName?: string; pipelineName?: string; notesText?: string; tasks?: { open: number; overdue: number; next: string | null } },
 ): string | number {
   switch (key) {
+    case "open_tasks":
+      return ctx.tasks?.open ?? 0;
+    case "overdue_tasks":
+      return ctx.tasks?.overdue ?? 0;
+    case "next_task":
+      return fmtDateTimeBR(ctx.tasks?.next ?? null);
     case "notes":
       return ctx.notesText ?? "";
     case "stage":
