@@ -195,7 +195,18 @@ export const listPipeline = createServerFn({ method: "GET" })
         })
       : [];
 
-    return { pipelines, pipeline: current, stages: stages ?? [], leads: leads ?? [] };
+    // Tarefas em aberto dos leads (filtros "com tarefas agendadas", "atrasadas", "sem tarefas").
+    const leadIds = (leads ?? []).map((l: any) => l.id as string);
+    const chunks: string[][] = [];
+    for (let i = 0; i < leadIds.length; i += 300) chunks.push(leadIds.slice(i, i + 300));
+    const taskParts = await Promise.all(
+      chunks.map((chunk) =>
+        supabase.from("lead_tasks").select("lead_id, done, due_at").eq("done", false).in("lead_id", chunk),
+      ),
+    );
+    const leadTasks = taskParts.flatMap((r) => (r.data ?? []) as { lead_id: string; done: boolean; due_at: string | null }[]);
+
+    return { pipelines, pipeline: current, stages: stages ?? [], leads: leads ?? [], leadTasks };
   });
 
 export const upsertStage = createServerFn({ method: "POST" })

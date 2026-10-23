@@ -30,7 +30,12 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { LeadCard, currency } from "@/components/pipeline/LeadCard";
+import { LeadCard, currency, leadScoreTone } from "@/components/pipeline/LeadCard";
+import { ActiveFilterChips, PipelineFilters, type TagOption } from "@/components/pipeline/PipelineFilters";
+import {
+  applyBoardFilters, EMPTY_BOARD_FILTERS, originOptions, type BoardFilters, type Temperature,
+} from "@/lib/pipeline/board-filters";
+import { taskStatsByLead } from "@/lib/pipeline/report-filters";
 import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
 import { LeadFormDialog } from "@/components/pipeline/LeadFormDialog";
 import { PipelineScrollBar } from "@/components/pipeline/PipelineScrollBar";
@@ -217,15 +222,61 @@ function PipelinePage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Filtros do cabeçalho, lembrados por pipeline neste navegador.
+  const filterKey = `core_pipeline_filters:${current?.id ?? "none"}`;
+  const [filters, setFiltersState] = useState<BoardFilters>(EMPTY_BOARD_FILTERS);
+  useEffect(() => {
+    let saved = EMPTY_BOARD_FILTERS;
+    try {
+      const raw = localStorage.getItem(filterKey);
+      if (raw) saved = { ...EMPTY_BOARD_FILTERS, ...JSON.parse(raw) };
+    } catch { /* sem armazenamento */ }
+    setFiltersState(saved);
+  }, [filterKey]);
+  const setFilters = (f: BoardFilters) => {
+    setFiltersState(f);
+    try { localStorage.setItem(filterKey, JSON.stringify(f)); } catch { /* sem armazenamento */ }
+  };
+
+  const taskStats = useMemo(() => taskStatsByLead((data as any)?.leadTasks ?? []), [data]);
+  const origins = useMemo(() => originOptions(leads), [leads]);
+  const tagOptions = useMemo<TagOption[]>(() => {
+    const counts = new Map<string, { raw: string; n: number }>();
+    for (const l of leads) for (const t of ((l as any).tags as string[] | null) ?? []) {
+      const k = String(t).toLowerCase();
+      const c = counts.get(k) ?? { raw: String(t), n: 0 };
+      c.n++;
+      counts.set(k, c);
+    }
+    const out: TagOption[] = tags.map((t) => ({ slug: t.slug, name: t.name, color: t.color, count: counts.get(t.slug.toLowerCase())?.n ?? 0 }));
+    const known = new Set(tags.map((t) => t.slug.toLowerCase()));
+    for (const [k, c] of counts) if (!known.has(k)) out.push({ slug: c.raw, name: c.raw, count: c.n });
+    return out.sort((a, b) => b.count - a.count);
+  }, [leads, tags]);
+  // Etapas do filtro que existem neste pipeline (filtro antigo de outro pipeline não esconde tudo).
+  const stageFilter = useMemo(
+    () => filters.stageIds.filter((id) => stages.some((s) => s.id === id)),
+    [filters.stageIds, stages],
+  );
+  const visibleStages = stageFilter.length ? stages.filter((s) => stageFilter.includes(s.id)) : stages;
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    if (!term) return leads;
-    return leads.filter((l) =>
-      [l.name, l.company, l.email, l.phone, l.utm_campaign, l.source]
+    const searched = !term ? leads : leads.filter((l) =>
+      [l.name, l.company, l.email, l.phone, l.utm_campaign, l.utm_source, l.source]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(term)),
     );
-  }, [leads, q]);
+    const tone: Record<string, Temperature> = { hot: "quente", warm: "morno", cold: "frio" };
+    return applyBoardFilters(searched, { ...filters, stageIds: stageFilter }, {
+      stats: taskStats,
+      temperatureOf: (l) => {
+        const t = (l.temperature ?? "").toLowerCase();
+        if (t === "quente" || t === "morno" || t === "frio") return t;
+        return tone[leadScoreTone(l.lead_classification)] ?? null;
+      },
+    });
+  }, [leads, q, filters, stageFilter, taskStats]);
 
   const total = filtered.reduce((s, l) => s + Number(l.value ?? 0), 0);
 
@@ -424,6 +475,15 @@ function PipelinePage() {
             />
           </div>
 
+          <PipelineFilters
+            value={filters}
+            onChange={setFilters}
+            stages={stages}
+            origins={origins}
+            tags={tagOptions}
+            resultCount={filtered.length}
+          />
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-9 shrink-0 sm:h-8" aria-label="Configurações">
@@ -501,6 +561,8 @@ function PipelinePage() {
         </div>
       </header>
 
+      <ActiveFilterChips value={filters} onChange={setFilters} stages={stages} origins={origins} tags={tagOptions} />
+
       {isLoading ? (
         <div className="flex gap-3 overflow-hidden sm:gap-4">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-80 w-[85vw] max-w-72 shrink-0 rounded-xl sm:w-72" />)}
@@ -514,7 +576,7 @@ function PipelinePage() {
         >
           {/* Celular: atalhos das etapas para pular direto à coluna */}
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden">
-            {stages.map((stage) => {
+            {visibleStages.map((stage) => {
               const n = filtered.filter((l) => l.stage_id === stage.id).length;
               return (
                 <button
@@ -530,7 +592,7 @@ function PipelinePage() {
               );
             })}
           </div>
-          <SortableContext items={stages.map((st) => colId(st.id))} strategy={horizontalListSortingStrategy}>
+          <SortableContext items={visibleStages.map((st) => colId(st.id))} strategy={horizontalListSortingStrategy}>
           <div
             ref={boardRef}
             onMouseDown={onBoardMouseDown}
@@ -540,7 +602,7 @@ function PipelinePage() {
               panning && "select-none md:cursor-grabbing",
             )}
           >
-            {stages.map((stage) => (
+            {visibleStages.map((stage) => (
               <StageColumn
                 key={stage.id}
                 columnRef={(el) => {
