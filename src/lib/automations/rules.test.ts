@@ -57,3 +57,24 @@ describe("automações — modelo de e-mail e tarefa", () => {
     assert.equal(taskDueISO(1, "10:00", new Date("2026-10-22T23:00:00Z")), "2026-10-23T13:00:00.000Z");
   });
 });
+
+import { htmlToText, isHtmlBody, sanitizeEmailHtml } from "./rules";
+describe("modelo de e-mail em HTML", () => {
+  it("detecta HTML e mantém texto simples como texto", () => {
+    assert.equal(isHtmlBody("<p>Olá {nome}</p>"), true);
+    assert.equal(isHtmlBody("Olá {nome}, 2 < 3"), false);
+  });
+  it("escapa os dados do lead dentro do HTML", () => {
+    const html = renderTemplate("<p>Olá {nome}</p>", { ...lead, name: "Ana <b>" }, {}, { html: true });
+    assert.equal(html, "<p>Olá Ana &lt;b&gt;</p>");
+  });
+  it("remove scripts e eventos", () => {
+    const out = sanitizeEmailHtml('<p onclick="x()">Oi</p><script>alert(1)</script><a href="javascript:x">l</a>');
+    assert.equal(out.includes("script"), false);
+    assert.equal(out.includes("onclick"), false);
+    assert.equal(out.includes("javascript:"), false);
+  });
+  it("gera a versão em texto", () => {
+    assert.equal(htmlToText('<h1>Oi</h1><p>Veja <a href="https://x.com">o site</a></p><ul><li>A</li></ul>'), "Oi\nVeja o site (https://x.com)\n• A");
+  });
+});

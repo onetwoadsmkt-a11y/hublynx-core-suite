@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { format, parseISO } from "date-fns";
 import {
-  ArrowRight, CheckCircle2, Clock, Copy, Mail, Pencil, Plus, Send, Tag, Trash2, XCircle, Zap,
+  ArrowRight, CheckCircle2, Clock, Copy, FileCode, Mail, Pencil, Plus, Send, Tag, Trash2, XCircle, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -20,8 +20,16 @@ import {
   saveEmailTemplate, sendTestEmailTemplate, toggleAutomation,
 } from "@/lib/automations/automations.functions";
 import {
-  describeTrigger, TEMPLATE_VARS, type AutomationAction, type AutomationCondition, type AutomationTrigger,
+  describeTrigger, htmlToText, isHtmlBody, renderTemplate, sanitizeEmailHtml, TEMPLATE_VARS,
+  type AutomationAction, type AutomationCondition, type AutomationTrigger, type LeadFacts,
 } from "@/lib/automations/rules";
+
+/** Dados de exemplo para pré-visualizar e testar modelos. */
+const SAMPLE_LEAD: LeadFacts = {
+  id: "exemplo", name: "Maria Souza", company: "Empresa Exemplo", email: "maria@exemplo.com", phone: "(12) 99999-0000",
+  city: "Taubaté", state: "SP", value: 5000, openTasks: 0, overdueTasks: 0,
+};
+const SAMPLE_EXTRA = { etapa: "Proposta", pipeline: "Pipeline principal", responsavel: "Você" };
 import type { PipelineStage } from "./types";
 import { cn } from "@/lib/utils";
 
@@ -481,7 +489,12 @@ function EmailTemplatesPanel({
   const testFn = useServerFn(sendTestEmailTemplate);
   const [edit, setEdit] = useState<{ id?: string; name: string; subject: string; body: string } | null>(null);
   const [testTo, setTestTo] = useState("");
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
   const refresh = () => qc.invalidateQueries({ queryKey: ["email-templates", organizationId] });
+  const isHtml = !!edit && isHtmlBody(edit.body);
+  const previewDoc = !edit ? "" : isHtml
+    ? sanitizeEmailHtml(renderTemplate(edit.body, SAMPLE_LEAD, SAMPLE_EXTRA, { html: true }))
+    : `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;line-height:1.5;padding:16px;white-space:pre-wrap">${renderTemplate(edit.body, SAMPLE_LEAD, SAMPLE_EXTRA).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`;
 
   const save = useMutation({
     mutationFn: () => saveFn({ data: { ...edit!, organizationId: organizationId! } }),
@@ -504,12 +517,53 @@ function EmailTemplatesPanel({
 
   if (edit) {
     return (
-      <div className="mx-auto max-w-2xl space-y-3">
+      <div className="mx-auto max-w-4xl space-y-3">
         <div className="space-y-1"><Label>Nome do modelo</Label><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Ex.: Boas-vindas" maxLength={120} /></div>
         <div className="space-y-1"><Label>Assunto</Label><Input value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} placeholder="Ex.: {primeiro_nome}, recebemos seu contato" maxLength={300} /></div>
-        <div className="space-y-1">
-          <Label>Mensagem</Label>
-          <Textarea rows={10} value={edit.body} onChange={(e) => setEdit({ ...edit, body: e.target.value })} placeholder={"Olá {primeiro_nome},\n\n..."} />
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label className="flex items-center gap-2">
+              Mensagem
+              <Badge variant={isHtml ? "default" : "secondary"} className="h-5 px-1.5 text-[10px]">{isHtml ? "HTML" : "Texto"}</Badge>
+            </Label>
+            <div className="flex items-center gap-1">
+              <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted">
+                <FileCode className="h-3.5 w-3.5" /> Importar .html
+                <input type="file" accept=".html,.htm,text/html" className="hidden" onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 200_000) { toast.error("Arquivo maior que 200 KB."); return; }
+                  file.text().then((txt) => setEdit((cur) => (cur ? { ...cur, body: txt } : cur)));
+                  e.target.value = "";
+                }} />
+              </label>
+              <div className="flex rounded-md bg-muted p-0.5 text-xs">
+                {(["edit", "preview"] as const).map((m) => (
+                  <button key={m} type="button" onClick={() => setMode(m)}
+                    className={cn("rounded px-2.5 py-1 font-medium", mode === m ? "bg-background shadow-sm" : "text-muted-foreground")}>
+                    {m === "edit" ? "Editar" : "Visualizar"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {mode === "edit" ? (
+            <Textarea
+              rows={14}
+              value={edit.body}
+              onChange={(e) => setEdit({ ...edit, body: e.target.value })}
+              placeholder={"Texto simples ou HTML.\nEx.: <h2>Olá {primeiro_nome}</h2><p>Recebemos seu contato…</p>"}
+              className={cn(isHtml && "font-mono text-xs leading-relaxed")}
+              spellCheck={!isHtml}
+            />
+          ) : (
+            <div className="overflow-hidden rounded-lg border bg-white">
+              <p className="border-b bg-muted/50 px-3 py-1.5 text-[11px] text-muted-foreground">Assunto: <span className="font-medium text-foreground">{renderTemplate(edit.subject, SAMPLE_LEAD, SAMPLE_EXTRA) || "—"}</span> · com dados de exemplo</p>
+              {/* sandbox sem scripts: o HTML do modelo não roda nada dentro do Core */}
+              <iframe title="Pré-visualização do e-mail" sandbox="" className="h-[420px] w-full bg-white" srcDoc={previewDoc} />
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground">Aceita texto simples ou HTML (cole o código do seu editor de e-mail ou importe o arquivo). Scripts e formulários são removidos no envio. As variáveis funcionam nos dois formatos.</p>
           <div className="flex flex-wrap gap-1">
             {TEMPLATE_VARS.map((v) => (
               <button key={v} type="button" onClick={() => insertVar(v)} className="rounded-full bg-muted px-2 py-0.5 text-[11px] hover:bg-primary/10">{`{${v}}`}</button>
@@ -533,7 +587,7 @@ function EmailTemplatesPanel({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">Modelos usados pela ação "Enviar e-mail" das automações.</p>
-        <Button size="sm" onClick={() => setEdit({ name: "", subject: "", body: "" })}><Plus className="mr-1 h-4 w-4" /> Novo modelo</Button>
+        <Button size="sm" onClick={() => { setMode("edit"); setEdit({ name: "", subject: "", body: "" }); }}><Plus className="mr-1 h-4 w-4" /> Novo modelo</Button>
       </div>
       {templates.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum modelo ainda.</p> : (
         <div className="grid gap-3 md:grid-cols-2">
@@ -542,12 +596,15 @@ function EmailTemplatesPanel({
               <div className="flex items-start justify-between gap-2">
                 <p className="flex items-center gap-1.5 text-sm font-semibold"><Mail className="h-4 w-4 text-primary" />{t.name}</p>
                 <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Editar" onClick={() => setEdit({ id: t.id, name: t.name, subject: t.subject, body: t.body })}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Editar" onClick={() => { setMode("edit"); setEdit({ id: t.id, name: t.name, subject: t.subject, body: t.body }); }}><Pencil className="h-3.5 w-3.5" /></Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" aria-label="Excluir" onClick={() => { if (confirm(`Excluir "${t.name}"?`)) del.mutate(t.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </div>
               <p className="truncate text-xs"><span className="text-muted-foreground">Assunto:</span> {t.subject}</p>
-              <p className="line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">{t.body}</p>
+              <p className="line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
+                {isHtmlBody(t.body) && <Badge className="mr-1 h-4 px-1 text-[9px]">HTML</Badge>}
+                {isHtmlBody(t.body) ? htmlToText(t.body) : t.body}
+              </p>
             </div>
           ))}
         </div>

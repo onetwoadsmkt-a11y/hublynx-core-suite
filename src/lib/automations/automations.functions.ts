@@ -29,7 +29,7 @@ export const saveEmailTemplate = createServerFn({ method: "POST" })
       organizationId: uuid,
       name: z.string().trim().min(1).max(120),
       subject: z.string().trim().min(1).max(300),
-      body: z.string().max(20000),
+      body: z.string().max(200000),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
@@ -54,13 +54,16 @@ export const deleteEmailTemplate = createServerFn({ method: "POST" })
 /** Teste do modelo: envia para o próprio e-mail de quem testa, com dados de exemplo. */
 export const sendTestEmailTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ subject: z.string().min(1).max(300), body: z.string().max(20000), to: z.string().email() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ subject: z.string().min(1).max(300), body: z.string().max(200000), to: z.string().email() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { renderTemplate } = await import("./rules");
+    const { renderTemplate, isHtmlBody, sanitizeEmailHtml, htmlToText } = await import("./rules");
     const sample = { id: "x", name: "Maria Souza", company: "Empresa Exemplo", email: data.to, phone: "(12) 99999-0000", city: "Taubaté", state: "SP", value: 5000, openTasks: 0, overdueTasks: 0 };
     const extra = { etapa: "Proposta", pipeline: "Pipeline principal", responsavel: "Você" };
     const { sendGmail } = await import("@/lib/google/gmail-send.server");
-    await sendGmail(context.userId, [data.to], `[Teste] ${renderTemplate(data.subject, sample, extra)}`, renderTemplate(data.body, sample, extra));
+    const asHtml = isHtmlBody(data.body);
+    const rendered = renderTemplate(data.body, sample, extra, { html: asHtml });
+    const html = asHtml ? sanitizeEmailHtml(rendered) : undefined;
+    await sendGmail(context.userId, [data.to], `[Teste] ${renderTemplate(data.subject, sample, extra)}`, html ? htmlToText(html) : rendered, { html });
     return { ok: true as const };
   });
 

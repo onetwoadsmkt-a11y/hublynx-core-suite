@@ -6,10 +6,21 @@ const b64url = (s: string) =>
 const b64wrap = (s: string) => Buffer.from(s, "utf-8").toString("base64").replace(/(.{76})/g, "$1\r\n");
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** Envia texto simples (com versão HTML) pelo Gmail de `userId`. Lança se falhar. */
-export async function sendGmail(userId: string, to: string[], subject: string, body: string): Promise<string | null> {
+/**
+ * Envia pelo Gmail de `userId`. Com `opts.html`, o corpo é HTML pronto (e `body` é a
+ * versão em texto); sem ele, o texto vira HTML simples. Lança se falhar.
+ */
+export async function sendGmail(
+  userId: string,
+  to: string[],
+  subject: string,
+  body: string,
+  opts: { html?: string } = {},
+): Promise<string | null> {
   const boundary = `=_hublynx_${Math.random().toString(36).slice(2)}`;
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head><body style="margin:0;padding:16px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;line-height:1.5">${esc(body).replace(/\n/g, "<br/>")}</body></html>`;
+  const html = opts.html
+    ? (/<html[\s>]/i.test(opts.html) ? opts.html : `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head><body>${opts.html}</body></html>`)
+    : `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head><body style="margin:0;padding:16px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;line-height:1.5">${esc(body).replace(/\n/g, "<br/>")}</body></html>`;
   const raw = b64url([
     `To: ${to.join(", ")}`,
     `Subject: =?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`,

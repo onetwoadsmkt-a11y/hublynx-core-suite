@@ -2,7 +2,7 @@
 // Roda com o cliente administrativo, sempre conferindo que automação e lead são da
 // mesma empresa. Tudo o que acontece vai para a jornada do lead e para automation_runs.
 import {
-  conditionsMatch, describeTrigger, renderTemplate, runKey, taskDueISO, triggerFires,
+  conditionsMatch, describeTrigger, htmlToText, isHtmlBody, renderTemplate, runKey, sanitizeEmailHtml, taskDueISO, triggerFires,
   type Automation, type AutomationAction, type LeadFacts, type TriggerEvent,
 } from "./rules";
 
@@ -128,9 +128,12 @@ async function execute(db: Db, a: Automation, leadRow: any, ev: TriggerEvent, de
           const extra = { etapa: st?.name ?? "", pipeline: st?.pipelines?.name ?? "", responsavel: owner?.full_name ?? "" };
           const f = await leadFacts(db, lead);
           const subject = renderTemplate(tpl.subject, f, extra);
-          const body = renderTemplate(tpl.body, f, extra);
+          const asHtml = isHtmlBody(tpl.body);
+          const rendered = renderTemplate(tpl.body, f, extra, { html: asHtml });
+          const html = asHtml ? sanitizeEmailHtml(rendered) : undefined;
+          const body = html ? htmlToText(html) : rendered;
           const { sendGmail } = await import("@/lib/google/gmail-send.server");
-          await sendGmail(a.owner_id, [lead.email], subject, body);
+          await sendGmail(a.owner_id, [lead.email], subject, body, { html });
           await db.from("lead_events").insert({
             lead_id: lead.id, owner_id: lead.owner_id, actor_id: null, kind: "email_sent",
             title: `E-mail enviado: ${subject}`, description: body.slice(0, 300),

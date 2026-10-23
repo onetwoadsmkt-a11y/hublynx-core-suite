@@ -109,7 +109,12 @@ export function runKey(t: AutomationTrigger, lead: LeadFacts, ev: TriggerEvent):
 }
 
 /** Variáveis dos modelos de e-mail: {nome}, {primeiro_nome}, {empresa}, {etapa}... */
-export function renderTemplate(text: string, lead: LeadFacts, extra: { etapa?: string; pipeline?: string; responsavel?: string } = {}) {
+export function renderTemplate(
+  text: string,
+  lead: LeadFacts,
+  extra: { etapa?: string; pipeline?: string; responsavel?: string } = {},
+  opts: { html?: boolean } = {},
+) {
   const vars: Record<string, string> = {
     nome: lead.name ?? "",
     primeiro_nome: (lead.name ?? "").trim().split(/\s+/)[0] ?? "",
@@ -123,7 +128,39 @@ export function renderTemplate(text: string, lead: LeadFacts, extra: { etapa?: s
     pipeline: extra.pipeline ?? "",
     responsavel: extra.responsavel ?? "",
   };
-  return text.replace(/\{\s*([a-z_]+)\s*\}/gi, (m, k: string) => (k.toLowerCase() in vars ? vars[k.toLowerCase()] : m));
+  // Em HTML, os dados do lead entram escapados (um nome com "<" não quebra o e-mail).
+  const val = (v: string) => (opts.html ? escapeHtml(v) : v);
+  return text.replace(/\{\s*([a-z_]+)\s*\}/gi, (m, k: string) => (k.toLowerCase() in vars ? val(vars[k.toLowerCase()]) : m));
+}
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** O modelo é HTML? (tem pelo menos uma tag de abertura) */
+export function isHtmlBody(body: string): boolean {
+  return /<([a-z][a-z0-9]*)\b[^>]*>/i.test(body);
+}
+
+/** Remove scripts, iframes e atributos de evento antes de enviar ou pré-visualizar. */
+export function sanitizeEmailHtml(html: string): string {
+  return html
+    .replace(/<(script|iframe|object|embed|form)\b[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<(script|iframe|object|embed|form|base|meta[^>]*http-equiv)[^>]*\/?>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1="#"');
+}
+
+/** Versão em texto do HTML (parte "texto simples" do e-mail). */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<(style|head)\b[\s\S]*?<\/\1>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|tr|table)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "$2 ($1)")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export const TEMPLATE_VARS = ["nome", "primeiro_nome", "empresa", "email", "telefone", "cidade", "estado", "valor", "etapa", "pipeline", "responsavel"];

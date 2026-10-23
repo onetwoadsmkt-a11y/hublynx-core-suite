@@ -56,7 +56,7 @@ create table if not exists public.email_templates (
   owner_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
   name text not null check (char_length(name) between 1 and 120),
   subject text not null check (char_length(subject) between 1 and 300),
-  body text not null default '' check (char_length(body) <= 20000),
+  body text not null default '' check (char_length(body) <= 200000), -- texto ou HTML
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
