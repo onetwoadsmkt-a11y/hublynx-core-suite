@@ -14,6 +14,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   CalendarDays, GripVertical, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Tags, Trash2, Webhook, Zap,
+  Columns3, List,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { LeadCard, currency, leadScoreTone } from "@/components/pipeline/LeadCard";
 import { ActiveFilterChips, PipelineFilters, type TagOption } from "@/components/pipeline/PipelineFilters";
+import { PipelineListView } from "@/components/pipeline/PipelineListView";
 import {
   applyBoardFilters, EMPTY_BOARD_FILTERS, originOptions, type BoardFilters, type Temperature,
 } from "@/lib/pipeline/board-filters";
@@ -131,6 +133,14 @@ function PipelinePage() {
   const [targetStage, setTargetStage] = useState<string | undefined>();
   const [pipeDialog, setPipeDialog] = useState<"new" | "rename" | null>(null);
   const [pipeName, setPipeName] = useState("");
+  // Visão Kanban ou Lista, lembrada neste navegador.
+  const [view, setViewState] = useState<"kanban" | "lista">(() => {
+    try { return typeof window !== "undefined" && localStorage.getItem("core_pipeline_view") === "lista" ? "lista" : "kanban"; } catch { return "kanban"; }
+  });
+  const setView = (v: "kanban" | "lista") => {
+    setViewState(v);
+    try { localStorage.setItem("core_pipeline_view", v); } catch { /* sem armazenamento */ }
+  };
 
   const { activeOrganizationId, isLoading: wsLoading } = useWorkspace();
 
@@ -426,6 +436,38 @@ function PipelinePage() {
     }
   }
 
+  // Lista: troca de etapa pela linha (vai para o fim da etapa) e em massa.
+  async function moveToStage(lead: Lead, stageId: string, opts: { quiet?: boolean; position?: number } = {}) {
+    if (lead.stage_id === stageId) return;
+    const position = opts.position ?? leadsOf(stageId, leads).length;
+    patchCache((d) => ({
+      ...d,
+      leads: d.leads.map((l) => (l.id === lead.id ? ({ ...l, stage_id: stageId, position } as Lead) : l)),
+    }));
+    try {
+      await moveFn({ data: { id: lead.id, stage_id: stageId, position } });
+    } catch (e) {
+      toast.error((e as Error).message);
+      throw e;
+    } finally {
+      if (!opts.quiet) refresh();
+    }
+    const target = stages.find((st) => st.id === stageId);
+    if (!opts.quiet && target?.is_won && !(lead as any).converted_project_id) setWinLead({ ...lead, stage_id: stageId });
+  }
+  async function bulkMove(ids: string[], stageId: string) {
+    const target = stages.find((st) => st.id === stageId);
+    let position = leadsOf(stageId, leads).length;
+    let moved = 0;
+    for (const id of ids) {
+      const lead = leads.find((l) => l.id === id);
+      if (!lead || lead.stage_id === stageId) continue;
+      try { await moveToStage(lead, stageId, { quiet: true, position: position++ }); moved++; } catch { /* erro já avisado */ }
+    }
+    refresh();
+    if (moved) toast.success(`${moved} lead(s) movido(s) para ${target?.name ?? "a etapa"}`);
+  }
+
   function openNew(stageId?: string) {
     setEditing(null);
     setTargetStage(stageId);
@@ -473,6 +515,26 @@ function PipelinePage() {
               placeholder="Buscar lead, campanha..."
               className="w-full pl-9 lg:w-56"
             />
+          </div>
+
+          <div role="group" aria-label="Visualização" className="flex shrink-0 gap-0.5 rounded-lg bg-muted p-0.5">
+            {([["kanban", "Kanban", Columns3], ["lista", "Lista", List]] as const).map(([v, label, Icon]) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={view === v}
+                aria-label={`Ver em ${label}`}
+                title={label}
+                onClick={() => setView(v)}
+                className={cn(
+                  "flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-semibold text-muted-foreground sm:h-7",
+                  view === v && "bg-card text-foreground shadow-sm",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden xl:inline">{label}</span>
+              </button>
+            ))}
           </div>
 
           <PipelineFilters
@@ -567,6 +629,17 @@ function PipelinePage() {
         <div className="flex gap-3 overflow-hidden sm:gap-4">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-80 w-[85vw] max-w-72 shrink-0 rounded-xl sm:w-72" />)}
         </div>
+      ) : view === "lista" ? (
+        <PipelineListView
+          leads={filtered}
+          stages={stages}
+          tags={tags}
+          stats={taskStats}
+          onOpen={setOpenLead}
+          onEdit={(l) => { setEditing(l); setTargetStage(undefined); setFormOpen(true); }}
+          onMove={(l, stageId) => { moveToStage(l, stageId).catch(() => {}); }}
+          onBulkMove={bulkMove}
+        />
       ) : (
         <DndContext
           sensors={sensors}
