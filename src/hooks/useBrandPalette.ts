@@ -7,9 +7,9 @@ const HEX = /^#[0-9a-f]{6}$/i;
 const CORE = { primary: "#00D084", ink: "#0a2557" };
 
 /**
- * Cores da marca da empresa ativa: tiradas do logo (cor viva = destaque, cor escura =
- * títulos e fundos), como no portal do cliente. Sem logo, usa a cor cadastrada;
- * sem nenhuma, a do Core Suite.
+ * Cores da marca da empresa ativa. Destaque (primary): a cor escolhida em
+ * Configurações › Aparência; sem ela, a cor viva da logo; sem nenhuma, a do Core.
+ * Escura (ink): a cor escura da logo, ou o navy do Core.
  */
 export function useBrandPalette() {
   const { brand } = useWorkspace();
@@ -25,7 +25,7 @@ export function useBrandPalette() {
       extractLogoPalette(brand.logoUrl).then((p) => {
         if (!alive) return;
         setPal({
-          primary: p.primary && HEX.test(p.primary) ? p.primary : fallback ?? CORE.primary,
+          primary: fallback ?? (p.primary && HEX.test(p.primary) ? p.primary : CORE.primary),
           ink: p.ink && HEX.test(p.ink) ? p.ink : CORE.ink,
         });
       }).catch(() => {});

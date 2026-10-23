@@ -1,22 +1,15 @@
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowDown, Target } from "lucide-react";
 import { BLOCKS, STEPS, type GoalFunnel, type StepKey } from "@/lib/pipeline/funnel-goals";
 import { maskBRL } from "@/lib/security/value-lock";
 import { cn } from "@/lib/utils";
+import { useBrandPalette } from "@/hooks/useBrandPalette";
+import { funnelPalette, type FunnelPalette } from "@/lib/brand/funnel-palette";
 
 const fmt = (v: number) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 const money = (v: number) => maskBRL(v, { notation: "compact", maximumFractionDigits: 1 });
 
-/** Cores por passo: topo azul, meio roxo, fundo verde (último na cor de destaque). */
-const LAYER: Record<StepKey, { bg: string; fg: string; sub: string }> = {
-  entrada: { bg: "#12306B", fg: "#FFFFFF", sub: "#C9D5F0" },
-  conectado: { bg: "#2F5BB8", fg: "#FFFFFF", sub: "#DCE6FA" },
-  agendada: { bg: "#5A47C9", fg: "#FFFFFF", sub: "#E2DCFA" },
-  realizada: { bg: "#7B5FE0", fg: "#FFFFFF", sub: "#EEE9FD" },
-  cof: { bg: "#0B8F5C", fg: "#FFFFFF", sub: "#D4F5E6" },
-  ganho: { bg: "#00D084", fg: "#04281A", sub: "#04281A" },
-};
-const BLOCK_COLOR = { topo: "#2F5BB8", meio: "#6B4FD8", fundo: "#0B8F5C" } as const;
 const BLOCK_HINT = { topo: "Atrair e conectar", meio: "Reunir e qualificar", fundo: "Propor e fechar" } as const;
 // Larguras das faixas (afunilando) e o recorte inclinado que encaixa na faixa de baixo.
 const WIDTHS = [100, 86, 72, 60, 50, 40, 32];
@@ -29,7 +22,7 @@ function Card({ className, children, dark }: { className?: string; children: Rea
   return (
     <div className={cn(
       "rounded-2xl p-5",
-      dark ? "bg-[var(--brand-dark,#0a2557)] text-white dark:bg-[var(--brand-deep,#071a3d)]" : "bg-card shadow-[0_1px_2px_rgba(10,37,87,.06),0_10px_28px_rgba(10,37,87,.07)] dark:border",
+      dark ? "bg-[var(--fx-dark)] text-white dark:ring-1 dark:ring-white/10" : "bg-card shadow-[0_1px_2px_rgba(10,37,87,.06),0_10px_28px_rgba(10,37,87,.07)] dark:border",
       className,
     )}>
       {children}
@@ -38,8 +31,18 @@ function Card({ className, children, dark }: { className?: string; children: Rea
 }
 
 export function FunnelDashboard({
-  f, prev, onOpenGoals,
-}: { f: GoalFunnel; prev: GoalFunnel; onOpenGoals: () => void }) {
+  f, prev, onOpenGoals, brand: brandOverride,
+}: { f: GoalFunnel; prev: GoalFunnel; onOpenGoals: () => void; brand?: { primary: string; ink: string } }) {
+  const autoBrand = useBrandPalette();
+  const brand = brandOverride ?? autoBrand;
+  const pal: FunnelPalette = useMemo(() => funnelPalette(brand.primary, brand.ink), [brand.primary, brand.ink]);
+  const LAYER = pal.layers;
+  const vars = {
+    "--fx-dark": pal.dark,
+    ...Object.fromEntries((["topo", "meio", "fundo"] as const).flatMap((k) => [[`--fx-${k}`, pal.blocks[k].light], [`--fx-${k}-dk`, pal.blocks[k].dark]])),
+  } as React.CSSProperties;
+  const blockText = (k: "topo" | "meio" | "fundo") =>
+    ({ topo: "text-[color:var(--fx-topo)] dark:text-[color:var(--fx-topo-dk)]", meio: "text-[color:var(--fx-meio)] dark:text-[color:var(--fx-meio-dk)]", fundo: "text-[color:var(--fx-fundo)] dark:text-[color:var(--fx-fundo-dk)]" })[k];
   const byKey = new Map(f.steps.map((s) => [s.key, s]));
   const objIdx = STEPS.indexOf(f.objective.key);
   const won = byKey.get("ganho")!;
@@ -52,7 +55,7 @@ export function FunnelDashboard({
   const worstLabel = f.worst ? `${byKey.get(f.worst.from)!.label} → ${byKey.get(f.worst.to)!.label}` : null;
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5" style={vars}>
       {/* Indicadores */}
       <section aria-label="Indicadores do funil" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Card dark className="col-span-2 flex flex-col gap-1.5 lg:col-span-1">
@@ -103,9 +106,9 @@ export function FunnelDashboard({
           <div className="grid grid-cols-[52px_minmax(0,1fr)_84px] gap-x-2 gap-y-2.5 [grid-auto-rows:64px] sm:grid-cols-[88px_minmax(0,1fr)_150px] sm:gap-x-4 sm:[grid-auto-rows:76px]">
             {BLOCKS.map((b, bi) => (
               <div key={b.key} className="col-start-1 flex items-stretch gap-2" style={{ gridRow: `${bi * 2 + 1} / span 2` }}>
-                <div className="w-1 rounded" style={{ background: BLOCK_COLOR[b.key] }} />
+                <div className="w-1 rounded" style={{ background: pal.blocks[b.key].bar }} />
                 <div className="flex flex-col justify-center">
-                  <span className="text-[12px] font-extrabold tracking-[0.1em] sm:text-[13px]" style={{ color: BLOCK_COLOR[b.key] }}>{b.label.toUpperCase()}</span>
+                  <span className={cn("text-[12px] font-extrabold tracking-[0.1em] sm:text-[13px]", blockText(b.key))}>{b.label.toUpperCase()}</span>
                   <span className="hidden text-[11px] leading-tight text-muted-foreground sm:block">{BLOCK_HINT[b.key]}</span>
                 </div>
               </div>
@@ -196,7 +199,7 @@ export function FunnelDashboard({
             <Card dark className="flex flex-col gap-2.5">
               <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-rose-200"><AlertTriangle className="h-4 w-4" /> Gargalo do período</span>
               <p className="text-[15px] leading-snug">Só <strong>{fmt(f.worst.pass)}</strong> passam de <strong>{worstLabel}</strong>, a menor passagem até o objetivo.</p>
-              <Link to="/relatorios" className="self-start rounded-lg bg-[#00D084] px-3 py-2 text-[13px] font-bold text-[#04281A] hover:opacity-90">Abrir relatório comercial</Link>
+              <Link to="/relatorios" className="self-start rounded-lg px-3 py-2 text-[13px] font-bold hover:opacity-90" style={{ background: pal.accent, color: pal.accentFg }}>Abrir relatório comercial</Link>
             </Card>
           )}
         </aside>
@@ -209,10 +212,10 @@ export function FunnelDashboard({
           const next = BLOCKS[bi + 1] ? byKey.get(BLOCKS[bi + 1].steps[0])! : null;
           const passNext = next && z.count > 0 ? (next.count / z.count) * 100 : null;
           return (
-            <Card key={b.key} className="flex flex-col gap-3 border-t-[5px]" >
-              <div className="-mt-5 -mx-5 mb-1 h-[5px] rounded-t-2xl" style={{ background: BLOCK_COLOR[b.key] }} />
+            <Card key={b.key} className="flex flex-col gap-3">
+              <div className="-mt-5 -mx-5 mb-1 h-[5px] rounded-t-2xl" style={{ background: pal.blocks[b.key].bar }} />
               <div className="flex items-baseline justify-between">
-                <span className="text-[13px] font-extrabold tracking-[0.1em]" style={{ color: BLOCK_COLOR[b.key] }}>{b.label.toUpperCase()}</span>
+                <span className={cn("text-[13px] font-extrabold tracking-[0.1em]", blockText(b.key))}>{b.label.toUpperCase()}</span>
                 <span className="text-xs text-muted-foreground">{a.label} + {z.label}</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
