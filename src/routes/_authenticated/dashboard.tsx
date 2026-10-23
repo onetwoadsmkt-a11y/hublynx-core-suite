@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SalesDashboard } from "@/components/dashboard/SalesDashboard";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
+import { scopeOrganization } from "@/lib/org/filter";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Hublynx Core" }] }),
@@ -47,39 +48,75 @@ function Dashboard() {
     },
   });
 
-  // KPIs + lists in one shot
+  // KPIs + lists in one shot — always scoped to the active organization.
+  const orgId = org.activeOrg?.id ?? null;
   const { data } = useQuery({
-    queryKey: ["dashboard-data"],
+    queryKey: ["dashboard-data", orgId],
+    enabled: !org.isLoading,
     queryFn: async () => {
+      const sb = supabase as any;
+      const OPEN_TASK = "(concluido,cancelado)";
+      const CLOSED_PROJECT = "(concluido,cancelado)";
       const [
         tasksToday, tasksOverdue,
         projectsActive, projectsOverdue,
-        eventsToday,
-        clientsActive,
+        eventsToday, meetingsToday, leadMeetingsToday,
+        clientsActive, clientsTotal,
         tasksTodayList, projectsList, eventsList,
       ] = await Promise.all([
-        supabase.from("tasks").select("id", { count: "exact", head: true })
-          .gte("due_date", today.start).lte("due_date", today.end).neq("status", "concluido"),
-        supabase.from("tasks").select("id", { count: "exact", head: true })
-          .lt("due_date", today.start).neq("status", "concluido"),
-        supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "ativo"),
-        supabase.from("projects").select("id", { count: "exact", head: true })
-          .lt("due_date", today.startDate).not("status", "in", "(concluido,cancelado)"),
-        supabase.from("events").select("id,title,start_at,event_type")
-          .gte("start_at", today.start).lte("start_at", today.end).order("start_at"),
-        supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "ativo"),
-        supabase.from("tasks")
+        scopeOrganization(sb.from("tasks").select("id", { count: "exact", head: true })
+          .gte("due_date", today.start).lte("due_date", today.end).not("status", "in", OPEN_TASK), orgId),
+        scopeOrganization(sb.from("tasks").select("id", { count: "exact", head: true })
+          .lt("due_date", today.start).not("status", "in", OPEN_TASK), orgId),
+        scopeOrganization(sb.from("projects").select("id", { count: "exact", head: true })
+          .not("status", "in", CLOSED_PROJECT), orgId),
+        scopeOrganization(sb.from("projects").select("id", { count: "exact", head: true })
+          .lt("due_date", today.startDate).not("status", "in", CLOSED_PROJECT), orgId),
+        scopeOrganization(sb.from("events").select("id,start_at")
+          .gte("start_at", today.start).lte("start_at", today.end), orgId),
+        scopeOrganization(sb.from("task_communications").select("id,start_at")
+          .eq("kind", "meeting").gte("start_at", today.start).lte("start_at", today.end), orgId),
+        sb.from("lead_tasks").select("id,due_at,leads!inner(organization_id)")
+          .eq("done", false).in("kind", ["reuniao", "call"])
+          .gte("due_at", today.start).lte("due_at", today.end)
+          .then((r: any) => orgId ? { ...r, data: (r.data ?? []).filter((x: any) => x.leads?.organization_id === orgId) } : r),
+        scopeOrganization(sb.from("clients").select("id", { count: "exact", head: true }).eq("status", "ativo"), orgId),
+        scopeOrganization(sb.from("clients").select("id", { count: "exact", head: true }), orgId),
+        scopeOrganization(sb.from("tasks")
           .select("id,title,priority,status,due_date,project_id,client_id,projects(name),clients(name)")
-          .gte("due_date", today.start).lte("due_date", today.end).order("due_date").limit(6),
-        supabase.from("projects")
-          .select("id,name,progress,color,clients(name)")
-          .eq("status", "ativo").order("updated_at", { ascending: false }).limit(5),
-        supabase.from("events")
+          .gte("due_date", today.start).lte("due_date", today.end).neq("status", "cancelado"), orgId)
+          .order("due_date").limit(6),
+        scopeOrganization(sb.from("projects")
+          .select("id,name,color,clients(name)")
+          .not("status", "in", CLOSED_PROJECT), orgId)
+          .order("updated_at", { ascending: false }).limit(5),
+        scopeOrganization(sb.from("events")
           .select("id,title,start_at,end_at,event_type")
-          .gte("start_at", today.start).order("start_at").limit(4),
+          .gte("start_at", today.start), orgId)
+          .order("start_at").limit(4),
       ]);
 
-      const nextEvent = (eventsToday.data ?? []).find((e: any) => new Date(e.start_at) >= new Date());
+      // Project progress follows completed stages (same rule as the project cards).
+      const projects = (projectsList.data ?? []) as any[];
+      const progress: Record<string, number> = {};
+      if (projects.length) {
+        const { data: stages } = await sb.from("project_stages")
+          .select("project_id,status").in("project_id", projects.map((p) => p.id));
+        const acc: Record<string, { t: number; d: number }> = {};
+        for (const s of stages ?? []) {
+          const a = (acc[s.project_id] ??= { t: 0, d: 0 });
+          a.t += 1; if (s.status === "done") a.d += 1;
+        }
+        for (const [pid, a] of Object.entries(acc)) progress[pid] = a.t ? Math.round((a.d / a.t) * 100) : 0;
+      }
+
+      const now = new Date();
+      const starts = [
+        ...(eventsToday.data ?? []).map((e: any) => e.start_at),
+        ...(meetingsToday.data ?? []).map((e: any) => e.start_at),
+        ...(leadMeetingsToday.data ?? []).map((e: any) => e.due_at),
+      ].filter(Boolean).sort();
+      const next = starts.find((s: string) => new Date(s) >= now);
 
       return {
         kpi: {
@@ -87,12 +124,13 @@ function Dashboard() {
           tasksOverdue: tasksOverdue.count ?? 0,
           projectsActive: projectsActive.count ?? 0,
           projectsOverdue: projectsOverdue.count ?? 0,
-          eventsToday: eventsToday.data?.length ?? 0,
-          nextEventTime: nextEvent ? fmtTime(nextEvent.start_at) : null,
+          eventsToday: starts.length,
+          nextEventTime: next ? fmtTime(next) : null,
           clientsActive: clientsActive.count ?? 0,
+          clientsTotal: clientsTotal.count ?? 0,
         },
         tasks: tasksTodayList.data ?? [],
-        projects: projectsList.data ?? [],
+        projects: projects.map((p) => ({ ...p, progress: progress[p.id] ?? 0 })),
         events: eventsList.data ?? [],
       };
     },
