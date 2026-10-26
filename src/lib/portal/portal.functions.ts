@@ -33,6 +33,7 @@ export type PortalComment = {
   body: string;
   created_at: string;
   author: string;
+  author_kind?: "equipe" | "cliente";
   mine: boolean;
 };
 export type PortalTask = {

@@ -57,6 +57,7 @@ const EVENT_ICON: Record<string, typeof Activity> = {
   email_sent: Mail,
   tag_added: Tag,
   tag_removed: Tag,
+  project_message: MessageSquare,
 };
 
 const LEAD_TASK_PRIORITIES = [

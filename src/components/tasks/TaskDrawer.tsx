@@ -26,7 +26,7 @@ import { useDropzone } from "react-dropzone";
 import {
   X, MoreHorizontal, Copy, Trash2, Plus, Paperclip, Download, Eye,
   GripVertical, ExternalLink, Tag, ChevronRight,
-  Mail, CalendarPlus, Video,
+  Mail, CalendarPlus, Video, Globe, Users, Lock,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { RichTextEditor } from "./RichTextEditor";
@@ -287,7 +287,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
           <TabsList className="bg-transparent p-0 h-auto gap-1">
             {[
               ["overview", "Geral"], ["briefing", "Briefing"], ["notes", "Notas"],
-              ["checklist", "Checklist"], ["attachments", "Anexos"], ["comments", "Comentários"],
+              ["checklist", "Checklist"], ["attachments", "Anexos"], ["comments", task.project_id ? "Mensagens" : "Comentários"],
               ["communications", "Comunicações"],
               ["history", "Histórico"], ["related", "Relacionados"],
             ].map(([k, l]) => (
@@ -306,7 +306,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
             <TabsContent value="notes" className="mt-0"><NotesTab task={task} update={update} /></TabsContent>
             <TabsContent value="checklist" className="mt-0"><ChecklistTab taskId={taskId} /></TabsContent>
             <TabsContent value="attachments" className="mt-0"><AttachmentsTab taskId={taskId} /></TabsContent>
-            <TabsContent value="comments" className="mt-0"><CommentsTab taskId={taskId} /></TabsContent>
+            <TabsContent value="comments" className="mt-0"><CommentsTab taskId={taskId} task={task} /></TabsContent>
             <TabsContent value="communications" className="mt-0"><TaskCommunicationsTab taskId={taskId} /></TabsContent>
             <TabsContent value="history" className="mt-0"><HistoryTab taskId={taskId} /></TabsContent>
             <TabsContent value="related" className="mt-0"><RelatedTab task={task} /></TabsContent>
@@ -737,8 +737,12 @@ function AttachmentsTab({ taskId }: { taskId: string }) {
 }
 
 /* ============================== COMMENTS ============================== */
-function CommentsTab({ taskId }: { taskId: string }) {
+type MsgAudience = "equipe" | "cliente";
+
+function CommentsTab({ taskId, task }: { taskId: string; task: any }) {
   const qc = useQueryClient();
+  const isProject = !!task?.project_id;
+  const visibleInPortal = task?.responsible_type === "cliente" || !!task?.visible_to_client;
   const { data: comments = [] } = useQuery({
     queryKey: ["task-comments", taskId],
     queryFn: async () => (await supabase.from("task_comments").select("*").eq("task_id", taskId).order("created_at")).data ?? [],
@@ -754,17 +758,33 @@ function CommentsTab({ taskId }: { taskId: string }) {
 
   const [body, setBody] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [audience, setAudience] = useState<MsgAudience>("equipe");
+  const [show, setShow] = useState<"todas" | MsgAudience>("todas");
 
   const add = useMutation({
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       const mentions = extractMentions(body);
+      const visibility: MsgAudience = isProject ? audience : "equipe";
+      // Para o cliente ver no portal, a tarefa precisa estar visível para ele.
+      if (visibility === "cliente" && !visibleInPortal) {
+        const { error: vErr } = await supabase.from("tasks").update({ visible_to_client: true } as never).eq("id", taskId);
+        if (vErr) throw vErr;
+      }
       const { error } = await supabase.from("task_comments").insert({
-        task_id: taskId, owner_id: u.user!.id, body, parent_id: replyTo, mentions,
-      });
+        task_id: taskId, owner_id: u.user!.id, body, parent_id: replyTo, mentions, visibility, author_kind: "equipe",
+      } as never);
       if (error) throw error;
+      return visibility;
     },
-    onSuccess: () => { setBody(""); setReplyTo(null); qc.invalidateQueries({ queryKey: ["task-comments", taskId] }); },
+    onSuccess: (visibility) => {
+      setBody(""); setReplyTo(null);
+      qc.invalidateQueries({ queryKey: ["task-comments", taskId] });
+      qc.invalidateQueries({ queryKey: ["task", taskId] });
+      qc.invalidateQueries({ queryKey: ["project-journey"] });
+      toast.success(visibility === "cliente" ? "Mensagem enviada ao cliente (portal) e registrada nas jornadas" : "Mensagem interna registrada");
+    },
+    onError: (e: Error) => toast.error(e.message || "Não foi possível enviar"),
   });
   const del = useMutation({
     mutationFn: async (id: string) => {
@@ -774,39 +794,73 @@ function CommentsTab({ taskId }: { taskId: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["task-comments", taskId] }),
   });
 
-  const roots = comments.filter((c: any) => !c.parent_id);
-  const repliesByParent = comments.reduce((acc: Record<string, any[]>, c: any) => {
+  const list = comments.filter((c: any) => !isProject || show === "todas" || (c.visibility ?? "equipe") === show);
+  const roots = list.filter((c: any) => !c.parent_id);
+  const repliesByParent = list.reduce((acc: Record<string, any[]>, c: any) => {
     if (c.parent_id) (acc[c.parent_id] ??= []).push(c);
     return acc;
   }, {} as Record<string, any[]>);
+  const count = (v: MsgAudience) => comments.filter((c: any) => (c.visibility ?? "equipe") === v).length;
+  const reply = (c: any) => { setReplyTo(c.id); if (isProject) setAudience((c.visibility ?? "equipe") as MsgAudience); };
 
   return (
     <div className="space-y-4">
+      {isProject && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar mensagens">
+          {([["todas", `Todas (${comments.length})`], ["equipe", `Equipe (${count("equipe")})`], ["cliente", `Cliente (${count("cliente")})`]] as const).map(([k, l]) => (
+            <button key={k} type="button" aria-pressed={show === k} onClick={() => setShow(k)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${show === k ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="space-y-3">
-        {roots.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhum comentário ainda.</p>}
+        {roots.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">{isProject ? "Nenhuma mensagem ainda." : "Nenhum comentário ainda."}</p>}
         {roots.map((c: any) => (
           <div key={c.id}>
-            <CommentRow comment={c} meId={me?.id} onReply={() => setReplyTo(c.id)} onDelete={() => del.mutate(c.id)} />
+            <CommentRow comment={c} meId={me?.id} showAudience={isProject} onReply={() => reply(c)} onDelete={() => del.mutate(c.id)} />
             {(repliesByParent[c.id] ?? []).map((r: any) => (
               <div key={r.id} className="ml-10 mt-2">
-                <CommentRow comment={r} meId={me?.id} onDelete={() => del.mutate(r.id)} />
+                <CommentRow comment={r} meId={me?.id} showAudience={isProject} onDelete={() => del.mutate(r.id)} />
               </div>
             ))}
           </div>
         ))}
       </div>
 
-      <div className="rounded-xl border bg-card p-3 space-y-2">
+      <div className={`rounded-xl border p-3 space-y-2 ${isProject && audience === "cliente" ? "border-amber-300 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-500/5" : "bg-card"}`}>
+        {isProject && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground">Enviar para:</span>
+            <div role="group" aria-label="Destino da mensagem" className="flex rounded-lg bg-muted p-0.5">
+              {([["equipe", "Equipe (interna)", Users], ["cliente", "Cliente (portal)", Globe]] as const).map(([k, l, Icon]) => (
+                <button key={k} type="button" aria-pressed={audience === k} onClick={() => setAudience(k)}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${audience === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+                  <Icon className="h-3.5 w-3.5" /> {l}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {isProject && audience === "cliente" && (
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            O cliente verá esta mensagem no portal e será avisado.
+            {!visibleInPortal && " Esta tarefa ainda não aparece no portal: ao enviar, ela passa a aparecer para o cliente."}
+          </p>
+        )}
         {replyTo && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <ChevronRight className="h-3 w-3" /> Respondendo
             <button onClick={() => setReplyTo(null)} className="text-destructive hover:underline">cancelar</button>
           </div>
         )}
-        <RichTextEditor value={body} onChange={setBody} placeholder="Escreva um comentário... Use @ para mencionar." minHeight={70} />
+        <RichTextEditor value={body} onChange={setBody}
+          placeholder={isProject ? (audience === "cliente" ? "Mensagem para o cliente…" : "Mensagem para a equipe… Use @ para mencionar.") : "Escreva um comentário... Use @ para mencionar."}
+          minHeight={70} />
         <div className="flex justify-end">
-          <Button size="sm" disabled={!body || body === "<p></p>"} onClick={() => add.mutate()} className="bg-[#00D084] hover:bg-[#00b873] text-white">
-            {replyTo ? "Responder" : "Comentar"}
+          <Button size="sm" disabled={!body || body === "<p></p>" || add.isPending} onClick={() => add.mutate()}>
+            {add.isPending ? "Enviando…" : replyTo ? "Responder" : isProject ? (audience === "cliente" ? "Enviar ao cliente" : "Enviar à equipe") : "Comentar"}
           </Button>
         </div>
       </div>
@@ -814,7 +868,7 @@ function CommentsTab({ taskId }: { taskId: string }) {
   );
 }
 
-function CommentRow({ comment, meId, onReply, onDelete }: { comment: any; meId?: string; onReply?: () => void; onDelete?: () => void }) {
+function CommentRow({ comment, meId, onReply, onDelete, showAudience }: { comment: any; meId?: string; onReply?: () => void; onDelete?: () => void; showAudience?: boolean }) {
   const { data: author } = useQuery({
     queryKey: ["profile", comment.owner_id],
     queryFn: async () => (await supabase.from("profiles").select("full_name").eq("id", comment.owner_id).maybeSingle()).data,
@@ -829,8 +883,19 @@ function CommentRow({ comment, meId, onReply, onDelete }: { comment: any; meId?:
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{name}</span>
           <span className="text-xs text-muted-foreground">{format(new Date(comment.created_at), "dd/MM 'às' HH:mm")}</span>
+          {showAudience && (
+            comment.author_kind === "cliente" ? (
+              <Badge variant="outline" className="h-5 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">Cliente</Badge>
+            ) : comment.visibility === "cliente" ? (
+              <Badge variant="outline" className="h-5 gap-1 border-sky-300 bg-sky-50 px-1.5 text-[10px] text-sky-800 dark:bg-sky-500/10 dark:text-sky-300"><Globe className="h-3 w-3" />Visível ao cliente</Badge>
+            ) : (
+              <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px] text-muted-foreground"><Lock className="h-3 w-3" />Interna</Badge>
+            )
+          )}
         </div>
-        <div className="prose prose-sm max-w-none mt-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.body) }} />
+        {/<[a-z][\s\S]*>/i.test(comment.body ?? "")
+          ? <div className="prose prose-sm max-w-none mt-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(comment.body) }} />
+          : <p className="mt-1 whitespace-pre-wrap text-sm">{comment.body}</p>}
         <div className="flex items-center gap-3 mt-1 text-xs">
           {onReply && <button onClick={onReply} className="text-muted-foreground hover:text-foreground">Responder</button>}
           {meId === comment.owner_id && onDelete && (

@@ -37,6 +37,7 @@ import {
   type PortalTask,
 } from "@/lib/portal/portal.functions";
 import { cn } from "@/lib/utils";
+import DOMPurify from "dompurify";
 
 export const Route = createFileRoute("/portal/$projectId")({
   ssr: false,
@@ -1153,9 +1154,17 @@ function TaskRow({
                   )}
                 >
                   <p className="text-[11px] text-muted-foreground">
-                    {c.mine ? "Você" : c.author} · {new Date(c.created_at).toLocaleString("pt-BR")}
+                    {c.mine ? "Você" : c.author_kind === "cliente" ? c.author : `${c.author} (equipe)`} ·{" "}
+                    {new Date(c.created_at).toLocaleString("pt-BR")}
                   </p>
-                  <p className="whitespace-pre-wrap">{c.body}</p>
+                  {/<[a-z][\s\S]*>/i.test(c.body) ? (
+                    <div
+                      className="prose prose-sm max-w-none dark:prose-invert [&_p]:my-1"
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(c.body) }}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{c.body}</p>
+                  )}
                 </div>
               ))}
               <div className="flex items-end gap-2">

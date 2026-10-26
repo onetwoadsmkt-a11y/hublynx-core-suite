@@ -29,6 +29,8 @@ export type JourneyItem = {
   actor: string;
   actor_kind: "cliente" | "equipe" | "sistema";
   mine: boolean;
+  /** Mensagem de tarefa: "equipe" = interna, "cliente" = aparece no portal. */
+  visibility?: "equipe" | "cliente" | null;
 };
 
 const STATUS: Record<string, string> = {
@@ -65,7 +67,7 @@ function describe(e: JourneyItem) {
         text: `mudou ${task} para ${STATUS[e.detail ?? ""] ?? e.detail ?? "—"}`,
       };
     case "comment_added":
-      return { icon: MessageSquare, tone: "info", text: `comentou em ${task}`, quote: e.detail };
+      return { icon: MessageSquare, tone: "info", text: `escreveu em ${task}`, quote: e.detail };
     case "file_uploaded":
       return { icon: FileText, tone: "file", text: `anexou “${e.detail ?? "arquivo"}” em ${task}` };
     case "file_deleted":
@@ -241,6 +243,18 @@ export function JourneyTimeline({
                       <p className="text-sm leading-snug">
                         {who && <span className="font-semibold">{who} </span>}
                         <span className={cn(info.system && "font-semibold")}>{info.text}</span>
+                        {audience === "equipe" && e.kind === "comment_added" && e.actor_kind !== "cliente" && (
+                          <span
+                            className={cn(
+                              "ml-1.5 inline-flex rounded-full px-1.5 py-0.5 align-middle text-[10px] font-semibold",
+                              e.visibility === "cliente"
+                                ? "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300"
+                                : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {e.visibility === "cliente" ? "para o cliente" : "interna"}
+                          </span>
+                        )}
                       </p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         {new Date(e.at).toLocaleString("pt-BR", {
