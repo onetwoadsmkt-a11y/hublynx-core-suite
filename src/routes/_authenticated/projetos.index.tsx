@@ -37,7 +37,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { AppLink } from "@/components/AppLink";
-import { useMyTasks } from "@/hooks/useMyTasks";
+import { useMyTasks, taskState } from "@/hooks/useMyTasks";
 import { cn } from "@/lib/utils";
 import { ProjectFormDialog } from "@/components/projects/ProjectFormDialog";
 import { maskBRL } from "@/lib/security/value-lock";
@@ -115,6 +115,20 @@ function ProjectsList() {
     return m;
   }, [all]);
 
+  const attentionCount = useMemo(
+    () => (all as any[]).filter((p) => (p.task_stats?.overdue ?? 0) > 0).length,
+    [all],
+  );
+  const myByProject = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of mine.list) if (t.project_id) m.set(t.project_id, (m.get(t.project_id) ?? 0) + 1);
+    return m;
+  }, [mine.list]);
+  const myFocus = useMemo(
+    () => mine.list.filter((t) => ["late", "today"].includes(taskState(t))).slice(0, 6),
+    [mine.list],
+  );
+
   const clearFilters = () => {
     setSearch("");
     setClientFilter("all");
@@ -129,7 +143,9 @@ function ProjectsList() {
         <div className="min-w-0">
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl sm:font-semibold">Projetos</h1>
           <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
-            Command center para acompanhar todos os seus projetos.
+            {all.length} projeto{all.length !== 1 ? "s" : ""}
+            {attentionCount > 0 && <> · <strong className="text-rose-700">{attentionCount} pede{attentionCount > 1 ? "m" : ""} atenção</strong></>}
+            {mine.late > 0 && <> · {mine.late} tarefa{mine.late > 1 ? "s" : ""} sua{mine.late > 1 ? "s" : ""} atrasada{mine.late > 1 ? "s" : ""}</>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -161,7 +177,7 @@ function ProjectsList() {
       {mine.open > 0 && (
         <AppLink
           href="/minhas-tarefas"
-          className="flex items-center gap-3 rounded-2xl bg-card p-3.5 shadow-[0_1px_2px_rgba(10,37,87,.06),0_8px_24px_rgba(10,37,87,.06)] md:hidden"
+          className="flex items-center gap-3 rounded-2xl bg-card p-3.5 shadow-[0_1px_2px_rgba(10,37,87,.06),0_8px_24px_rgba(10,37,87,.06)] xl:hidden"
         >
           <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", mine.late ? "bg-rose-100 text-rose-700" : "bg-primary/10 text-primary")}>
             <ClipboardList className="h-5 w-5" />
@@ -243,7 +259,7 @@ function ProjectsList() {
           </div>
         </div>
         {/* Celular: atalhos de status */}
-        <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden" role="group" aria-label="Status">
+        <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0" role="group" aria-label="Status">
           {(["all", "ativo", "aguardando_cliente", "planejamento", "em_pausa", "concluido"] as const)
             .filter((k) => k === "all" || statusCounts.get(k))
             .map((k) => (
@@ -286,26 +302,32 @@ function ProjectsList() {
         </Card>
       )}
 
+      <div className={cn("space-y-4 sm:space-y-6", mine.open > 0 && "xl:grid xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start xl:gap-6 xl:space-y-0")}>
+      <div className="min-w-0 space-y-4 sm:space-y-6">
       {!q.isLoading && projects.length > 0 && (
-        <div className={cn("grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3", view === "list" && "sm:hidden")}>
+        <div className={cn("grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2", mine.open > 0 ? "2xl:grid-cols-3" : "xl:grid-cols-3", view === "list" && "sm:hidden")}>
           {projects.map((p: any) => {
             const stats = p.task_stats ?? { total: 0, done: 0, overdue: 0 };
             const stageStats = p.stage_stats ?? { total: 0, done: 0, percent: 0 };
             const progress = stageStats.total ? stageStats.percent : p.progress ?? 0;
+            const myN = myByProject.get(p.id) ?? 0;
+            const needsAttention = stats.overdue > 0;
             return (
               <Card
                 key={p.id}
                 role="link"
                 tabIndex={0}
                 aria-label={`Abrir projeto ${p.name}`}
-                className="cursor-pointer rounded-2xl border-0 p-4 shadow-[0_1px_2px_rgba(10,37,87,.06),0_8px_24px_rgba(10,37,87,.06)] transition-shadow hover:shadow-lg sm:border sm:border-l-4 sm:p-5"
-                style={{ borderLeftColor: p.color || "#6366f1" }}
+                className={cn(
+                  "cursor-pointer rounded-2xl border-0 p-4 shadow-[0_1px_2px_rgba(10,37,87,.06),0_8px_24px_rgba(10,37,87,.06)] transition-shadow hover:shadow-lg sm:p-5",
+                  needsAttention && "sm:ring-2 sm:ring-rose-300",
+                )}
                 onClick={() => navigate({ to: "/projetos/$id", params: { id: p.id } })}
                 onKeyDown={(e) => { if (e.key === "Enter") navigate({ to: "/projetos/$id", params: { id: p.id } }); }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <span
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold text-white sm:hidden"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold text-white sm:h-12 sm:w-12"
                     style={{ background: p.color || "#6366f1" }}
                     aria-hidden="true"
                   >
@@ -313,16 +335,11 @@ function ProjectsList() {
                   </span>
                   <div className="min-w-0 flex-1">
                     {p.client && (
-                      <p className="truncate text-xs text-muted-foreground sm:hidden">
+                      <p className="truncate text-xs text-muted-foreground">
                         {p.project_number ? `Nº ${p.project_number} · ` : ""}{p.client.name}
                       </p>
                     )}
-                    <h3 className="line-clamp-2 text-base font-bold leading-snug sm:truncate sm:text-sm sm:font-semibold">{p.name}</h3>
-                    {p.client && (
-                      <p className="text-xs text-muted-foreground mt-0.5 hidden truncate sm:block">
-                        {p.client.name}
-                      </p>
-                    )}
+                    <h3 className="line-clamp-2 text-base font-bold leading-snug sm:text-[17px] sm:font-extrabold">{p.name}</h3>
                   </div>
                   <Badge
                     className={`${STATUS_TONE[p.status as ProjectStatus]} border`}
@@ -334,14 +351,14 @@ function ProjectsList() {
 
                 <div className="mt-3.5 sm:mt-4">
                   <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
-                    <span><strong className="text-foreground sm:font-normal sm:text-muted-foreground">{progress}%</strong> concluído</span>
+                    <span><strong className="text-foreground">{progress}%</strong> concluído</span>
                     <span>
                       {stageStats.total
                         ? `${stageStats.done}/${stageStats.total} etapas`
                         : "sem etapas"}
                     </span>
                   </div>
-                  <Progress value={progress} className="h-2 sm:h-1.5" />
+                  <Progress value={progress} className="h-2" />
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2 text-xs sm:mt-4">
@@ -361,6 +378,12 @@ function ProjectsList() {
                     <AlertCircle className="h-3.5 w-3.5" />
                     {stats.overdue} atrasada{stats.overdue !== 1 ? "s" : ""}
                   </span>
+                  {myN > 0 && (
+                    <span className="flex items-center gap-1.5 rounded-lg bg-[var(--brand-dark,#0a2557)] px-2 py-1 font-semibold text-white">
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      {myN} sua{myN > 1 ? "s" : ""}
+                    </span>
+                  )}
                 </div>
               </Card>
             );
@@ -436,6 +459,60 @@ function ProjectsList() {
           </Table>
         </Card>
       )}
+      </div>
+
+      {mine.open > 0 && (
+        <aside
+          aria-label="Minhas tarefas"
+          className="hidden space-y-3 rounded-2xl bg-card p-4 shadow-[0_1px_2px_rgba(10,37,87,.06),0_10px_28px_rgba(10,37,87,.07)] xl:sticky xl:top-4 xl:block"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-[17px] font-extrabold">Minhas tarefas</h2>
+            <AppLink href="/minhas-tarefas" className="text-[13px] font-bold text-primary hover:underline">Ver todas</AppLink>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { n: mine.late, l: "atrasadas", c: mine.late ? "bg-rose-50 text-rose-700" : "bg-muted/60" },
+              { n: mine.today, l: "para hoje", c: mine.today ? "bg-amber-50 text-amber-800" : "bg-muted/60" },
+              { n: mine.open, l: "em aberto", c: "bg-muted/60" },
+            ].map((k) => (
+              <div key={k.l} className={cn("rounded-xl px-2.5 py-2 text-center", k.c)}>
+                <p className="text-[22px] font-extrabold leading-tight tabular-nums">{k.n}</p>
+                <p className="text-[11px] font-semibold">{k.l}</p>
+              </div>
+            ))}
+          </div>
+          {myFocus.length === 0 ? (
+            <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">Nada atrasado nem para hoje. 👍</p>
+          ) : (
+            <ul className="space-y-2">
+              {myFocus.map((t) => {
+                const late = taskState(t) === "late";
+                return (
+                  <li key={t.id}>
+                    <AppLink
+                      href={t.href}
+                      className={cn(
+                        "block rounded-xl border-l-4 bg-background px-3 py-2.5 transition hover:bg-muted/60",
+                        late ? "border-rose-500" : "border-amber-400",
+                      )}
+                    >
+                      <span className={cn("block text-[11px] font-extrabold uppercase tracking-wide", late ? "text-rose-700" : "text-amber-800")}>
+                        {late ? "Atrasada" : "Vence hoje"}
+                      </span>
+                      <span className="block text-sm font-bold leading-snug">{t.title}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {[t.project_name, t.stage_name].filter(Boolean).join(" · ")}
+                      </span>
+                    </AppLink>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </aside>
+      )}
+      </div>
 
       <ProjectFormDialog open={open} onOpenChange={setOpen} />
     </div>

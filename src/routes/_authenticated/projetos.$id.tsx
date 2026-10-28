@@ -46,6 +46,7 @@ import { RoadmapStagesPanel } from "@/components/projects/RoadmapStages";
 import { usePortalAppIcon } from "@/components/projects/usePortalAppIcon";
 import { useProjectEvents } from "@/lib/realtime/project-events";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { ProjectTeamSidebar } from "@/components/projects/ProjectTeamSidebar";
 import { ProjectAttachmentsPanel, ProjectJourneyPanel } from "@/components/projects/ProjectJourneyPanel";
 import { ProjectTeamPanel, useProjectAccess } from "@/components/projects/ProjectTeamPanel";
 import { ProjectDepartmentsPanel } from "@/components/projects/ProjectDepartmentsPanel";
@@ -261,9 +262,13 @@ function ProjectCommandCenter() {
 
       {/* Top bar */}
       <div className="mb-4 hidden items-center justify-between gap-2 md:flex">
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/projetos"><ArrowLeft className="h-4 w-4" /> Voltar</Link>
-        </Button>
+        <nav aria-label="Caminho" className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+          <Link to="/projetos" className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> Projetos
+          </Link>
+          <span aria-hidden="true">/</span>
+          <strong className="truncate font-semibold text-foreground">{p.name}</strong>
+        </nav>
         <div className="flex items-center gap-2">
           {canEdit && (
             <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
@@ -332,7 +337,12 @@ function ProjectCommandCenter() {
           <div id="project-tab-content" className="scroll-mt-20" aria-hidden="true" />
           <TabsContent value="evolution"><ProjectEvolution projectId={id} disabled={p.commercial_model === "mensal_recorrente"} dueDate={p.due_date} /></TabsContent>
           <TabsContent value="stages"><RoadmapStagesPanel projectId={id} focusTaskId={focusTask} disabled={p.commercial_model === "mensal_recorrente"} disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente." /></TabsContent>
-          <TabsContent value="journey"><ProjectJourneyPanel projectId={id} /></TabsContent>
+          <TabsContent value="journey">
+            <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-5">
+              <div className="min-w-0"><ProjectJourneyPanel projectId={id} /></div>
+              <ProjectTeamSidebar projectId={id} onOpenTeam={() => setTab("team")} />
+            </div>
+          </TabsContent>
           <TabsContent value="commercial"><CommercialPanel commercial={d.commercial} projectId={id} /><ProjectDepartmentsPanel projectId={id} templateId={p.template_id ?? null} canEdit={canEdit} /></TabsContent>
           <TabsContent value="deliveries"><UpcomingDeliveries upcoming={d.upcomingDeliveries} /></TabsContent>
           <TabsContent value="kanban"><KanbanCompact counts={d.kanbanCounts} /></TabsContent>
@@ -352,56 +362,62 @@ function ProjectCommandCenter() {
 // =====================================================
 // 1. Executive Header
 function ExecutiveHeader({ p, d }: any) {
+  // Computador: faixa escura com anel de progresso, dados do projeto, 4 indicadores e Nova tarefa
+  const pct = Math.max(0, Math.min(100, Number(d.kpis?.progress ?? 0)));
+  const days = d.kpis?.daysRemaining as number | null;
+  const health = d.health as "healthy" | "attention" | "critical";
+  const healthChip = { healthy: ["Em dia", "bg-emerald-300 text-emerald-950"], attention: ["Atenção", "bg-amber-200 text-amber-950"], critical: ["Crítico", "bg-rose-300 text-rose-950"] }[health] ?? ["", ""];
+  const tiles = [
+    { label: "Tarefas", value: `${d.kpis.doneTasks}/${d.kpis.totalTasks}`, sub: d.kpis.overdueTasks > 0 ? `${d.kpis.overdueTasks} atrasada(s)` : "em dia", late: d.kpis.overdueTasks > 0 },
+    { label: "Prazo", value: days === null ? "—" : `${Math.abs(days)}d`, sub: days === null ? "sem prazo" : days < 0 ? "de atraso" : "restantes", late: days !== null && days < 0 },
+    { label: "Equipe", value: String(d.kpis.memberCount ?? 0), sub: "pessoas", late: false },
+    { label: "Riscos", value: String(d.kpis.openIssues ?? 0), sub: "abertos", late: (d.kpis.openIssues ?? 0) > 0 },
+  ];
   return (
-    <Card className="rounded-2xl p-6 border-l-4" style={{ borderLeftColor: p.color || "#6366f1" }}>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:justify-between">
-        <div className="flex-1 min-w-0 flex items-start gap-4">
-          {p.logo_url && (
-            <img
-              src={p.logo_url}
-              alt=""
-              className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-xl border bg-white object-contain p-1"
-            />
-          )}
-          <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">
-              {p.project_number ? <span className="text-muted-foreground">Nº {p.project_number} · </span> : null}
-              {p.name}
-            </h1>
-            <Badge className={`${STATUS_TONE[p.status as ProjectStatus]} border`} variant="outline">
-              {STATUS_LABEL[p.status as ProjectStatus]}
-            </Badge>
-            <HealthBadge health={d.health} />
-            {p.commercial_model && (
-              <Badge variant="outline" className="border bg-indigo-50 text-indigo-700 border-indigo-200">
-                {COMMERCIAL_LABEL[p.commercial_model]}
-              </Badge>
-            )}
-            {p.service_type && (
-              <Badge variant="outline" className="border bg-slate-50 text-slate-700">
-                {SERVICE_LABEL[p.service_type]}
-              </Badge>
-            )}
-          </div>
-          {p.description && <p className="text-sm text-muted-foreground mt-2 max-w-2xl line-clamp-2">{p.description}</p>}
-          <div className="flex items-center gap-x-5 gap-y-1 mt-3 text-xs text-muted-foreground flex-wrap">
-            {p.client && <span className="flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" />{p.client.name}</span>}
-            <span className="flex items-center gap-1.5"><CalIcon className="h-3.5 w-3.5" />{fmtDate(p.start_date)} → {fmtDate(p.due_date)}</span>
-            {d.kpis.daysRemaining !== null && (
-              <span className={`flex items-center gap-1.5 ${d.kpis.daysRemaining < 0 ? "text-rose-600 font-medium" : ""}`}>
-                <Clock className="h-3.5 w-3.5" />
-                {d.kpis.daysRemaining < 0 ? `${Math.abs(d.kpis.daysRemaining)} dias atrasado` : `${d.kpis.daysRemaining} dias restantes`}
-              </span>
-            )}
-          </div>
-          </div>
-        </div>
-        <div className="shrink-0">
-          <QuickCreateTaskButton projectId={p.id} clientId={p.client?.id ?? null} projectName={p.name} clientName={p.client?.name ?? null} />
-        </div>
+    <section
+      aria-label="Resumo do projeto"
+      className="flex flex-wrap items-center gap-6 rounded-2xl bg-[var(--brand-dark,#0a2557)] px-6 py-5 text-white shadow-[0_12px_32px_rgba(10,37,87,.18)]"
+    >
+      <div
+        role="img"
+        aria-label={`Progresso ${pct}%`}
+        className="grid h-[88px] w-[88px] shrink-0 place-items-center rounded-full"
+        style={{ background: `conic-gradient(#00D084 0 ${pct}%, rgba(255,255,255,.18) ${pct}% 100%)` }}
+      >
+        <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--brand-dark,#0a2557)] text-xl font-extrabold">{pct}%</span>
       </div>
-    </Card>
+      <div className="min-w-[260px] flex-1 space-y-2">
+        <div className="flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
+          {healthChip[0] && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${healthChip[1]}`}>{healthChip[0]}</span>}
+          {p.commercial_model && <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{COMMERCIAL_LABEL[p.commercial_model]}</span>}
+          {p.service_type && <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
+        </div>
+        <div className="flex items-center gap-3">
+          {p.logo_url && <img src={p.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1" />}
+          <h1 className="min-w-0 text-2xl font-extrabold tracking-tight">
+            {p.project_number ? <span className="text-white/60">Nº {p.project_number} · </span> : null}
+            {p.name}
+          </h1>
+        </div>
+        <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/80">
+          {p.client && <span className="inline-flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" />{p.client.name}</span>}
+          <span className="inline-flex items-center gap-1.5"><CalIcon className="h-3.5 w-3.5" />{fmtDate(p.start_date)} → {fmtDate(p.due_date)}</span>
+        </p>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {tiles.map((t) => (
+          <div key={t.label} className="min-w-[92px] rounded-xl bg-white/10 px-3.5 py-2.5">
+            <p className="text-xs text-white/70">{t.label}</p>
+            <p className="text-[22px] font-extrabold leading-tight tabular-nums">{t.value}</p>
+            <p className={`text-xs ${t.late ? "font-bold text-rose-200" : "text-white/70"}`}>{t.sub}</p>
+          </div>
+        ))}
+      </div>
+      <div className="shrink-0">
+        <QuickCreateTaskButton projectId={p.id} clientId={p.client?.id ?? null} projectName={p.name} clientName={p.client?.name ?? null} />
+      </div>
+    </section>
   );
 }
 
@@ -501,9 +517,9 @@ function QuickCreateTaskButton({
         disabled={creating}
         className={full
           ? "h-12 w-full rounded-xl bg-[#00D084] text-[15px] font-bold text-[#04281A] hover:bg-[#00b873]"
-          : "bg-[#00D084] hover:bg-[#00b873] text-white"}
+          : "h-11 rounded-xl bg-[#00D084] px-5 text-[15px] font-extrabold text-[#04281A] hover:bg-[#00b873]"}
       >
-        <Plus className="h-4 w-4 mr-2" /> {creating ? "Criando..." : full ? "Nova tarefa" : "Criar tarefa"}
+        <Plus className="h-4 w-4 mr-2" /> {creating ? "Criando..." : "Nova tarefa"}
       </Button>
       <TaskDrawer
         taskId={taskId}
