@@ -344,8 +344,8 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
     if (project.organization_id)
       await grantProjectModules(admin, project.organization_id, userId as string);
 
-    // 4) Convite por e-mail
-    const loginUrl = `${appOrigin()}/projetos/${data.projectId}`;
+    // 4) Convite por e-mail — equipe sempre recebe o link do Core (nunca o do portal)
+    const loginUrl = coreProjectUrl(data.projectId);
     const mail = await sendClientInviteMail(admin, {
       inviterId: context.userId,
       organizationId: project.organization_id,
@@ -362,6 +362,51 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
       portalUrl: loginUrl,
       email: data.email,
       password,
+      emailSent: mail.sent,
+      sentFrom: mail.from,
+      emailError: mail.error,
+    };
+  });
+
+/**
+ * Reenvia o acesso de uma pessoa da equipe com o link do Core (não troca a senha).
+ * Só o administrador da empresa ou o gestor do projeto.
+ */
+export const resendTeamInvite = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: member, error } = await db
+      .from("project_members")
+      .select("id, project_id, user_id, name, email, access_role")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!member || member.access_role === "cliente" || !member.user_id || !member.email) {
+      throw new Error("Esta pessoa não é da equipe ou não tem login no sistema.");
+    }
+    const { data: canManage } = await db.rpc("can_manage_project", { _project: member.project_id });
+    if (canManage !== true) throw new Error("Só o gestor do projeto ou o administrador pode reenviar.");
+    const project = await projectOrg(db, member.project_id as string);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { sendClientInviteMail } = await import("./client-invite.server");
+    const loginUrl = coreProjectUrl(member.project_id as string);
+    const mail = await sendClientInviteMail(supabaseAdmin as unknown as Db & { auth: any }, {
+      inviterId: context.userId,
+      organizationId: project.organization_id,
+      projectName: project.name,
+      projectNumber: project.project_number,
+      clientName: (member.name as string) || (member.email as string),
+      clientEmail: member.email as string,
+      password: null,
+      portalUrl: loginUrl,
+      audience: "equipe",
+    });
+    return {
+      ok: true as const,
+      portalUrl: loginUrl,
+      email: member.email as string,
       emailSent: mail.sent,
       sentFrom: mail.from,
       emailError: mail.error,
@@ -513,6 +558,20 @@ export const setProjectLogo = createServerFn({ method: "POST" })
     }
     return { logoUrl };
   });
+
+/** Endereço oficial do Core (link de quem é da equipe). */
+const CORE_ORIGIN = "https://core.hublynx.com.br";
+
+/**
+ * Link do projeto no Core para a equipe. Usa o endereço de onde o administrador está
+ * (útil em testes), mas nunca um endereço de pré-visualização ou local, que a pessoa
+ * convidada não conseguiria abrir; nesses casos vai o endereço oficial.
+ */
+function coreProjectUrl(projectId: string): string {
+  const origin = appOrigin();
+  const ok = /^https:\/\//.test(origin) && !/lovable|localhost|127\.0\.0\.1|preview/i.test(origin);
+  return `${ok ? origin : CORE_ORIGIN}/projetos/${projectId}`;
+}
 
 /** Origem pública do app (para o link do convite). */
 function appOrigin(): string {

@@ -44,6 +44,7 @@ import {
   inviteTeamMember,
   listOrgTeam,
   removeProjectMember,
+  resendTeamInvite,
   revokeProjectClient,
   setProjectMember,
   setProjectsRestricted,
@@ -103,6 +104,7 @@ export function ProjectTeamPanel({
   const removeFn = useServerFn(removeProjectMember);
   const revokeFn = useServerFn(revokeProjectClient);
   const restrictFn = useServerFn(setProjectsRestricted);
+  const resendFn = useServerFn(resendTeamInvite);
   const [addOpen, setAddOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editClient, setEditClient] = useState<ProjectMemberRow | null>(null);
@@ -118,6 +120,15 @@ export function ProjectTeamPanel({
     onSuccess: () => {
       toast.success("Papel atualizado");
       refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const resendM = useMutation({
+    mutationFn: (m: ProjectMemberRow) => resendFn({ data: { id: m.id } }),
+    onSuccess: (r) => {
+      if (r.emailSent) toast.success(`Acesso do Core reenviado para ${r.email}`);
+      else toast.error(`Não foi possível enviar o e-mail: ${r.emailError ?? "erro desconhecido"}`);
+      navigator.clipboard?.writeText(r.portalUrl).catch(() => {});
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -244,6 +255,10 @@ export function ProjectTeamPanel({
                 canManage={a.canManage}
                 onRemove={() => removeM.mutate(m)}
                 onRole={(r) => roleM.mutate({ id: m.id, accessRole: r })}
+                onResend={
+                  m.user_id && m.email ? () => resendM.mutate(m) : undefined
+                }
+                resending={resendM.isPending && resendM.variables?.id === m.id}
               />
             ))}
           </div>
@@ -489,11 +504,15 @@ function MemberCard({
   onRemove,
   onRole,
   onEdit,
+  onResend,
+  resending,
 }: {
   m: ProjectMemberRow;
   canManage: boolean;
   onRemove: () => void;
   onEdit?: () => void;
+  onResend?: () => void;
+  resending?: boolean;
   onRole?: (r: (typeof STAFF_ROLES)[number]) => void;
 }) {
   const info = ROLE_INFO[m.access_role] ?? ROLE_INFO.editor;
@@ -535,6 +554,19 @@ function MemberCard({
         <Badge variant="outline" className={`shrink-0 text-[10px] ${info.tone}`}>
           {info.label}
         </Badge>
+      )}
+      {canManage && onResend && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 shrink-0"
+          disabled={resending}
+          aria-label="Reenviar convite com o link do Core"
+          title="Reenviar convite com o link do Core"
+          onClick={onResend}
+        >
+          <Mail className="h-4 w-4" />
+        </Button>
       )}
       {canManage && onEdit && (
         <Button

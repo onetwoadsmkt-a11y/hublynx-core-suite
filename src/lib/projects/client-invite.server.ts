@@ -167,7 +167,7 @@ export async function sendClientInviteMail(
       const html = `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0"><tr><td align="center">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden">
-<tr><td style="background:#0f2b4c;color:#ffffff;padding:20px 28px;font-size:18px;font-weight:bold">${h(orgName || "Portal do cliente")}</td></tr>
+<tr><td style="background:#0f2b4c;color:#ffffff;padding:20px 28px;font-size:18px;font-weight:bold">${h(orgName || (team ? "Core" : "Portal do cliente"))}</td></tr>
 <tr><td style="padding:28px">
 <p style="margin:0 0 14px;font-size:16px">Olá, ${h(firstName)}!</p>
 <p style="margin:0 0 14px;font-size:15px;line-height:1.5">${h(who)}${h(fromOrg)} convidou você ${team ? "para entrar " : ""}${h(inviteTail)} <strong>${h(projectLabel)}</strong> ${h(where)}.</p>
@@ -180,7 +180,7 @@ ${
     : "<strong>Senha:</strong> use a senha que você já tem (ou “Esqueci a senha”)."
 }
 </td></tr></table>
-<p style="margin:0 0 22px"><a href="${h(p.portalUrl)}" style="display:inline-block;background:#0f2b4c;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold;font-size:15px">Acessar o projeto</a></p>
+<p style="margin:0 0 22px"><a href="${h(p.portalUrl)}" style="display:inline-block;background:#0f2b4c;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold;font-size:15px">${team ? "Acessar o projeto no Core" : "Acessar o portal do projeto"}</a></p>
 <p style="margin:0 0 6px;font-size:12px;color:#6b7280">Se o botão não abrir, copie este endereço: ${h(p.portalUrl)}</p>
 ${p.password ? `<p style="margin:0 0 6px;font-size:12px;color:#6b7280">${h(pwHint)}</p>` : ""}
 <p style="margin:18px 0 0;font-size:14px">Qualquer dúvida, é só responder este e-mail.<br><br>${h(senderName ?? "")}${orgName && senderName !== orgName ? `<br>${h(orgName)}` : ""}</p>
