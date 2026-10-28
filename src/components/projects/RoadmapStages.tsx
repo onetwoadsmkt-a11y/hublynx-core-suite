@@ -1704,7 +1704,7 @@ function StageTasksPanel({
         ) : (
           <>
             {variant === "cards" ? (
-              <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(320px,1fr))]">
+              <div className="flex flex-col gap-3">
                 {pending.map((t) => (
                   <StageTaskCard key={t.id} t={t} {...rowProps} />
                 ))}
@@ -1983,11 +1983,11 @@ function StageTaskCard({
             onRetryDrive={attach.retry}
           />
         )}
-        <div className="mt-auto space-y-2">
-          {ctx && <TaskMessages t={t} ctx={ctx} card />}
+        <div className="mt-auto flex flex-col gap-2 sm:flex-row sm:items-end">
+          {ctx && <div className="min-w-0 flex-1"><TaskMessages t={t} ctx={ctx} card /></div>}
           {canEdit && !isDone && !isClient && (
             <Button
-              className="h-11 w-full rounded-xl bg-[#00D084] text-[15px] font-extrabold text-[#04281A] hover:bg-[#00b873]"
+              className="h-11 w-full shrink-0 rounded-xl bg-[#00D084] text-[15px] font-extrabold text-[#04281A] hover:bg-[#00b873] sm:w-48"
               onClick={() => onToggle(t.id, true)}
             >
               <Check className="h-4 w-4" /> Concluir tarefa

@@ -582,7 +582,7 @@ export async function applyTemplateStages(
         const stageStart = startByOrder.get(i) ?? null;
         return tasks
           .filter((t) => t.stage_id === tplStage.id)
-          .map((t) => {
+          .map((t, j) => {
             let dueIso: string | null = null;
             if (stageStart) {
               const d = new Date(`${stageStart}T12:00:00`);
@@ -599,7 +599,8 @@ export async function applyTemplateStages(
               status: "a_fazer",
               priority: "media",
               due_date: dueIso,
-              position: 0,
+              // mantém a sequência do modelo (ordem da planilha) dentro da etapa
+              position: j,
               responsible_type: t.responsible_type ?? "equipe",
               visible_to_client: !!t.visible_to_client,
               assignee_id:
@@ -719,7 +720,10 @@ export const listProjectStageTasks = createServerFn({ method: "GET" })
       )
       .eq("project_id", data.project_id)
       .not("stage_id", "is", null)
-      .order("due_date", { ascending: true, nullsFirst: false });
+      // sequência do modelo dentro da etapa; depois prazo e criação
+      .order("position", { ascending: true })
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
     return (rows ?? []) as StageTask[];
   });
@@ -746,6 +750,14 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
     if (assignee) await assertAssignable(db, data.project_id, assignee, data.responsible_type);
     // id gerado aqui: permite anexar arquivos logo após criar (insert sem "returning")
     const id = crypto.randomUUID();
+    // nova tarefa entra no fim da sequência da etapa
+    const { data: last } = await db
+      .from("tasks")
+      .select("position")
+      .eq("stage_id", data.stage_id)
+      .order("position", { ascending: false })
+      .limit(1)
+      .maybeSingle();
     const { error } = await db.from("tasks").insert({
       id,
       owner_id: context.userId,
@@ -756,7 +768,7 @@ export const addProjectStageTask = createServerFn({ method: "POST" })
       status: "a_fazer",
       priority: "media",
       due_date: data.due_date ? new Date(data.due_date).toISOString() : null,
-      position: 0,
+      position: (Number(last?.position) || 0) + 1,
       responsible_type: data.responsible_type,
       visible_to_client: data.visible_to_client || data.responsible_type === "cliente",
       assignee_id: assignee,
