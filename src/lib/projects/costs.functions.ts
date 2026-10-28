@@ -132,6 +132,8 @@ export const createDepartment = createServerFn({ method: "POST" })
         name: z.string().trim().min(1).max(80),
         color: z.string().max(20).default("#2563eb"),
         preset: z.string().max(40).optional(),
+        /** sem a planilha em branco (usado ao importar um arquivo) */
+        empty: z.boolean().optional(),
       })
       .parse(d),
   )
@@ -155,7 +157,8 @@ export const createDepartment = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    const sheets = preset ? preset.sheets : [BLANK_SHEET];
+    const sheets = preset ? preset.sheets : data.empty ? [] : [BLANK_SHEET];
+    if (!sheets.length) return { id: dept.id as string };
     const { error: sErr } = await db.from("cost_sheets").insert(
       sheets.map((s, i) => ({
         organization_id: p.organization_id,
@@ -378,4 +381,67 @@ export const saveDepartmentsToTemplate = createServerFn({ method: "POST" })
       organizationId: p.organization_id,
     });
     return { count };
+  });
+
+/** Importa uma planilha (Excel/CSV já convertido no navegador): cria a aba com as colunas e grava as linhas. */
+export const importSheet = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        departmentId: uuid,
+        name: z.string().trim().min(1).max(80),
+        columns: z.array(columnSchema).min(1).max(40),
+        rows: z
+          .array(
+            z.record(
+              z.string().max(40),
+              z.union([z.string().max(2000), z.number(), z.boolean(), z.null()]),
+            ),
+          )
+          .max(2000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: dept, error: dErr } = await db
+      .from("cost_departments")
+      .select("organization_id")
+      .eq("id", data.departmentId)
+      .maybeSingle();
+    if (dErr) throw new Error(dErr.message);
+    if (!dept) throw new Error("Departamento não encontrado.");
+    const { count } = await db
+      .from("cost_sheets")
+      .select("id", { count: "exact", head: true })
+      .eq("department_id", data.departmentId);
+    const { data: sheet, error } = await db
+      .from("cost_sheets")
+      .insert({
+        organization_id: dept.organization_id,
+        department_id: data.departmentId,
+        name: data.name,
+        columns: data.columns,
+        position: count ?? 0,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`Sem permissão para criar a planilha: ${error.message}`);
+    const keys = new Set(data.columns.map((c) => c.key));
+    const rows = data.rows.map((r, i) => ({
+      organization_id: dept.organization_id,
+      sheet_id: sheet.id,
+      position: i,
+      data: Object.fromEntries(Object.entries(r).filter(([k]) => keys.has(k))),
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error: rErr } = await db.from("cost_sheet_rows").insert(rows.slice(i, i + 500));
+      if (rErr) {
+        // não deixa uma aba pela metade
+        await db.from("cost_sheets").delete().eq("id", sheet.id);
+        throw new Error(`Não foi possível gravar as linhas: ${rErr.message}`);
+      }
+    }
+    return { id: sheet.id as string, rows: rows.length };
   });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -7,6 +7,8 @@ import {
   Building2,
   Columns3,
   Download,
+  FileSpreadsheet,
+  Loader2,
   Pencil,
   Plus,
   Save,
@@ -52,6 +54,7 @@ import {
   deleteDepartment,
   deleteRow,
   deleteSheet,
+  importSheet,
   listProjectDepartments,
   loadTemplateDepartments,
   saveDepartmentsToTemplate,
@@ -62,6 +65,105 @@ import {
   type CostRow,
   type CostSheet,
 } from "@/lib/projects/costs.functions";
+import { buildImportedSheet, IMPORT_MAX_ROWS, type ImportCell } from "@/lib/projects/sheet-import";
+
+/** CSV salvo pelo Excel no Brasil costuma vir em Windows-1252: usa UTF-8 e cai para ele se houver caracteres inválidos. */
+function decodeCsv(buf: ArrayBuffer) {
+  const utf = new TextDecoder("utf-8").decode(buf);
+  return utf.includes("\uFFFD") ? new TextDecoder("windows-1252").decode(buf) : utf;
+}
+
+/** Lê um arquivo Excel/CSV no navegador e cria uma aba por planilha não vazia. */
+function useSheetImport(queryKey: unknown[], onDone?: (sheetId: string) => void) {
+  const qc = useQueryClient();
+  const importFn = useServerFn(importSheet);
+  const createFn = useServerFn(createDepartment);
+  const [busy, setBusy] = useState(false);
+  async function run(file: File, target: { departmentId: string } | { projectId: string }) {
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Arquivo muito grande (máx. 15 MB).");
+      return;
+    }
+    setBusy(true);
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const isCsv = /\.(csv|txt)$/i.test(file.name);
+      const wb = isCsv
+        ? XLSX.read(decodeCsv(buf), { type: "string", raw: true })
+        : XLSX.read(buf, { type: "array", cellDates: true });
+      const base = file.name.replace(/\.[^.]+$/, "");
+      const parsed = wb.SheetNames.map((n) => {
+        const grid = XLSX.utils.sheet_to_json<ImportCell[]>(wb.Sheets[n], { header: 1, raw: true, defval: null, blankrows: false });
+        return buildImportedSheet(wb.SheetNames.length === 1 ? base : n, grid);
+      }).filter((x): x is NonNullable<typeof x> => !!x && x.rows.length > 0);
+      if (!parsed.length) {
+        toast.error("Não encontrei linhas com dados nesse arquivo.");
+        return;
+      }
+      let departmentId = "departmentId" in target ? target.departmentId : "";
+      if (!departmentId) {
+        const d = await createFn({ data: { projectId: (target as { projectId: string }).projectId, name: "Planilhas", color: "#2563eb", empty: true } });
+        departmentId = (d as { id: string }).id;
+      }
+      let last = "";
+      let total = 0;
+      let skipped = 0;
+      for (const sh of parsed) {
+        const r = await importFn({ data: { departmentId, name: sh.name, columns: sh.columns, rows: sh.rows } });
+        last = r.id;
+        total += r.rows;
+        skipped += sh.skippedRows;
+      }
+      toast.success(
+        `${parsed.length} planilha(s) importada(s) com ${total} linha(s).` +
+          (skipped ? ` ${skipped} linha(s) acima do limite de ${IMPORT_MAX_ROWS} ficaram de fora.` : ""),
+      );
+      await qc.invalidateQueries({ queryKey });
+      onDone?.(last);
+    } catch (e) {
+      toast.error(`Não foi possível importar: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return { run, busy };
+}
+
+const IMPORT_ACCEPT = ".xlsx,.xls,.xlsm,.ods,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv";
+
+function ImportSheetButton({
+  busy,
+  onFile,
+  label = "Importar planilha",
+  className,
+}: {
+  busy: boolean;
+  onFile: (f: File) => void;
+  label?: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={ref}
+        type="file"
+        accept={IMPORT_ACCEPT}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) onFile(f);
+        }}
+      />
+      <Button size="sm" variant="outline" className={className} disabled={busy} onClick={() => ref.current?.click()}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+        {busy ? "Importando…" : label}
+      </Button>
+    </>
+  );
+}
 
 const DEPT_COLORS = [
   "#2563eb",
@@ -145,6 +247,7 @@ export function ProjectDepartmentsPanel({
   });
 
   const dept = depts.find((d) => d.id === activeDept) ?? null;
+  const importer = useSheetImport(key);
 
   return (
     <Card className="mt-4 rounded-2xl p-5">
@@ -186,6 +289,11 @@ export function ProjectDepartmentsPanel({
                 </Button>
               </>
             )}
+            <ImportSheetButton
+              busy={importer.busy}
+              onFile={(f) => importer.run(f, dept ? { departmentId: dept.id } : { projectId })}
+              label={dept ? `Importar planilha em ${dept.name}` : "Importar planilha"}
+            />
             <Button size="sm" onClick={() => setNewOpen(true)}>
               <Plus className="h-4 w-4" /> Departamento
             </Button>
@@ -201,7 +309,7 @@ export function ProjectDepartmentsPanel({
         <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
           Nenhum departamento ainda.{" "}
           {canEdit
-            ? "Crie um (ex.: Compras) para controlar pedidos, fornecedores e custos deste projeto."
+            ? "Crie um (ex.: Compras) ou use \"Importar planilha\" para trazer um arquivo Excel/CSV."
             : ""}
         </div>
       ) : (
@@ -296,6 +404,7 @@ function DepartmentView({
     onError: (e: Error) => toast.error(e.message),
   });
   const sheet = dept.sheets.find((s) => s.id === activeSheet) ?? null;
+  const importer = useSheetImport(queryKey, (id) => setActiveSheet(id));
 
   return (
     <div>
@@ -317,9 +426,17 @@ function DepartmentView({
             </button>
           ))}
           {canEdit && (
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => setCfgSheet("new")}>
-              <Plus className="h-3.5 w-3.5" /> Planilha
-            </Button>
+            <>
+              <Button size="sm" variant="ghost" className="h-8" onClick={() => setCfgSheet("new")}>
+                <Plus className="h-3.5 w-3.5" /> Planilha
+              </Button>
+              <ImportSheetButton
+                busy={importer.busy}
+                onFile={(f) => importer.run(f, { departmentId: dept.id })}
+                label="Importar Excel/CSV"
+                className="h-8 border-dashed"
+              />
+            </>
           )}
         </div>
         {canEdit && (
