@@ -30,6 +30,16 @@ export type TemplateTask = {
   due_offset_days: number;
   responsible_type?: "equipe" | "cliente";
   visible_to_client?: boolean;
+  /** pessoa da equipe do modelo que executa a tarefa */
+  assignee_user_id?: string | null;
+};
+
+export type TemplateMember = {
+  user_id: string;
+  name: string | null;
+  email: string | null;
+  department: string | null;
+  access_role: "gestor" | "editor" | "executor" | "visualizador";
 };
 
 export type ProjectTemplate = {
@@ -38,6 +48,8 @@ export type ProjectTemplate = {
   name: string;
   description: string | null;
   active: boolean;
+  /** equipe padrão do modelo (entra no projeto ao aplicar) */
+  members: TemplateMember[];
   stages: {
     id: string;
     name: string;
@@ -238,20 +250,30 @@ export const listProjectTemplates = createServerFn({ method: "GET" })
     const stageList = (stages ?? []) as any[];
     let tasks: any[] = [];
     if (stageList.length) {
-      const { data: tRows } = await db
-        .from("project_template_tasks")
-        .select(
-          "stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client",
-        )
-        .in(
-          "stage_id",
-          stageList.map((s) => s.id as string),
-        )
-        .order("sort_order");
-      tasks = (tRows ?? []) as any[];
+      const stageIds = stageList.map((s) => s.id as string);
+      const base = "stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client";
+      // assignee_user_id chega com a migração 24; sem ela, lê o que existe
+      let res = await db.from("project_template_tasks").select(`${base}, assignee_user_id`).in("stage_id", stageIds).order("sort_order");
+      if (res.error) res = await db.from("project_template_tasks").select(base).in("stage_id", stageIds).order("sort_order");
+      tasks = (res.data ?? []) as any[];
     }
+    const { data: memberRows } = await db
+      .from("project_template_members")
+      .select("template_id, user_id, name, email, department, access_role, sort_order")
+      .in("template_id", ids)
+      .order("sort_order");
+    const members = (memberRows ?? []) as any[];
     return ((tpls ?? []) as any[]).map((t) => ({
       ...t,
+      members: members
+        .filter((m) => m.template_id === t.id)
+        .map((m) => ({
+          user_id: m.user_id as string,
+          name: (m.name ?? null) as string | null,
+          email: (m.email ?? null) as string | null,
+          department: (m.department ?? null) as string | null,
+          access_role: (m.access_role ?? "executor") as TemplateMember["access_role"],
+        })),
       stages: stageList
         .filter((s) => s.template_id === t.id)
         .map((s) => ({
@@ -264,6 +286,7 @@ export const listProjectTemplates = createServerFn({ method: "GET" })
               due_offset_days: Number(k.due_offset_days ?? 0),
               responsible_type: (k.responsible_type ?? "equipe") as "equipe" | "cliente",
               visible_to_client: !!k.visible_to_client,
+              assignee_user_id: (k.assignee_user_id ?? null) as string | null,
             })),
         })),
     })) as ProjectTemplate[];
@@ -296,6 +319,7 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
                     due_offset_days: z.number().int().min(0).max(365).default(0),
                     responsible_type: z.enum(["equipe", "cliente"]).default("equipe"),
                     visible_to_client: z.boolean().default(false),
+                    assignee_user_id: uuid.nullable().optional(),
                   }),
                 )
                 .max(60)
@@ -304,6 +328,18 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
           )
           .min(1)
           .max(40),
+        members: z
+          .array(
+            z.object({
+              user_id: uuid,
+              name: z.string().trim().max(160).nullable().optional(),
+              email: z.string().trim().max(200).nullable().optional(),
+              department: z.string().trim().max(120).nullable().optional(),
+              access_role: z.enum(["gestor", "editor", "executor", "visualizador"]).default("executor"),
+            }),
+          )
+          .max(60)
+          .optional(),
       })
       .parse(d),
   )
@@ -362,26 +398,63 @@ export const saveProjectTemplate = createServerFn({ method: "POST" })
     const stageIdByOrder = new Map<number, string>(
       ((insertedStages ?? []) as any[]).map((s) => [Number(s.sort_order), s.id as string]),
     );
+    // Equipe do modelo (substitui a anterior)
+    const memberIds = new Set((data.members ?? []).map((m) => m.user_id));
+    if (data.members) {
+      const { error: dmErr } = await db.from("project_template_members").delete().eq("template_id", templateId);
+      if (dmErr && data.members.length) throw new Error(migrationHint(dmErr.message));
+      if (data.members.length) {
+        const { error: mErr } = await db.from("project_template_members").insert(
+          data.members.map((m, i) => ({
+            template_id: templateId,
+            organization_id: data.organization_id,
+            user_id: m.user_id,
+            name: m.name || null,
+            email: m.email || null,
+            department: m.department || null,
+            access_role: m.access_role,
+            sort_order: i,
+          })),
+        );
+        if (mErr) throw new Error(migrationHint(mErr.message));
+      }
+    }
+
+    const withAssignee = data.stages.some((s) => (s.tasks ?? []).some((t) => t.assignee_user_id));
     const taskRows = data.stages.flatMap((s, i) => {
       const stageId = stageIdByOrder.get(i);
       if (!stageId) return [];
-      return (s.tasks ?? []).map((t, j) => ({
-        stage_id: stageId,
-        organization_id: data.organization_id,
-        title: t.title,
-        description: t.description ?? null,
-        due_offset_days: t.due_offset_days ?? 0,
-        responsible_type: t.responsible_type ?? "equipe",
-        visible_to_client: t.visible_to_client ?? false,
-        sort_order: j,
-      }));
+      return (s.tasks ?? []).map((t, j) => {
+        // responsável precisa estar na equipe do modelo (e tarefa da equipe)
+        const assignee =
+          t.responsible_type !== "cliente" && t.assignee_user_id && memberIds.has(t.assignee_user_id)
+            ? t.assignee_user_id
+            : null;
+        return {
+          stage_id: stageId,
+          organization_id: data.organization_id,
+          title: t.title,
+          description: t.description ?? null,
+          due_offset_days: t.due_offset_days ?? 0,
+          responsible_type: t.responsible_type ?? "equipe",
+          visible_to_client: t.visible_to_client ?? false,
+          sort_order: j,
+          ...(withAssignee ? { assignee_user_id: assignee } : {}),
+        };
+      });
     });
     if (taskRows.length) {
       const { error: tErr } = await db.from("project_template_tasks").insert(taskRows);
-      if (tErr) throw new Error(tErr.message);
+      if (tErr) throw new Error(migrationHint(tErr.message));
     }
     return { id: templateId as string };
   });
+
+function migrationHint(msg: string) {
+  return /project_template_members|assignee_user_id/.test(msg)
+    ? "A equipe do modelo precisa da migração 24 no banco (supabase/migrations-org/24_equipe_modelo_notificacoes.sql)."
+    : msg;
+}
 
 export const deleteProjectTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -462,19 +535,43 @@ export async function applyTemplateStages(
     .select("id, sort_order");
   if (iErr) throw new Error(iErr.message);
 
+  // Equipe do modelo entra no projeto antes das tarefas (para poder ser responsável)
+  const teamIds = new Set<string>();
+  try {
+    const { data: seats } = await db
+      .from("project_template_members")
+      .select("user_id, name, email, department, access_role")
+      .eq("template_id", opts.templateId)
+      .order("sort_order");
+    const list2 = (seats ?? []) as any[];
+    if (list2.length) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { addTeamToProject } = await import("./team.server");
+      await addTeamToProject(supabaseAdmin as any, {
+        projectId: opts.projectId,
+        organizationId: opts.organizationId,
+        ownerId: opts.ownerId ?? null,
+        seats: list2,
+      });
+      const { data: inProject } = await db
+        .from("project_members")
+        .select("user_id")
+        .eq("project_id", opts.projectId)
+        .eq("status", "active")
+        .in("access_role", ["gestor", "editor", "executor"]);
+      for (const r of (inProject ?? []) as any[]) if (r.user_id) teamIds.add(r.user_id as string);
+    }
+  } catch {
+    // equipe do modelo é complementar (sem a migração 24 o modelo segue sem equipe)
+  }
+
   // Tarefas padrão de cada etapa do modelo (complementares: não quebram o roadmap)
   try {
-    const { data: tplTasks } = await db
-      .from("project_template_tasks")
-      .select(
-        "stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client",
-      )
-      .in(
-        "stage_id",
-        list.map((s) => s.id as string),
-      )
-      .order("sort_order");
-    const tasks = (tplTasks ?? []) as any[];
+    const stageIds = list.map((s) => s.id as string);
+    const base = "stage_id, title, description, due_offset_days, sort_order, responsible_type, visible_to_client";
+    let res = await db.from("project_template_tasks").select(`${base}, assignee_user_id`).in("stage_id", stageIds).order("sort_order");
+    if (res.error) res = await db.from("project_template_tasks").select(base).in("stage_id", stageIds).order("sort_order");
+    const tasks = (res.data ?? []) as any[];
     if (tasks.length) {
       const projectStageByOrder = new Map<number, string>(
         ((createdStages ?? []) as any[]).map((s) => [Number(s.sort_order), s.id as string]),
@@ -505,6 +602,10 @@ export async function applyTemplateStages(
               position: 0,
               responsible_type: t.responsible_type ?? "equipe",
               visible_to_client: !!t.visible_to_client,
+              assignee_id:
+                t.responsible_type !== "cliente" && t.assignee_user_id && teamIds.has(t.assignee_user_id)
+                  ? (t.assignee_user_id as string)
+                  : null,
             };
           });
       });
@@ -568,6 +669,7 @@ export type StageTask = {
   stage_id: string | null;
   title: string;
   status: string;
+  start_date: string | null;
   due_date: string | null;
   priority: string;
   responsible_type: "equipe" | "cliente";
@@ -613,7 +715,7 @@ export const listProjectStageTasks = createServerFn({ method: "GET" })
     const { data: rows, error } = await db
       .from("tasks")
       .select(
-        "id, stage_id, title, status, due_date, priority, responsible_type, visible_to_client, completed_at, assignee_id",
+        "id, stage_id, title, status, start_date, due_date, priority, responsible_type, visible_to_client, completed_at, assignee_id",
       )
       .eq("project_id", data.project_id)
       .not("stage_id", "is", null)
@@ -714,19 +816,52 @@ export const setStageTaskClient = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+/** Datas da tarefa (início e prazo). Vazio = sem data. */
+export const setStageTaskDates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        task_id: uuid,
+        start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+        due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+      })
+      .refine((v) => !v.start_date || !v.due_date || v.start_date <= v.due_date, {
+        message: "O prazo não pode ser antes do início.",
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
+    // meio-dia evita a data "voltar um dia" por fuso horário
+    const at = (d: string | null) => (d ? `${d}T12:00:00-03:00` : null);
+    const { data: row, error } = await db
+      .from("tasks")
+      .update({ start_date: at(data.start_date), due_date: at(data.due_date) })
+      .eq("id", data.task_id)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para alterar as datas desta tarefa.");
+    return { ok: true as const };
+  });
+
 export const setProjectStageTaskDone = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ task_id: uuid, done: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
-    const { error } = await db
+    const { data: row, error } = await db
       .from("tasks")
       .update({
         status: data.done ? "concluido" : "a_fazer",
         completed_at: data.done ? new Date().toISOString() : null,
       })
-      .eq("id", data.task_id);
+      .eq("id", data.task_id)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!row) throw new Error("Você só pode concluir as tarefas que são suas neste projeto.");
     return { ok: true as const };
   });
 

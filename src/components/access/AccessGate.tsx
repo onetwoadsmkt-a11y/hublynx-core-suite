@@ -3,7 +3,7 @@ import { Link, Navigate, useRouterState } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import { useAccess } from "@/hooks/useAccess";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
-import { orgModuleForPath, ORG_MODULE_LABELS } from "@/lib/org/modules-map";
+import { isProjectOnlyAccess, orgModuleForPath, ORG_MODULE_LABELS, projectOnlyAllows } from "@/lib/org/modules-map";
 import { Button } from "@/components/ui/button";
 
 export function AccessGate({ children }: { children: ReactNode }) {
@@ -20,6 +20,10 @@ export function AccessGate({ children }: { children: ReactNode }) {
   if (!org.activeOrg) return <Denied title="Aguardando liberação de acesso" />;
   if (org.activeOrg.status === "expired") return <Denied title="Seu teste de 14 dias terminou" />;
   if (org.activeOrg.status !== "active" && org.activeOrg.status !== "trial") return <Denied title="Acesso da empresa suspenso" />;
+  // Equipe de projeto: só o módulo Projetos (e as tarefas designadas a ela).
+  if (isProjectOnlyAccess(org) && !projectOnlyAllows(pathname)) {
+    return <Navigate to="/projetos" replace />;
+  }
   if (pathname.startsWith("/admin")) {
     const { isAdmin } = access;
     if (!isAdmin) return <Denied title="Área restrita à administração da plataforma" />;

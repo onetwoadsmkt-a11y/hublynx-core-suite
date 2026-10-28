@@ -52,7 +52,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { maskBRL } from "@/lib/security/value-lock";
 
+// ?aba=etapas&tarefa=<id> (links dos avisos) abre a aba e destaca a tarefa
+const TAB_ALIAS: Record<string, string> = {
+  evolucao: "evolution", etapas: "stages", equipe: "team", historico: "journey", mensagens: "journey",
+  arquivos: "files", comercial: "commercial", entregas: "deliveries", kanban: "kanban",
+  atividade: "activity", riscos: "risks", notas: "notes",
+};
+const TAB_VALUES = ["evolution", "stages", "team", "journey", "files", "commercial", "deliveries", "kanban", "activity", "risks", "notes"];
+
 export const Route = createFileRoute("/_authenticated/projetos/$id")({
+  validateSearch: (s: Record<string, unknown>): { aba?: string; tarefa?: string } => ({
+    aba: typeof s.aba === "string" ? s.aba : undefined,
+    tarefa: typeof s.tarefa === "string" && /^[0-9a-f-]{36}$/i.test(s.tarefa) ? s.tarefa : undefined,
+  }),
   head: () => ({ meta: [
     { title: "Evolução e gestão do projeto — Core Suite" },
     { name: "description", content: "Acompanhe etapas, evolução, entregas, equipe e decisões do projeto no Core Suite." },
@@ -144,6 +156,24 @@ function KpiTile({ icon: Icon, label, value, sub, tone = "" }: any) {
 function ProjectCommandCenter() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const fromUrl = search.aba ? (TAB_ALIAS[search.aba] ?? search.aba) : search.tarefa ? "stages" : null;
+  const [tab, setTab] = useState<string>(fromUrl && TAB_VALUES.includes(fromUrl) ? fromUrl : "evolution");
+  const [focusTask, setFocusTask] = useState<string | null>(search.tarefa ?? null);
+  // novo link de aviso com a página já aberta
+  useEffect(() => {
+    if (search.tarefa) {
+      setTab("stages");
+      setFocusTask(search.tarefa);
+    } else if (fromUrl && TAB_VALUES.includes(fromUrl)) setTab(fromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.aba, search.tarefa]);
+  const openTask = (taskId: string) => {
+    navigate({ to: "/projetos/$id", params: { id }, search: { aba: "etapas", tarefa: taskId } as any });
+    requestAnimationFrame(() =>
+      document.getElementById("project-tab-content")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+  };
   const getDash = useServerFn(getProjectDashboard);
   const dashQ = useQuery({
     queryKey: ["project-dashboard", id],
@@ -213,11 +243,12 @@ function ProjectCommandCenter() {
 
       <div className="space-y-6 min-w-0">
         <ExecutiveHeader p={p} d={d} />
-        <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
+        <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} onOpenTask={openTask} />
         <Tabs
-          defaultValue="evolution"
+          value={tab}
           className="min-w-0"
-          onValueChange={() => {
+          onValueChange={(v) => {
+            setTab(v);
             // no celular/tablet a grade ocupa a tela: leva a pessoa ao conteúdo escolhido
             if (typeof window !== "undefined" && window.innerWidth < 1024) {
               requestAnimationFrame(() =>
@@ -261,7 +292,7 @@ function ProjectCommandCenter() {
           </div>
           <div id="project-tab-content" className="scroll-mt-20" aria-hidden="true" />
           <TabsContent value="evolution"><ProjectEvolution projectId={id} disabled={p.commercial_model === "mensal_recorrente"} dueDate={p.due_date} /></TabsContent>
-          <TabsContent value="stages"><RoadmapStagesPanel projectId={id} disabled={p.commercial_model === "mensal_recorrente"} disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente." /></TabsContent>
+          <TabsContent value="stages"><RoadmapStagesPanel projectId={id} focusTaskId={focusTask} disabled={p.commercial_model === "mensal_recorrente"} disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente." /></TabsContent>
           <TabsContent value="journey"><ProjectJourneyPanel projectId={id} /></TabsContent>
           <TabsContent value="commercial"><CommercialPanel commercial={d.commercial} projectId={id} /><ProjectDepartmentsPanel projectId={id} templateId={p.template_id ?? null} canEdit={canEdit} /></TabsContent>
           <TabsContent value="deliveries"><UpcomingDeliveries upcoming={d.upcomingDeliveries} /></TabsContent>
@@ -388,7 +419,7 @@ function QuickCreateTaskButton({
 }
 
 // 2. Alerts bar
-function AlertsBar({ alerts, nextMilestone }: any) {
+function AlertsBar({ alerts, nextMilestone, onOpenTask }: any) {
   const extra: any[] = [];
   if (nextMilestone) extra.push({ type: "milestone", severity: "info", message: `Próximo marco: ${nextMilestone.title}` });
   const all = [...alerts, ...extra];
@@ -403,8 +434,17 @@ function AlertsBar({ alerts, nextMilestone }: any) {
     <div className="flex flex-wrap gap-2">
       {all.map((a, i) => {
         const Icon = icon[a.type] ?? Sparkles;
+        const cls = `flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${tone[a.severity]}`;
+        // tarefa atrasada: clicar leva à etapa e à tarefa
+        if (a.taskId && onOpenTask) {
+          return (
+            <button key={i} type="button" onClick={() => onOpenTask(a.taskId)} className={`${cls} hover:brightness-95 underline-offset-2 hover:underline`} title="Abrir a tarefa atrasada na etapa">
+              <Icon className="h-3.5 w-3.5 shrink-0" />{a.message} · ver tarefa
+            </button>
+          );
+        }
         return (
-          <div key={i} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${tone[a.severity]}`}>
+          <div key={i} className={cls}>
             <Icon className="h-3.5 w-3.5 shrink-0" />{a.message}
           </div>
         );

@@ -23,7 +23,14 @@ import {
   CalendarClock,
   CalendarRange,
   AlertTriangle,
+  Globe,
+  Lock,
+  MessageSquare,
+  Send,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,6 +82,7 @@ import {
   addProjectStageTask,
   setProjectStageTaskDone,
   setStageTaskClient,
+  setStageTaskDates,
   rescheduleProject,
   shiftProjectStages,
   type ProjectStage,
@@ -91,6 +99,34 @@ type AttachCtx = {
   canManage: boolean;
 };
 const AttachmentsContext = createContext<AttachCtx | null>(null);
+
+/** Mensagem de uma tarefa (equipe interna ou visível ao cliente no portal). */
+type TaskMessage = {
+  id: string;
+  task_id: string;
+  body: string;
+  created_at: string;
+  owner_id: string;
+  visibility: "equipe" | "cliente";
+  author_kind: "equipe" | "cliente";
+  author: string;
+};
+
+/** Permissões, mensagens e datas das tarefas, compartilhadas pelas linhas. */
+type TaskCtx = {
+  meId: string | null;
+  /** quem pode mexer em qualquer tarefa (gestor/editor/admin); executor só nas dele */
+  canEditAll: boolean;
+  canEditTask: (t: StageTask) => boolean;
+  messages: Map<string, TaskMessage[]>;
+  sendMessage: (t: StageTask, body: string, visibility: "equipe" | "cliente") => Promise<void>;
+  saveDates: (taskId: string, start: string | null, due: string | null) => Promise<void>;
+  highlightId: string | null;
+};
+const TaskContext = createContext<TaskCtx | null>(null);
+
+const plain = (body: string) =>
+  /<[a-z][\s\S]*>/i.test(body) ? body.replace(/<br\s*\/?>|<\/p>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim() : body;
 
 type Draft = {
   id?: string;
@@ -127,12 +163,15 @@ export function RoadmapStagesPanel({
   projectId,
   disabled = false,
   disabledMessage,
+  focusTaskId = null,
 }: {
   projectId: string;
   /** Mantido por compatibilidade: etapas antigas em JSONB não são mais usadas. */
   stages?: unknown;
   disabled?: boolean;
   disabledMessage?: string;
+  /** tarefa vinda de um aviso: abre a etapa e destaca a tarefa */
+  focusTaskId?: string | null;
 }) {
   const qc = useQueryClient();
   const listFn = useServerFn(listProjectStages);
@@ -164,6 +203,13 @@ export function RoadmapStagesPanel({
       role: m.access_role,
     }));
   const canManageTeam = accessQ.data?.canManage ?? false;
+  const canEditAll = !!(accessQ.data?.canEdit || accessQ.data?.isOrgAdmin);
+  const meQ = useQuery({
+    queryKey: ["me-id"],
+    queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null,
+    staleTime: Infinity,
+  });
+  const meId = meQ.data ?? null;
   const [view, setView] = useState<"vertical" | "horizontal">("vertical");
 
   useEffect(() => {
@@ -366,6 +412,96 @@ export function RoadmapStagesPanel({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Mensagens das tarefas do projeto
+  const taskIds = useMemo(() => (stageTasksQ.data ?? []).map((t) => t.id), [stageTasksQ.data]);
+  const messagesQ = useQuery({
+    queryKey: ["project-task-messages", projectId, taskIds.length],
+    enabled: !disabled && taskIds.length > 0,
+    staleTime: 20_000,
+    queryFn: async (): Promise<TaskMessage[]> => {
+      const rows: any[] = [];
+      for (let i = 0; i < taskIds.length; i += 150) {
+        const chunk = taskIds.slice(i, i + 150);
+        let r: any = await supabase
+          .from("task_comments")
+          .select("id, task_id, body, created_at, owner_id, visibility, author_kind" as any)
+          .in("task_id", chunk)
+          .order("created_at");
+        // sem a migração 23 não existem destino/autor: tudo conta como da equipe
+        if (r.error) r = await supabase.from("task_comments").select("id, task_id, body, created_at, owner_id").in("task_id", chunk).order("created_at");
+        rows.push(...((r.data ?? []) as any[]));
+      }
+      const owners = [...new Set(rows.map((m) => m.owner_id))];
+      const names = new Map<string, string>();
+      if (owners.length) {
+        const { data } = await supabase.from("profiles").select("id, full_name").in("id", owners);
+        for (const p of (data ?? []) as any[]) names.set(p.id, p.full_name);
+      }
+      return rows.map((m) => ({
+        ...m,
+        visibility: m.visibility ?? "equipe",
+        author_kind: m.author_kind ?? "equipe",
+        author: names.get(m.owner_id) || (m.author_kind === "cliente" ? "Cliente" : "Equipe"),
+      }));
+    },
+  });
+  const datesFn = useServerFn(setStageTaskDates);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const taskCtx = useMemo<TaskCtx>(() => {
+    const messages = new Map<string, TaskMessage[]>();
+    for (const m of messagesQ.data ?? []) messages.set(m.task_id, [...(messages.get(m.task_id) ?? []), m]);
+    return {
+      meId,
+      canEditAll,
+      canEditTask: (t) => canEditAll || (!!meId && t.assignee_id === meId),
+      messages,
+      highlightId,
+      sendMessage: async (t, body, visibility) => {
+        const vis = visibility;
+        if (vis === "cliente" && !t.visible_to_client && t.responsible_type !== "cliente") {
+          const { error: vErr } = await supabase.from("tasks").update({ visible_to_client: true } as never).eq("id", t.id);
+          if (vErr) throw new Error(vErr.message);
+        }
+        let { error } = await supabase.from("task_comments").insert({
+          task_id: t.id, owner_id: meId, body, visibility: vis, author_kind: "equipe",
+        } as never);
+        if (error && /visibility|author_kind/.test(error.message)) {
+          ({ error } = await supabase.from("task_comments").insert({ task_id: t.id, owner_id: meId, body } as never));
+        }
+        if (error) throw new Error(error.message);
+        qc.invalidateQueries({ queryKey: ["project-task-messages", projectId] });
+        qc.invalidateQueries({ queryKey: ["project-journey", projectId] });
+        if (vis === "cliente") qc.invalidateQueries({ queryKey: ["project-stage-tasks", projectId] });
+      },
+      saveDates: async (taskId, start, due) => {
+        await datesFn({ data: { task_id: taskId, start_date: start, due_date: due } });
+        invalidate();
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messagesQ.data, meId, canEditAll, highlightId, projectId]);
+
+  // Chegou por um aviso: abre a etapa da tarefa e rola até ela
+  const focusedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusTaskId || focusedRef.current === focusTaskId) return;
+    const t = (stageTasksQ.data ?? []).find((x) => x.id === focusTaskId);
+    const st = t && (stagesQ.data ?? []).find((x) => x.id === t.stage_id);
+    if (!t || !st) return;
+    focusedRef.current = focusTaskId;
+    if (view === "vertical") setExpanded((cur) => new Set(cur).add(st.id));
+    else setOpenStage(st);
+    setHighlightId(t.id);
+    const tryScroll = (n: number) => {
+      const el = document.getElementById(`stage-task-${t.id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      else if (n > 0) setTimeout(() => tryScroll(n - 1), 150);
+    };
+    setTimeout(() => tryScroll(10), 100);
+    const off = setTimeout(() => setHighlightId(null), 6000);
+    return () => clearTimeout(off);
+  }, [focusTaskId, stageTasksQ.data, stagesQ.data, view]);
+
   if (disabled) {
     return (
       <Card className="rounded-2xl p-5 opacity-80">
@@ -404,6 +540,7 @@ export function RoadmapStagesPanel({
 
   return (
     <AttachmentsContext.Provider value={attachCtx}>
+      <TaskContext.Provider value={taskCtx}>
       <Card className="rounded-2xl p-5">
         <div className="mb-4 grid min-w-0 gap-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -817,6 +954,7 @@ export function RoadmapStagesPanel({
           }
         />
       </Card>
+      </TaskContext.Provider>
     </AttachmentsContext.Provider>
   );
 }
@@ -1224,6 +1362,7 @@ function ResponsibleSelect({
   canManageTeam,
   className,
   compact = false,
+  disabled = false,
 }: {
   value: Who;
   onChange: (v: Who) => void;
@@ -1231,6 +1370,7 @@ function ResponsibleSelect({
   canManageTeam: boolean;
   className?: string;
   compact?: boolean;
+  disabled?: boolean;
 }) {
   const team = assignees.filter((a) => a.role !== "cliente");
   const clients = assignees.filter((a) => a.role === "cliente");
@@ -1240,7 +1380,7 @@ function ResponsibleSelect({
       ? assignees.find((a) => value === `${a.role === "cliente" ? "c" : "u"}:${a.id}`)
       : null;
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger
         className={className}
         aria-label="Responsável pela tarefa"
@@ -1352,6 +1492,8 @@ function StageTasksPanel({
   }
 
   const rowProps = { onToggle, onPatch, assignees, canManageTeam };
+  const ctx = useContext(TaskContext);
+  const canAdd = ctx ? ctx.canEditAll : true;
   return (
     <div className={scroll ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
       <div className={scroll ? "min-h-0 flex-1 space-y-1 overflow-y-auto py-1" : "space-y-1"}>
@@ -1386,6 +1528,7 @@ function StageTasksPanel({
         )}
       </div>
 
+      {canAdd && (
       <div className="grid shrink-0 gap-2 rounded-lg border bg-muted/30 p-2 sm:grid-cols-[minmax(0,1fr)_9.5rem_13rem_auto]">
         <Input
           value={title}
@@ -1457,6 +1600,7 @@ function StageTasksPanel({
           />
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -1519,6 +1663,11 @@ function StageTaskRow({
   const isDone = t.status === "concluido";
   const isClient = t.responsible_type === "cliente";
   const attach = useContext(AttachmentsContext);
+  const ctx = useContext(TaskContext);
+  const canEdit = ctx ? ctx.canEditTask(t) : true;
+  const canAll = ctx ? ctx.canEditAll : true;
+  const mine = !!ctx?.meId && t.assignee_id === ctx.meId;
+  const highlighted = ctx?.highlightId === t.id;
   const files = attach?.byTask.get(t.id) ?? [];
   const [showFiles, setShowFiles] = useState(false);
   const who: Who = isClient
@@ -1529,12 +1678,21 @@ function StageTaskRow({
       ? `u:${t.assignee_id}`
       : "equipe";
   return (
-    <div className={["rounded-lg", isDone ? "bg-accent/50" : "hover:bg-accent/40"].join(" ")}>
+    <div
+      id={`stage-task-${t.id}`}
+      className={[
+        "scroll-mt-24 rounded-lg border border-transparent transition-shadow",
+        isDone ? "bg-accent/50" : "hover:bg-accent/40",
+        highlighted ? "border-primary bg-primary/5 ring-2 ring-primary/40" : "",
+      ].join(" ")}
+    >
       <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 sm:flex-nowrap">
         <Checkbox
           checked={isDone}
+          disabled={!canEdit}
           onCheckedChange={(v) => onToggle(t.id, v === true)}
-          aria-label="Concluir tarefa"
+          aria-label={canEdit ? "Concluir tarefa" : "Só o responsável conclui esta tarefa"}
+          title={canEdit ? undefined : "Só o responsável conclui esta tarefa"}
         />
         <span
           className={[
@@ -1543,8 +1701,12 @@ function StageTaskRow({
           ].join(" ")}
         >
           {t.title}
+          {mine && !isDone && (
+            <span className="ml-1.5 rounded-full bg-primary/15 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-primary">sua</span>
+          )}
         </span>
         <ResponsibleSelect
+          disabled={!canAll}
           value={who}
           onChange={(v) => {
             const r = responsibleFrom(v);
@@ -1581,11 +1743,7 @@ function StageTaskRow({
             )}
           </button>
         )}
-        {t.due_date && (
-          <span className="shrink-0 text-[11px] text-muted-foreground">
-            {new Date(t.due_date).toLocaleDateString("pt-BR")}
-          </span>
-        )}
+        <TaskDatesButton t={t} canEdit={canEdit} onSave={ctx?.saveDates} />
         {attach && (
           <button
             type="button"
@@ -1619,6 +1777,163 @@ function StageTaskRow({
           />
         </div>
       )}
+      {ctx && <TaskMessages t={t} ctx={ctx} />}
+    </div>
+  );
+}
+
+const dayOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-CA") : "");
+
+/** Datas da tarefa: mostra o prazo; ao clicar, edita início e prazo. */
+function TaskDatesButton({
+  t,
+  canEdit,
+  onSave,
+}: {
+  t: StageTask;
+  canEdit: boolean;
+  onSave?: (taskId: string, start: string | null, due: string | null) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [start, setStart] = useState("");
+  const [due, setDue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const late = t.status !== "concluido" && !!t.due_date && new Date(t.due_date) < new Date(new Date().toDateString());
+  const label = t.due_date ? new Date(t.due_date).toLocaleDateString("pt-BR") : "Datas";
+  if (!canEdit || !onSave) {
+    return t.due_date ? (
+      <span className={`shrink-0 text-[11px] ${late ? "font-semibold text-rose-600" : "text-muted-foreground"}`}>{label}</span>
+    ) : null;
+  }
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) {
+          setStart(dayOf(t.start_date));
+          setDue(dayOf(t.due_date));
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] hover:bg-muted ${late ? "font-semibold text-rose-600" : "text-muted-foreground hover:text-foreground"}`}
+          title="Editar datas da tarefa"
+          aria-label={`Datas da tarefa: ${label}`}
+        >
+          <CalendarClock className="h-3.5 w-3.5" /> {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 space-y-3">
+        <p className="text-sm font-semibold">Datas da tarefa</p>
+        <div className="space-y-1">
+          <Label className="text-xs">Início</Label>
+          <Input type="date" value={start} max={due || undefined} onChange={(e) => setStart(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Prazo</Label>
+          <Input type="date" value={due} min={start || undefined} onChange={(e) => setDue(e.target.value)} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button
+            size="sm"
+            disabled={saving || (!!start && !!due && start > due)}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onSave(t.id, start || null, due || null);
+                toast.success("Datas da tarefa atualizadas");
+                setOpen(false);
+              } catch (e) {
+                toast.error((e as Error).message);
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            {saving ? "Salvando…" : "Salvar"}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Mensagens da tarefa: campo sempre aberto + últimas mensagens. */
+function TaskMessages({ t, ctx }: { t: StageTask; ctx: TaskCtx }) {
+  const list = ctx.messages.get(t.id) ?? [];
+  const [body, setBody] = useState("");
+  const [vis, setVis] = useState<"equipe" | "cliente">("equipe");
+  const [all, setAll] = useState(false);
+  const [sending, setSending] = useState(false);
+  const shown = all ? list : list.slice(-2);
+  async function send() {
+    const text = body.trim();
+    if (!text) return;
+    setSending(true);
+    try {
+      await ctx.sendMessage(t, text, vis);
+      setBody("");
+      toast.success(vis === "cliente" ? "Mensagem enviada ao cliente (portal)" : "Mensagem registrada para a equipe");
+    } catch (e) {
+      toast.error((e as Error).message || "Não foi possível enviar");
+    } finally {
+      setSending(false);
+    }
+  }
+  return (
+    <div className="space-y-1.5 px-2 pb-2 pl-8">
+      {list.length > 2 && (
+        <button type="button" onClick={() => setAll((v) => !v)} className="text-[11px] font-medium text-primary hover:underline">
+          {all ? "Mostrar só as últimas" : `Ver todas as mensagens (${list.length})`}
+        </button>
+      )}
+      {shown.map((m) => (
+        <div
+          key={m.id}
+          className={`rounded-md px-2.5 py-1.5 text-xs ${m.author_kind === "cliente" ? "bg-amber-50 dark:bg-amber-500/10" : m.visibility === "cliente" ? "bg-sky-50 dark:bg-sky-500/10" : "bg-muted/60"}`}
+        >
+          <p className="text-[10px] text-muted-foreground">
+            <strong className="text-foreground">{m.owner_id === ctx.meId ? "Você" : m.author}</strong>
+            {m.author_kind === "cliente" ? " (cliente)" : m.visibility === "cliente" ? " · para o cliente" : " · interna"} ·{" "}
+            {new Date(m.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+          </p>
+          <p className="whitespace-pre-wrap break-words">{plain(m.body)}</p>
+        </div>
+      ))}
+      <div className="flex items-center gap-1.5">
+        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <Input
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          maxLength={4000}
+          placeholder={vis === "cliente" ? "Mensagem para o cliente (portal)…" : "Mensagem para a equipe…"}
+          aria-label={`Mensagem na tarefa ${t.title}`}
+          className={`h-8 min-w-0 flex-1 text-xs ${vis === "cliente" ? "border-amber-300 bg-amber-50/60 dark:bg-amber-500/5" : "bg-background"}`}
+        />
+        <button
+          type="button"
+          onClick={() => setVis((v) => (v === "equipe" ? "cliente" : "equipe"))}
+          className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-medium ${vis === "cliente" ? "border-amber-300 text-amber-800 dark:text-amber-300" : "text-muted-foreground"}`}
+          title="Trocar destino: equipe (interna) ou cliente (portal)"
+          aria-label={`Destino: ${vis === "cliente" ? "cliente" : "equipe"}. Clique para trocar.`}
+        >
+          {vis === "cliente" ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+          <span className="hidden sm:inline">{vis === "cliente" ? "Cliente" : "Equipe"}</span>
+        </button>
+        <Button size="icon" className="h-8 w-8 shrink-0" disabled={!body.trim() || sending} onClick={send} aria-label="Enviar mensagem">
+          <Send className="h-3.5 w-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -9,6 +9,8 @@ export type PriorityAlert = AlertItem & {
   due: string | null;
   leadId: string | null;
   leadName: string | null;
+  /** tarefa de projeto: o aviso abre a tarefa na etapa */
+  projectId?: string | null;
 };
 
 const PRIORITIES = ["alta", "critica"];
@@ -27,7 +29,7 @@ export const listPriorityAlerts = createServerFn({ method: "GET" })
 
     const { data: tasks, error: tasksError } = await supabase
       .from("tasks")
-      .select("id, title, priority, due_date, status, assignee_id, owner_id")
+      .select("id, title, priority, due_date, status, assignee_id, owner_id, project_id")
       .eq("organization_id" as any, data.organizationId)
       .in("priority", PRIORITIES as any)
       .not("status", "in", "(concluido,cancelado)")
@@ -43,6 +45,7 @@ export const listPriorityAlerts = createServerFn({ method: "GET" })
         due: (t.due_date as string | null) ?? null,
         leadId: null,
         leadName: null,
+        projectId: ((t as any).project_id as string | null) ?? null,
       });
     }
 

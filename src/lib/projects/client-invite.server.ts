@@ -42,9 +42,22 @@ export type InviteMailResult = { sent: boolean; from: string | null; error: stri
  * o e-mail IMAP/SMTP conectado em Configurações → Integrações.
  * Nunca lança erro: devolve o motivo para a tela mostrar.
  */
-export async function sendClientInviteMail(
+export type OrgMailContent = { subject: string; text: string; html: string };
+
+/**
+ * Envia um e-mail pela conta conectada da empresa (Gmail de quem pede ou de um
+ * administrador; senão o IMAP/SMTP de Configurações → Integrações).
+ * `build` recebe o nome de quem envia e o nome da empresa. Nunca lança erro.
+ */
+export async function sendOrgMail(
   admin: Db,
-  p: InviteMailInput,
+  p: {
+    organizationId: string;
+    preferUserIds?: (string | null | undefined)[];
+    to: string;
+    toName?: string | null;
+    build: (senderName: string | null, orgName: string) => OrgMailContent;
+  },
 ): Promise<InviteMailResult> {
   try {
     const { getMailCredentials } = await import("@/server/mailAccounts.server");
@@ -59,9 +72,9 @@ export async function sendClientInviteMail(
       .eq("status", "active")
       .order("created_at", { ascending: true });
     const candidates = [
-      p.inviterId,
+      ...(p.preferUserIds ?? []),
       ...((admins ?? []) as { user_id: string }[]).map((a) => a.user_id),
-    ].filter((v, i, arr) => !!v && arr.indexOf(v) === i);
+    ].filter((v, i, arr): v is string => !!v && arr.indexOf(v) === i);
 
     // Ordem: Google (Gmail) de quem convida e dos admins; depois e-mail IMAP/SMTP.
     type Sender =
@@ -126,6 +139,65 @@ export async function sendClientInviteMail(
       const senderName =
         (sender.displayName || (prof?.full_name as string | undefined) || orgName || "").trim() ||
         null;
+      const { subject, text, html } = p.build(senderName, orgName);
+      const mail = {
+        to: p.to,
+        toName: p.toName ?? p.to,
+        subject,
+        text,
+        html,
+        replyTo: sender.email,
+      };
+      try {
+        if (sender.kind === "google") {
+          const raw = buildMimeMessage({ email: sender.email, name: senderName }, mail);
+          const b64url = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+          const res = await googleFetch(
+            sender.userId,
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ raw: b64url }),
+            },
+          );
+          if (!res.ok) {
+            const j: any = await res.json().catch(() => ({}));
+            throw new Error(`Gmail: ${j?.error?.message ?? `HTTP ${res.status}`}`);
+          }
+        } else {
+          await sendSmtpMail(sender.creds.account, sender.creds.password, mail, senderName);
+        }
+        return { sent: true, from: sender.email, error: null };
+      } catch (err) {
+        errors.push(`${sender.email}: ${String((err as Error)?.message ?? err)}`);
+      }
+    }
+    return {
+      sent: false,
+      from: null,
+      error: errors.join(" • ") || "Não foi possível enviar o e-mail.",
+    };
+  } catch (err) {
+    return {
+      sent: false,
+      from: null,
+      error: String((err as Error)?.message ?? "") || "Não foi possível enviar o e-mail.",
+    };
+  }
+}
+
+/** Convite de acesso ao projeto (portal do cliente ou equipe no Core). */
+export async function sendClientInviteMail(
+  admin: Db,
+  p: InviteMailInput,
+): Promise<InviteMailResult> {
+  return sendOrgMail(admin, {
+    organizationId: p.organizationId,
+    preferUserIds: [p.inviterId],
+    to: p.clientEmail,
+    toName: p.clientName,
+    build: (senderName, orgName) => {
       const firstName = p.clientName.trim().split(/\s+/)[0];
       const projectLabel = `${p.projectNumber ? `Nº ${p.projectNumber} · ` : ""}${p.projectName}`;
       const who = senderName ?? "Nossa equipe";
@@ -186,49 +258,7 @@ ${p.password ? `<p style="margin:0 0 6px;font-size:12px;color:#6b7280">${h(pwHin
 <p style="margin:18px 0 0;font-size:14px">Qualquer dúvida, é só responder este e-mail.<br><br>${h(senderName ?? "")}${orgName && senderName !== orgName ? `<br>${h(orgName)}` : ""}</p>
 </td></tr></table></td></tr></table></body></html>`;
 
-      const mail = {
-        to: p.clientEmail,
-        toName: p.clientName,
-        subject,
-        text,
-        html,
-        replyTo: sender.email,
-      };
-      try {
-        if (sender.kind === "google") {
-          const raw = buildMimeMessage({ email: sender.email, name: senderName }, mail);
-          const b64url = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-          const res = await googleFetch(
-            sender.userId,
-            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ raw: b64url }),
-            },
-          );
-          if (!res.ok) {
-            const j: any = await res.json().catch(() => ({}));
-            throw new Error(`Gmail: ${j?.error?.message ?? `HTTP ${res.status}`}`);
-          }
-        } else {
-          await sendSmtpMail(sender.creds.account, sender.creds.password, mail, senderName);
-        }
-        return { sent: true, from: sender.email, error: null };
-      } catch (err) {
-        errors.push(`${sender.email}: ${String((err as Error)?.message ?? err)}`);
-      }
-    }
-    return {
-      sent: false,
-      from: null,
-      error: errors.join(" • ") || "Não foi possível enviar o e-mail.",
-    };
-  } catch (err) {
-    return {
-      sent: false,
-      from: null,
-      error: String((err as Error)?.message ?? "") || "Não foi possível enviar o e-mail.",
-    };
-  }
+      return { subject, text, html };
+    },
+  });
 }

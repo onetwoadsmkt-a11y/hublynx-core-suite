@@ -82,7 +82,7 @@ function LeadBlock({ leadId }: { leadId: string }) {
 }
 
 /** Bloco do projeto vinculado, com botão para abrir o projeto. */
-function ProjectBlock({ projectId, onNavigate }: { projectId: string; onNavigate?: () => void }) {
+function ProjectBlock({ projectId, taskId, onNavigate }: { projectId: string; taskId?: string; onNavigate?: () => void }) {
   const { data: project } = useQuery({
     queryKey: ["project-mini", projectId],
     queryFn: async () => {
@@ -107,8 +107,13 @@ function ProjectBlock({ projectId, onNavigate }: { projectId: string; onNavigate
         {project.due_date ? ` · Prazo ${format(parseISO(project.due_date), "dd/MM/yyyy")}` : ""}
       </p>
       <Button asChild size="sm" variant="outline" className="w-full">
-        <Link to="/projetos/$id" params={{ id: project.id }} onClick={onNavigate}>
-          <ExternalLink className="mr-1.5 h-4 w-4" /> Abrir projeto
+        <Link
+          to="/projetos/$id"
+          params={{ id: project.id }}
+          search={(taskId ? { aba: "etapas", tarefa: taskId } : {}) as any}
+          onClick={onNavigate}
+        >
+          <ExternalLink className="mr-1.5 h-4 w-4" /> {taskId ? "Abrir a tarefa na etapa do projeto" : "Abrir projeto"}
         </Link>
       </Button>
     </section>
@@ -168,7 +173,7 @@ export function PendingItemDetails({
       ) : null}
 
       {lead && <LeadBlock leadId={lead.lead_id} />}
-      {item.project_id && <ProjectBlock projectId={item.project_id} onNavigate={onNavigate} />}
+      {item.project_id && <ProjectBlock projectId={item.project_id} taskId={lead ? undefined : item.id} onNavigate={onNavigate} />}
       {!lead && item.client_id && <ClientLine clientId={item.client_id} />}
 
       {onEdit && (

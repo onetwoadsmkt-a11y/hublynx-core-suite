@@ -113,6 +113,41 @@ export const getProjectAccess = createServerFn({ method: "GET" })
     };
   });
 
+/** Pessoas da equipe da empresa (sem clientes) para montar a equipe de um modelo de projeto. */
+export const listOrgTeamMembers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ organizationId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: isAdmin } = await db.rpc("is_org_admin", { _org: data.organizationId });
+    if (isAdmin !== true) throw new Error("Só o administrador da empresa pode montar a equipe do modelo.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as Db & { auth: any };
+    const { data: mem, error } = await admin
+      .from("organization_members")
+      .select("user_id, role")
+      .eq("organization_id", data.organizationId)
+      .eq("status", "active")
+      .neq("role", "guest");
+    if (error) throw new Error(error.message);
+    const ids = ((mem ?? []) as any[]).map((m) => m.user_id as string);
+    if (!ids.length) return [];
+    const { data: profiles } = await admin.from("profiles").select("id, full_name").in("id", ids);
+    const nameById = new Map(((profiles ?? []) as any[]).map((p) => [p.id, p.full_name]));
+    const out: { user_id: string; name: string; email: string | null }[] = [];
+    for (const m of (mem ?? []) as any[]) {
+      let email: string | null = null;
+      try {
+        const { data: u } = await admin.auth.admin.getUserById(m.user_id);
+        email = u?.user?.email ?? null;
+      } catch {
+        /* ignora */
+      }
+      out.push({ user_id: m.user_id, name: (nameById.get(m.user_id) as string) || email || "Usuário", email });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  });
+
 /** Pessoas da equipe da empresa (sem clientes) para adicionar ao projeto. */
 export const listOrgTeam = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -162,22 +197,8 @@ export const listOrgTeam = createServerFn({ method: "GET" })
  * projeto. Só libera esses dois módulos; o resto continua como o admin definiu.
  */
 async function grantProjectModules(admin: Db, organizationId: string, userId: string) {
-  const { data: mods } = await admin
-    .from("modules")
-    .select("id, code")
-    .in("code", ["projects", "tasks"]);
-  const rows = ((mods ?? []) as { id: string }[]).map((m) => ({
-    organization_id: organizationId,
-    user_id: userId,
-    module_id: m.id,
-    can_access: true,
-    updated_at: new Date().toISOString(),
-  }));
-  if (!rows.length) return;
-  const { error } = await admin
-    .from("user_module_permissions")
-    .upsert(rows, { onConflict: "organization_id,user_id,module_id" });
-  if (error) throw new Error(`Não foi possível liberar o módulo Projetos: ${error.message}`);
+  const { grantProjectModules: grant } = await import("./team.server");
+  await grant(admin, organizationId, userId);
 }
 
 export const setProjectMember = createServerFn({ method: "POST" })
@@ -559,8 +580,7 @@ export const setProjectLogo = createServerFn({ method: "POST" })
     return { logoUrl };
   });
 
-/** Endereço oficial do Core (link de quem é da equipe). */
-const CORE_ORIGIN = "https://core.hublynx.com.br";
+import { CORE_ORIGIN } from "@/lib/core-origin";
 
 /**
  * Link do projeto no Core para a equipe. Usa o endereço de onde o administrador está

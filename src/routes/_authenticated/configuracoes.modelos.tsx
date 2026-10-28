@@ -4,7 +4,7 @@ import { ptBR } from "date-fns/locale";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Trash2, Pencil, CalendarRange, AlertTriangle, ArrowUp, ArrowDown, Users, UserRound } from "lucide-react";
+import { Plus, Trash2, Pencil, CalendarRange, AlertTriangle, ArrowUp, ArrowDown, Users, UserRound, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,12 +18,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { listOrgTeamMembers } from "@/lib/projects/access.functions";
 import { supabase } from "@/integrations/supabase/client";
 import {
   listProjectTemplates,
   saveProjectTemplate,
   deleteProjectTemplate,
   type ProjectTemplate,
+  type TemplateMember,
 } from "@/lib/projects/stages.functions";
 import { useBrandPalette } from "@/hooks/useBrandPalette";
 import { datesToOffsets, isoAdd, isoDiff, offsetsToDates } from "@/lib/projects/template-dates";
@@ -49,7 +52,24 @@ export const Route = createFileRoute("/_authenticated/configuracoes/modelos")({
   component: TemplatesPage,
 });
 
-type TaskDraft = { title: string; due: string; responsible_type: "equipe" | "cliente" };
+type TaskDraft = {
+  title: string;
+  due: string;
+  responsible_type: "equipe" | "cliente";
+  /** pessoa da equipe do modelo que executa (null = equipe, sem pessoa) */
+  assignee_user_id: string | null;
+};
+
+const ROLE_LABEL: Record<TemplateMember["access_role"], string> = {
+  executor: "Executor (só as tarefas dele)",
+  editor: "Editor (todas as tarefas)",
+  gestor: "Gestor do projeto",
+  visualizador: "Só visualiza",
+};
+
+/** Valor do seletor "quem executa": cliente, equipe sem pessoa ou uma pessoa. */
+const whoValue = (t: TaskDraft) =>
+  t.responsible_type === "cliente" ? "cliente" : t.assignee_user_id ? `u:${t.assignee_user_id}` : "equipe";
 type StageDraft = {
   name: string;
   start: string;
@@ -83,6 +103,7 @@ function toDrafts(ref: string, t: ProjectTemplate): StageDraft[] {
       title: k.title,
       due: dated[i].tasks[j].due,
       responsible_type: k.responsible_type ?? "equipe",
+      assignee_user_id: k.assignee_user_id ?? null,
     })),
   }));
 }
@@ -216,7 +237,7 @@ function TemplatesPage() {
                   <Timeline stages={drafts} primary={primary} ink={ink} />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-muted-foreground">
-                  <span><strong className="text-foreground">{drafts.length}</strong> etapa(s) · <strong className="text-foreground">{drafts.reduce((n, s) => n + s.tasks.length, 0)}</strong> tarefa(s) padrão</span>
+                  <span><strong className="text-foreground">{drafts.length}</strong> etapa(s) · <strong className="text-foreground">{drafts.reduce((n, s) => n + s.tasks.length, 0)}</strong> tarefa(s) padrão{(t.members ?? []).length > 0 && <> · <strong className="text-foreground">{t.members.length}</strong> na equipe</>}</span>
                   {last && <span>Prazo total: <strong className="text-foreground">{isoDiff(last.end, ref) + 1} dias</strong> (se começasse hoje, até {br(last.end)})</span>}
                 </div>
               </div>
@@ -255,6 +276,16 @@ function TemplateDialog({
   const [description, setDescription] = useState("");
   const [ref, setRef] = useState(todayIso());
   const [stages, setStages] = useState<StageDraft[]>([]);
+  const [members, setMembers] = useState<TemplateMember[]>([]);
+  const [pick, setPick] = useState("");
+  const orgId = template?.organization_id ?? organizationId;
+  const teamFn = useServerFn(listOrgTeamMembers);
+  const teamQ = useQuery({
+    queryKey: ["org-team-members", orgId],
+    queryFn: () => teamFn({ data: { organizationId: orgId! } }),
+    enabled: open && !!orgId,
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -263,7 +294,25 @@ function TemplateDialog({
     setName(template?.name ?? "");
     setDescription(template?.description ?? "");
     setStages(template && template.stages.length ? toDrafts(r, template) : defaultDrafts(r));
+    setMembers(template?.members ?? []);
+    setPick("");
   }, [open, template]);
+
+  const available = (teamQ.data ?? []).filter((p) => !members.some((m) => m.user_id === p.user_id));
+  const addMember = (userId: string) => {
+    const p = (teamQ.data ?? []).find((x) => x.user_id === userId);
+    if (!p) return;
+    setMembers((d) => [...d, { user_id: p.user_id, name: p.name, email: p.email, department: null, access_role: "executor" }]);
+    setPick("");
+  };
+  const patchMember = (userId: string, p: Partial<TemplateMember>) =>
+    setMembers((d) => d.map((m) => (m.user_id === userId ? { ...m, ...p } : m)));
+  const removeMember = (userId: string) => {
+    setMembers((d) => d.filter((m) => m.user_id !== userId));
+    // tarefas dessa pessoa voltam para "Equipe"
+    setStages((d) => d.map((s) => ({ ...s, tasks: s.tasks.map((t) => (t.assignee_user_id === userId ? { ...t, assignee_user_id: null } : t)) })));
+  };
+  const memberLabel = (m: TemplateMember) => `${m.name || m.email || "Pessoa"}${m.department ? ` · ${m.department}` : ""}`;
 
   /** Mudar a data de referência leva todo o cronograma junto. */
   const moveRef = (next: string) => {
@@ -318,7 +367,15 @@ function TemplateDialog({
             due_offset_days: offsets[i].tasks[k].due_offset_days,
             responsible_type: t.responsible_type,
             visible_to_client: t.responsible_type === "cliente",
+            assignee_user_id: t.responsible_type === "cliente" ? null : t.assignee_user_id,
           })),
+        })),
+        members: members.map((m) => ({
+          user_id: m.user_id,
+          name: m.name,
+          email: m.email,
+          department: m.department?.trim() || null,
+          access_role: m.access_role,
         })),
       });
     },
@@ -351,6 +408,51 @@ function TemplateDialog({
 
           {/* Fundo mais escuro com as etapas em cards flutuantes */}
           <div className="flex-1 space-y-4 overflow-y-auto p-5" style={{ background: `color-mix(in oklab, ${ink} 72%, #070d1a)` }}>
+            {/* Equipe do modelo: entra no projeto ao aplicar o modelo */}
+            <section aria-label="Equipe do modelo" className="overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-black/5 dark:bg-card">
+              <div className="flex flex-wrap items-center gap-3 border-l-[6px] px-4 py-3" style={{ borderColor: primary, background: `color-mix(in oklab, ${primary} 8%, white)` }}>
+                <Users className="h-5 w-5 shrink-0" style={{ color: ink }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-lg font-extrabold tracking-tight" style={{ color: ink }}>Equipe do modelo</p>
+                  <p className="text-xs text-muted-foreground">Ao aplicar o modelo, estas pessoas entram no projeto (só com acesso ao módulo Projetos) e recebem as tarefas definidas para elas.</p>
+                </div>
+              </div>
+              <div className="space-y-2 p-4">
+                {members.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pessoa na equipe do modelo.</p>}
+                {members.map((m) => (
+                  <div key={m.user_id} className="grid items-center gap-2 rounded-xl border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_14rem_auto]">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{m.name || m.email}</p>
+                      {m.email && <p className="truncate text-xs text-muted-foreground">{m.email}</p>}
+                    </div>
+                    <Input value={m.department ?? ""} placeholder="Departamento (ex.: Compras)" className="h-9" maxLength={120}
+                      onChange={(e) => patchMember(m.user_id, { department: e.target.value })} aria-label={`Departamento de ${m.name}`} />
+                    <Select value={m.access_role} onValueChange={(v) => patchMember(m.user_id, { access_role: v as TemplateMember["access_role"] })}>
+                      <SelectTrigger className="h-9 text-xs" aria-label={`Papel de ${m.name}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(ROLE_LABEL) as TemplateMember["access_role"][]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={`Tirar ${m.name} da equipe do modelo`} onClick={() => removeMember(m.user_id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select value={pick} onValueChange={addMember} disabled={teamQ.isLoading || available.length === 0}>
+                    <SelectTrigger className="h-9 w-full sm:w-80" aria-label="Adicionar pessoa à equipe do modelo">
+                      <UserPlus className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder={teamQ.isLoading ? "Carregando equipe…" : available.length ? "Adicionar pessoa da empresa" : "Toda a equipe já está no modelo"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {available.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}{p.email && p.email !== p.name ? ` · ${p.email}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Pessoa nova ainda sem acesso? Convide pela aba Equipe e permissões de um projeto e depois inclua aqui.</p>
+                </div>
+              </div>
+            </section>
+
             {stages.map((s, i) => (
               <div key={i} className="overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-black/5 dark:bg-card">
                 <div className="flex items-center gap-3 border-l-[6px] px-4 py-3" style={{ borderColor: primary, background: `color-mix(in oklab, ${primary} 8%, white)` }}>
@@ -403,17 +505,35 @@ function TemplateDialog({
                   <div className="space-y-2 rounded-xl bg-muted/40 p-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tarefas padrão</p>
                     {s.tasks.map((t, k) => (
-                      <div key={k} className="grid grid-cols-[minmax(0,1fr)_150px_auto_auto] items-center gap-2">
+                      <div key={k} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_150px_14rem_auto]">
                         <Input value={t.title} placeholder="Tarefa" className="h-9 bg-white dark:bg-background" onChange={(e) => patchTask(i, k, { title: e.target.value })} />
-                        <Input type="date" value={t.due} min={s.start} className="h-9 bg-white dark:bg-background" aria-label="Prazo da tarefa" onChange={(e) => e.target.value && patchTask(i, k, { due: e.target.value })} />
-                        <Button
-                          type="button" variant="outline" size="sm"
-                          className={`h-9 px-2 text-[11px] ${t.responsible_type === "cliente" ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
-                          title="Quem executa: Equipe ou Cliente (o cliente conclui pelo portal)"
-                          onClick={() => patchTask(i, k, { responsible_type: t.responsible_type === "cliente" ? "equipe" : "cliente" })}
+                        <Input type="date" value={t.due} min={s.start} className="col-span-2 h-9 bg-white sm:col-span-1 dark:bg-background" aria-label="Prazo da tarefa" onChange={(e) => e.target.value && patchTask(i, k, { due: e.target.value })} />
+                        <Select
+                          value={whoValue(t)}
+                          onValueChange={(v) => patchTask(i, k, v === "cliente"
+                            ? { responsible_type: "cliente", assignee_user_id: null }
+                            : v === "equipe"
+                              ? { responsible_type: "equipe", assignee_user_id: null }
+                              : { responsible_type: "equipe", assignee_user_id: v.slice(2) })}
                         >
-                          {t.responsible_type === "cliente" ? <><UserRound className="mr-1 h-3.5 w-3.5" />Cliente</> : <><Users className="mr-1 h-3.5 w-3.5" />Equipe</>}
-                        </Button>
+                          <SelectTrigger
+                            className={`h-9 bg-white text-[12px] dark:bg-background ${t.responsible_type === "cliente" ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
+                            aria-label="Quem executa a tarefa"
+                          >
+                            {t.responsible_type === "cliente" ? <UserRound className="mr-1 h-3.5 w-3.5 shrink-0" /> : <Users className="mr-1 h-3.5 w-3.5 shrink-0" />}
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="equipe">Equipe (sem pessoa)</SelectItem>
+                            {members.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Equipe do modelo</SelectLabel>
+                                {members.map((m) => <SelectItem key={m.user_id} value={`u:${m.user_id}`}>{memberLabel(m)}</SelectItem>)}
+                              </SelectGroup>
+                            )}
+                            <SelectItem value="cliente">Cliente (conclui pelo portal)</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label="Remover tarefa padrão"
                           onClick={() => setStages((d) => d.map((x, j) => (j === i ? { ...x, tasks: x.tasks.filter((_, m) => m !== k) } : x)))}>
                           <Trash2 className="h-3.5 w-3.5" />
@@ -421,7 +541,7 @@ function TemplateDialog({
                       </div>
                     ))}
                     <Button variant="ghost" size="sm" className="h-8 text-xs" style={{ color: primary }}
-                      onClick={() => setStages((d) => d.map((x, j) => (j === i ? { ...x, tasks: [...x.tasks, { title: "", due: x.start, responsible_type: "equipe" }] } : x)))}>
+                      onClick={() => setStages((d) => d.map((x, j) => (j === i ? { ...x, tasks: [...x.tasks, { title: "", due: x.start, responsible_type: "equipe", assignee_user_id: null }] } : x)))}>
                       <Plus className="h-3.5 w-3.5" /> Tarefa padrão
                     </Button>
                   </div>

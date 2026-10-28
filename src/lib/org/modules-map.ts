@@ -42,3 +42,16 @@ export function orgModuleForPath(pathname: string): OrgModuleCode | null {
   }
   return null;
 }
+
+/**
+ * Pessoa da equipe de projeto: perfil comum, com o módulo Projetos e sem o Comercial.
+ * Ela enxerga só Projetos (e as tarefas designadas a ela); o resto do sistema fica oculto.
+ */
+export function isProjectOnlyAccess(a: { isSuperAdmin: boolean; isOrgAdmin: boolean; modules: string[] }) {
+  return !a.isSuperAdmin && !a.isOrgAdmin && a.modules.includes("projects") && !a.modules.includes("crm");
+}
+
+/** Páginas liberadas para quem é só da equipe de projeto. */
+export function projectOnlyAllows(pathname: string) {
+  return /^\/(projetos|minhas-tarefas|app)(\/|$)/.test(pathname);
+}

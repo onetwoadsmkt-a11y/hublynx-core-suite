@@ -9,6 +9,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { listPriorityAlerts, ackPriorityAlerts, type PriorityAlert } from "@/lib/tasks/priority-alerts.functions";
 import { alertKey, isOverdue, unackedAlerts } from "@/lib/tasks/pending";
 import { LeadLink } from "@/components/pipeline/LeadCardHost";
+import { AppLink } from "@/components/AppLink";
 import { cn } from "@/lib/utils";
 
 const LOCAL_KEY = "core_priority_acks";
@@ -118,6 +119,11 @@ export function PriorityAlertModal() {
                   {dueLabel(i.due)}{late ? " · atrasada" : ""}
                 </span>
                 {i.leadId && i.leadName && <LeadLink leadId={i.leadId} name={i.leadName} />}
+                {i.source === "task" && i.projectId && (
+                  <AppLink href={`/projetos/${i.projectId}?aba=etapas&tarefa=${i.id}`} className="font-medium text-primary hover:underline">
+                    Abrir na etapa do projeto
+                  </AppLink>
+                )}
               </div>
             </li>
           );

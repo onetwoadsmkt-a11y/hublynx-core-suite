@@ -31,7 +31,10 @@ import { ValuesLockToggle } from "@/components/security/ValuesLockToggle";
 import { useAccess } from "@/hooks/useAccess";
 import { capabilityForPath } from "@/lib/subscriptions/capabilities";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
-import { orgModuleForPath } from "@/lib/org/modules-map";
+import { isProjectOnlyAccess, orgModuleForPath } from "@/lib/org/modules-map";
+import { useMyTasks } from "@/hooks/useMyTasks";
+import { runTaskNotificationsNow } from "@/lib/tasks/my-tasks.functions";
+import { ClipboardList } from "lucide-react";
 import { CreditCard } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 import { PriorityAlertModal, usePriorityAlerts } from "@/components/tasks/PriorityAlerts";
@@ -94,6 +97,9 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
   });
   const { can } = useAccess();
   const org = useOrgAccess();
+  const projectOnly = isProjectOnlyAccess(org);
+  const mine = useMyTasks(!org.isLoading && !!org.activeOrg);
+  const myBadge = mine.late + mine.today;
   if (org.isLoading) {
     return (
       <nav className={`flex flex-col gap-2 ${collapsed ? "px-2" : "px-3"} py-4`} aria-busy="true">
@@ -121,6 +127,8 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
     .map((g) => ({
       ...g,
       items: g.items.filter((item) => {
+        // equipe de projeto: só Projetos
+        if (projectOnly) return item.to === "/projetos";
         // Módulos contratados pela empresa ativa mandam: se a empresa tem o módulo,
         // o item aparece; se não tem, fica oculto.
         const mod = orgModuleForPath(item.to);
@@ -183,6 +191,30 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                   )}
                 </Link>
               );
+              // "Minhas tarefas" (designadas a mim): abaixo de Prioridade na Agenda;
+              // em Projetos quando a pessoa não tem a Agenda.
+              const hasAgenda = org.hasModule("tasks") && !projectOnly;
+              const showMine = !collapsed && ((isTasks && hasAgenda) || (item.to === "/projetos" && !hasAgenda));
+              const mineLink = showMine && (
+                <Link
+                  key="/minhas-tarefas"
+                  to={"/minhas-tarefas" as any}
+                  onClick={onNavigate}
+                  className={`ml-7 flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium text-nav-label-fixed transition-colors ${
+                    pathname === "/minhas-tarefas" ? "bg-primary/10" : "hover:bg-muted"
+                  }`}
+                >
+                  <ClipboardList className={`h-3.5 w-3.5 shrink-0 ${mine.late > 0 ? "text-destructive" : ""}`} />
+                  <span className="flex-1">Minhas tarefas</span>
+                  {myBadge > 0 ? (
+                    <span className={`min-w-[18px] rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px] tabular-nums ${mine.late > 0 ? "bg-destructive text-destructive-foreground" : "bg-amber-400 text-amber-950"}`}>
+                      {myBadge > 99 ? "99+" : myBadge}
+                    </span>
+                  ) : mine.open > 0 ? (
+                    <span className="text-[11px] tabular-nums text-muted-foreground">{mine.open}</span>
+                  ) : null}
+                </Link>
+              );
               // Submenu "Prioridade" logo abaixo de Tarefas.
               const sub = isTasks && !collapsed && (
                 <Link
@@ -206,8 +238,8 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                     {item.label}{disabled ? " (inativo)" : ""}{badge > 0 ? ` · ${badge} prioritária${badge === 1 ? "" : "s"}` : ""}
                   </TooltipContent>
                 </Tooltip>
-              ) : sub ? (
-                <div key={item.to} className="flex flex-col gap-0.5">{link}{sub}</div>
+              ) : sub || mineLink ? (
+                <div key={item.to} className="flex flex-col gap-0.5">{link}{sub}{mineLink}</div>
               ) : (
                 link
               );
@@ -275,6 +307,33 @@ function UserMenu() {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/**
+ * Com o Core aberto, dispara os avisos de tarefas da empresa (e-mail ao designar e
+ * resumo diário) no máximo a cada 10 min por navegador. O agendamento do servidor
+ * (rota de automações) faz o mesmo mesmo com tudo fechado.
+ */
+function TaskNotificationsRunner() {
+  const org = useOrgAccess();
+  const runFn = useServerFn(runTaskNotificationsNow);
+  const orgId = org.activeOrg?.id;
+  useEffect(() => {
+    if (!orgId) return;
+    const key = `core_task_notify_${orgId}`;
+    const tick = () => {
+      let last = 0;
+      try { last = Number(localStorage.getItem(key) ?? 0); } catch { /* sem armazenamento */ }
+      if (Date.now() - last < 10 * 60_000) return;
+      try { localStorage.setItem(key, String(Date.now())); } catch { /* sem armazenamento */ }
+      runFn({ data: { organizationId: orgId } }).catch(() => {});
+    };
+    tick();
+    const id = setInterval(tick, 5 * 60_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]);
+  return null;
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -373,7 +432,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             HubLynx Core Suite · Todos os direitos reservados
           </footer>
         </main>
-        <PriorityAlertModal />
+        <TaskNotificationsRunner />
+      <PriorityAlertModal />
         <LeadCardHost />
       </div>
     </div>

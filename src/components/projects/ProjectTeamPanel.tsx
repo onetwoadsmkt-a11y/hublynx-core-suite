@@ -226,6 +226,7 @@ export function ProjectTeamPanel({
                 canManage={a.canManage}
                 onRemove={() => removeM.mutate(m)}
                 onEdit={() => setEditClient(m)}
+                onResend={m.email ? () => setEditClient(m) : undefined}
               />
             ))}
           </div>
@@ -557,15 +558,16 @@ function MemberCard({
       )}
       {canManage && onResend && (
         <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 shrink-0"
+          size="sm"
+          variant="outline"
+          className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
           disabled={resending}
-          aria-label="Reenviar convite com o link do Core"
-          title="Reenviar convite com o link do Core"
+          aria-label={`Reenviar por e-mail o acesso de ${name} ao projeto`}
+          title={m.access_role === "cliente" ? "Reenviar o acesso ao portal do projeto por e-mail" : "Reenviar o acesso ao projeto no Core por e-mail"}
           onClick={onResend}
         >
           <Mail className="h-4 w-4" />
+          <span className="hidden sm:inline">{resending ? "Enviando…" : "Reenviar acesso"}</span>
         </Button>
       )}
       {canManage && onEdit && (

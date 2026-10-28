@@ -237,9 +237,10 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const now = new Date();
     const totalTasks = tasks.length;
     const doneTasks = tasks.filter((t: any) => t.status === "concluido").length;
-    const overdueTasks = tasks.filter(
-      (t: any) => t.status !== "concluido" && t.due_date && new Date(t.due_date) < now,
-    ).length;
+    const overdueSorted = tasks
+      .filter((t: any) => t.status !== "concluido" && t.status !== "cancelado" && t.due_date && new Date(t.due_date) < now)
+      .sort((a: any, b: any) => String(a.due_date).localeCompare(String(b.due_date)));
+    const overdueTasks = overdueSorted.length;
     const progress = totalTasks
       ? Math.round((doneTasks / totalTasks) * 100)
       : ((project as any).progress ?? 0);
@@ -278,12 +279,14 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
       healthScore >= 75 ? "healthy" : healthScore >= 45 ? "attention" : "critical";
 
     // Alerts
-    const alerts: { type: string; message: string; severity: "warning" | "danger" }[] = [];
+    const alerts: { type: string; message: string; severity: "warning" | "danger"; taskId?: string }[] = [];
     if (overdueTasks > 0)
       alerts.push({
         type: "overdue",
         message: `${overdueTasks} tarefa(s) atrasada(s)`,
         severity: "danger",
+        // a mais antiga: o alerta leva direto a ela na aba Etapas
+        taskId: (overdueSorted[0] as any)?.id,
       });
     if (budgetUsage > 80)
       alerts.push({

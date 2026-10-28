@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -7,7 +8,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useNavigate } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 
 type Notification = {
   id: string;
@@ -19,9 +20,36 @@ type Notification = {
   created_at: string;
 };
 
+/** Som curto de aviso (duas notas), gerado no navegador — sem arquivo de áudio. */
+function playChime() {
+  try {
+    const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const t0 = ctx.currentTime;
+    [880, 1320].forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      const start = t0 + i * 0.16;
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + 0.28);
+      o.connect(g).connect(ctx.destination);
+      o.start(start);
+      o.stop(start + 0.3);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 900);
+  } catch {
+    /* navegador sem áudio ou bloqueado até o primeiro clique */
+  }
+}
+
 export function NotificationsBell() {
   const qc = useQueryClient();
-  const navigate = useNavigate();
+  const router = useRouter();
+  const go = (link: string) => router.history.push(link);
 
   const { data: items = [] } = useQuery({
     queryKey: ["notifications"],
@@ -34,12 +62,38 @@ export function NotificationsBell() {
     refetchInterval: 30000,
   });
 
+  // Aviso novo: som + mensagem na tela (com atalho para a tarefa) e atualiza o sino.
+  const seen = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const ch = supabase.channel(`notifications-bell-${Math.random().toString(36).slice(2)}`);
-    ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, () => {
-      qc.invalidateQueries({ queryKey: ["notifications"] });
-    }).subscribe();
-    return () => { supabase.removeChannel(ch); };
+    let alive = true;
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      if (!alive || !uid) return;
+      ch = supabase.channel(`notifications-bell-${uid}-${Math.random().toString(36).slice(2)}`);
+      ch.on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${uid}` },
+        (payload) => {
+          const n = payload.new as Notification;
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+          qc.invalidateQueries({ queryKey: ["my-assigned-tasks"] });
+          if (!n?.id || seen.current.has(n.id)) return;
+          seen.current.add(n.id);
+          playChime();
+          toast(n.title, {
+            description: n.body ?? undefined,
+            action: n.link ? { label: "Abrir", onClick: () => go(n.link!) } : undefined,
+            duration: 8000,
+          });
+        },
+      ).subscribe();
+    });
+    return () => {
+      alive = false;
+      if (ch) supabase.removeChannel(ch);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qc]);
 
   const unread = items.filter((n) => !n.read).length;
@@ -60,7 +114,7 @@ export function NotificationsBell() {
 
   function handleClick(n: Notification) {
     if (!n.read) markRead.mutate(n.id);
-    if (n.link) navigate({ to: n.link });
+    if (n.link) go(n.link);
   }
 
   return (
