@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { ProjectEvolution } from "@/components/projects/ProjectEvolution";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
@@ -213,9 +214,24 @@ function ProjectCommandCenter() {
       <div className="space-y-6 min-w-0">
         <ExecutiveHeader p={p} d={d} />
         <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} />
-        <Tabs defaultValue="evolution" className="min-w-0">
-          <div className="border-b">
-            <TabsList aria-label="Seções do projeto" className="flex h-auto w-full flex-wrap justify-start gap-x-1 gap-y-0 rounded-none bg-transparent p-0 text-sidebar-foreground">
+        <Tabs
+          defaultValue="evolution"
+          className="min-w-0"
+          onValueChange={() => {
+            // no celular/tablet a grade ocupa a tela: leva a pessoa ao conteúdo escolhido
+            if (typeof window !== "undefined" && window.innerWidth < 1024) {
+              requestAnimationFrame(() =>
+                document.getElementById("project-tab-content")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+              );
+            }
+          }}
+        >
+          {/* Celular e tablet: abas em grade (cartões com ícone). Computador: abas em linha. */}
+          <div className="lg:border-b">
+            <TabsList
+              aria-label="Seções do projeto"
+              className="grid h-auto w-full grid-cols-3 gap-2 rounded-none bg-transparent p-0 text-sidebar-foreground sm:grid-cols-4 md:grid-cols-6 lg:flex lg:flex-wrap lg:justify-start lg:gap-x-1 lg:gap-y-0"
+            >
               {[
                 ["evolution", "Evolução", TrendingUp], ["stages", "Etapas", Flag],
                 ["team", "Equipe e permissões", UsersIcon], ["journey", "Histórico e mensagens", MessagesSquare],
@@ -225,10 +241,25 @@ function ProjectCommandCenter() {
                 ["notes", "Notas & Decisões", FileText],
               ].map(([value, label, Icon]) => {
                 const TabIcon = Icon as typeof TrendingUp;
-                return <TabsTrigger key={String(value)} value={String(value)} className="flex-none gap-2 rounded-none border-b-2 border-transparent px-3 py-3 text-sidebar-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-sidebar-foreground data-[state=active]:shadow-none"><TabIcon className="h-4 w-4" />{String(label)}</TabsTrigger>;
+                return <TabsTrigger
+                    key={String(value)}
+                    value={String(value)}
+                    className={cn(
+                      // celular/tablet: cartão da grade
+                      "flex h-auto min-h-[76px] min-w-0 flex-col items-center justify-center gap-1.5 whitespace-normal rounded-xl border bg-card px-1.5 py-2.5 text-center text-[12px] font-medium leading-tight text-sidebar-foreground shadow-sm",
+                      "data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-none",
+                      // computador: aba sublinhada
+                      "lg:min-h-0 lg:flex-none lg:flex-row lg:gap-2 lg:whitespace-nowrap lg:rounded-none lg:border-0 lg:border-b-2 lg:border-transparent lg:bg-transparent lg:px-3 lg:py-3 lg:text-sm lg:shadow-none",
+                      "lg:data-[state=active]:border-primary lg:data-[state=active]:bg-transparent lg:data-[state=active]:font-medium",
+                    )}
+                  >
+                    <TabIcon className="h-5 w-5 shrink-0 lg:h-4 lg:w-4" />
+                    <span className="line-clamp-2 lg:line-clamp-none">{String(label)}</span>
+                  </TabsTrigger>;
               })}
             </TabsList>
           </div>
+          <div id="project-tab-content" className="scroll-mt-20" aria-hidden="true" />
           <TabsContent value="evolution"><ProjectEvolution projectId={id} disabled={p.commercial_model === "mensal_recorrente"} dueDate={p.due_date} /></TabsContent>
           <TabsContent value="stages"><RoadmapStagesPanel projectId={id} disabled={p.commercial_model === "mensal_recorrente"} disabledMessage="Roadmap indisponível para projetos do tipo Mensal Recorrente." /></TabsContent>
           <TabsContent value="journey"><ProjectJourneyPanel projectId={id} /></TabsContent>
