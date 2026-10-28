@@ -137,7 +137,7 @@ function PortalProjectPage() {
     queryFn: () => session.call((token) => getFn({ data: { token, projectId } })),
     enabled: session.ready,
     refetchInterval: 120_000,
-    retry: (n, e) => !String((e as Error)?.message).includes("NOT_CLIENT") && n < 2,
+    retry: (n, e) => !/NOT_CLIENT|TEAM_MEMBER/.test(String((e as Error)?.message)) && n < 2,
   });
 
   const [view, setView] = useState<View>("vertical");
@@ -275,7 +275,9 @@ function PortalProjectPage() {
         : stages,
     [stages, mineOnly],
   );
-  const notClient = q.isError && String((q.error as Error)?.message).includes("NOT_CLIENT");
+  const errMsg = q.isError ? String((q.error as Error)?.message) : "";
+  const teamProject = /TEAM_MEMBER:([0-9a-f-]{36})/i.exec(errMsg)?.[1] ?? null;
+  const notClient = errMsg.includes("NOT_CLIENT") || !!teamProject;
 
   return (
     <PortalShell
@@ -293,7 +295,7 @@ function PortalProjectPage() {
       {!session.ready || q.isLoading ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
       ) : notClient ? (
-        <NotClientCard email={session.email} projectRef={projectId} />
+        <NotClientCard email={session.email} projectRef={projectId} teamProjectId={teamProject} />
       ) : q.isError || !d ? (
         <div className="space-y-3 rounded-xl border bg-card p-6 text-sm">
           <p className="text-rose-600">Não foi possível carregar o projeto.</p>
@@ -1193,10 +1195,37 @@ function TaskRow({
 }
 
 /** Entrou com uma conta que não é cliente deste projeto. */
-function NotClientCard({ email, projectRef }: { email: string | null; projectRef: string }) {
+function NotClientCard({
+  email,
+  projectRef,
+  teamProjectId,
+}: {
+  email: string | null;
+  projectRef: string;
+  teamProjectId?: string | null;
+}) {
   async function switchAccount() {
     await portalAuth().auth.signOut();
     window.location.replace(portalLoginPath(projectRef));
+  }
+  if (teamProjectId) {
+    return (
+      <div className="space-y-3 rounded-2xl border bg-card p-6 text-sm">
+        <p className="font-medium">Você é da equipe deste projeto.</p>
+        <p className="text-muted-foreground">
+          Você entrou como <strong>{email ?? "usuário da equipe"}</strong>. O portal é a área do
+          cliente. Para executar e concluir as tarefas, abra o projeto no Core.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <a href={`/projetos/${teamProjectId}`}>Abrir o projeto no Core</a>
+          </Button>
+          <Button variant="outline" onClick={switchAccount}>
+            Entrar com a conta do cliente
+          </Button>
+        </div>
+      </div>
+    );
   }
   return (
     <div className="space-y-3 rounded-2xl border bg-card p-6 text-sm">

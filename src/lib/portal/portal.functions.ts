@@ -178,6 +178,24 @@ export const portalMyProjects = createServerFn({ method: "GET" })
     );
   });
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Id do projeto quando quem abriu o portal é da equipe (a regra de leitura do projeto confere). */
+async function teamProjectId(db: any, projectRef: string): Promise<string | null> {
+  try {
+    const q = db.from("projects").select("id").limit(1);
+    const { data } = UUID_RE.test(projectRef)
+      ? await q.eq("id", projectRef)
+      : await q.eq("portal_slug", projectRef.toLowerCase());
+    const id = (data?.[0]?.id as string | undefined) ?? null;
+    if (!id) return null;
+    const { data: ok } = await db.rpc("can_view_project", { _project: id });
+    return ok ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 export const portalProject = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ token, projectId: ref }).parse(d))
   .handler(async ({ data }) => {
@@ -185,7 +203,11 @@ export const portalProject = createServerFn({ method: "GET" })
     // aceita o link personalizado (ex.: 12-joao-silva-valesafe) ou o id do projeto
     const { data: id, error: rErr } = await db.rpc("portal_resolve", { _ref: data.projectId });
     if (rErr) throw new Error(rErr.message);
-    if (!id) throw new Error("NOT_CLIENT");
+    if (!id) {
+      // Conta da equipe abrindo o link do cliente: indica o projeto no Core.
+      const teamId = await teamProjectId(db, data.projectId);
+      throw new Error(teamId ? `TEAM_MEMBER:${teamId}` : "NOT_CLIENT");
+    }
     const { data: row, error } = await db.rpc("portal_project", { _project: id });
     if (error) throw new Error(error.message);
     const out = row as PortalProject;
