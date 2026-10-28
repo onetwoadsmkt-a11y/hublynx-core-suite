@@ -31,6 +31,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -211,6 +212,10 @@ export function RoadmapStagesPanel({
   });
   const meId = meQ.data ?? null;
   const [view, setView] = useState<"vertical" | "horizontal">("vertical");
+  const isMobile = useIsMobile();
+  // no celular o roadmap é sempre vertical (etapas empilhadas)
+  const effectiveView = isMobile ? "vertical" : view;
+  const [taskFilter, setTaskFilter] = useState<"todas" | "minhas" | "atrasadas">("todas");
 
   useEffect(() => {
     try {
@@ -489,7 +494,7 @@ export function RoadmapStagesPanel({
     const st = t && (stagesQ.data ?? []).find((x) => x.id === t.stage_id);
     if (!t || !st) return;
     focusedRef.current = focusTaskId;
-    if (view === "vertical") setExpanded((cur) => new Set(cur).add(st.id));
+    if (effectiveView === "vertical") setExpanded((cur) => new Set(cur).add(st.id));
     else setOpenStage(st);
     setHighlightId(t.id);
     const tryScroll = (n: number) => {
@@ -500,7 +505,16 @@ export function RoadmapStagesPanel({
     setTimeout(() => tryScroll(10), 100);
     const off = setTimeout(() => setHighlightId(null), 6000);
     return () => clearTimeout(off);
-  }, [focusTaskId, stageTasksQ.data, stagesQ.data, view]);
+  }, [focusTaskId, stageTasksQ.data, stagesQ.data, effectiveView]);
+
+  // Abre a etapa atual na primeira carga (sem aviso de tarefa)
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || focusTaskId || !stagesQ.data?.length) return;
+    autoOpened.current = true;
+    const cur = stagesQ.data.find((x) => x.status !== "done");
+    if (cur) setExpanded((c) => new Set(c).add(cur.id));
+  }, [stagesQ.data, focusTaskId]);
 
   if (disabled) {
     return (
@@ -528,6 +542,25 @@ export function RoadmapStagesPanel({
     if (!t.stage_id) continue;
     tasksByStage.set(t.stage_id, [...(tasksByStage.get(t.stage_id) ?? []), t]);
   }
+  const todayStart = new Date(new Date().toDateString()).getTime();
+  const isLate = (t: StageTask) =>
+    t.status !== "concluido" && t.status !== "cancelado" && !!t.due_date && new Date(t.due_date).getTime() < todayStart;
+  const myCount = allStageTasks.filter((t) => meId && t.assignee_id === meId && t.status !== "concluido").length;
+  const lateCount = allStageTasks.filter(isLate).length;
+  // lista mostrada (filtro Todas / Minhas / Atrasadas); o progresso usa sempre todas
+  const shownTasks = (stageId: string) => {
+    const list = tasksByStage.get(stageId) ?? [];
+    if (taskFilter === "minhas") return list.filter((t) => meId && t.assignee_id === meId);
+    if (taskFilter === "atrasadas") return list.filter(isLate);
+    return list;
+  };
+  const pickFilter = (f: "todas" | "minhas" | "atrasadas") => {
+    setTaskFilter(f);
+    if (f === "todas") return;
+    // abre as etapas que têm tarefas no filtro
+    const ids = stages.filter((st) => (tasksByStage.get(st.id) ?? []).some((t) => (f === "minhas" ? meId && t.assignee_id === meId : isLate(t)))).map((st) => st.id);
+    setExpanded((c) => new Set([...c, ...ids]));
+  };
   const stageProgress = (stageId: string) => {
     const list = tasksByStage.get(stageId) ?? [];
     const done = list.filter((t) => t.status === "concluido").length;
@@ -541,7 +574,7 @@ export function RoadmapStagesPanel({
   return (
     <AttachmentsContext.Provider value={attachCtx}>
       <TaskContext.Provider value={taskCtx}>
-      <Card className="rounded-2xl p-5">
+      <Card className="rounded-2xl p-3 sm:p-5">
         <div className="mb-4 grid min-w-0 gap-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
             <div className="min-w-0">
@@ -553,7 +586,7 @@ export function RoadmapStagesPanel({
             <div
               role="group"
               aria-label="Visualização do roadmap"
-              className="flex shrink-0 items-center gap-1 rounded-lg border bg-muted/50 p-1"
+              className="hidden shrink-0 items-center gap-1 rounded-lg border bg-muted/50 p-1 sm:flex"
             >
               {(
                 [
@@ -577,7 +610,28 @@ export function RoadmapStagesPanel({
               ))}
             </div>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          {/* Filtro das tarefas */}
+          <div role="group" aria-label="Mostrar tarefas" className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1 sm:max-w-md">
+            {([
+              ["todas", "Todas", null],
+              ["minhas", "Minhas", myCount],
+              ["atrasadas", "Atrasadas", lateCount],
+            ] as const).map(([k, label, n]) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={taskFilter === k}
+                onClick={() => pickFilter(k)}
+                className={[
+                  "h-10 rounded-lg text-[13px] font-semibold transition sm:h-8",
+                  taskFilter === k ? "bg-card text-foreground shadow-sm" : k === "atrasadas" && lateCount > 0 ? "text-rose-600" : "text-muted-foreground",
+                ].join(" ")}
+              >
+                {label}{n ? ` ${n}` : ""}
+              </button>
+            ))}
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
             {templates.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -618,7 +672,7 @@ export function RoadmapStagesPanel({
           <p className="text-xs text-muted-foreground">
             Nenhuma etapa cadastrada. Use “Editar etapas” ou aplique um modelo.
           </p>
-        ) : view === "vertical" ? (
+        ) : effectiveView === "vertical" ? (
           <ol className="space-y-3" aria-label="Etapas do projeto">
             {stages.map((s, i) => {
               const isDone = s.status === "done";
@@ -757,7 +811,7 @@ export function RoadmapStagesPanel({
                       {expanded.has(s.id) && (
                         <div className="mt-4 border-t pt-4">
                           <StageTasksPanel
-                            tasks={tasksByStage.get(s.id) ?? []}
+                            tasks={shownTasks(s.id)}
                             loading={stageTasksQ.isLoading}
                             assignees={assignees}
                             canManageTeam={canManageTeam}
@@ -893,7 +947,7 @@ export function RoadmapStagesPanel({
         <StageTasksDialog
           stage={openStage}
           onOpenChange={(o) => !o && setOpenStage(null)}
-          tasks={openStage ? (tasksByStage.get(openStage.id) ?? []) : []}
+          tasks={openStage ? shownTasks(openStage.id) : []}
           loading={stageTasksQ.isLoading}
           assignees={assignees}
           canManageTeam={canManageTeam}
@@ -1501,8 +1555,8 @@ function StageTasksPanel({
           <p className="text-xs text-muted-foreground">Carregando tarefas...</p>
         ) : tasks.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            Nenhuma tarefa nesta etapa. Adicione abaixo — ela aparece também na Central de
-            Execuções.
+            Nenhuma tarefa aqui com este filtro. Adicione abaixo — ela aparece também na
+            Central de Execuções.
           </p>
         ) : (
           <>
@@ -1537,11 +1591,11 @@ function StageTasksPanel({
             if (e.key === "Enter") submit();
           }}
           placeholder="Nova tarefa desta etapa"
-          className="bg-background"
+          className="h-11 bg-background text-[15px] sm:h-9 sm:text-sm"
         />
         <Input
           type="date"
-          className="bg-background"
+          className="h-11 bg-background sm:h-9"
           value={due}
           onChange={(e) => setDue(e.target.value)}
           aria-label="Prazo da tarefa"
@@ -1551,9 +1605,9 @@ function StageTasksPanel({
           onChange={setWho}
           assignees={assignees}
           canManageTeam={canManageTeam}
-          className="h-9 bg-background"
+          className="h-11 bg-background sm:h-9"
         />
-        <Button onClick={submit} disabled={adding} className="h-9">
+        <Button onClick={submit} disabled={adding} className="h-11 sm:h-9">
           <Plus className="h-4 w-4" /> Adicionar
         </Button>
         <div className="flex flex-wrap items-center gap-2 sm:col-span-4">
@@ -1681,13 +1735,15 @@ function StageTaskRow({
     <div
       id={`stage-task-${t.id}`}
       className={[
-        "scroll-mt-24 rounded-lg border border-transparent transition-shadow",
-        isDone ? "bg-accent/50" : "hover:bg-accent/40",
+        "scroll-mt-24 rounded-xl border transition-shadow max-sm:mb-2 max-sm:shadow-sm sm:rounded-lg sm:border-transparent",
+        isDone ? "bg-accent/50" : "max-sm:bg-card sm:hover:bg-accent/40",
         highlighted ? "border-primary bg-primary/5 ring-2 ring-primary/40" : "",
+        !highlighted && late(t) ? "max-sm:border-rose-200 max-sm:bg-rose-50/60" : "",
       ].join(" ")}
     >
-      <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 sm:flex-nowrap">
+      <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 sm:flex-nowrap sm:px-2 sm:py-1.5">
         <Checkbox
+          className="h-5 w-5 sm:h-4 sm:w-4"
           checked={isDone}
           disabled={!canEdit}
           onCheckedChange={(v) => onToggle(t.id, v === true)}
@@ -1696,7 +1752,7 @@ function StageTaskRow({
         />
         <span
           className={[
-            "min-w-0 flex-1 text-sm",
+            "min-w-0 flex-1 text-[15px] font-semibold leading-snug sm:text-sm sm:font-normal",
             isDone ? "text-muted-foreground line-through" : "",
           ].join(" ")}
         >
@@ -1705,6 +1761,7 @@ function StageTaskRow({
             <span className="ml-1.5 rounded-full bg-primary/15 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-primary">sua</span>
           )}
         </span>
+        <div className="flex w-full items-center gap-1.5 pl-7 sm:contents">
         <ResponsibleSelect
           disabled={!canAll}
           value={who}
@@ -1720,7 +1777,7 @@ function StageTaskRow({
           canManageTeam={canManageTeam}
           compact
           className={[
-            "h-7 w-[11rem] shrink-0 rounded-full px-2.5 text-[11px] font-medium",
+            "h-10 min-w-0 flex-1 rounded-lg px-2.5 text-xs font-medium sm:h-7 sm:w-[11rem] sm:flex-none sm:shrink-0 sm:rounded-full sm:text-[11px]",
             isClient ? "border-amber-300 bg-amber-50 text-amber-800" : "",
           ].join(" ")}
         />
@@ -1728,7 +1785,7 @@ function StageTaskRow({
           <button
             type="button"
             onClick={() => onPatch({ task_id: t.id, visible_to_client: !t.visible_to_client })}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground max-sm:border sm:h-auto sm:w-auto"
             title={
               t.visible_to_client
                 ? "O cliente acompanha esta tarefa no portal"
@@ -1750,7 +1807,7 @@ function StageTaskRow({
             onClick={() => setShowFiles((v) => !v)}
             aria-expanded={showFiles}
             className={[
-              "inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px]",
+              "inline-flex h-10 shrink-0 items-center gap-1 rounded-lg px-2.5 text-[11px] max-sm:border sm:h-7 sm:rounded-full sm:px-2",
               files.length
                 ? "bg-sky-100 font-medium text-sky-800 dark:bg-sky-500/15 dark:text-sky-300"
                 : "text-muted-foreground hover:text-foreground",
@@ -1762,6 +1819,7 @@ function StageTaskRow({
             {files.length > 0 && files.length}
           </button>
         )}
+        </div>
       </div>
       {attach && showFiles && (
         <div className="px-2 pb-2.5 pl-8">
@@ -1781,6 +1839,9 @@ function StageTaskRow({
     </div>
   );
 }
+
+const late = (t: StageTask) =>
+  t.status !== "concluido" && !!t.due_date && new Date(t.due_date) < new Date(new Date().toDateString());
 
 const dayOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-CA") : "");
 
@@ -1819,7 +1880,7 @@ function TaskDatesButton({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] hover:bg-muted ${late ? "font-semibold text-rose-600" : "text-muted-foreground hover:text-foreground"}`}
+          className={`inline-flex h-10 shrink-0 items-center gap-1 rounded-lg px-2.5 text-xs hover:bg-muted max-sm:border sm:h-7 sm:rounded-full sm:px-2 sm:text-[11px] ${late ? "font-semibold text-rose-600 max-sm:border-rose-200" : "text-muted-foreground hover:text-foreground"}`}
           title="Editar datas da tarefa"
           aria-label={`Datas da tarefa: ${label}`}
         >
@@ -1885,7 +1946,7 @@ function TaskMessages({ t, ctx }: { t: StageTask; ctx: TaskCtx }) {
     }
   }
   return (
-    <div className="space-y-1.5 px-2 pb-2 pl-8">
+    <div className="space-y-1.5 px-2.5 pb-2.5 sm:px-2 sm:pb-2 sm:pl-8">
       {list.length > 2 && (
         <button type="button" onClick={() => setAll((v) => !v)} className="text-[11px] font-medium text-primary hover:underline">
           {all ? "Mostrar só as últimas" : `Ver todas as mensagens (${list.length})`}
@@ -1905,7 +1966,7 @@ function TaskMessages({ t, ctx }: { t: StageTask; ctx: TaskCtx }) {
         </div>
       ))}
       <div className="flex items-center gap-1.5">
-        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <MessageSquare className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
         <Input
           value={body}
           onChange={(e) => setBody(e.target.value)}
@@ -1918,19 +1979,19 @@ function TaskMessages({ t, ctx }: { t: StageTask; ctx: TaskCtx }) {
           maxLength={4000}
           placeholder={vis === "cliente" ? "Mensagem para o cliente (portal)…" : "Mensagem para a equipe…"}
           aria-label={`Mensagem na tarefa ${t.title}`}
-          className={`h-8 min-w-0 flex-1 text-xs ${vis === "cliente" ? "border-amber-300 bg-amber-50/60 dark:bg-amber-500/5" : "bg-background"}`}
+          className={`h-11 min-w-0 flex-1 text-[15px] sm:h-8 sm:text-xs ${vis === "cliente" ? "border-amber-300 bg-amber-50/60 dark:bg-amber-500/5" : "bg-background"}`}
         />
         <button
           type="button"
           onClick={() => setVis((v) => (v === "equipe" ? "cliente" : "equipe"))}
-          className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-medium ${vis === "cliente" ? "border-amber-300 text-amber-800 dark:text-amber-300" : "text-muted-foreground"}`}
+          className={`inline-flex h-11 shrink-0 items-center gap-1 rounded-md border px-2.5 text-xs font-medium sm:h-8 sm:px-2 sm:text-[11px] ${vis === "cliente" ? "border-amber-300 text-amber-800 dark:text-amber-300" : "text-muted-foreground"}`}
           title="Trocar destino: equipe (interna) ou cliente (portal)"
           aria-label={`Destino: ${vis === "cliente" ? "cliente" : "equipe"}. Clique para trocar.`}
         >
           {vis === "cliente" ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-          <span className="hidden sm:inline">{vis === "cliente" ? "Cliente" : "Equipe"}</span>
+          <span>{vis === "cliente" ? "Cliente" : "Equipe"}</span>
         </button>
-        <Button size="icon" className="h-8 w-8 shrink-0" disabled={!body.trim() || sending} onClick={send} aria-label="Enviar mensagem">
+        <Button size="icon" className="h-11 w-11 shrink-0 sm:h-8 sm:w-8" disabled={!body.trim() || sending} onClick={send} aria-label="Enviar mensagem">
           <Send className="h-3.5 w-3.5" />
         </Button>
       </div>

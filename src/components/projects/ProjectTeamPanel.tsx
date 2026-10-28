@@ -191,6 +191,17 @@ export function ProjectTeamPanel({
         </Card>
       )}
 
+      {a.canManage && (
+        <div className="grid grid-cols-2 gap-2 sm:hidden">
+          <Button className="h-12 rounded-xl text-[15px] font-bold" onClick={() => setAddOpen(true)}>
+            <UserPlus className="h-4 w-4" /> Pessoa
+          </Button>
+          <Button variant="outline" className="h-12 rounded-xl border-amber-300 bg-amber-50 text-[15px] font-bold text-amber-900 hover:bg-amber-100" onClick={() => setInviteOpen(true)}>
+            <Mail className="h-4 w-4" /> Cliente
+          </Button>
+        </div>
+      )}
+
       <PortalLinkCard
         projectId={projectId}
         url={a.portalUrl}
@@ -207,7 +218,7 @@ export function ProjectTeamPanel({
             <ShieldCheck className="h-4 w-4" /> Cliente no portal
           </h3>
           {a.canManage && (
-            <Button size="sm" variant="outline" onClick={() => setInviteOpen(true)}>
+            <Button size="sm" variant="outline" className="hidden sm:inline-flex" onClick={() => setInviteOpen(true)}>
               <Mail className="h-4 w-4" /> Convidar cliente
             </Button>
           )}
@@ -238,9 +249,10 @@ export function ProjectTeamPanel({
         <div className="mb-2 flex items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <Users className="h-4 w-4" /> Equipe do projeto
+            <span className="text-muted-foreground">({staff.length})</span>
           </h3>
           {a.canManage && (
-            <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+            <Button size="sm" variant="outline" className="hidden sm:inline-flex" onClick={() => setAddOpen(true)}>
               <UserPlus className="h-4 w-4" /> Adicionar pessoa
             </Button>
           )}
@@ -519,12 +531,12 @@ function MemberCard({
   const info = ROLE_INFO[m.access_role] ?? ROLE_INFO.editor;
   const name = m.name || m.email || "Sem nome";
   return (
-    <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-3.5 max-sm:border-0 max-sm:shadow-[0_1px_2px_rgba(10,37,87,.06),0_8px_24px_rgba(10,37,87,.06)] sm:flex-nowrap sm:rounded-xl sm:p-3">
+      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary sm:h-10 sm:w-10">
         {name.slice(0, 2).toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{name}</p>
+        <p className="truncate text-[15px] font-semibold sm:text-sm sm:font-medium">{name}</p>
         <p className="truncate text-xs text-muted-foreground">
           {m.email ?? (m.user_id ? "" : "sem login no sistema")}
           {m.role && m.access_role !== "cliente" ? ` · ${m.role}` : ""}
@@ -535,12 +547,14 @@ function MemberCard({
           </p>
         )}
       </div>
+      {/* celular: papel e reenviar ficam numa linha própria, com botões grandes */}
+      <div className="flex w-full items-center gap-2 max-sm:order-last sm:contents">
       {canManage && onRole && m.user_id ? (
         <Select
           value={m.access_role}
           onValueChange={(v) => onRole(v as (typeof STAFF_ROLES)[number])}
         >
-          <SelectTrigger className="h-8 w-[130px] text-xs">
+          <SelectTrigger className="h-11 flex-1 text-sm sm:h-8 sm:w-[130px] sm:flex-none sm:text-xs" aria-label={`Papel de ${name}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -560,21 +574,22 @@ function MemberCard({
         <Button
           size="sm"
           variant="outline"
-          className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+          className="h-11 flex-1 gap-1.5 px-2.5 text-sm font-semibold sm:h-8 sm:flex-none sm:shrink-0 sm:text-xs sm:font-medium"
           disabled={resending}
           aria-label={`Reenviar por e-mail o acesso de ${name} ao projeto`}
           title={m.access_role === "cliente" ? "Reenviar o acesso ao portal do projeto por e-mail" : "Reenviar o acesso ao projeto no Core por e-mail"}
           onClick={onResend}
         >
           <Mail className="h-4 w-4" />
-          <span className="hidden sm:inline">{resending ? "Enviando…" : "Reenviar acesso"}</span>
+          <span>{resending ? "Enviando…" : "Reenviar acesso"}</span>
         </Button>
       )}
+      </div>
       {canManage && onEdit && (
         <Button
           size="icon"
           variant="ghost"
-          className="h-8 w-8 shrink-0"
+          className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
           aria-label="Editar nome e e-mail / reenviar acesso"
           title="Editar nome e e-mail / reenviar acesso"
           onClick={onEdit}
@@ -586,8 +601,8 @@ function MemberCard({
         <Button
           size="icon"
           variant="ghost"
-          className="h-8 w-8 shrink-0 text-rose-600"
-          aria-label="Remover acesso"
+          className="h-11 w-11 shrink-0 text-rose-600 sm:h-8 sm:w-8"
+          aria-label={`Remover o acesso de ${name}`}
           onClick={() => {
             if (confirm(`Remover o acesso de ${name} a este projeto?`)) onRemove();
           }}

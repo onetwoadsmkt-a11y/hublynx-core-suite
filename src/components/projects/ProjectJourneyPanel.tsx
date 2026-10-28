@@ -33,11 +33,11 @@ export function ProjectJourneyPanel({ projectId }: { projectId: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
   return (
-    <Card className="mt-5 rounded-2xl p-5">
+    <Card className="mt-4 rounded-2xl p-3 sm:mt-5 sm:p-5">
       <h3 className="mb-1 flex items-center gap-2 font-semibold">
         <History className="h-4 w-4" /> Histórico e mensagens
       </h3>
-      <p className="mb-4 text-xs text-muted-foreground">
+      <p className="mb-4 hidden text-xs text-muted-foreground sm:block">
         Registro da jornada: tarefas concluídas, comentários, arquivos, etapas e mensagens — com
         quem fez e quando. O cliente vê no portal só o que é dele ou visível para ele.
       </p>

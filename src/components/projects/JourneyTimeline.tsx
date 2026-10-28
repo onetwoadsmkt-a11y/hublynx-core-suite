@@ -158,29 +158,32 @@ export function JourneyTimeline({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {onSend && (
-        <div className="flex items-end gap-2">
+        // celular: campo de envio fixo no rodapé, como num app de mensagens
+        <div className="flex items-end gap-2 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:order-last max-sm:-mx-3 max-sm:-mb-3 max-sm:border-t max-sm:bg-background/95 max-sm:p-3 max-sm:backdrop-blur">
           <Textarea
             rows={2}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder={placeholder}
-            className="min-h-[64px] text-sm"
+            aria-label={placeholder}
+            className="min-h-[52px] text-[15px] sm:min-h-[64px] sm:text-sm"
             maxLength={4000}
           />
           <Button
             type="button"
             disabled={!body.trim() || sending}
             onClick={send}
-            className="h-11 shrink-0 gap-1.5"
+            aria-label="Enviar mensagem"
+            className="h-12 w-12 shrink-0 gap-1.5 p-0 sm:h-11 sm:w-auto sm:px-4"
           >
-            <Send className="h-4 w-4" /> Enviar
+            <Send className="h-4 w-4" /> <span className="hidden sm:inline">Enviar</span>
           </Button>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar histórico">
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible" role="group" aria-label="Filtrar histórico">
         {FILTERS.map((f) => (
           <button
             key={f.id}
@@ -188,7 +191,7 @@ export function JourneyTimeline({
             onClick={() => setFilter(f.id)}
             aria-pressed={filter === f.id}
             className={cn(
-              "min-h-9 rounded-full border px-3 text-xs font-medium transition",
+              "min-h-9 shrink-0 rounded-full border px-3.5 text-[13px] font-medium transition sm:text-xs",
               filter === f.id
                 ? "border-primary bg-primary text-primary-foreground"
                 : "bg-background text-muted-foreground hover:text-foreground",

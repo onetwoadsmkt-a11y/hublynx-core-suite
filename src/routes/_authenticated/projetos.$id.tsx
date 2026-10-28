@@ -32,8 +32,11 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock,
   TrendingUp, DollarSign, Users as UsersIcon, Calendar as CalIcon, AlertCircle,
   Activity as ActivityIcon, FileText, Target, Briefcase, Flag, Hourglass,
-  ListChecks, ArrowRight, Sparkles, Wallet, MessagesSquare,
+  ListChecks, ArrowRight, Sparkles, Wallet, MessagesSquare, MoreHorizontal, ChevronLeft,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   Tooltip as RTooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -220,9 +223,44 @@ function ProjectCommandCenter() {
   const p: any = d.project;
 
   return (
-    <div className="p-4 md:p-6 max-w-[1600px] mx-auto">
+    <div className="max-w-[1600px] mx-auto md:p-6">
+      {/* Celular: barra fixa com voltar, nome e ações */}
+      <div className="sticky top-0 z-20 -mx-4 -mt-4 mb-4 flex items-center gap-1 border-b bg-background/95 px-2 py-1.5 backdrop-blur md:hidden">
+        <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" asChild>
+          <Link to="/projetos" aria-label="Voltar para Projetos"><ChevronLeft className="h-6 w-6" /></Link>
+        </Button>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] leading-tight text-muted-foreground">{p.project_number ? `Projeto Nº ${p.project_number}` : "Projeto"}</p>
+          <p className="truncate text-[15px] font-bold leading-tight">{p.name}</p>
+        </div>
+        {(canEdit || canManage) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label="Mais ações do projeto">
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {canEdit && (
+                <DropdownMenuItem className="min-h-11" onSelect={() => setEditOpen(true)}>
+                  <Pencil className="mr-2 h-4 w-4" /> Editar projeto
+                </DropdownMenuItem>
+              )}
+              {canManage && (
+                <DropdownMenuItem
+                  className="min-h-11 text-rose-600 focus:text-rose-700"
+                  onSelect={() => { if (confirm("Excluir este projeto?")) delM.mutate(); }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Excluir projeto
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-2 mb-4">
+      <div className="mb-4 hidden items-center justify-between gap-2 md:flex">
         <Button variant="ghost" size="sm" asChild>
           <Link to="/projetos"><ArrowLeft className="h-4 w-4" /> Voltar</Link>
         </Button>
@@ -241,8 +279,9 @@ function ProjectCommandCenter() {
         </div>
       </div>
 
-      <div className="space-y-6 min-w-0">
-        <ExecutiveHeader p={p} d={d} />
+      <div className="min-w-0 space-y-4 md:space-y-6">
+        <MobileSummary p={p} d={d} />
+        <div className="hidden md:block"><ExecutiveHeader p={p} d={d} /></div>
         <AlertsBar alerts={d.alerts} nextMilestone={d.nextMilestone} onOpenTask={openTask} />
         <Tabs
           value={tab}
@@ -366,9 +405,63 @@ function ExecutiveHeader({ p, d }: any) {
   );
 }
 
+// Celular: resumo do projeto (status, progresso, prazo, Nova tarefa) + 4 indicadores
+function MobileSummary({ p, d }: any) {
+  const pct = Math.max(0, Math.min(100, Number(d.kpis?.progress ?? 0)));
+  const days = d.kpis?.daysRemaining as number | null;
+  const health = d.health as "healthy" | "attention" | "critical";
+  const healthChip = { healthy: ["Em dia", "bg-emerald-300 text-emerald-950"], attention: ["Atenção", "bg-amber-200 text-amber-950"], critical: ["Crítico", "bg-rose-300 text-rose-950"] }[health] ?? ["", ""];
+  const tiles = [
+    { label: "Tarefas", value: `${d.kpis.doneTasks}/${d.kpis.totalTasks}`, sub: d.kpis.overdueTasks > 0 ? `${d.kpis.overdueTasks} atrasada(s)` : "em dia", late: d.kpis.overdueTasks > 0 },
+    { label: "Prazo", value: days === null ? "—" : days < 0 ? `${Math.abs(days)}d` : `${days}d`, sub: days === null ? "sem prazo" : days < 0 ? "de atraso" : "restantes", late: days !== null && days < 0 },
+    { label: "Equipe", value: String(d.kpis.memberCount ?? 0), sub: "pessoas", late: false },
+    { label: "Riscos", value: String(d.kpis.openIssues ?? 0), sub: "abertos", late: (d.kpis.openIssues ?? 0) > 0 },
+  ];
+  return (
+    <div className="space-y-3 md:hidden">
+      <section aria-label="Resumo do projeto" className="space-y-3.5 rounded-2xl bg-[var(--brand-dark,#0a2557)] p-4 text-white">
+        <div className="flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
+          {healthChip[0] && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${healthChip[1]}`}>{healthChip[0]}</span>}
+          {p.service_type && <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
+        </div>
+        <div className="flex items-center gap-3.5">
+          <div
+            role="img"
+            aria-label={`Progresso ${pct}%`}
+            className="grid h-16 w-16 shrink-0 place-items-center rounded-full"
+            style={{ background: `conic-gradient(#00D084 0 ${pct}%, rgba(255,255,255,.18) ${pct}% 100%)` }}
+          >
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-[var(--brand-dark,#0a2557)] text-[15px] font-extrabold">{pct}%</span>
+          </div>
+          <div className="min-w-0 flex-1 space-y-1 text-[13px] text-white/80">
+            {p.client && <p className="truncate"><strong className="text-white">Cliente:</strong> {p.client.name}</p>}
+            <p><strong className="text-white">Prazo:</strong> {fmtDate(p.start_date)} → {fmtDate(p.due_date)}</p>
+            {days !== null && (
+              <p className={days < 0 ? "font-semibold text-rose-200" : ""}>
+                <strong className="text-white">{Math.abs(days)} dias</strong> {days < 0 ? "de atraso" : "restantes"}
+              </p>
+            )}
+          </div>
+        </div>
+        <QuickCreateTaskButton projectId={p.id} clientId={p.client?.id ?? null} full />
+      </section>
+      <section aria-label="Indicadores" className="grid grid-cols-2 gap-2.5">
+        {tiles.map((t) => (
+          <div key={t.label} className="rounded-xl bg-card px-3.5 py-3 shadow-sm">
+            <p className="text-xs text-muted-foreground">{t.label}</p>
+            <p className="mt-0.5 text-[22px] font-extrabold leading-tight tabular-nums">{t.value}</p>
+            <p className={`text-xs ${t.late ? "font-semibold text-rose-600" : "text-muted-foreground"}`}>{t.sub}</p>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}
+
 function QuickCreateTaskButton({
-  projectId, clientId,
-}: { projectId: string; clientId: string | null; projectName?: string; clientName?: string | null }) {
+  projectId, clientId, full = false,
+}: { projectId: string; clientId: string | null; projectName?: string; clientName?: string | null; full?: boolean }) {
   const qc = useQueryClient();
   const [taskId, setTaskId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -403,8 +496,14 @@ function QuickCreateTaskButton({
 
   return (
     <>
-      <Button onClick={handleCreate} disabled={creating} className="bg-[#00D084] hover:bg-[#00b873] text-white">
-        <Plus className="h-4 w-4 mr-2" /> {creating ? "Criando..." : "Criar tarefa"}
+      <Button
+        onClick={handleCreate}
+        disabled={creating}
+        className={full
+          ? "h-12 w-full rounded-xl bg-[#00D084] text-[15px] font-bold text-[#04281A] hover:bg-[#00b873]"
+          : "bg-[#00D084] hover:bg-[#00b873] text-white"}
+      >
+        <Plus className="h-4 w-4 mr-2" /> {creating ? "Criando..." : full ? "Nova tarefa" : "Criar tarefa"}
       </Button>
       <TaskDrawer
         taskId={taskId}
@@ -431,10 +530,10 @@ function AlertsBar({ alerts, nextMilestone, onOpenTask }: any) {
     info: "bg-blue-50 border-blue-200 text-blue-800",
   };
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
       {all.map((a, i) => {
         const Icon = icon[a.type] ?? Sparkles;
-        const cls = `flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${tone[a.severity]}`;
+        const cls = `flex min-h-11 w-full items-center gap-2 rounded-xl border px-3.5 py-2 text-left text-sm font-medium sm:min-h-0 sm:w-auto sm:rounded-full sm:px-3 sm:py-1.5 sm:text-xs ${tone[a.severity]}`;
         // tarefa atrasada: clicar leva à etapa e à tarefa
         if (a.taskId && onOpenTask) {
           return (
