@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   ShieldCheck,
+  Search,
   Trash2,
   UserPlus,
   Users,
@@ -52,6 +53,7 @@ import {
   updatePortalSlug,
   type ProjectMemberRow,
 } from "@/lib/projects/access.functions";
+import { listProjectStageTasks } from "@/lib/projects/stages.functions";
 
 export const ROLE_INFO: Record<string, { label: string; desc: string; tone: string }> = {
   gestor: {
@@ -214,7 +216,7 @@ export function ProjectTeamPanel({
       {/* Cliente */}
       <section>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <h3 className="flex items-center gap-2 text-sm font-semibold lg:text-base lg:font-extrabold">
             <ShieldCheck className="h-4 w-4" /> Cliente no portal
           </h3>
           {a.canManage && (
@@ -229,7 +231,15 @@ export function ProjectTeamPanel({
             tarefas dele pelo portal.
           </p>
         ) : (
-          <div className="grid gap-2 md:grid-cols-2">
+          <>
+          <MemberTable
+            rows={clients}
+            canManage={a.canManage}
+            onRemove={(m) => removeM.mutate(m)}
+            onEdit={(m) => setEditClient(m)}
+            onResend={(m) => setEditClient(m)}
+          />
+          <div className="grid gap-2 md:grid-cols-2 lg:hidden">
             {clients.map((m) => (
               <MemberCard
                 key={m.id}
@@ -241,26 +251,37 @@ export function ProjectTeamPanel({
               />
             ))}
           </div>
+          </>
         )}
       </section>
 
       {/* Equipe */}
       <section>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <h3 className="flex items-center gap-2 text-sm font-semibold lg:text-base lg:font-extrabold">
             <Users className="h-4 w-4" /> Equipe do projeto
             <span className="text-muted-foreground">({staff.length})</span>
           </h3>
           {a.canManage && (
-            <Button size="sm" variant="outline" className="hidden sm:inline-flex" onClick={() => setAddOpen(true)}>
-              <UserPlus className="h-4 w-4" /> Adicionar pessoa
+            <Button size="sm" className="hidden font-bold sm:inline-flex" onClick={() => setAddOpen(true)}>
+              <UserPlus className="h-4 w-4" /> Pessoa da equipe
             </Button>
           )}
         </div>
         {staff.length === 0 ? (
           <p className="text-sm text-muted-foreground">Ninguém adicionado ainda.</p>
         ) : (
-          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          <>
+          <MemberTable
+            rows={staff}
+            projectId={projectId}
+            canManage={a.canManage}
+            onRemove={(m) => removeM.mutate(m)}
+            onRole={(m, r) => roleM.mutate({ id: m.id, accessRole: r })}
+            onResend={(m) => resendM.mutate(m)}
+            resendingId={resendM.isPending ? resendM.variables?.id ?? null : null}
+          />
+          <div className="grid gap-2 md:grid-cols-2 lg:hidden">
             {staff.map((m) => (
               <MemberCard
                 key={m.id}
@@ -275,6 +296,7 @@ export function ProjectTeamPanel({
               />
             ))}
           </div>
+          </>
         )}
       </section>
 
@@ -508,6 +530,212 @@ function RoleSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+const initialsOf = (s: string) =>
+  s
+    .replace(/[^\p{L}\p{N} @.]/gu, "")
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase() || "?";
+
+/**
+ * Computador: equipe/cliente em lista (uma pessoa por linha) — nome e e-mail sempre visíveis,
+ * departamento, papel, situação das tarefas e ações compactas.
+ */
+function MemberTable({
+  rows,
+  projectId,
+  canManage,
+  onRemove,
+  onRole,
+  onEdit,
+  onResend,
+  resendingId = null,
+}: {
+  rows: ProjectMemberRow[];
+  projectId?: string;
+  canManage: boolean;
+  onRemove: (m: ProjectMemberRow) => void;
+  onRole?: (m: ProjectMemberRow, r: (typeof STAFF_ROLES)[number]) => void;
+  onEdit?: (m: ProjectMemberRow) => void;
+  onResend?: (m: ProjectMemberRow) => void;
+  resendingId?: string | null;
+}) {
+  const isClient = !projectId;
+  const tasksFn = useServerFn(listProjectStageTasks);
+  const tasksQ = useQuery({
+    queryKey: ["project-stage-tasks", projectId],
+    queryFn: () => tasksFn({ data: { project_id: projectId! } }),
+    enabled: !!projectId,
+    staleTime: 60_000,
+  });
+  const [q, setQ] = useState("");
+  const [onlyLate, setOnlyLate] = useState(false);
+  const load = useMemo(() => {
+    const today = new Date(new Date().toDateString()).getTime();
+    const m = new Map<string, { open: number; late: number }>();
+    for (const t of tasksQ.data ?? []) {
+      if (!t.assignee_id || t.status === "concluido" || t.status === "cancelado") continue;
+      const cur = m.get(t.assignee_id) ?? { open: 0, late: 0 };
+      cur.open += 1;
+      if (t.due_date && new Date(t.due_date).getTime() < today) cur.late += 1;
+      m.set(t.assignee_id, cur);
+    }
+    return m;
+  }, [tasksQ.data]);
+  const lateCount = rows.filter((m) => (m.user_id ? load.get(m.user_id)?.late ?? 0 : 0) > 0).length;
+  const shown = rows.filter((m) => {
+    const text = `${m.name ?? ""} ${m.email ?? ""} ${m.role ?? ""}`.toLowerCase();
+    if (q && !text.includes(q.toLowerCase())) return false;
+    if (onlyLate && !((m.user_id ? load.get(m.user_id)?.late ?? 0 : 0) > 0)) return false;
+    return true;
+  });
+  // colunas fixas iguais no cabeçalho e em cada linha (cada linha é uma grade própria)
+  const cols = isClient
+    ? "lg:grid-cols-[minmax(240px,2.2fr)_minmax(120px,1fr)_160px_minmax(150px,1fr)_240px]"
+    : "lg:grid-cols-[minmax(240px,2.2fr)_minmax(120px,1fr)_160px_minmax(150px,1fr)_124px]";
+  return (
+    <div className="hidden overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgba(10,23,60,.06),0_10px_28px_rgba(10,23,60,.06)] lg:block">
+      {!isClient && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
+          <div className="relative w-72 max-w-full">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar pessoa…" aria-label="Buscar pessoa" className="h-9 pl-9" />
+          </div>
+          <div role="group" aria-label="Filtrar equipe" className="flex gap-1.5">
+            <button
+              type="button"
+              aria-pressed={!onlyLate}
+              onClick={() => setOnlyLate(false)}
+              className={`h-8 rounded-full px-3 text-[13px] font-semibold ${!onlyLate ? "bg-[var(--brand-dark,#0a2557)] text-white" : "border bg-background"}`}
+            >
+              Todos {rows.length}
+            </button>
+            <button
+              type="button"
+              aria-pressed={onlyLate}
+              onClick={() => setOnlyLate(true)}
+              className={`h-8 rounded-full px-3 text-[13px] font-semibold ${onlyLate ? "bg-[var(--brand-dark,#0a2557)] text-white" : "border bg-background"}`}
+            >
+              Com atraso {lateCount}
+            </button>
+          </div>
+        </div>
+      )}
+      <div className={`grid gap-4 bg-muted/40 px-5 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground ${cols}`}>
+        <span>{isClient ? "Cliente" : "Pessoa"}</span>
+        <span>Departamento</span>
+        <span>Papel</span>
+        <span>{isClient ? "Acesso" : "Tarefas"}</span>
+        <span className="text-right">Ações</span>
+      </div>
+      {shown.length === 0 && <p className="px-5 py-4 text-sm text-muted-foreground">Ninguém encontrado.</p>}
+      {shown.map((m) => {
+        const name = m.name || m.email || "Sem nome";
+        const l = m.user_id ? load.get(m.user_id) : undefined;
+        const busy = resendingId === m.id;
+        return (
+          <div key={m.id} className={`grid items-center gap-4 border-t px-5 py-3 ${cols} ${isClient ? "bg-amber-50/50 dark:bg-amber-500/5" : ""}`}>
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-extrabold ${isClient ? "bg-amber-100 text-amber-900" : "bg-primary/15 text-foreground"}`}
+                aria-hidden="true"
+              >
+                {initialsOf(name)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-bold" title={name}>{name}</p>
+                <p className="truncate text-[13px] text-muted-foreground" title={m.email ?? undefined}>
+                  {m.email ?? (m.user_id ? "" : "sem login no sistema")}
+                </p>
+              </div>
+            </div>
+            <span className={`truncate text-sm ${m.role ? "" : "text-muted-foreground"}`}>{m.role || "—"}</span>
+            <div>
+              {canManage && onRole && m.user_id ? (
+                <Select value={m.access_role} onValueChange={(v) => onRole(m, v as (typeof STAFF_ROLES)[number])}>
+                  <SelectTrigger className="h-9 text-sm" aria-label={`Papel de ${name}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STAFF_ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {ROLE_INFO[r].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Badge variant="outline" className={`text-xs ${(ROLE_INFO[m.access_role] ?? ROLE_INFO.editor).tone}`}>
+                  {(ROLE_INFO[m.access_role] ?? ROLE_INFO.editor).label}
+                </Badge>
+              )}
+            </div>
+            <div>
+              {isClient ? (
+                <span className="inline-flex rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                  {m.invited_at ? `Convidado em ${new Date(m.invited_at).toLocaleDateString("pt-BR")}` : "Acesso pelo portal"}
+                </span>
+              ) : !l ? (
+                <span className="inline-flex rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">Nenhuma tarefa</span>
+              ) : l.late > 0 ? (
+                <span className="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700">
+                  {l.open} em aberto · {l.late} atrasada{l.late > 1 ? "s" : ""}
+                </span>
+              ) : (
+                <span className="inline-flex rounded-full bg-[var(--task-ontime-bg)] px-2.5 py-1 text-xs font-bold text-[var(--task-ontime-fg)]">
+                  {l.open} em aberto · em dia
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-1.5">
+              {canManage && onResend && (isClient ? !!m.email : !!(m.user_id && m.email)) &&
+                (isClient ? (
+                  <Button size="sm" variant="outline" className="h-9" onClick={() => onResend(m)} title="Reenviar o acesso ao portal do projeto por e-mail">
+                    <Mail className="h-4 w-4" /> Reenviar acesso
+                  </Button>
+                ) : (
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-9 w-9"
+                    disabled={busy}
+                    onClick={() => onResend(m)}
+                    aria-label={`Reenviar o acesso de ${name} por e-mail`}
+                    title="Reenviar acesso por e-mail"
+                  >
+                    <Mail className="h-4 w-4" />
+                  </Button>
+                ))}
+              {canManage && onEdit && (
+                <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => onEdit(m)} aria-label={`Editar ${name}`} title="Editar nome e e-mail">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+              {canManage && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-9 w-9 text-rose-600 hover:text-rose-700"
+                  aria-label={`Remover o acesso de ${name}`}
+                  title="Remover do projeto"
+                  onClick={() => {
+                    if (confirm(`Remover o acesso de ${name} a este projeto?`)) onRemove(m);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
