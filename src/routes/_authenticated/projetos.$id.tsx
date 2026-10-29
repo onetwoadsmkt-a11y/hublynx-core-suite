@@ -376,41 +376,41 @@ function ExecutiveHeader({ p, d }: any) {
   return (
     <section
       aria-label="Resumo do projeto"
-      className="flex flex-wrap items-center gap-6 rounded-2xl bg-[var(--brand-dark,#0a2557)] px-6 py-5 text-white shadow-[0_12px_32px_rgba(10,37,87,.18)]"
+      className="flex flex-wrap items-center gap-6 rounded-2xl bg-[var(--band-bg)] px-6 py-5 text-[var(--band-fg)] shadow-[0_12px_32px_rgba(10,37,87,.18)]"
     >
       <div
         role="img"
         aria-label={`Progresso ${pct}%`}
         className="grid h-[88px] w-[88px] shrink-0 place-items-center rounded-full"
-        style={{ background: `conic-gradient(#00D084 0 ${pct}%, rgba(255,255,255,.18) ${pct}% 100%)` }}
+        style={{ background: `conic-gradient(var(--band-ring) 0 ${pct}%, var(--band-ring-track) ${pct}% 100%)` }}
       >
-        <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--brand-dark,#0a2557)] text-xl font-extrabold">{pct}%</span>
+        <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--band-bg)] text-xl font-extrabold">{pct}%</span>
       </div>
       <div className="min-w-[260px] flex-1 space-y-2">
         <div className="flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
+          <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
           {healthChip[0] && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${healthChip[1]}`}>{healthChip[0]}</span>}
-          {p.commercial_model && <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{COMMERCIAL_LABEL[p.commercial_model]}</span>}
-          {p.service_type && <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
+          {p.commercial_model && <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{COMMERCIAL_LABEL[p.commercial_model]}</span>}
+          {p.service_type && <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
         </div>
         <div className="flex items-center gap-3">
           {p.logo_url && <img src={p.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1" />}
           <h1 className="min-w-0 text-2xl font-extrabold tracking-tight">
-            {p.project_number ? <span className="text-white/60">Nº {p.project_number} · </span> : null}
+            {p.project_number ? <span className="text-[var(--band-sub)]">Nº {p.project_number} · </span> : null}
             {p.name}
           </h1>
         </div>
-        <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/80">
+        <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-[var(--band-sub)]">
           {p.client && <span className="inline-flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" />{p.client.name}</span>}
           <span className="inline-flex items-center gap-1.5"><CalIcon className="h-3.5 w-3.5" />{fmtDate(p.start_date)} → {fmtDate(p.due_date)}</span>
         </p>
       </div>
       <div className="grid grid-cols-4 gap-2">
         {tiles.map((t) => (
-          <div key={t.label} className="min-w-[92px] rounded-xl bg-white/10 px-3.5 py-2.5">
-            <p className="text-xs text-white/70">{t.label}</p>
+          <div key={t.label} className="min-w-[92px] rounded-xl bg-[var(--band-tile)] px-3.5 py-2.5">
+            <p className="text-xs text-[var(--band-sub)]">{t.label}</p>
             <p className="text-[22px] font-extrabold leading-tight tabular-nums">{t.value}</p>
-            <p className={`text-xs ${t.late ? "font-bold text-rose-200" : "text-white/70"}`}>{t.sub}</p>
+            <p className={`text-xs ${t.late ? "font-bold text-[var(--band-late)]" : "text-[var(--band-sub)]"}`}>{t.sub}</p>
           </div>
         ))}
       </div>
@@ -435,27 +435,27 @@ function MobileSummary({ p, d }: any) {
   ];
   return (
     <div className="space-y-3 md:hidden">
-      <section aria-label="Resumo do projeto" className="space-y-3.5 rounded-2xl bg-[var(--brand-dark,#0a2557)] p-4 text-white">
+      <section aria-label="Resumo do projeto" className="space-y-3.5 rounded-2xl bg-[var(--band-bg)] p-4 text-[var(--band-fg)]">
         <div className="flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
+          <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
           {healthChip[0] && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${healthChip[1]}`}>{healthChip[0]}</span>}
-          {p.service_type && <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
+          {p.service_type && <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
         </div>
         <div className="flex items-center gap-3.5">
           <div
             role="img"
             aria-label={`Progresso ${pct}%`}
             className="grid h-16 w-16 shrink-0 place-items-center rounded-full"
-            style={{ background: `conic-gradient(#00D084 0 ${pct}%, rgba(255,255,255,.18) ${pct}% 100%)` }}
+            style={{ background: `conic-gradient(var(--band-ring) 0 ${pct}%, var(--band-ring-track) ${pct}% 100%)` }}
           >
-            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-[var(--brand-dark,#0a2557)] text-[15px] font-extrabold">{pct}%</span>
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-[var(--band-bg)] text-[15px] font-extrabold">{pct}%</span>
           </div>
-          <div className="min-w-0 flex-1 space-y-1 text-[13px] text-white/80">
-            {p.client && <p className="truncate"><strong className="text-white">Cliente:</strong> {p.client.name}</p>}
-            <p><strong className="text-white">Prazo:</strong> {fmtDate(p.start_date)} → {fmtDate(p.due_date)}</p>
+          <div className="min-w-0 flex-1 space-y-1 text-[13px] text-[var(--band-sub)]">
+            {p.client && <p className="truncate"><strong className="text-[var(--band-fg)]">Cliente:</strong> {p.client.name}</p>}
+            <p><strong className="text-[var(--band-fg)]">Prazo:</strong> {fmtDate(p.start_date)} → {fmtDate(p.due_date)}</p>
             {days !== null && (
-              <p className={days < 0 ? "font-semibold text-rose-200" : ""}>
-                <strong className="text-white">{Math.abs(days)} dias</strong> {days < 0 ? "de atraso" : "restantes"}
+              <p className={days < 0 ? "font-semibold text-[var(--band-late)]" : ""}>
+                <strong className="text-[var(--band-fg)]">{Math.abs(days)} dias</strong> {days < 0 ? "de atraso" : "restantes"}
               </p>
             )}
           </div>
@@ -516,8 +516,8 @@ function QuickCreateTaskButton({
         onClick={handleCreate}
         disabled={creating}
         className={full
-          ? "h-12 w-full rounded-xl bg-[#00D084] text-[15px] font-bold text-[#04281A] hover:bg-[#00b873]"
-          : "h-11 rounded-xl bg-[#00D084] px-5 text-[15px] font-extrabold text-[#04281A] hover:bg-[#00b873]"}
+          ? "h-12 w-full rounded-xl bg-[var(--band-cta-bg)] text-[15px] font-bold text-[var(--band-cta-fg)] hover:opacity-90"
+          : "h-11 rounded-xl bg-[var(--band-cta-bg)] px-5 text-[15px] font-extrabold text-[var(--band-cta-fg)] hover:opacity-90"}
       >
         <Plus className="h-4 w-4 mr-2" /> {creating ? "Criando..." : "Nova tarefa"}
       </Button>

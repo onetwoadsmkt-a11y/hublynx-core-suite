@@ -74,6 +74,23 @@
 :root {
   --radius: 0.75rem;
 
+  /* Faixa de resumo e estados das tarefas do módulo Projetos.
+     Padrão: faixa azul-marinho. Marca de cor clara (ex.: amarelo) troca via BrandTheme. */
+  --band-bg: var(--brand-dark);
+  --band-fg: oklch(1 0 0);
+  --band-sub: rgb(255 255 255 / 0.78);
+  --band-tile: rgb(255 255 255 / 0.10);
+  --band-chip: rgb(255 255 255 / 0.15);
+  --band-ring: var(--primary);
+  --band-ring-track: rgb(255 255 255 / 0.18);
+  --band-cta-bg: var(--primary);
+  --band-cta-fg: var(--primary-foreground);
+  --band-late: oklch(0.85 0.08 25);
+  --task-ontime-bg: oklch(0.97 0.015 240);
+  --task-ontime-fg: oklch(0.38 0.09 245);
+  --task-today-bg: oklch(0.95 0.06 85);
+  --task-today-fg: oklch(0.42 0.1 65);
+
   /* Hublynx brand */
   --brand-dark: oklch(0.22 0.08 263);   /* #071A3D */
   --brand-deep: oklch(0.15 0.06 263);   /* #050F24 */

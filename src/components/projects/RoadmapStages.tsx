@@ -1706,7 +1706,7 @@ function StageTasksPanel({
             {variant === "cards" ? (
               <div className="flex flex-col gap-3">
                 {pending.map((t) => (
-                  <StageTaskCard key={t.id} t={t} {...rowProps} />
+                  <StageTaskCard key={t.id} t={t} seq={tasks.indexOf(t) + 1} {...rowProps} />
                 ))}
               </div>
             ) : (
@@ -1867,19 +1867,21 @@ function cardState(t: StageTask) {
       band: "bg-rose-100 text-rose-900 dark:bg-rose-500/15 dark:text-rose-200",
       ring: "ring-2 ring-rose-500 shadow-[0_12px_32px_rgba(180,35,24,.14)]",
     };
-  if (days === 0) return { label: "Vence hoje", band: "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200", ring: "ring-1 ring-amber-300" };
-  return { label: `Em dia · faltam ${days} dia${days > 1 ? "s" : ""}`, band: "bg-sky-50 text-sky-900 dark:bg-sky-500/10 dark:text-sky-200", ring: "" };
+  if (days === 0) return { label: "Vence hoje", band: "bg-[var(--task-today-bg)] text-[var(--task-today-fg)]", ring: "ring-2 ring-[var(--task-today-bg)]" };
+  return { label: `Em dia · faltam ${days} dia${days > 1 ? "s" : ""}`, band: "bg-[var(--task-ontime-bg)] text-[var(--task-ontime-fg)]", ring: "" };
 }
 
 /** Cartão de tarefa em destaque (computador): faixa de estado, responsável, datas, mensagem e Concluir. */
 function StageTaskCard({
   t,
+  seq,
   onToggle,
   onPatch,
   assignees,
   canManageTeam,
 }: {
   t: StageTask;
+  seq?: number;
   onToggle: (taskId: string, done: boolean) => void;
   onPatch: (v: TaskPatch) => void;
   assignees: Assignee[];
@@ -1908,7 +1910,7 @@ function StageTaskCard({
       ].join(" ")}
     >
       <div className={`flex items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-extrabold ${st.band}`}>
-        <span>{st.label}</span>
+        <span>{seq ? `${seq} · ` : ""}{st.label}</span>
         <span className="flex gap-1.5">
           {prio && <span className="rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-bold">{prio}</span>}
           {mine && !isDone && <span className="rounded-full bg-[var(--brand-dark,#0a2557)] px-2 py-0.5 text-[11px] font-bold text-white">Sua</span>}
@@ -1987,7 +1989,7 @@ function StageTaskCard({
           {ctx && <div className="min-w-0 flex-1"><TaskMessages t={t} ctx={ctx} card /></div>}
           {canEdit && !isDone && !isClient && (
             <Button
-              className="h-11 w-full shrink-0 rounded-xl bg-[#00D084] text-[15px] font-extrabold text-[#04281A] hover:bg-[#00b873] sm:w-48"
+              className="h-11 w-full shrink-0 rounded-xl bg-primary text-[15px] font-extrabold text-primary-foreground hover:bg-primary/90 sm:w-48"
               onClick={() => onToggle(t.id, true)}
             >
               <Check className="h-4 w-4" /> Concluir tarefa
