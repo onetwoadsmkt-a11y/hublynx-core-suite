@@ -34,6 +34,8 @@ export type OrganizationOption = {
   /** White label da empresa. */
   logoUrl: string | null;
   brandColor: string | null;
+  /** Administrador da plataforma atendendo esta empresa (não é membro dela). */
+  support: boolean;
 };
 
 type WorkspaceContextValue = {
@@ -109,6 +111,7 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
         modules: o.modules,
         logoUrl: o.logoUrl ?? null,
         brandColor: o.brandColor ?? null,
+        support: !!o.support,
       })),
     [data],
   );
@@ -116,13 +119,39 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
   // Valida a empresa persistida; se o usuário não pertence mais, escolhe uma válida.
   const activeOrganization = useMemo(() => {
     if (organizations.length === 0) return null;
-    const org = organizations.find((o) => o.id === selectedId) ?? organizations[0];
+    // sem escolha salva: a empresa da própria conta (nunca um assinante em modo suporte)
+    const org =
+      organizations.find((o) => o.id === selectedId) ??
+      organizations.find((o) => !o.support) ??
+      organizations[0];
     if (!org) return null;
     return org.status === "trial" && trialHasExpired(org.trialExpiresAt)
       ? { ...org, status: "expired", modules: [] } : org;
   }, [organizations, selectedId]);
 
 
+
+  // Administrador da plataforma: o banco só mostra os dados da empresa escolhida
+  // (modo suporte para assinantes; a própria empresa sem mistura).
+  const isSuper = !!data?.isSuperAdmin;
+  const [supportSynced, setSupportSynced] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isSuper || !activeOrganization) return;
+    const target = activeOrganization.support ? activeOrganization.id : null;
+    const key = target ?? `own:${activeOrganization.id}`;
+    if (supportSynced === key) return;
+    let alive = true;
+    (supabase as any)
+      .rpc("set_support_org", { _org: target })
+      .then(() => {
+        if (!alive) return;
+        setSupportSynced(key);
+        qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "my-org-access" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [isSuper, activeOrganization?.id, activeOrganization?.support, supportSynced, qc]);
 
   useEffect(() => {
     if (!activeOrganization || typeof window === "undefined") return;

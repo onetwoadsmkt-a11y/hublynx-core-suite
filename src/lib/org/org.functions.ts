@@ -12,6 +12,8 @@ export type OrgSummary = {
   role: string;
   /** Códigos de módulo habilitados para a organização E liberados para o usuário. */
   modules: string[];
+  /** Administrador da plataforma acessando uma empresa da qual não é membro (modo suporte). */
+  support?: boolean;
   /** White label: logo da empresa (URL pública) e cor da marca (#RRGGBB). */
   logoUrl: string | null;
   brandColor: string | null;
@@ -52,11 +54,21 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
     let orgRows: any[] = [];
     let roleByOrg = new Map<string, string>();
 
+    const memberOf = new Set<string>();
     if (isSuperAdmin) {
-      const { data, error } = await admin.from("organizations").select(ORG_COLUMNS).order("name");
+      // lista todas as empresas pelo servidor (as regras do banco mostram só a empresa atendida)
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const sa = supabaseAdmin as unknown as { from: (t: string) => any };
+      const { data, error } = await sa.from("organizations").select(ORG_COLUMNS).order("name");
       if (error) throw new Error("Não foi possível carregar empresas.");
       orgRows = (data ?? []) as any[];
       for (const o of orgRows) roleByOrg.set(o.id, "super_admin");
+      const { data: mine } = await sa
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", userId)
+        .eq("status", "active");
+      for (const m of (mine ?? []) as any[]) memberOf.add(m.organization_id);
     } else {
       const { data: members, error: memberError } = await admin
         .from("organization_members")
@@ -79,7 +91,10 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
     const orgIds = orgRows.map((o) => o.id as string);
     if (orgIds.length === 0) return { isSuperAdmin, organizations: [] };
 
-    const { data: orgModules, error: orgModError } = await admin
+    const reader = isSuperAdmin
+      ? ((await import("@/integrations/supabase/client.server")).supabaseAdmin as unknown as { from: (t: string) => any })
+      : admin;
+    const { data: orgModules, error: orgModError } = await reader
       .from("organization_modules")
       .select("organization_id, module_id, enabled")
       .in("organization_id", orgIds);
@@ -120,6 +135,7 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
         modules: effectiveModules(status, enabled, role, allowed),
         logoUrl: o.logo_url ?? null,
         brandColor: o.brand_color ?? null,
+        support: isSuperAdmin && !memberOf.has(o.id),
       };
     });
 

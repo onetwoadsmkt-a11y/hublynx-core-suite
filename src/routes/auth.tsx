@@ -8,6 +8,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { HublynxLogo } from "@/components/HublynxLogo";
 import { toast } from "sonner";
 import { goAfterLogin } from "@/lib/auth-redirect";
+import { useServerFn } from "@tanstack/react-start";
+import { requestSignup } from "@/lib/auth/signup.functions";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -44,6 +46,12 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [company, setCompany] = useState("");
+  const [website, setWebsite] = useState("");
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const signupFn = useServerFn(requestSignup);
+  const confirmed =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("confirmado") === "1";
 
   useEffect(() => {
     // Listener registrado ANTES da checagem inicial de sessão.
@@ -86,7 +94,12 @@ function AuthPage() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      if (/not confirmed/i.test(error.message))
+        return toast.error("Confirme seu e-mail pelo link que enviamos antes de entrar.");
+      if (/invalid login credentials/i.test(error.message)) return toast.error("E-mail ou senha incorretos.");
+      return toast.error(error.message);
+    }
     toast.success("Bem-vindo de volta!");
     goAfterLogin();
   }
@@ -94,22 +107,14 @@ function AuthPage() {
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: { full_name: fullName },
-      },
-    });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    toast.success(
-      data.session
-        ? "Conta criada! Seu teste de 14 dias começou."
-        : "Confira seu e-mail para confirmar o cadastro e acessar seu teste de 14 dias.",
-    );
-    setTab("login");
+    try {
+      const r = await signupFn({ data: { fullName, company, email, website } });
+      setSentTo(r.email);
+    } catch (err) {
+      toast.error((err as Error).message || "Não foi possível criar a conta.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleReset() {
@@ -173,6 +178,12 @@ function AuthPage() {
             </TabsList>
 
             <TabsContent value="login" className="mt-0">
+              {confirmed && (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                  E-mail confirmado! Entre com o e-mail e a <strong>senha provisória</strong> que enviamos. Em seguida você
+                  cria a sua senha.
+                </div>
+              )}
               <h2 className="font-display text-3xl font-semibold text-foreground">
                 Bem-vindo de volta!
               </h2>
@@ -270,6 +281,33 @@ function AuthPage() {
               </h2>
               <p className="mt-1 text-sm text-primary">14 dias de teste com acesso automático.</p>
 
+              {sentTo ? (
+                <div className="mt-8 space-y-4 rounded-2xl border bg-card p-5">
+                  <p className="text-lg font-semibold">Confira seu e-mail</p>
+                  <p className="text-sm text-muted-foreground">
+                    Enviamos para <strong className="text-foreground">{sentTo}</strong> o link de confirmação e a sua senha
+                    provisória. Confirme o e-mail e entre com essa senha; no primeiro acesso você cria a sua.
+                  </p>
+                  <p className="text-xs text-muted-foreground">Não chegou? Veja a caixa de spam ou peça de novo em alguns minutos.</p>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={() => setSentTo(null)}>
+                      Enviar de novo
+                    </Button>
+                    <Button
+                      type="button"
+                      className="bg-[#00D084] text-[#04281A] hover:bg-[#00b873]"
+                      onClick={() => {
+                        setEmail(sentTo);
+                        setPassword("");
+                        setSentTo(null);
+                        setTab("login");
+                      }}
+                    >
+                      Ir para Entrar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
               <form onSubmit={handleSignup} className="space-y-4 mt-8">
                 <div className="space-y-2">
                   <Label htmlFor="fn">Nome completo</Label>
@@ -292,17 +330,24 @@ function AuthPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password2">Senha</Label>
-                  <Input
-                    id="password2"
-                    type="password"
-                    required
-                    minLength={6}
-                    placeholder="Mínimo 6 caracteres"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                  <Label htmlFor="company">Nome da empresa</Label>
+                  <Input id="company" required value={company} onChange={(e) => setCompany(e.target.value)} />
                 </div>
+                {/* campo invisível contra robôs */}
+                <input
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  className="hidden"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  name="website"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Você recebe um e-mail da Hublynx com o link de confirmação e uma senha provisória. No primeiro acesso
+                  você cria a sua senha.
+                </p>
                 <Button
                   type="submit"
                   className="w-full bg-[#00D084] hover:bg-[#00b873] text-white"
@@ -311,6 +356,7 @@ function AuthPage() {
                   {loading ? "Criando..." : "Criar conta"}
                 </Button>
               </form>
+              )}
 
               <p className="mt-6 text-sm text-center text-muted-foreground">
                 Já tem uma conta?{" "}

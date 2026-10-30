@@ -1,3 +1,4 @@
+import { ChangePasswordDialog } from "@/components/security/ChangePasswordDialog";
 import { type ReactNode, useState, useEffect } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
@@ -9,7 +10,7 @@ import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
 import { HublynxLogo } from "./HublynxLogo";
-import { clearBrandCache } from "@/hooks/useWorkspace";
+import { clearBrandCache, useWorkspace } from "@/hooks/useWorkspace";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ import { useOrgAccess } from "@/hooks/useOrgAccess";
 import { isProjectOnlyAccess, orgModuleForPath } from "@/lib/org/modules-map";
 import { useMyTasks } from "@/hooks/useMyTasks";
 import { runTaskNotificationsNow } from "@/lib/tasks/my-tasks.functions";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, KeyRound } from "lucide-react";
 import { CreditCard } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 import { PriorityAlertModal, usePriorityAlerts } from "@/components/tasks/PriorityAlerts";
@@ -264,6 +265,7 @@ function UserMenu() {
       const meta = (u.user.user_metadata ?? {}) as Record<string, string | undefined>;
       return {
         email: u.user.email,
+        mustChangePassword: (u.user.user_metadata as Record<string, unknown> | undefined)?.must_change_password === true,
         ...p,
         full_name: p?.full_name || meta.full_name || meta.name || u.user.email,
         avatar_url: p?.avatar_url || meta.avatar_url || meta.picture || null,
@@ -271,6 +273,7 @@ function UserMenu() {
     },
   });
 
+  const [pwOpen, setPwOpen] = useState(false);
   async function handleLogout() {
     await qc.cancelQueries();
     qc.clear();
@@ -301,10 +304,16 @@ function UserMenu() {
         <DropdownMenuLabel>{data?.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild><Link to="/configuracoes">Configurações</Link></DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setPwOpen(true)}>
+          <KeyRound className="h-4 w-4 mr-2" /> Alterar senha
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogout} className="text-destructive">
           <LogOut className="h-4 w-4 mr-2" /> Sair
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <ChangePasswordDialog open={pwOpen} onOpenChange={setPwOpen} />
+      {/* conta nova com senha provisória: cria a senha antes de usar o Core */}
+      <ChangePasswordDialog open={!!data?.mustChangePassword} onOpenChange={() => {}} forced />
     </DropdownMenu>
   );
 }
@@ -424,6 +433,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
+        <SupportBanner />
         <main className="flex-1 overflow-y-auto">
           <div key={valuesUnlocked ? "unlocked" : "locked"} className="p-4 lg:p-8 max-w-[1600px] mx-auto w-full">
             {children}
@@ -436,6 +446,29 @@ export function AppShell({ children }: { children: ReactNode }) {
       <PriorityAlertModal />
         <LeadCardHost />
       </div>
+    </div>
+  );
+}
+
+/** Administrador da Hublynx atendendo um assinante: deixa claro de quem são os dados na tela. */
+function SupportBanner() {
+  const { activeOrganization, organizations, setActiveOrganization } = useWorkspace();
+  if (!activeOrganization?.support) return null;
+  const own = organizations.find((o) => !o.support);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950 lg:px-6">
+      <span>
+        <strong>Modo suporte:</strong> você está vendo somente os dados de <strong>{activeOrganization.name}</strong>.
+      </span>
+      {own && (
+        <button
+          type="button"
+          onClick={() => setActiveOrganization(own.id)}
+          className="rounded-md border border-amber-400 bg-white px-3 py-1 text-xs font-bold hover:bg-amber-100"
+        >
+          Voltar para {own.name}
+        </button>
+      )}
     </div>
   );
 }

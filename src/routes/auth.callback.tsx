@@ -40,6 +40,12 @@ function AuthCallbackPage() {
 
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
+      // cadastro novo: confirmou o e-mail → entra com a senha provisória enviada
+      if (query.get("confirmado") === "1") {
+        if (data.session) await supabase.auth.signOut();
+        window.location.replace("/auth?confirmado=1");
+        return;
+      }
       if (data.session) {
         goAfterLogin();
       } else {
