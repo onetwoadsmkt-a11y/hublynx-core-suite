@@ -21,7 +21,16 @@ export const Route = createFileRoute("/api/public/hooks/run-automations")({
         } catch (e) {
           tasks = { error: String((e as Error)?.message ?? e) };
         }
-        return Response.json({ ok: true, ...result, tasks });
+        // e-mails agrupados das movimentações e mensagens dos projetos
+        let projects: unknown = null;
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { runProjectMail } = await import("@/lib/projects/project-mail.server");
+          projects = await runProjectMail(supabaseAdmin as any, { maxMails: 80 });
+        } catch (e) {
+          projects = { error: String((e as Error)?.message ?? e) };
+        }
+        return Response.json({ ok: true, ...result, tasks, projects });
       },
     },
   },

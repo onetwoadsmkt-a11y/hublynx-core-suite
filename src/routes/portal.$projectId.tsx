@@ -23,6 +23,7 @@ import { portalAuth, portalLoginPath } from "@/lib/portal/portal-client";
 import { useProjectEvents } from "@/lib/realtime/project-events";
 import { JourneyTimeline } from "@/components/projects/JourneyTimeline";
 import { TaskAttachments } from "@/components/projects/TaskAttachments";
+import { PortalPurchases } from "@/components/portal/PortalPurchases";
 import {
   portalAddComment,
   portalAddMessage,
@@ -386,13 +387,6 @@ function PortalProjectPage() {
                   <div className="mt-1 flex flex-wrap gap-2">
                     <Button
                       className="h-11 rounded-xl"
-                      onClick={() => toggle.mutate({ taskId: next.task.id, done: true })}
-                    >
-                      <Check className="h-4 w-4" /> Marcar como feita
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-11 rounded-xl border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
                       onClick={() => goToStage(next.stage.stage.id)}
                     >
                       Ver tarefa
@@ -465,6 +459,8 @@ function PortalProjectPage() {
             )}
             <Legend />
           </section>
+
+          <PortalPurchases projectId={projectId} session={session} />
 
           <section className="rounded-3xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_16px_40px_-20px_rgba(16,24,40,0.22)] dark:ring-1 dark:ring-white/10 p-5 sm:p-7">
             <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">

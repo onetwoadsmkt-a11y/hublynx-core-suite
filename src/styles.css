@@ -209,6 +209,57 @@
   --sidebar-accent-foreground: oklch(0.97 0.01 250);
   --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.74 0.19 155);
+
+  /* Projetos no escuro: faixa um tom acima dos cards e estados das tarefas em tons escuros */
+  --band-bg: oklch(0.27 0.09 263);
+  --band-tile: rgb(255 255 255 / 0.07);
+  --band-chip: rgb(255 255 255 / 0.12);
+  --task-ontime-bg: oklch(0.29 0.07 250);
+  --task-ontime-fg: oklch(0.86 0.06 240);
+  --task-today-bg: oklch(0.34 0.07 80);
+  --task-today-fg: oklch(0.92 0.1 88);
+
+  /* Etiquetas coloridas (bg-*-50/100, texto *-700/800/900) feitas para o claro:
+     no escuro viram fundo escuro tingido com texto claro, sem "manchas" brancas. */
+  --color-amber-50: oklch(0.3 0.05 75);
+  --color-amber-100: oklch(0.34 0.07 75);
+  --color-amber-800: oklch(0.88 0.11 82);
+  --color-amber-900: oklch(0.92 0.09 85);
+  --color-yellow-50: oklch(0.3 0.05 95);
+  --color-yellow-100: oklch(0.34 0.07 95);
+  --color-yellow-800: oklch(0.88 0.11 95);
+  --color-yellow-900: oklch(0.92 0.09 95);
+  --color-orange-50: oklch(0.3 0.05 50);
+  --color-orange-100: oklch(0.34 0.07 50);
+  --color-orange-800: oklch(0.86 0.1 55);
+  --color-orange-900: oklch(0.9 0.08 55);
+  --color-emerald-50: oklch(0.29 0.05 160);
+  --color-emerald-100: oklch(0.33 0.07 160);
+  --color-emerald-800: oklch(0.86 0.11 160);
+  --color-emerald-900: oklch(0.9 0.08 160);
+  --color-green-50: oklch(0.29 0.05 145);
+  --color-green-100: oklch(0.33 0.07 145);
+  --color-green-800: oklch(0.86 0.11 145);
+  --color-rose-50: oklch(0.29 0.06 15);
+  --color-rose-100: oklch(0.33 0.08 15);
+  --color-rose-800: oklch(0.84 0.1 15);
+  --color-rose-900: oklch(0.88 0.08 15);
+  --color-red-50: oklch(0.29 0.06 25);
+  --color-red-100: oklch(0.33 0.08 25);
+  --color-red-800: oklch(0.84 0.1 25);
+  --color-sky-50: oklch(0.29 0.05 230);
+  --color-sky-100: oklch(0.33 0.07 230);
+  --color-sky-800: oklch(0.86 0.08 230);
+  --color-sky-900: oklch(0.9 0.06 230);
+  --color-blue-50: oklch(0.29 0.06 260);
+  --color-blue-100: oklch(0.33 0.08 260);
+  --color-blue-800: oklch(0.85 0.08 260);
+  --color-violet-50: oklch(0.29 0.06 295);
+  --color-violet-100: oklch(0.33 0.08 295);
+  --color-violet-800: oklch(0.86 0.08 295);
+  --color-slate-50: oklch(0.26 0.03 263);
+  --color-slate-100: oklch(0.3 0.03 263);
+  --color-slate-800: oklch(0.9 0.015 263);
 }
 
 @layer base {

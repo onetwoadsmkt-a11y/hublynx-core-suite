@@ -41,7 +41,14 @@ export type SheetInfo = {
   totalKey?: string;
   /** arquivos anexados à planilha (ex.: o Excel importado) — gravados só pelo servidor */
   attachments?: SheetAttachment[];
+  /** pedido de compra da planilha (o arquivo é o anexo marcado com order: true) */
+  order?: { number?: string; date?: string };
 };
+
+/** Planilha de compras: mostra o bloco "Pedido de compra". */
+export function isPurchaseSheet(sheetName: string, deptName?: string | null, title?: string | null) {
+  return /compr|pedido/i.test(`${sheetName} ${deptName ?? ""} ${title ?? ""}`);
+}
 
 export type SheetAttachment = {
   id: string;
@@ -54,6 +61,8 @@ export type SheetAttachment = {
   author: string;
   /** veio da importação da planilha */
   imported?: boolean;
+  /** é o arquivo do pedido de compra */
+  order?: boolean;
 };
 
 /**

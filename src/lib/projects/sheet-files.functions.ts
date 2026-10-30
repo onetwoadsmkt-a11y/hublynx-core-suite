@@ -50,7 +50,7 @@ export const uploadSheetFile = createServerFn({ method: "POST" })
     const sheetId = uuid.parse(d.get("sheetId"));
     const file = d.get("file");
     if (!(file instanceof File)) throw new Error("Selecione um arquivo.");
-    return { sheetId, file, imported: d.get("imported") === "1" };
+    return { sheetId, file, imported: d.get("imported") === "1", order: d.get("order") === "1" };
   })
   .handler(async ({ data, context }) => {
     const db = context.supabase as unknown as Db;
@@ -73,14 +73,19 @@ export const uploadSheetFile = createServerFn({ method: "POST" })
       uploaded_by: context.userId,
       author: (prof?.full_name as string | undefined) || "Equipe",
       ...(data.imported ? { imported: true } : {}),
+      ...(data.order ? { order: true } : {}),
     };
     const info = sheet.info ?? {};
+    const current = info.attachments ?? [];
+    // um pedido por planilha: o novo substitui o anterior
+    const oldOrders = data.order ? current.filter((a) => a.order) : [];
     try {
-      await writeList(db, sheet.id, info, [...(info.attachments ?? []), item]);
+      await writeList(db, sheet.id, info, [...current.filter((a) => !oldOrders.includes(a)), item]);
     } catch (e) {
       await ad.storage.from(ATTACHMENT_BUCKET).remove([path]);
       throw e;
     }
+    if (oldOrders.length) await ad.storage.from(ATTACHMENT_BUCKET).remove(oldOrders.map((a) => a.path));
     return item;
   });
 

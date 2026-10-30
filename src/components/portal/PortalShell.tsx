@@ -60,7 +60,7 @@ function usePortalPalette(logoUrl: string | null, fallback: string | null) {
     const vars: Record<string, string> = primary ? { ...brandVars(primary) } : {};
     vars["--brand-ink"] =
       ink ?? (primary ? `color-mix(in oklab, ${primary} 22%, #0b1220)` : CORE_NAVY);
-    vars["--portal-bg"] = `color-mix(in oklab, ${primary ?? CORE_GREEN} 5%, #f6f7f9)`;
+    vars["--portal-bg"] = `color-mix(in oklab, ${primary ?? CORE_GREEN} 5%, var(--background))`;
     const keys = Object.keys(vars);
     keys.forEach((k) => root.style.setProperty(k, vars[k]));
     return () => keys.forEach((k) => root.style.removeProperty(k));

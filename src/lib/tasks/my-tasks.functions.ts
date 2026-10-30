@@ -58,9 +58,18 @@ export const runTaskNotificationsNow = createServerFn({ method: "POST" })
     if (!ok) return { mails: 0, notified: 0 };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { runTaskNotifications } = await import("./task-notify.server");
+    let out = { mails: 0, notified: 0 };
     try {
-      return await runTaskNotifications(supabaseAdmin as any, { organizationId: data.organizationId, maxMails: 20 });
+      out = await runTaskNotifications(supabaseAdmin as any, { organizationId: data.organizationId, maxMails: 20 });
     } catch {
-      return { mails: 0, notified: 0 };
+      /* segue para os avisos dos projetos */
     }
+    try {
+      const { runProjectMail } = await import("@/lib/projects/project-mail.server");
+      const p = await runProjectMail(supabaseAdmin as any, { organizationId: data.organizationId, maxMails: 20 });
+      out = { ...out, mails: out.mails + p.mails };
+    } catch {
+      /* fila ainda não criada ou caixa de e-mail desconectada */
+    }
+    return out;
   });

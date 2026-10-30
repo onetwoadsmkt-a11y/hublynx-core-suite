@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 
 /**
@@ -40,6 +40,59 @@ const VIVID_VARS = [
 
 const NAVY = NAVY_TEXT;
 
+/** Escuro com marca clara: base grafite neutra (o amarelo vira destaque, sem brigar com o azul). */
+const DARK_BASE_VARS = [
+  "--background",
+  "--app-bg",
+  "--card",
+  "--popover",
+  "--secondary",
+  "--muted",
+  "--sidebar",
+  "--sidebar-accent",
+  "--accent-foreground",
+] as const;
+const GRAPHITE = {
+  bg: "oklch(0.17 0.006 85)",
+  card: "oklch(0.215 0.007 85)",
+  raised: "oklch(0.27 0.009 85)",
+  side: "oklch(0.19 0.006 85)",
+};
+
+export function darkBaseVars(): Record<(typeof DARK_BASE_VARS)[number], string> {
+  return {
+    "--background": GRAPHITE.bg,
+    "--app-bg": GRAPHITE.bg,
+    "--card": GRAPHITE.card,
+    "--popover": GRAPHITE.card,
+    "--secondary": GRAPHITE.raised,
+    "--muted": GRAPHITE.raised,
+    "--sidebar": GRAPHITE.side,
+    "--sidebar-accent": GRAPHITE.raised,
+    "--accent-foreground": "oklch(0.97 0.01 85)",
+  };
+}
+
+/** Faixa do projeto e estados das tarefas no escuro, com a marca clara como destaque. */
+export function vividDarkVars(hex: string): Record<(typeof VIVID_VARS)[number], string> {
+  return {
+    "--band-bg": GRAPHITE.raised,
+    "--band-fg": "oklch(0.97 0.01 85)",
+    "--band-sub": "rgb(255 255 255 / 0.72)",
+    "--band-tile": "rgb(255 255 255 / 0.06)",
+    "--band-chip": "rgb(255 255 255 / 0.1)",
+    "--band-ring": hex,
+    "--band-ring-track": "rgb(255 255 255 / 0.14)",
+    "--band-cta-bg": hex,
+    "--band-cta-fg": NAVY,
+    "--band-late": "oklch(0.8 0.12 25)",
+    "--task-ontime-bg": `color-mix(in oklab, ${hex} 12%, ${GRAPHITE.card})`,
+    "--task-ontime-fg": `color-mix(in oklab, ${hex} 70%, white)`,
+    "--task-today-bg": `color-mix(in oklab, ${hex} 30%, ${GRAPHITE.card})`,
+    "--task-today-fg": `color-mix(in oklab, ${hex} 55%, white)`,
+  };
+}
+
 export function isLightBrand(hex: string) {
   return readableOn(hex) === NAVY;
 }
@@ -76,13 +129,15 @@ export function readableOn(hex: string): string {
   return L > 0.4 ? NAVY_TEXT : "oklch(1 0 0)";
 }
 
-export function brandVars(hex: string): Record<(typeof BRAND_VARS)[number], string> {
+export function brandVars(hex: string, dark = false): Record<(typeof BRAND_VARS)[number], string> {
   const fg = readableOn(hex);
   return {
     "--primary": hex,
     "--primary-foreground": fg,
     "--ring": hex,
-    "--accent": `color-mix(in oklab, ${hex} 14%, white)`,
+    // destaque suave: clarinho no claro; no escuro, tingido sobre o card (texto continua legível)
+    // var(--card) é branco no claro e o card escuro no escuro
+    "--accent": `color-mix(in oklab, ${hex} ${dark ? 20 : 14}%, var(--card))`,
     "--accent-strong": `color-mix(in oklab, ${hex} 82%, black)`,
     "--sidebar-primary": hex,
     "--sidebar-primary-foreground": fg,
@@ -94,9 +149,23 @@ export function brandVars(hex: string): Record<(typeof BRAND_VARS)[number], stri
 // useLayoutEffect aplica a cor antes de a tela ser pintada (sem piscar o verde da Core).
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
+/** Acompanha o tema (classe "dark" no <html>, trocada pelo ThemeToggle). */
+function useIsDark() {
+  const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
+  useEffect(() => {
+    const root = document.documentElement;
+    const obs = new MutationObserver(() => setDark(root.classList.contains("dark")));
+    obs.observe(root, { attributes: true, attributeFilter: ["class"] });
+    setDark(root.classList.contains("dark"));
+    return () => obs.disconnect();
+  }, []);
+  return dark;
+}
+
 export function BrandTheme() {
   const { brand } = useWorkspace();
   const color = brand?.brandColor ?? null;
+  const dark = useIsDark();
 
   useIsoLayoutEffect(() => {
     if (typeof document === "undefined") return;
@@ -104,19 +173,27 @@ export function BrandTheme() {
     const clear = () => {
       BRAND_VARS.forEach((v) => root.style.removeProperty(v));
       VIVID_VARS.forEach((v) => root.style.removeProperty(v));
+      DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
     };
     if (!color || !HEX_RE.test(color)) {
       clear();
       return;
     }
-    const vars = brandVars(color);
+    const vars = brandVars(color, dark);
     BRAND_VARS.forEach((v) => root.style.setProperty(v, vars[v]));
     if (isLightBrand(color)) {
-      const vv = vividVars(color);
+      const vv = dark ? vividDarkVars(color) : vividVars(color);
       VIVID_VARS.forEach((v) => root.style.setProperty(v, vv[v]));
-    } else VIVID_VARS.forEach((v) => root.style.removeProperty(v));
+      if (dark) {
+        const db = darkBaseVars();
+        DARK_BASE_VARS.forEach((v) => root.style.setProperty(v, db[v]));
+      } else DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
+    } else {
+      VIVID_VARS.forEach((v) => root.style.removeProperty(v));
+      DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
+    }
     return clear;
-  }, [color]);
+  }, [color, dark]);
 
   return null;
 }

@@ -17,6 +17,7 @@ import {
   Save,
   Trash2,
   Upload,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -57,6 +59,7 @@ import {
   type CostColumn,
   type CostColumnType,
   type SheetInfo,
+  isPurchaseSheet,
 } from "@/lib/projects/cost-presets";
 import {
   createDepartment,
@@ -67,6 +70,8 @@ import {
   listProjectDepartments,
   replaceSheetFromImport,
   saveSheetInfo,
+  getPortalPurchases,
+  setPortalPurchases,
   loadTemplateDepartments,
   saveDepartmentsToTemplate,
   saveRow,
@@ -587,6 +592,7 @@ export function ProjectDepartmentsPanel({
 
   const dept = depts.find((d) => d.id === activeDept) ?? null;
   const importer = useSheetImport(key);
+  const hasPurchases = depts.some((d) => d.sheets.some((s) => isPurchaseSheet(s.name, d.name, s.info?.title)));
 
   return (
     <Card className="mt-4 rounded-2xl p-5">
@@ -598,6 +604,7 @@ export function ProjectDepartmentsPanel({
           <p className="mt-0.5 text-xs text-muted-foreground">
             Cada departamento (ex.: Compras) tem suas planilhas com as colunas que você definir.
           </p>
+          {hasPurchases && <PortalPurchasesToggle projectId={projectId} canEdit={canEdit} />}
         </div>
         {canEdit && (
           <div className="flex flex-wrap gap-2">
@@ -709,6 +716,35 @@ export function ProjectDepartmentsPanel({
         onSaved={refresh}
       />
     </Card>
+  );
+}
+
+/** Libera (ou não) a aba Compras, só para ver, no portal do cliente. */
+function PortalPurchasesToggle({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getPortalPurchases);
+  const setFn = useServerFn(setPortalPurchases);
+  const key = ["portal-purchases-flag", projectId];
+  const q = useQuery({ queryKey: key, queryFn: () => getFn({ data: { projectId } }) });
+  const m = useMutation({
+    mutationFn: (show: boolean) => setFn({ data: { projectId, show } }),
+    onSuccess: (_r, show) => {
+      toast.success(show ? "Compras liberado para o cliente ver no portal" : "Compras oculto do cliente");
+      qc.invalidateQueries({ queryKey: key });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const on = !!q.data?.show;
+  return (
+    <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs font-semibold">
+      <Switch
+        checked={on}
+        disabled={!canEdit || m.isPending || q.isLoading}
+        onCheckedChange={(v) => m.mutate(v)}
+        aria-label="Mostrar Compras ao cliente no portal"
+      />
+      {on ? "Cliente vê Compras no portal (só leitura)" : "Compras oculto do cliente"}
+    </label>
   );
 }
 
@@ -828,7 +864,7 @@ function DepartmentView({
       </div>
 
       {sheet ? (
-        <SheetGrid key={sheet.id} sheet={sheet} canEdit={canEdit} queryKey={queryKey} />
+        <SheetGrid key={sheet.id} sheet={sheet} canEdit={canEdit} queryKey={queryKey} purchase={isPurchaseSheet(sheet.name, dept.name, sheet.info?.title)} />
       ) : (
         <p className="text-sm text-muted-foreground">Sem planilhas neste departamento.</p>
       )}
@@ -1079,6 +1115,157 @@ const ATTACH_ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc,.csv";
 const fmtSize = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 /** Anexos da planilha: o Excel importado e outros arquivos (cotação, nota, pedido…). */
+/** Pedido de compra da planilha: número, data e o arquivo (um por planilha). */
+function SheetOrder({
+  sheet,
+  info,
+  canEdit,
+  queryKey,
+  onChange,
+  onCommit,
+}: {
+  sheet: CostSheet;
+  info: SheetInfo;
+  canEdit: boolean;
+  queryKey: unknown[];
+  onChange: (i: SheetInfo) => void;
+  onCommit: (i?: SheetInfo) => void;
+}) {
+  const qc = useQueryClient();
+  const uploadFn = useServerFn(uploadSheetFile);
+  const urlFn = useServerFn(sheetFileUrl);
+  const removeFn = useServerFn(removeSheetFile);
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const file = [...(sheet.info?.attachments ?? [])].reverse().find((a) => a.order) ?? null;
+  const order = info.order ?? {};
+  async function run(key: string, fn: () => Promise<void>) {
+    setBusy(key);
+    try {
+      await fn();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  const setOrder = (patch: Partial<NonNullable<SheetInfo["order"]>>) => onChange({ ...info, order: { ...order, ...patch } });
+  return (
+    <section aria-label="Pedido de compra" className="space-y-3 rounded-2xl border-2 border-primary/40 bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="flex items-center gap-2 text-base font-extrabold">
+          <FileText className="h-4 w-4" /> Pedido de compra
+          {file ? (
+            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">anexado</span>
+          ) : (
+            <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-bold text-muted-foreground">sem pedido</span>
+          )}
+        </h4>
+        {canEdit && (
+          <>
+            <input
+              ref={ref}
+              type="file"
+              accept={ATTACH_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                run("up", async () => {
+                  const fd = new FormData();
+                  fd.set("sheetId", sheet.id);
+                  fd.set("file", f);
+                  fd.set("order", "1");
+                  await uploadFn({ data: fd });
+                  toast.success(file ? "Pedido substituído" : "Pedido anexado");
+                  await qc.invalidateQueries({ queryKey });
+                });
+              }}
+            />
+            <Button size="sm" disabled={busy === "up"} onClick={() => ref.current?.click()}>
+              {busy === "up" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+              {file ? "Substituir pedido" : "Anexar pedido"}
+            </Button>
+          </>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,11rem)_minmax(0,1fr)] sm:items-end">
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Nº do pedido</span>
+          <Input
+            className="h-9"
+            value={order.number ?? ""}
+            disabled={!canEdit}
+            maxLength={60}
+            placeholder="Ex.: 4500123"
+            onChange={(e) => setOrder({ number: e.target.value })}
+            onBlur={() => onCommit()}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Data do pedido</span>
+          <Input
+            type="date"
+            className="h-9"
+            value={order.date ?? ""}
+            disabled={!canEdit}
+            onChange={(e) => {
+              const next = { ...info, order: { ...order, date: e.target.value } };
+              onChange(next);
+              onCommit(next);
+            }}
+          />
+        </label>
+        {file ? (
+          <div className="flex min-w-0 items-center gap-2 rounded-xl border px-3 py-1.5">
+            <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold" title={file.name}>{file.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {fmtSize(file.size)} · {file.author} · {new Date(file.uploaded_at).toLocaleDateString("pt-BR")}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy === "dl"}
+              onClick={() =>
+                run("dl", async () => {
+                  const { url } = await urlFn({ data: { sheetId: sheet.id, fileId: file.id } });
+                  window.open(url, "_blank", "noopener");
+                })
+              }
+            >
+              {busy === "dl" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Baixar
+            </Button>
+            {canEdit && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-rose-600"
+                aria-label="Remover o pedido"
+                disabled={busy === "rm"}
+                onClick={() => {
+                  if (!confirm(`Remover o pedido "${file.name}"?`)) return;
+                  run("rm", async () => {
+                    await removeFn({ data: { sheetId: sheet.id, fileId: file.id } });
+                    await qc.invalidateQueries({ queryKey });
+                  });
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Anexe o PDF ou a imagem do pedido enviado ao fornecedor.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function SheetAttachments({ sheet, canEdit, queryKey }: { sheet: CostSheet; canEdit: boolean; queryKey: unknown[] }) {
   const qc = useQueryClient();
   const uploadFn = useServerFn(uploadSheetFile);
@@ -1086,7 +1273,7 @@ function SheetAttachments({ sheet, canEdit, queryKey }: { sheet: CostSheet; canE
   const removeFn = useServerFn(removeSheetFile);
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const files = sheet.info?.attachments ?? [];
+  const files = (sheet.info?.attachments ?? []).filter((a) => !a.order);
   async function run(key: string, fn: () => Promise<void>) {
     setBusy(key);
     try {
@@ -1193,10 +1380,12 @@ function SheetGrid({
   sheet,
   canEdit,
   queryKey,
+  purchase = false,
 }: {
   sheet: CostSheet;
   canEdit: boolean;
   queryKey: unknown[];
+  purchase?: boolean;
 }) {
   const qc = useQueryClient();
   const rowFn = useServerFn(saveRow);
@@ -1333,6 +1522,16 @@ function SheetGrid({
         onChange={sheetInfo.setInfo}
         onCommit={(i) => sheetInfo.save(i)}
       />
+      {purchase && (
+        <SheetOrder
+          sheet={sheet}
+          info={sheetInfo.info}
+          canEdit={canEdit}
+          queryKey={queryKey}
+          onChange={sheetInfo.setInfo}
+          onCommit={(i) => sheetInfo.save(i)}
+        />
+      )}
       <SheetAttachments sheet={sheet} canEdit={canEdit} queryKey={queryKey} />
     </div>
   );

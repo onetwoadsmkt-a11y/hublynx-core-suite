@@ -339,3 +339,103 @@ export const portalAddMessage = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
+/* ───────────── Compras visíveis ao cliente (somente leitura) ───────────── */
+
+export type PortalPurchaseSheet = {
+  id: string;
+  name: string;
+  department: string;
+  columns: import("@/lib/projects/cost-presets").CostColumn[];
+  rows: { id: string; data: Record<string, string | number | boolean | null> }[];
+  info: {
+    title?: string;
+    fields?: { key: string; label: string; value: string }[];
+    adjustments?: { key: string; label: string; value: number | null; note?: string }[];
+    totalKey?: string;
+    order?: { number?: string; date?: string };
+  };
+  orderFile: { id: string; name: string; size: number } | null;
+};
+
+/** Projeto que o cliente pode ver (mesma conferência do portal) e se Compras está liberado. */
+async function purchasesProject(tokenValue: string, projectRef: string) {
+  const db = await portalDb(tokenValue);
+  const { data: id, error } = await db.rpc("portal_resolve", { _ref: projectRef });
+  if (error) throw new Error(error.message);
+  if (!id) throw new Error("NOT_CLIENT");
+  const admin = await adminDb();
+  const { data: p, error: pErr } = await admin
+    .from("projects")
+    .select("id, portal_show_purchases")
+    .eq("id", id)
+    .maybeSingle();
+  // antes da migração 30 a coluna não existe: Compras fica fechado
+  if (pErr || !p) return { admin, projectId: id as string, enabled: false };
+  return { admin, projectId: id as string, enabled: !!(p as { portal_show_purchases?: boolean }).portal_show_purchases };
+}
+
+async function purchaseSheets(admin: Db, projectId: string) {
+  const { isPurchaseSheet, upgradePurchaseSheet } = await import("@/lib/projects/cost-presets");
+  const { data: depts } = await admin
+    .from("cost_departments")
+    .select("id, name, position")
+    .eq("project_id", projectId)
+    .order("position");
+  const dl = (depts ?? []) as { id: string; name: string }[];
+  if (!dl.length) return [];
+  const { data: sheets } = await admin
+    .from("cost_sheets")
+    .select("id, department_id, name, columns, position, info")
+    .in("department_id", dl.map((d) => d.id))
+    .order("position");
+  const list = ((sheets ?? []) as { id: string; department_id: string; name: string; columns: any[]; info: any }[])
+    .map((s) => ({ ...s, dept: dl.find((d) => d.id === s.department_id)?.name ?? "" }))
+    .filter((s) => isPurchaseSheet(s.name, s.dept, s.info?.title));
+  return list.map((s) => ({ ...s, ...upgradePurchaseSheet(s.name, s.columns ?? [], s.info) }));
+}
+
+export const portalPurchases = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ token, projectId: ref }).parse(d))
+  .handler(async ({ data }): Promise<{ enabled: boolean; sheets: PortalPurchaseSheet[] }> => {
+    const { admin, projectId, enabled } = await purchasesProject(data.token, data.projectId);
+    if (!enabled) return { enabled: false, sheets: [] };
+    const sheets = await purchaseSheets(admin, projectId);
+    if (!sheets.length) return { enabled: true, sheets: [] };
+    const { data: rows } = await admin
+      .from("cost_sheet_rows")
+      .select("id, sheet_id, position, data")
+      .in("sheet_id", sheets.map((s) => s.id))
+      .order("position")
+      .order("created_at");
+    const rl = (rows ?? []) as { id: string; sheet_id: string; data: Record<string, string | number | boolean | null> }[];
+    return {
+      enabled: true,
+      sheets: sheets.map((s) => {
+        const info = (s.info ?? {}) as any;
+        const order = [...((info.attachments ?? []) as any[])].reverse().find((a) => a.order);
+        return {
+          id: s.id,
+          name: s.name,
+          department: s.dept,
+          columns: s.columns,
+          rows: rl.filter((r) => r.sheet_id === s.id).map((r) => ({ id: r.id, data: r.data ?? {} })),
+          // só o que o cliente precisa ver: sem caminhos de arquivo nem observações internas
+          info: { title: info.title, fields: info.fields, adjustments: info.adjustments, totalKey: info.totalKey, order: info.order },
+          orderFile: order ? { id: order.id, name: order.name, size: order.size } : null,
+        };
+      }),
+    };
+  });
+
+export const portalPurchaseOrderUrl = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ token, projectId: ref, sheetId: uuid, fileId: uuid }).parse(d))
+  .handler(async ({ data }) => {
+    const { admin, projectId, enabled } = await purchasesProject(data.token, data.projectId);
+    if (!enabled) throw new Error("Compras não está liberado para este projeto.");
+    const sheet = (await purchaseSheets(admin, projectId)).find((s) => s.id === data.sheetId);
+    const file = ((sheet?.info as any)?.attachments ?? []).find((a: any) => a.id === data.fileId && a.order);
+    if (!file) throw new Error("Pedido não encontrado.");
+    const { signedDownloadUrl } = await import("@/lib/projects/attachments.server");
+    return { url: await signedDownloadUrl(await adminDb(), file.path, file.name) };
+  });

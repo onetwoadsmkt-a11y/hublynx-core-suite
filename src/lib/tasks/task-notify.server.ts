@@ -24,7 +24,7 @@ export function taskPath(t: { id: string; project_id: string | null }) {
   return t.project_id ? `/projetos/${t.project_id}?aba=etapas&tarefa=${t.id}` : `/tarefas?task=${t.id}`;
 }
 
-function esc(s: string) {
+export function esc(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
@@ -48,7 +48,7 @@ async function unclaim(admin: Db, taskId: string, userId: string, kind: string) 
   await admin.from("task_push_log").delete().eq("task_id", taskId).eq("user_id", userId).eq("kind", kind);
 }
 
-function mailLayout(orgName: string, firstName: string, intro: string, rows: { title: string; sub: string; href: string; late?: boolean }[], cta: { label: string; href: string }) {
+export function mailLayout(orgName: string, firstName: string, intro: string, rows: { title: string; sub: string; href: string; late?: boolean }[], cta: { label: string; href: string }, footer = "Você recebe este aviso porque estas tarefas estão sob sua responsabilidade no Core.") {
   const items = rows
     .map(
       (r) => `<tr><td style="padding:10px 0;border-bottom:1px solid #eef0f3">
@@ -65,11 +65,11 @@ function mailLayout(orgName: string, firstName: string, intro: string, rows: { t
 <p style="margin:0 0 14px;font-size:15px;line-height:1.5">${esc(intro)}</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items}</table>
 <p style="margin:22px 0 0"><a href="${esc(cta.href)}" style="display:inline-block;background:#0f2b4c;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold;font-size:15px">${esc(cta.label)}</a></p>
-<p style="margin:18px 0 0;font-size:12px;color:#6b7280">Você recebe este aviso porque estas tarefas estão sob sua responsabilidade no Core.</p>
+<p style="margin:18px 0 0;font-size:12px;color:#6b7280">${esc(footer)}</p>
 </td></tr></table></td></tr></table></body></html>`;
 }
 
-async function personOf(admin: Db, userId: string, cache: Map<string, { email: string | null; name: string }>) {
+export async function personOf(admin: Db, userId: string, cache: Map<string, { email: string | null; name: string }>) {
   const hit = cache.get(userId);
   if (hit) return hit;
   let email: string | null = null;

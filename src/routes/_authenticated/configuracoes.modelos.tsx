@@ -139,7 +139,7 @@ function Timeline({ stages, primary, ink, light = false }: { stages: { name: str
             <div className={`relative h-4 flex-1 rounded-full ${light ? "bg-muted" : "bg-white/10"}`}>
               <div
                 className="absolute top-0 h-4 rounded-full shadow"
-                style={{ left: `${left}%`, width: `${width}%`, background: i % 2 ? `color-mix(in oklab, ${primary} 70%, white)` : primary }}
+                style={{ left: `${left}%`, width: `${width}%`, background: i % 2 ? `color-mix(in oklab, ${primary} 70%, var(--card))` : primary }}
                 title={`${br(s.start)} → ${br(s.end)}`}
               />
             </div>
@@ -434,7 +434,7 @@ function TemplateDialog({
           </div>
 
           {/* cronograma recolhido: resumo + faixa das fases */}
-          <div className="space-y-2 rounded-xl border px-3.5 py-2.5" style={{ background: `color-mix(in oklab, ${primary} 9%, white)`, borderColor: `color-mix(in oklab, ${primary} 35%, white)` }}>
+          <div className="space-y-2 rounded-xl border px-3.5 py-2.5" style={{ background: `color-mix(in oklab, ${primary} 9%, var(--card))`, borderColor: `color-mix(in oklab, ${primary} 35%, var(--card))` }}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
               <span><strong>{stages.length}</strong> etapas</span>
               {phases.length > 0 && <span><strong>{phases.length}</strong> fases</span>}
@@ -446,7 +446,7 @@ function TemplateDialog({
                   <span key={i} style={{ flex: Math.max(1, days(s)), background: phaseTone(s.phase) }} title={s.name} />
                 ))}
               </div>
-              <Button type="button" variant="outline" size="sm" className="h-8 bg-white" onClick={() => setShowTimeline((v) => !v)} aria-expanded={showTimeline}>
+              <Button type="button" variant="outline" size="sm" className="h-8 bg-card" onClick={() => setShowTimeline((v) => !v)} aria-expanded={showTimeline}>
                 {showTimeline ? "Recolher cronograma ▴" : "Ver cronograma ▾"}
               </Button>
             </div>
@@ -495,7 +495,7 @@ function TemplateDialog({
                         onClick={() => setSel(i)}
                         aria-current={active ? "step" : undefined}
                         className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition ${active ? "" : "hover:bg-muted"}`}
-                        style={active ? { background: `color-mix(in oklab, ${primary} 14%, white)`, outline: `2px solid ${primary}` } : undefined}
+                        style={active ? { background: `color-mix(in oklab, ${primary} 14%, var(--card))`, outline: `2px solid ${primary}` } : undefined}
                       >
                         <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full text-xs font-extrabold" style={active ? { background: primary, color: ink } : { background: "hsl(var(--muted))" }}>{i + 1}</span>
                         <span className="min-w-0 flex-1">
@@ -517,7 +517,7 @@ function TemplateDialog({
                 <section aria-label={`Etapa ${selIdx + 1}`} className="space-y-4">
                   <div className="space-y-3 rounded-2xl border bg-background p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold text-white" style={{ background: ink }}>{selIdx + 1}</span>
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-foreground text-sm font-bold text-background">{selIdx + 1}</span>
                       <Input
                         value={cur.name}
                         onChange={(e) => patch(selIdx, { name: e.target.value })}

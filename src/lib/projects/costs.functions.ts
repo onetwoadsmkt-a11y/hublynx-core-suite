@@ -32,7 +32,7 @@ export type CostDepartment = {
 };
 
 const uuid = z.string().uuid();
-type Db = { from: (t: string) => any };
+type Db = { from: (t: string) => any; rpc?: any };
 
 const columnSchema: z.ZodType<CostColumn> = z.object({
   key: z
@@ -91,6 +91,7 @@ const infoSchema: z.ZodType<SheetInfo> = z.object({
     .optional(),
   notes: z.array(z.object({ label: z.string().max(80), value: z.string().max(1000) })).max(20).optional(),
   totalKey: z.string().max(40).optional(),
+  order: z.object({ number: z.string().max(60).optional(), date: z.string().max(20).optional() }).optional(),
   // anexos só mudam pelo servidor (sheet-files.functions); o que vier do navegador é ignorado
   attachments: z.array(z.any()).max(100).optional(),
 }) as z.ZodType<SheetInfo>;
@@ -596,5 +597,39 @@ export const saveSheetInfo = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
     if (!row) throw new Error("Sem permissão para alterar a planilha.");
+    return { ok: true as const };
+  });
+
+/** Chave "Mostrar Compras ao cliente" (portal, somente leitura). Desligada por padrão. */
+export const getPortalPurchases = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: row, error } = await db
+      .from("projects")
+      .select("portal_show_purchases")
+      .eq("id", data.projectId)
+      .maybeSingle();
+    if (error) return { show: false, ready: false };
+    return { show: !!(row as { portal_show_purchases?: boolean } | null)?.portal_show_purchases, ready: true };
+  });
+
+export const setPortalPurchases = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectId: uuid, show: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: ok } = await db.rpc!("can_edit_project", { _project: data.projectId });
+    if (!ok) throw new Error("Sem permissão para alterar este projeto.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin as unknown as Db)
+      .from("projects")
+      .update({ portal_show_purchases: data.show })
+      .eq("id", data.projectId);
+    if (error) {
+      if (/portal_show_purchases/.test(error.message)) throw new Error("Rode a migração 30 no banco para liberar Compras ao cliente.");
+      throw new Error(error.message);
+    }
     return { ok: true as const };
   });
