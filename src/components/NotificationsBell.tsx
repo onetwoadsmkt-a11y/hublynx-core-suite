@@ -123,7 +123,7 @@ export function NotificationsBell() {
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           {unread > 0 && (
-            <span className="absolute top-1.5 right-1.5 h-4 min-w-4 px-1 rounded-full bg-[#00D084] text-white text-[10px] font-semibold flex items-center justify-center">
+            <span className="absolute top-1.5 right-1.5 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center">
               {unread > 9 ? "9+" : unread}
             </span>
           )}
@@ -150,7 +150,7 @@ export function NotificationsBell() {
                   className={`px-4 py-3 hover:bg-muted/50 cursor-pointer ${!n.read ? "bg-primary/5" : ""}`}
                 >
                   <div className="flex items-start gap-2">
-                    {!n.read && <span className="mt-1.5 h-2 w-2 rounded-full bg-[#00D084] shrink-0" />}
+                    {!n.read && <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium leading-snug">{n.title}</p>
                       {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}

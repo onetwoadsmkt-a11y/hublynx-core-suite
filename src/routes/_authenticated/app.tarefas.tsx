@@ -88,7 +88,7 @@ function TarefasMobile() {
             className={cn(
               "shrink-0 px-4 h-9 rounded-full text-sm font-medium transition",
               filter === c.key
-                ? "bg-[#00D084] text-white"
+                ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground",
             )}
           >
@@ -119,7 +119,7 @@ function TarefasMobile() {
                   className={cn(
                     "h-6 w-6 mt-0.5 rounded-full border-2 flex items-center justify-center shrink-0",
                     t.status === "concluido"
-                      ? "bg-[#00D084] border-[#00D084] text-white"
+                      ? "bg-primary border-primary text-primary-foreground"
                       : "border-muted-foreground/40",
                   )}
                   aria-label="Concluir"

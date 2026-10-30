@@ -43,7 +43,7 @@ function AppearancePage() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["my-org-access"] });
 
-  async function saveOrg(patch: { logo_url?: string | null; brand_color?: string | null }) {
+  async function saveOrg(patch: { logo_url?: string | null; brand_color?: string | null; dark_style?: "marca" | "preto" }) {
     if (!orgId) throw new Error("Empresa não identificada");
     const { error } = await (supabase as any).from("organizations").update(patch).eq("id", orgId);
     if (error) throw error;
@@ -98,6 +98,22 @@ function AppearancePage() {
     }
   }
 
+  const darkStyle = activeOrganization?.darkStyle === "preto" ? "preto" : "marca";
+  async function saveDarkStyle(next: "marca" | "preto") {
+    if (next === darkStyle) return;
+    setSaving(true);
+    try {
+      await saveOrg({ dark_style: next });
+      toast.success(next === "preto" ? "Tema escuro com fundo preto" : "Tema escuro no tom da marca");
+      refresh();
+    } catch (e) {
+      const msg = (e as Error).message || "";
+      toast.error(/dark_style/.test(msg) ? "Rode a migração 31 no banco para usar esta opção." : msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function pick(c: string) {
     const up = c.toUpperCase();
     setColor(up);
@@ -116,8 +132,8 @@ function AppearancePage() {
       <div>
         <h1 className="text-2xl font-semibold">Aparência</h1>
         <p className="text-sm text-muted-foreground">
-          Deixe o sistema com a cara da {activeOrganization.name}: sua logo e a cor da sua marca. O fundo
-          continua claro; a cor muda botões, menus e destaques.
+          Deixe o sistema com a cara da {activeOrganization.name}: sua logo e a cor da sua marca. A cor muda
+          botões, menus e destaques; a cor escura da logo vai para os cabeçalhos das tabelas.
         </p>
         {!canEdit && (
           <p className="mt-2 text-xs text-muted-foreground">Somente o administrador da empresa pode alterar.</p>
@@ -242,6 +258,43 @@ function AppearancePage() {
           >
             <RotateCcw className="h-4 w-4" /> Restaurar padrão Core
           </Button>
+        </div>
+      </Card>
+      <Card className="rounded-2xl p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">Fundo do tema escuro</h2>
+          <p className="text-xs text-muted-foreground">
+            Vale para todos da empresa quando escolherem o tema escuro (ícone da lua no topo). Os cards ficam sempre
+            um degrau mais claros que o fundo, com texto em alto contraste.
+          </p>
+        </div>
+        <div role="radiogroup" aria-label="Fundo do tema escuro" className="grid gap-3 sm:grid-cols-2">
+          {([
+            ["marca", "Tom da marca", "Fundo escuro na cor escura da logo.", "oklch(0.165 0.03 265)", "oklch(0.215 0.035 265)"],
+            ["preto", "Preto", "Fundo preto com cards em cinza-chumbo.", "oklch(0 0 0)", "oklch(0.185 0 0)"],
+          ] as const).map(([k, title, desc, bg, card]) => (
+            <button
+              key={k}
+              type="button"
+              role="radio"
+              aria-checked={darkStyle === k}
+              disabled={!canEdit || saving}
+              onClick={() => saveDarkStyle(k)}
+              className={`rounded-xl border-2 p-3 text-left transition ${darkStyle === k ? "border-primary" : "border-border hover:border-muted-foreground/40"}`}
+            >
+              <div className="mb-3 space-y-1.5 rounded-lg p-2.5" style={{ background: bg }}>
+                <div className="flex items-center gap-2 rounded-md p-2" style={{ background: card }}>
+                  <span className="h-2 w-16 rounded-full bg-white/85" />
+                  <span className="ml-auto rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ background: color, color: fg }}>Botão</span>
+                </div>
+                <div className="rounded-md p-2" style={{ background: card }}>
+                  <span className="block h-1.5 w-24 rounded-full bg-white/55" />
+                </div>
+              </div>
+              <p className="text-sm font-semibold">{title}{darkStyle === k ? " · em uso" : ""}</p>
+              <p className="text-xs text-muted-foreground">{desc}</p>
+            </button>
+          ))}
         </div>
       </Card>
     </div>

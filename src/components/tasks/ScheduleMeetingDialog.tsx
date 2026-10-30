@@ -130,7 +130,7 @@ export function ScheduleMeetingDialog({ open, onClose, taskId, taskTitle, defaul
           <Button
             onClick={() => save.mutate()}
             disabled={save.isPending || !summary || !startAt}
-            className="bg-[#00D084] hover:bg-[#00b873] text-white"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {save.isPending ? "Agendando..." : "Agendar e gerar Meet"}
           </Button>

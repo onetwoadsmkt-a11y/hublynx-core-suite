@@ -163,7 +163,7 @@ export function NewTaskSheet({
         <div className="flex justify-end gap-2 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button
-            className="bg-[#00D084] hover:bg-[#00b873] text-white"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={!title || create.isPending}
             onClick={() => create.mutate()}
           >

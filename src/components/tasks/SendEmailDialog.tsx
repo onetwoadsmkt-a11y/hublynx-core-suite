@@ -103,7 +103,7 @@ export function SendEmailDialog({ open, onClose, taskId, taskTitle, defaultTo, c
           <Button
             onClick={() => send.mutate()}
             disabled={send.isPending || !to || !subject || !body}
-            className="bg-[#00D084] hover:bg-[#00b873] text-white"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {send.isPending ? "Enviando..." : "Enviar"}
           </Button>

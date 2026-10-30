@@ -392,3 +392,12 @@
     animation: none;
   }
 }
+
+/* Escuro: textos coloridos feitos para fundo claro (600/700) ganham versão clara,
+   para manter contraste nos cards escuros (ex.: "1 atrasada", datas vencidas). */
+.dark :is(.text-rose-600, .text-rose-700, .text-red-600, .text-red-700) { color: oklch(0.8 0.12 18); }
+.dark :is(.text-amber-600, .text-amber-700, .text-orange-600, .text-orange-700, .text-yellow-700) { color: oklch(0.85 0.12 80); }
+.dark :is(.text-emerald-600, .text-emerald-700, .text-green-600, .text-green-700) { color: oklch(0.82 0.13 160); }
+.dark :is(.text-sky-600, .text-sky-700, .text-blue-600, .text-blue-700) { color: oklch(0.8 0.1 240); }
+.dark :is(.text-violet-600, .text-violet-700, .text-purple-600, .text-purple-700) { color: oklch(0.8 0.11 295); }
+.dark :is(.text-slate-600, .text-slate-700, .text-gray-600, .text-gray-700) { color: oklch(0.82 0.015 263); }

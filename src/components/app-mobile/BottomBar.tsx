@@ -24,7 +24,7 @@ export function BottomBar({ onNewClick }: Props) {
           <button
             onClick={onNewClick}
             aria-label="Novo"
-            className="h-14 w-14 rounded-full bg-[#00D084] text-white shadow-lg shadow-[#00D084]/30 active:scale-95 transition flex items-center justify-center ring-4 ring-background"
+            className="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 transition flex items-center justify-center ring-4 ring-background"
           >
             <Plus className="h-6 w-6" />
           </button>
@@ -45,7 +45,7 @@ function BarItem({
       to={to}
       className={cn(
         "flex flex-col items-center gap-1 py-1 text-[11px] font-medium transition-colors",
-        active ? "text-[#00D084]" : "text-muted-foreground",
+        active ? "text-[var(--brand-dark)] dark:text-primary" : "text-muted-foreground",
       )}
     >
       <Icon className="h-5 w-5" />

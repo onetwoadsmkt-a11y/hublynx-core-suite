@@ -43,7 +43,7 @@ export function TestEmailCard() {
             <Button
               onClick={() => m.mutate()}
               disabled={!to || m.isPending}
-              className="bg-[#00D084] hover:bg-[#00b873] text-white"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {m.isPending ? "Enviando..." : "Enviar"}
             </Button>

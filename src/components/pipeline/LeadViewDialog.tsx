@@ -76,7 +76,7 @@ export function LeadViewDialog({
               {onEdit && (
                 <Button
                   size="sm"
-                  className="bg-[#00D084] text-white hover:bg-[#00b873]"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={() => onEdit(lead)}
                 >
                   <Pencil className="mr-1.5 h-4 w-4" /> Editar

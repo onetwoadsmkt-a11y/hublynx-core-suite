@@ -112,11 +112,11 @@ function LembretesMobile() {
           Ao criar ou editar uma tarefa, escolha quando ser lembrado:
         </p>
         <ul className="space-y-2 text-sm">
-          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#00D084]" /> No horário</li>
-          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#00D084]" /> 1 hora antes</li>
-          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#00D084]" /> 1 dia antes</li>
-          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#00D084]" /> Toda semana</li>
-          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#00D084]" /> Todo mês</li>
+          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> No horário</li>
+          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> 1 hora antes</li>
+          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> 1 dia antes</li>
+          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> Toda semana</li>
+          <li className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> Todo mês</li>
         </ul>
       </Card>
 

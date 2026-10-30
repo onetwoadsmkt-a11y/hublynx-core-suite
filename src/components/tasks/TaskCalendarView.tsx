@@ -135,7 +135,7 @@ export function TaskCalendarView({ tasks, onSelectTask, onCreateAt, onPickDay }:
                       <span className="rounded-full bg-destructive px-1.5 py-0.5 text-[10px] text-destructive-foreground">{overdue} atrasada{overdue === 1 ? "" : "s"}</span>
                     )}
                   </button>
-                  <button onClick={() => onCreateAt(format(d, "yyyy-MM-dd"))} className="text-xs font-medium text-[#00D084]">
+                  <button onClick={() => onCreateAt(format(d, "yyyy-MM-dd"))} className="text-xs font-medium text-[var(--brand-dark)] dark:text-primary">
                     + Adicionar
                   </button>
                 </div>
@@ -156,7 +156,7 @@ export function TaskCalendarView({ tasks, onSelectTask, onCreateAt, onPickDay }:
                         ) : isMeeting(t) ? (
                           <CalendarCheck className="h-4 w-4 shrink-0 text-indigo-500" />
                         ) : (
-                          <ListTodo className="h-4 w-4 shrink-0 text-[#00D084]" />
+                          <ListTodo className="h-4 w-4 shrink-0 text-[var(--brand-dark)] dark:text-primary" />
                         )}
                         <span className="flex-1 truncate">{t.title}</span>
                         {t.due_date && isValid(parseISO(t.due_date)) && (
@@ -209,7 +209,7 @@ export function TaskCalendarView({ tasks, onSelectTask, onCreateAt, onPickDay }:
                 <span
                   className={cn(
                     "flex h-5 w-5 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-                    isToday && "bg-[#00D084] text-white",
+                    isToday && "bg-primary text-primary-foreground",
                   )}
                 >
                   {format(d, "d")}

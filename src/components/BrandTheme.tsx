@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useBrandPalette } from "@/hooks/useBrandPalette";
 
 /**
  * White label: aplica a cor da marca da empresa ativa no lugar do verde da Core Suite.
@@ -39,56 +40,136 @@ const VIVID_VARS = [
 ] as const;
 
 const NAVY = NAVY_TEXT;
+const HEADER_VARS = ["--brand-dark", "--brand-ink"] as const;
 
-/** Escuro com marca clara: base grafite neutra (o amarelo vira destaque, sem brigar com o azul). */
+/** Hex → OKLCH (L 0–1, C, H em graus) — para montar o tema escuro a partir da cor da logo. */
+export function hexToOklch(hex: string): { l: number; c: number; h: number } {
+  const n = parseInt(hex.slice(1), 16);
+  const lin = (v: number) => {
+    const x = v / 255;
+    return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+  };
+  const r = lin((n >> 16) & 255), g = lin((n >> 8) & 255), b = lin(n & 255);
+  const l_ = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m_ = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s_ = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_;
+  const A = 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_;
+  const B = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_;
+  const C = Math.sqrt(A * A + B * B);
+  const H = ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360;
+  return { l: L, c: C, h: H };
+}
+
+const ok = (l: number, c: number, h: number, a?: number) =>
+  `oklch(${l.toFixed(3)} ${c.toFixed(3)} ${h.toFixed(1)}${a === undefined ? "" : ` / ${a}%`})`;
+
+/** Variáveis de base trocadas no tema escuro de uma empresa com marca. */
 const DARK_BASE_VARS = [
   "--background",
   "--app-bg",
   "--card",
+  "--card-foreground",
   "--popover",
+  "--popover-foreground",
+  "--foreground",
   "--secondary",
+  "--secondary-foreground",
   "--muted",
-  "--sidebar",
-  "--sidebar-accent",
+  "--muted-foreground",
   "--accent-foreground",
+  "--border",
+  "--input",
+  "--sidebar",
+  "--sidebar-foreground",
+  "--sidebar-accent",
+  "--sidebar-accent-foreground",
+  "--sidebar-border",
 ] as const;
-const GRAPHITE = {
-  bg: "oklch(0.17 0.006 85)",
-  card: "oklch(0.215 0.007 85)",
-  raised: "oklch(0.27 0.009 85)",
-  side: "oklch(0.19 0.006 85)",
-};
 
-export function darkBaseVars(): Record<(typeof DARK_BASE_VARS)[number], string> {
+/**
+ * Tema escuro na paleta da empresa: fundos no tom da cor escura da logo (ink),
+ * com pouca saturação, em degraus de luminosidade fixos para os cards se destacarem
+ * do fundo e os textos terem contraste (texto ~16:1, texto secundário ~8:1 nos cards).
+ */
+export type DarkStyle = "marca" | "preto";
+
+export function darkBaseVars(ink: string, style: DarkStyle = "marca"): Record<(typeof DARK_BASE_VARS)[number], string> {
+  const { c, h } = hexToOklch(HEX_RE.test(ink) ? ink : "#0a2557");
+  const fg = ok(0.97, 0.006, h);
+  if (style === "preto") {
+    // fundo preto puro; cards em cinza-chumbo neutro, degraus de luminosidade para contraste
+    return {
+      "--background": "oklch(0 0 0)",
+      "--app-bg": "oklch(0 0 0)",
+      "--card": "oklch(0.185 0 0)",
+      "--card-foreground": "oklch(0.97 0 0)",
+      "--popover": "oklch(0.21 0 0)",
+      "--popover-foreground": "oklch(0.97 0 0)",
+      "--foreground": "oklch(0.97 0 0)",
+      "--secondary": "oklch(0.26 0 0)",
+      "--secondary-foreground": "oklch(0.97 0 0)",
+      "--muted": "oklch(0.26 0 0)",
+      "--muted-foreground": "oklch(0.78 0 0)",
+      "--accent-foreground": "oklch(0.97 0 0)",
+      "--border": "oklch(1 0 0 / 13%)",
+      "--input": "oklch(1 0 0 / 17%)",
+      "--sidebar": "oklch(0.09 0 0)",
+      "--sidebar-foreground": "oklch(0.97 0 0)",
+      "--sidebar-accent": "oklch(0.24 0 0)",
+      "--sidebar-accent-foreground": "oklch(0.97 0 0)",
+      "--sidebar-border": "oklch(1 0 0 / 11%)",
+    };
+  }
+  const cc = Math.min(c, 0.035);
   return {
-    "--background": GRAPHITE.bg,
-    "--app-bg": GRAPHITE.bg,
-    "--card": GRAPHITE.card,
-    "--popover": GRAPHITE.card,
-    "--secondary": GRAPHITE.raised,
-    "--muted": GRAPHITE.raised,
-    "--sidebar": GRAPHITE.side,
-    "--sidebar-accent": GRAPHITE.raised,
-    "--accent-foreground": "oklch(0.97 0.01 85)",
+    "--background": ok(0.165, cc * 0.8, h),
+    "--app-bg": ok(0.165, cc * 0.8, h),
+    "--card": ok(0.215, cc, h),
+    "--card-foreground": fg,
+    "--popover": ok(0.235, cc, h),
+    "--popover-foreground": fg,
+    "--foreground": fg,
+    "--secondary": ok(0.275, cc, h),
+    "--secondary-foreground": fg,
+    "--muted": ok(0.275, cc, h),
+    "--muted-foreground": ok(0.78, 0.02, h),
+    "--accent-foreground": fg,
+    "--border": ok(0.97, 0.01, h, 12),
+    "--input": ok(0.97, 0.01, h, 16),
+    "--sidebar": ok(0.19, cc, h),
+    "--sidebar-foreground": fg,
+    "--sidebar-accent": ok(0.275, cc, h),
+    "--sidebar-accent-foreground": fg,
+    "--sidebar-border": ok(0.97, 0.01, h, 10),
   };
 }
 
+/** Cabeçalhos (tabelas, abas ativas, chips "Sua") na cor escura da logo; no escuro, um degrau acima dos cards. */
+export function headerVars(ink: string, dark: boolean): Record<"--brand-dark" | "--brand-ink", string> {
+  const safe = HEX_RE.test(ink) ? ink : "#0a2557";
+  if (!dark) return { "--brand-dark": safe, "--brand-ink": safe };
+  const { c, h } = hexToOklch(safe);
+  return { "--brand-dark": ok(0.33, Math.min(c, 0.09), h), "--brand-ink": safe };
+}
+
 /** Faixa do projeto e estados das tarefas no escuro, com a marca clara como destaque. */
-export function vividDarkVars(hex: string): Record<(typeof VIVID_VARS)[number], string> {
+export function vividDarkVars(hex: string, ink = "#0a2557", style: DarkStyle = "marca"): Record<(typeof VIVID_VARS)[number], string> {
+  const { c, h } = hexToOklch(HEX_RE.test(ink) ? ink : "#0a2557");
   return {
-    "--band-bg": GRAPHITE.raised,
-    "--band-fg": "oklch(0.97 0.01 85)",
-    "--band-sub": "rgb(255 255 255 / 0.72)",
-    "--band-tile": "rgb(255 255 255 / 0.06)",
-    "--band-chip": "rgb(255 255 255 / 0.1)",
+    "--band-bg": style === "preto" ? "oklch(0.235 0 0)" : ok(0.275, Math.min(c, 0.05), h),
+    "--band-fg": ok(0.97, 0.006, h),
+    "--band-sub": "rgb(255 255 255 / 0.74)",
+    "--band-tile": "rgb(255 255 255 / 0.07)",
+    "--band-chip": "rgb(255 255 255 / 0.12)",
     "--band-ring": hex,
     "--band-ring-track": "rgb(255 255 255 / 0.14)",
     "--band-cta-bg": hex,
     "--band-cta-fg": NAVY,
     "--band-late": "oklch(0.8 0.12 25)",
-    "--task-ontime-bg": `color-mix(in oklab, ${hex} 12%, ${GRAPHITE.card})`,
+    "--task-ontime-bg": `color-mix(in oklab, ${hex} 12%, var(--card))`,
     "--task-ontime-fg": `color-mix(in oklab, ${hex} 70%, white)`,
-    "--task-today-bg": `color-mix(in oklab, ${hex} 30%, ${GRAPHITE.card})`,
+    "--task-today-bg": `color-mix(in oklab, ${hex} 28%, var(--card))`,
     "--task-today-fg": `color-mix(in oklab, ${hex} 55%, white)`,
   };
 }
@@ -166,6 +247,10 @@ export function BrandTheme() {
   const { brand } = useWorkspace();
   const color = brand?.brandColor ?? null;
   const dark = useIsDark();
+  // cor escura da logo (Configurações › Aparência); sem logo, o navy do Core
+  const { ink } = useBrandPalette();
+  const darkStyle: DarkStyle = brand?.darkStyle === "preto" ? "preto" : "marca";
+  const hasBrand = !!(color && HEX_RE.test(color)) || !!brand?.logoUrl;
 
   useIsoLayoutEffect(() => {
     if (typeof document === "undefined") return;
@@ -174,26 +259,31 @@ export function BrandTheme() {
       BRAND_VARS.forEach((v) => root.style.removeProperty(v));
       VIVID_VARS.forEach((v) => root.style.removeProperty(v));
       DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
+      HEADER_VARS.forEach((v) => root.style.removeProperty(v));
     };
-    if (!color || !HEX_RE.test(color)) {
+    if (!hasBrand) {
       clear();
       return;
+    }
+    const hv = headerVars(ink, dark);
+    HEADER_VARS.forEach((v) => root.style.setProperty(v, hv[v]));
+    if (dark) {
+      const db = darkBaseVars(ink, darkStyle);
+      DARK_BASE_VARS.forEach((v) => root.style.setProperty(v, db[v]));
+    } else DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
+    if (!color || !HEX_RE.test(color)) {
+      BRAND_VARS.forEach((v) => root.style.removeProperty(v));
+      VIVID_VARS.forEach((v) => root.style.removeProperty(v));
+      return clear;
     }
     const vars = brandVars(color, dark);
     BRAND_VARS.forEach((v) => root.style.setProperty(v, vars[v]));
     if (isLightBrand(color)) {
-      const vv = dark ? vividDarkVars(color) : vividVars(color);
+      const vv = dark ? vividDarkVars(color, ink, darkStyle) : vividVars(color);
       VIVID_VARS.forEach((v) => root.style.setProperty(v, vv[v]));
-      if (dark) {
-        const db = darkBaseVars();
-        DARK_BASE_VARS.forEach((v) => root.style.setProperty(v, db[v]));
-      } else DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
-    } else {
-      VIVID_VARS.forEach((v) => root.style.removeProperty(v));
-      DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
-    }
+    } else VIVID_VARS.forEach((v) => root.style.removeProperty(v));
     return clear;
-  }, [color, dark]);
+  }, [color, dark, ink, hasBrand, darkStyle]);
 
   return null;
 }

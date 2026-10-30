@@ -51,7 +51,7 @@ function ProjetosMobile() {
               onClick={() => navigate({ to: "/projetos/$id", params: { id: p.id } })}
             >
               <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-xl bg-[#00D084]/10 text-[#00D084] flex items-center justify-center">
+                <div className="h-11 w-11 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
                   <FolderKanban className="h-5 w-5" />
                 </div>
                 <div className="flex-1 min-w-0">

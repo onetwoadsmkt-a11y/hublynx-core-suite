@@ -78,7 +78,7 @@ function HojePage() {
 
       {next && (
         <Card
-          className="rounded-3xl p-5 bg-gradient-to-br from-[#00D084] to-[#00b873] text-white border-0 cursor-pointer"
+          className="rounded-3xl p-5 bg-gradient-to-br from-primary to-[color-mix(in_oklab,var(--primary)_80%,black)] text-primary-foreground border-0 cursor-pointer"
           onClick={() => navigate({ to: "/app/tarefas/$id", params: { id: next.id } })}
         >
           <p className="text-xs uppercase tracking-wider opacity-80 flex items-center gap-1">
@@ -135,7 +135,7 @@ function HojePage() {
                 aria-label="Concluir"
                 className={`h-6 w-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
                   t.status === "concluido"
-                    ? "bg-[#00D084] border-[#00D084] text-white"
+                    ? "bg-primary border-primary text-primary-foreground"
                     : "border-muted-foreground/40"
                 }`}
               >
@@ -156,7 +156,7 @@ function HojePage() {
           ))}
         </div>
         {today.length > 0 && (
-          <Link to="/app/tarefas" className="block text-center text-sm text-[#00D084] font-medium mt-3">
+          <Link to="/app/tarefas" className="block text-center text-sm text-[var(--brand-dark)] dark:text-primary font-medium mt-3">
             Ver todas as tarefas
           </Link>
         )}

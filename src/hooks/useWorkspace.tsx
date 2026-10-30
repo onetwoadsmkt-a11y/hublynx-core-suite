@@ -11,7 +11,7 @@ const STORAGE_KEY = "hublynx-active-organization";
 /** Cache legado apagado ao sair; a marca exibida vem da empresa validada. */
 export const BRAND_CACHE_KEY = "hublynx-brand-cache";
 
-export type BrandInfo = { logoUrl: string | null; brandColor: string | null };
+export type BrandInfo = { logoUrl: string | null; brandColor: string | null; darkStyle?: "marca" | "preto" };
 
 export function clearBrandCache() {
   try {
@@ -34,6 +34,7 @@ export type OrganizationOption = {
   /** White label da empresa. */
   logoUrl: string | null;
   brandColor: string | null;
+  darkStyle?: "marca" | "preto";
   /** Administrador da plataforma atendendo esta empresa (não é membro dela). */
   support: boolean;
 };
@@ -111,6 +112,7 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
         modules: o.modules,
         logoUrl: o.logoUrl ?? null,
         brandColor: o.brandColor ?? null,
+        darkStyle: o.darkStyle === "preto" ? "preto" : "marca",
         support: !!o.support,
       })),
     [data],
@@ -158,12 +160,12 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
     try {
       localStorage.setItem(
         `${BRAND_CACHE_KEY}:${userId}`,
-        JSON.stringify({ logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor }),
+        JSON.stringify({ logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor, darkStyle: activeOrganization.darkStyle ?? "marca" }),
       );
     } catch {
       /* ignora */
     }
-  }, [activeOrganization?.id, activeOrganization?.logoUrl, activeOrganization?.brandColor]);
+  }, [activeOrganization?.id, activeOrganization?.logoUrl, activeOrganization?.brandColor, activeOrganization?.darkStyle]);
 
   useEffect(() => {
     if (!activeOrganization) return;
@@ -192,7 +194,7 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
     role: activeOrganization?.role ?? null,
     isSuperAdmin: !!data?.isSuperAdmin,
     brand: activeOrganization
-      ? { logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor }
+      ? { logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor, darkStyle: activeOrganization.darkStyle ?? "marca" }
       : null,
     setActiveOrganization,
     setActiveWorkspace: setActiveOrganization,

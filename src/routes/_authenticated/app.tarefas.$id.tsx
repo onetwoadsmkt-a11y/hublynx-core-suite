@@ -89,7 +89,7 @@ function DetalheTarefa() {
             <button
               onClick={() => toggleCheck.mutate({ cid: c.id, done: !c.done })}
               className={`h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                c.done ? "bg-[#00D084] border-[#00D084] text-white" : "border-muted-foreground/40"
+                c.done ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"
               }`}
             >
               {c.done && <Check className="h-3 w-3" />}
@@ -102,7 +102,7 @@ function DetalheTarefa() {
       {task.status !== "concluido" && (
         <Button
           onClick={() => complete.mutate()}
-          className="w-full h-12 rounded-full bg-[#00D084] hover:bg-[#00b873] text-white text-base"
+          className="w-full h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 text-base"
         >
           <Check className="h-5 w-5 mr-2" /> Concluir tarefa
         </Button>

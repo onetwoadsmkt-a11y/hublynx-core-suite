@@ -286,7 +286,7 @@ function TarefasPage() {
               <Button variant="outline" onClick={() => setOpenEditKanban(true)}>
                 <Settings2 className="h-4 w-4 mr-2" /> Editar Kanban
               </Button>
-              <Button className="bg-[#00D084] hover:bg-[#00b873] text-white" onClick={() => openNewIn()}>
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openNewIn()}>
                 <Plus className="h-4 w-4 mr-2" /> Nova tarefa
               </Button>
             </>
@@ -327,7 +327,7 @@ function TarefasPage() {
           <SlidersHorizontal className="h-4 w-4 mr-2" />
           Filtros
           {activeFiltersCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-[#00D084] text-white text-[10px] font-bold flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
               {activeFiltersCount}
             </span>
           )}
@@ -417,7 +417,7 @@ function TarefasPage() {
       {isMobile && (
         <button
           onClick={() => openNewIn()}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-[#00D084] hover:bg-[#00b873] text-white shadow-lg flex items-center justify-center z-40 active:scale-95 transition"
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg flex items-center justify-center z-40 active:scale-95 transition"
           aria-label="Nova tarefa"
         >
           <Plus className="h-6 w-6" />

@@ -8,7 +8,7 @@ interface Props {
 }
 
 const ACTIONS = [
-  { id: "tarefa" as const, label: "Nova tarefa", icon: ListTodo, color: "bg-[#00D084]" },
+  { id: "tarefa" as const, label: "Nova tarefa", icon: ListTodo, color: "bg-primary" },
   { id: "projeto" as const, label: "Novo projeto", icon: FolderKanban, color: "bg-indigo-500" },
   { id: "cliente" as const, label: "Novo cliente", icon: Users, color: "bg-sky-500" },
   { id: "lembrete" as const, label: "Novo lembrete", icon: BellRing, color: "bg-amber-500" },

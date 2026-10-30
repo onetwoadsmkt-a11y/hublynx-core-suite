@@ -65,14 +65,14 @@ function MaisMobile() {
       </Card>
 
       {installEvent && (
-        <Card className="rounded-2xl p-4 bg-gradient-to-br from-[#00D084]/10 to-[#00D084]/5 border-[#00D084]/20">
+        <Card className="rounded-2xl p-4 bg-gradient-to-br from-primary/15 to-primary/5 border-primary/30">
           <div className="flex items-center gap-3">
-            <Download className="h-5 w-5 text-[#00D084]" />
+            <Download className="h-5 w-5 text-[var(--brand-dark)] dark:text-primary" />
             <div className="flex-1">
               <p className="font-semibold text-sm">Instalar Central de Tarefas</p>
               <p className="text-xs text-muted-foreground mt-0.5">Adicione na tela inicial do seu celular.</p>
             </div>
-            <Button size="sm" onClick={install} className="rounded-full bg-[#00D084] hover:bg-[#00b873] text-white">
+            <Button size="sm" onClick={install} className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90">
               Instalar
             </Button>
           </div>

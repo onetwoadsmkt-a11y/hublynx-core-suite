@@ -313,7 +313,7 @@ export function TaskQuickForm({ open, onOpenChange, defaults, onCreated }: Props
     <div className="flex justify-end gap-2">
       <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
       <Button
-        className="bg-[#00D084] hover:bg-[#00b873] text-white"
+        className="bg-primary text-primary-foreground hover:bg-primary/90"
         disabled={!canSubmit || create.isPending}
         onClick={() => create.mutate()}
       >

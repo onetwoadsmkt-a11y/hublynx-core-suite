@@ -12,6 +12,7 @@ import {
   Paperclip,
   Palette,
   Loader2,
+  Minus,
   Pencil,
   Plus,
   Save,
@@ -783,34 +784,43 @@ function DepartmentView({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-2 border-b">
-        <div role="tablist" aria-label={`Planilhas de ${dept.name}`} className="flex flex-wrap items-center gap-1">
+        <div className="flex min-w-0 max-w-full flex-1 items-center gap-1">
+        <div role="tablist" aria-label={`Planilhas de ${dept.name}`} className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:thin]">
           {dept.sheets.map((s) => (
             <button
               key={s.id}
               type="button"
               role="tab"
               aria-selected={s.id === activeSheet}
-              onClick={() => setActiveSheet(s.id)}
+              onClick={(e) => {
+                setActiveSheet(s.id);
+                e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+              }}
+              ref={(el) => {
+                if (el && s.id === activeSheet) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+              }}
+              title={s.name}
               className={cn(
-                "-mb-px border-b-[3px] px-3 py-2.5 text-sm",
+                "-mb-px flex max-w-[16rem] shrink-0 items-center gap-1 border-b-[3px] px-3 py-2.5 text-sm",
                 s.id === activeSheet
                   ? "border-primary font-extrabold text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {s.name} <span className="text-xs text-muted-foreground">({s.rows.length})</span>
+              <span className="truncate">{s.name}</span> <span className="shrink-0 text-xs text-muted-foreground">({s.rows.length})</span>
             </button>
           ))}
+        </div>
           {canEdit && (
             <>
-              <Button size="sm" variant="ghost" className="h-8" onClick={() => setCfgSheet("new")}>
+              <Button size="sm" variant="ghost" className="h-8 shrink-0" onClick={() => setCfgSheet("new")}>
                 <Plus className="h-3.5 w-3.5" /> Planilha
               </Button>
               <ImportSheetButton
                 busy={importer.busy}
                 onFile={(f) => importer.run(f, { departmentId: dept.id })}
                 label="Importar Excel/CSV"
-                className="h-8 border-dashed"
+                className="h-8 shrink-0 border-dashed"
               />
             </>
           )}
@@ -1418,6 +1428,47 @@ function SheetGrid({
   }, [cols, rowsData]);
   const hasTotals = cols.some((c) => c.sum);
   const sheetInfo = useSheetInfo(sheet, queryKey);
+
+  // Largura das colunas: arrastar a borda do cabeçalho, ou ampliar/reduzir todas.
+  // Quem edita grava na planilha (vale para todos); quem só vê ajusta só na tela.
+  const sheetFn = useServerFn(saveSheet);
+  const baseWidth = (c: CostColumn) => c.width ?? (c.type === "text" ? 180 : c.type === "validity" ? 130 : c.type === "date" ? 140 : 120);
+  const [widths, setWidths] = useState<Record<string, number>>(() => Object.fromEntries(cols.map((c) => [c.key, baseWidth(c)])));
+  useEffect(() => setWidths(Object.fromEntries(cols.map((c) => [c.key, baseWidth(c)]))), [cols]);
+  const clampW = (n: number) => Math.max(60, Math.min(600, Math.round(n)));
+  const saveWidths = useMutation({
+    mutationFn: (w: Record<string, number>) =>
+      sheetFn({ data: { id: sheet.id, departmentId: sheet.department_id, name: sheet.name, columns: cols.map((c) => ({ ...c, width: clampW(w[c.key] ?? baseWidth(c)) })) } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const commitWidths = (w: Record<string, number>) => { if (canEdit) saveWidths.mutate(w); };
+  const scaleAll = (f: number) => {
+    const next = Object.fromEntries(cols.map((c) => [c.key, clampW((widths[c.key] ?? baseWidth(c)) * f)]));
+    setWidths(next);
+    commitWidths(next);
+  };
+  const startResize = (key: string, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const w0 = widths[key] ?? 120;
+    let last = w0;
+    const move = (ev: PointerEvent) => {
+      last = clampW(w0 + ev.clientX - x0);
+      setWidths((m) => ({ ...m, [key]: last }));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.style.cursor = "";
+      if (last !== w0) setWidths((m) => { const next = { ...m, [key]: last }; commitWidths(next); return next; });
+    };
+    document.body.style.cursor = "col-resize";
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const tableWidth = 44 + (canEdit ? 112 : 0) + cols.reduce((a, c) => a + (widths[c.key] ?? baseWidth(c)), 0);
   const totalCol = cols.find((c) => c.key === sheetInfo.info.totalKey && c.sum);
 
   return (
@@ -1428,24 +1479,60 @@ function SheetGrid({
         onChange={sheetInfo.setInfo}
         onCommit={() => sheetInfo.save()}
       />
+      <div className="flex flex-wrap items-center justify-end gap-1.5 text-xs text-muted-foreground">
+        <span className="mr-1">Largura das colunas{canEdit ? "" : " (só na sua tela)"}:</span>
+        <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => scaleAll(0.85)} aria-label="Reduzir a largura de todas as colunas" title="Reduzir todas">
+          <Minus className="h-3.5 w-3.5" /> Reduzir
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => scaleAll(1.15)} aria-label="Ampliar a largura de todas as colunas" title="Ampliar todas">
+          <Plus className="h-3.5 w-3.5" /> Ampliar
+        </Button>
+        <span className="hidden sm:inline">· ou arraste a borda de cada coluna no cabeçalho</span>
+      </div>
       <div className="overflow-x-auto rounded-2xl border bg-card shadow-[0_1px_2px_rgba(10,23,60,.06),0_10px_28px_rgba(10,23,60,.06)]">
-        <table className="w-full min-w-max border-collapse text-sm">
+        <table className="table-fixed border-collapse text-sm" style={{ width: Math.max(tableWidth, 0), minWidth: "100%" }}>
+          <colgroup>
+            <col style={{ width: 44 }} />
+            {cols.map((c) => <col key={c.key} style={{ width: widths[c.key] ?? baseWidth(c) }} />)}
+            {canEdit && <col style={{ width: 112 }} />}
+          </colgroup>
           <thead className="bg-[var(--brand-dark,#0a2557)] text-white">
             <tr>
-              <th className="w-10 px-2 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide">
+              <th className="px-2 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide">
                 Item
               </th>
               {cols.map((c) => (
                 <th
                   key={c.key}
                   className={cn(
-                    "whitespace-nowrap px-2 py-2.5 text-[11px] font-bold uppercase tracking-wide",
+                    "px-2 py-2 align-middle text-[11px] font-bold uppercase leading-tight tracking-wide",
                     ["currency", "number", "percent", "calc"].includes(c.type) ? "text-right" : "text-left",
+                    "relative",
                     c.type === "calc" && c.sum && "bg-primary text-primary-foreground",
                   )}
-                  style={{ minWidth: c.width ?? (c.type === "text" ? 150 : c.type === "validity" ? 130 : 110) }}
                 >
-                  {c.label}
+                  <span className="line-clamp-2 block break-words pr-1.5" title={c.label}>{c.label}</span>
+                  <span
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={`Ajustar a largura da coluna ${c.label}`}
+                    tabIndex={0}
+                    title="Arraste para ajustar a largura · duplo clique volta ao padrão"
+                    onPointerDown={(e) => startResize(c.key, e)}
+                    onDoubleClick={() => {
+                      const next = { ...widths, [c.key]: c.type === "text" ? 180 : 120 };
+                      setWidths(next);
+                      commitWidths(next);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                      e.preventDefault();
+                      const next = { ...widths, [c.key]: clampW((widths[c.key] ?? 120) + (e.key === "ArrowRight" ? 20 : -20)) };
+                      setWidths(next);
+                      commitWidths(next);
+                    }}
+                    className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none select-none after:absolute after:right-0.5 after:top-1/4 after:h-1/2 after:w-0.5 after:rounded-full after:bg-white/35 hover:after:bg-white focus-visible:after:bg-white focus-visible:outline-none"
+                  />
                 </th>
               ))}
               {canEdit && <th className="w-10" />}

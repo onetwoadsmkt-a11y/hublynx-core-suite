@@ -63,7 +63,7 @@ function AuthCallbackPage() {
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
       <HublynxLogo className="mb-6" />
       <div className="w-full max-w-sm text-center space-y-4">
-        <div className="animate-spin h-8 w-8 border-2 border-[#00D084] border-t-transparent rounded-full mx-auto" />
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto" />
         <p className="text-muted-foreground">{message}</p>
       </div>
     </div>

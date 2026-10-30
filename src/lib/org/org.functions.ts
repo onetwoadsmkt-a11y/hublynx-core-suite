@@ -17,6 +17,8 @@ export type OrgSummary = {
   /** White label: logo da empresa (URL pública) e cor da marca (#RRGGBB). */
   logoUrl: string | null;
   brandColor: string | null;
+  /** fundo do tema escuro: no tom da marca ou preto */
+  darkStyle?: "marca" | "preto";
 };
 
 export type OrgAccess = {
@@ -109,6 +111,14 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
     const reader = isSuperAdmin
       ? ((await import("@/integrations/supabase/client.server")).supabaseAdmin as unknown as { from: (t: string) => any })
       : admin;
+    // fundo do tema escuro (migração 31); antes dela a coluna não existe e fica "marca"
+    const darkStyle = new Map<string, string>();
+    try {
+      const { data: ds, error: dsErr } = await reader.from("organizations").select("id, dark_style").in("id", orgIds);
+      if (!dsErr) for (const r of (ds ?? []) as any[]) if (r.dark_style) darkStyle.set(r.id, r.dark_style);
+    } catch {
+      /* sem a coluna */
+    }
     const { data: orgModules, error: orgModError } = await reader
       .from("organization_modules")
       .select("organization_id, module_id, enabled")
@@ -150,6 +160,7 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
         modules: effectiveModules(status, enabled, role, allowed),
         logoUrl: o.logo_url ?? null,
         brandColor: o.brand_color ?? null,
+        darkStyle: darkStyle.get(o.id) === "preto" ? "preto" : "marca",
         support: isSuperAdmin && !memberOf.has(o.id),
       };
     });
