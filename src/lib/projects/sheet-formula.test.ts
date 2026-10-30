@@ -114,3 +114,25 @@ describe("modelo de solicitação de compras (formulário + tabela + resumo)", (
     assert.equal(s.info.totalKey, "valor_total");
   });
 });
+
+describe("Itens comprados: cálculos e somas com valores digitados", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { PURCHASE_COLUMNS, toNumber: num } = require("./cost-presets") as typeof import("./cost-presets");
+  const total = PURCHASE_COLUMNS.find((c) => c.key === "total")!;
+  it("Val. unit. × Quant. × (1 + IPI), com vírgula e IPI vazio", () => {
+    assert.equal(calcValue(total, { valor_unit: "21,77", quantidade: "12" }, PURCHASE_COLUMNS), 261.24);
+    assert.equal(calcValue(total, { valor_unit: 32.38, quantidade: 12, ipi: "5" }, PURCHASE_COLUMNS), 407.988);
+    assert.equal(calcValue(total, { valor_unit: "1.234,50", quantidade: 2, ipi: "10%" }, PURCHASE_COLUMNS), 2715.9);
+    assert.equal(calcValue(total, {}, PURCHASE_COLUMNS), 0);
+  });
+  it("números no formato brasileiro", () => {
+    assert.equal(num("1.234.567"), 1234567);
+    assert.equal(num("R$ 1.234,56"), 1234.56);
+    assert.equal(num("21.77"), 21.77);
+  });
+  it("soma do total confere com a planilha (R$ 2.208,18)", () => {
+    const itens: [number, number][] = [[21.77, 12], [8.17, 24], [95.3, 1], [33.98, 10], [28, 20], [0.46, 150], [1.02, 100], [32.38, 12], [19.62, 10]];
+    const soma = itens.reduce((a, [v, q]) => a + (calcValue(total, { valor_unit: v, quantidade: q }, PURCHASE_COLUMNS) ?? 0), 0);
+    assert.equal(Math.round(soma * 100) / 100, 2208.18);
+  });
+});

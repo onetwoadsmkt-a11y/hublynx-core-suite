@@ -338,8 +338,13 @@ export const BLANK_SHEET: CostSheetPreset = {
 export function toNumber(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  const s = String(v).trim().replace(/\s/g, "").replace(/^R\$/, "").replace(/%$/, "");
-  const normalized = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s;
+  const s = String(v).trim().replace(/\s/g, "").replace(/^R\$/i, "").replace(/%$/, "");
+  // "1.234,56" → 1234.56 · "1.234.567" → 1234567 · "21.77" → 21.77
+  const normalized = s.includes(",")
+    ? s.replace(/\./g, "").replace(",", ".")
+    : (s.match(/\./g) ?? []).length > 1
+      ? s.replace(/\./g, "")
+      : s;
   const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }

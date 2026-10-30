@@ -38,7 +38,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { maskBRL } from "@/lib/security/value-lock";
+/** Planilhas de custo do projeto: valores sempre visíveis (sem o cofre de valores do Financeiro). */
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const maskBRL = (n: number | null | undefined) => BRL.format(Number(n ?? 0));
 import {
   BLANK_SHEET,
   COLUMN_TYPE_LABEL,
@@ -895,6 +897,40 @@ function SheetInfoHeader({
   );
 }
 
+/** Campo de valor em R$: digita livre ("1.234,56"), confirma ao sair do campo. */
+function MoneyInput({
+  value,
+  disabled,
+  label,
+  onCommit,
+}: {
+  value: number | null | undefined;
+  disabled?: boolean;
+  label: string;
+  onCommit: (n: number | null) => void;
+}) {
+  const show = (v: number | null | undefined) =>
+    v === null || v === undefined ? "" : v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const [text, setText] = useState(show(value));
+  useEffect(() => setText(show(value)), [value]);
+  return (
+    <Input
+      className="h-8 w-36 text-right tabular-nums"
+      inputMode="decimal"
+      disabled={disabled}
+      aria-label={label}
+      placeholder="0,00"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => {
+        const n = text.trim() === "" ? null : toNumber(text);
+        if (n !== (value ?? null)) onCommit(n);
+        setText(show(n));
+      }}
+    />
+  );
+}
+
 function SheetSummary({
   info,
   sheet,
@@ -967,19 +1003,15 @@ function SheetSummary({
               <span>
                 + {a.label} {a.note && <span className="text-muted-foreground">({a.note})</span>}
               </span>
-              <Input
-                className="h-8 w-32 text-right tabular-nums"
-                inputMode="decimal"
+              <MoneyInput
+                value={a.value}
                 disabled={!canEdit}
-                aria-label={a.label}
-                placeholder="0,00"
-                value={a.value === null || a.value === undefined ? "" : String(a.value).replace(".", ",")}
-                onChange={(e) => {
-                  const n = toNumber(e.target.value);
-                  const next = adj.map((x, j) => (j === i ? { ...x, value: e.target.value.trim() === "" ? null : n } : x));
-                  onChange({ ...info, adjustments: next });
+                label={a.label}
+                onCommit={(n) => {
+                  const next = { ...info, adjustments: adj.map((x, j) => (j === i ? { ...x, value: n } : x)) };
+                  onChange(next);
+                  onCommit(next);
                 }}
-                onBlur={() => onCommit()}
               />
             </div>
           ))}
