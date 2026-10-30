@@ -1,4 +1,4 @@
-import type { CostColumn, CostColumnType, SheetInfo } from "./cost-presets";
+import { calcValue, toNumber, type CostColumn, type CostColumnType, type SheetInfo } from "./cost-presets";
 import { translateExcelFormula } from "./sheet-formula";
 
 /**
@@ -14,6 +14,8 @@ export type ImportedSheet = {
   skippedRows: number;
   /** dados fora da tabela (cabeçalho, acréscimos ao total, observações) */
   info: SheetInfo;
+  /** conferência: totais do Excel × totais calculados pelo Core */
+  checks: { label: string; excel: number; core: number; ok: boolean }[];
 };
 
 export const IMPORT_MAX_COLUMNS = 40;
@@ -232,6 +234,7 @@ export function buildImportedSheet(
       sumCols.add(n - 1 - firstCol);
     }
   };
+  const excelChecks: { kind: "col" | "grand"; col: number; value: number; extra?: { r: number; c: number }[] }[] = [];
   const isTotalRow = (i: number) => {
     const r = grid[i];
     const firstText = r.find((c) => typeof c === "string" && c.trim());
@@ -242,6 +245,7 @@ export function buildImportedSheet(
       if (f && /^\s*=?\s*(SUM|SOMA)\(\$?([A-Z]{1,3})\$?\d+:\$?\2\$?\d+\)\s*$/i.test(f)) {
         markSums(f);
         colsum = true;
+        if (typeof r[c] === "number") excelChecks.push({ kind: "col", col: c, value: r[c] as number });
       }
     }
     return labelled || colsum;
@@ -397,6 +401,14 @@ export function buildImportedSheet(
       if (!f || !/(SUM|SOMA)\(/i.test(f)) continue;
       markSums(f);
       handled = true;
+      {
+        const m0 = /(?:SUM|SOMA)\(\$?([A-Z]{1,3})\$?\d+:\$?\1\$?\d+\)/i.exec(f);
+        if (m0 && typeof r[c] === "number") {
+          let n0 = 0;
+          for (const ch of m0[1].toUpperCase()) n0 = n0 * 26 + (ch.charCodeAt(0) - 64);
+          excelChecks.push({ kind: "grand", col: n0 - 1 - firstCol, value: r[c] as number });
+        }
+      }
       // células somadas fora do intervalo: acréscimos ao total
       const rest = f.replace(/(?:SUM|SOMA)\([^)]*\)/gi, "");
       for (const m of rest.matchAll(/\$?([A-Z]{1,3})\$?(\d+)/g)) {
@@ -464,11 +476,32 @@ export function buildImportedSheet(
     });
     return o;
   });
+  // conferência com os totais que o próprio Excel calculou
+  const colTotal = (excelCol: number) => {
+    const j = idx.indexOf(excelCol);
+    if (j < 0) return null;
+    const col = columns[j];
+    return rows.reduce<number>(
+      (acc, r) => acc + ((col.type === "calc" ? calcValue(col, r, columns) : toNumber(r[col.key])) ?? 0),
+      0,
+    );
+  };
+  const checks: ImportedSheet["checks"] = [];
+  for (const ck of excelChecks) {
+    const t = colTotal(ck.col);
+    if (t === null) continue;
+    const j = idx.indexOf(ck.col);
+    const core = ck.kind === "grand" ? t + adjustments.reduce((a, x) => a + (x.value ?? 0), 0) : t;
+    const label = ck.kind === "grand" ? "Total geral (com acréscimos)" : `Total de ${columns[j].label}`;
+    if (checks.some((x) => x.label === label)) continue;
+    checks.push({ label, excel: Math.round(ck.value * 100) / 100, core: Math.round(core * 100) / 100, ok: Math.abs(core - ck.value) < 0.01 });
+  }
   return {
     name: (name.trim() || "Planilha importada").slice(0, 80),
     columns,
     rows,
     skippedRows: body.length - kept.length,
     info,
+    checks,
   };
 }

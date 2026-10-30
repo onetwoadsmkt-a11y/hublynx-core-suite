@@ -180,6 +180,9 @@ function useSheetImport(queryKey: unknown[], onDone?: (sheetId: string) => void)
       for (const sh of parsed) {
         const r = await importFn({ data: { departmentId, name: sh.name, columns: sh.columns, rows: sh.rows, info: sh.info } });
         if (!r.infoSaved) infoLost = true;
+        const bad = sh.checks.filter((c) => !c.ok);
+        if (bad.length)
+          toast.warning(`"${sh.name}": ${bad.map((c) => `${c.label} — Excel ${maskBRL(c.excel)}, Core ${maskBRL(c.core)}`).join("; ")}`);
         else await attachImported(uploadFn, r.id, file);
         last = r.id;
         total += r.rows;
@@ -332,6 +335,27 @@ function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unkn
                 ))}
               </div>
 
+              {preview.data.checks.length > 0 && (
+                <div
+                  className={cn(
+                    "rounded-xl border p-3 text-sm",
+                    preview.data.checks.every((c) => c.ok)
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-200"
+                      : "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200",
+                  )}
+                >
+                  <p className="mb-1 font-bold">
+                    {preview.data.checks.every((c) => c.ok)
+                      ? "✓ Somatórias conferidas com o Excel"
+                      : "Atenção: algum total do Core ficou diferente do Excel"}
+                  </p>
+                  {preview.data.checks.map((c) => (
+                    <p key={c.label} className="tabular-nums">
+                      {c.ok ? "✓" : "≠"} {c.label}: Excel {maskBRL(c.excel)} · Core {maskBRL(c.core)}
+                    </p>
+                  ))}
+                </div>
+              )}
               <div>
                 <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Primeiras linhas, já calculadas pelo Core</p>
                 <div className="overflow-x-auto rounded-xl border">

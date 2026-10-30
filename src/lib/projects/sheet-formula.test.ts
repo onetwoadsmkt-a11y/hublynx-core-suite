@@ -113,6 +113,9 @@ describe("modelo de solicitação de compras (formulário + tabela + resumo)", (
     ]);
     assert.equal(s.info.totalKey, "valor_total");
   });
+  it("confere o total geral com o SOMA do Excel (itens + ST + frete)", () => {
+    assert.deepEqual(s.checks, [{ label: "Total geral (com acréscimos)", excel: 255, core: 255, ok: true }]);
+  });
 });
 
 describe("Itens comprados: cálculos e somas com valores digitados", () => {
