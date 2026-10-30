@@ -268,8 +268,8 @@ function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unkn
           if (f) onFile(f);
         }}
       />
-      <Button size="sm" variant="ghost" className="h-8" disabled={reading} onClick={() => ref.current?.click()} title={`Importar um Excel/CSV para dentro de "${sheet.name}"`}>
-        {reading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Importar nesta aba
+      <Button size="sm" className="h-8 font-bold" disabled={reading} onClick={() => ref.current?.click()} title={`Importar um Excel/CSV para dentro de "${sheet.name}"`}>
+        {reading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Importar planilha nesta aba
       </Button>
       <Dialog open={!!preview} onOpenChange={(v) => !v && !save.isPending && setPreview(null)}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
