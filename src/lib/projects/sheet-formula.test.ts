@@ -68,3 +68,49 @@ describe("importação com fórmulas", () => {
     assert.equal(calcValue(total, s.rows[1], s.columns), 210);
   });
 });
+
+describe("modelo de solicitação de compras (formulário + tabela + resumo)", () => {
+  const N = null;
+  const grid = [
+    ["| SOLICITAÇÃO DE COMPRAS", N, N, N, N, N, N, N],
+    [N, "Nº S.C", 1, "Alerta: Atente-se a Data de Vencimento do C.A., explicação no rodapé da Planilha.", N, "DATA:", new Date(2025, 2, 7), N],
+    ["CONTATO:", N, "Samyra", N, N, N, N, N],
+    [N, N, N, N, N, N, N, N],
+    ["ITEM", "FORNECEDOR", "PRODUTO", "VALID CA", "Status", "VAL. UNIT.", "QUANT", "IPI", "VALOR TOTAL"],
+    [1, "ACME", "Luva", new Date(2029, 1, 8), "Valido", 10, 3, N, 30],
+    [2, "ACME", "Bota", N, "", 100, 2, N, 200],
+    [3, N, N, N, "", N, N, N, 0],
+    [N, N, N, N, N, N, N, N, N],
+    ["R$ - Substituição Tributária", N, 5, N, "R$ Frete", "FOB", 20, "SOMA:", 255],
+    ["CONDIÇÕES DE PAGAMENTO: 28 DDL"],
+    [N, "VENCIDO", N, ">> Se a linha estiver em Vermelho C.A. Vencido."],
+  ];
+  const f: (string | undefined)[][] = grid.map(() => []);
+  const st = (r: number) => `IF(D${r}="","",IF(D${r}-TODAY()>180,"Valido","Vencido"))`;
+  f[5][4] = st(6); f[6][4] = st(7); f[7][4] = st(8);
+  f[5][8] = "(F6*G6)*(H6+1)"; f[6][8] = "(F7*G7)*(H7+1)"; f[7][8] = "(F8*G8)*(H8+1)";
+  f[9][8] = "SUM(I6:I8)+C10+G10";
+  const s = buildImportedSheet("Itens", grid, { formulas: f })!;
+  it("acha a tabela e ignora numeração, linhas modelo e rodapé", () => {
+    assert.deepEqual(s.columns.map((c) => [c.label, c.type]), [
+      ["FORNECEDOR", "text"], ["PRODUTO", "text"], ["VALID CA", "date"], ["Status", "validity"],
+      ["VAL. UNIT.", "currency"], ["QUANT", "number"], ["IPI", "percent"], ["VALOR TOTAL", "calc"],
+    ]);
+    assert.equal(s.rows.length, 2);
+    assert.deepEqual(s.columns[3].validity, { ref: "valid_ca" });
+    assert.equal(calcValue(s.columns[7], s.rows[0], s.columns), 30);
+  });
+  it("leva o cabeçalho, os acréscimos e as observações", () => {
+    assert.equal(s.info.title, "SOLICITAÇÃO DE COMPRAS");
+    assert.deepEqual(s.info.fields?.map((x) => [x.label, x.value]), [["Nº S.C", "1"], ["DATA", "07/03/2025"], ["CONTATO", "Samyra"]]);
+    assert.deepEqual(s.info.adjustments, [
+      { key: "substituicao_tributaria", label: "Substituição Tributária", value: 5 },
+      { key: "frete", label: "Frete", value: 20, note: "FOB" },
+    ]);
+    assert.deepEqual(s.info.notes, [
+      { label: "", value: "Alerta: Atente-se a Data de Vencimento do C.A., explicação no rodapé da Planilha." },
+      { label: "CONDIÇÕES DE PAGAMENTO", value: "28 DDL" },
+    ]);
+    assert.equal(s.info.totalKey, "valor_total");
+  });
+});

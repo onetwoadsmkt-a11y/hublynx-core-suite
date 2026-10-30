@@ -6,7 +6,7 @@ import { evalExpr } from "./sheet-formula";
  */
 
 export type CostColumnType =
-  "text" | "number" | "currency" | "percent" | "date" | "status" | "boolean" | "calc";
+  "text" | "number" | "currency" | "percent" | "date" | "status" | "boolean" | "calc" | "validity";
 
 export type CostStatusOption = { label: string; color: string; done?: boolean };
 
@@ -26,7 +26,34 @@ export type CostColumn = {
    */
   calc?: { op: "div" | "mul" | "sub" | "add"; a: string; b: string; asPercent?: boolean; asCurrency?: boolean; expr?: string };
   width?: number;
+  /** "validity": situação calculada pela data de outra coluna (ex.: validade do C.A.) */
+  validity?: { ref: string };
 };
+
+/** Dados da planilha fora da tabela (cabeçalho do formulário, acréscimos ao total, observações). */
+export type SheetInfo = {
+  title?: string;
+  fields?: { key: string; label: string; value: string }[];
+  /** somados ao total dos itens (ex.: substituição tributária, frete) */
+  adjustments?: { key: string; label: string; value: number | null; note?: string }[];
+  notes?: { label: string; value: string }[];
+  /** coluna cujo total é o "total dos itens" do resumo */
+  totalKey?: string;
+};
+
+/** Faixas da situação pela data (mesmas da planilha de compras). */
+export function validityState(dateIso: unknown, today = new Date()) {
+  if (typeof dateIso !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(dateIso)) return null;
+  const [y, m, d] = dateIso.slice(0, 10).split("-").map(Number);
+  const due = new Date(y, m - 1, d).getTime();
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const days = Math.round((due - t0) / 86_400_000);
+  if (days > 180) return { label: "Válido", tone: "ok", days } as const;
+  if (days > 90) return { label: "Atenção", tone: "warn", days } as const;
+  if (days > 45) return { label: "Ação", tone: "action", days } as const;
+  if (days > 0) return { label: "Informativo", tone: "info", days } as const;
+  return { label: "Vencido", tone: "late", days } as const;
+}
 
 export type CostSheetPreset = { name: string; columns: CostColumn[] };
 export type CostDepartmentPreset = {
@@ -46,6 +73,7 @@ export const COLUMN_TYPE_LABEL: Record<CostColumnType, string> = {
   status: "Status (lista)",
   boolean: "Sim / Não",
   calc: "Cálculo",
+  validity: "Situação pela validade",
 };
 
 export const STATUS_COLORS = [
@@ -280,8 +308,8 @@ export function calcValue(
     try {
       return evalExpr(col.calc.expr, (key) => {
         const ref = columns?.find((c) => c.key === key);
-        if (ref && ref.type === "calc") return calcValue(ref, row, columns, depth + 1);
-        return toNumber(row[key]);
+        if (ref && ref.type === "calc") return calcValue(ref, row, columns, depth + 1) ?? 0;
+        return toNumber(row[key]) ?? 0; // célula vazia conta como 0, como no Excel
       });
     } catch {
       return null;

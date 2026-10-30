@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -44,10 +45,12 @@ import {
   DEPARTMENT_PRESETS,
   STATUS_COLORS,
   calcValue,
+  validityState,
   slugKey,
   toNumber,
   type CostColumn,
   type CostColumnType,
+  type SheetInfo,
 } from "@/lib/projects/cost-presets";
 import {
   createDepartment,
@@ -57,6 +60,7 @@ import {
   importSheet,
   listProjectDepartments,
   replaceSheetFromImport,
+  saveSheetInfo,
   loadTemplateDepartments,
   saveDepartmentsToTemplate,
   saveRow,
@@ -150,8 +154,10 @@ function useSheetImport(queryKey: unknown[], onDone?: (sheetId: string) => void)
       let last = "";
       let total = 0;
       let skipped = 0;
+      let infoLost = false;
       for (const sh of parsed) {
-        const r = await importFn({ data: { departmentId, name: sh.name, columns: sh.columns, rows: sh.rows } });
+        const r = await importFn({ data: { departmentId, name: sh.name, columns: sh.columns, rows: sh.rows, info: sh.info } });
+        if (!r.infoSaved) infoLost = true;
         last = r.id;
         total += r.rows;
         skipped += sh.skippedRows;
@@ -160,6 +166,7 @@ function useSheetImport(queryKey: unknown[], onDone?: (sheetId: string) => void)
         `${parsed.length} planilha(s) importada(s) com ${total} linha(s).` +
           (skipped ? ` ${skipped} linha(s) acima do limite de ${IMPORT_MAX_ROWS} ficaram de fora.` : ""),
       );
+      if (infoLost) toast.warning("Cabeçalho e resumo da planilha não foram guardados: rode a migração 26 no banco.");
       await qc.invalidateQueries({ queryKey });
       onDone?.(last);
     } catch (e) {
@@ -186,9 +193,10 @@ function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unkn
   const [mode, setMode] = useState<"replace" | "append">("replace");
   const save = useMutation({
     mutationFn: () =>
-      replaceFn({ data: { sheetId: sheet.id, columns: preview!.data.columns, rows: preview!.data.rows, mode } }),
+      replaceFn({ data: { sheetId: sheet.id, columns: preview!.data.columns, rows: preview!.data.rows, mode, info: preview!.data.info } }),
     onSuccess: (r) => {
       toast.success(`Planilha "${sheet.name}" atualizada: ${r.rows} linha(s) importada(s).`);
+      if (!r.infoSaved) toast.warning("Cabeçalho e resumo da planilha não foram guardados: rode a migração 26 no banco.");
       setPreview(null);
       qc.invalidateQueries({ queryKey });
     },
@@ -227,7 +235,8 @@ function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unkn
   const cols = preview?.data.columns ?? [];
   const labelOf = (k: string) => cols.find((c) => c.key === k)?.label ?? k;
   const sample = preview?.data.rows.slice(0, 5) ?? [];
-  const fmt = (c: CostColumn, row: Record<string, unknown>) => {
+  const fmt = (c: CostColumn, row: Record<string, unknown>): React.ReactNode => {
+    if (c.type === "validity") return <ValidityChip value={c.validity ? row[c.validity.ref] : null} />;
     if (c.type === "calc") {
       const n = calcValue(c, row, cols);
       return fmtNumber(n, c.calc?.asPercent ? "calc-percent" : c.calc?.asCurrency ? "currency" : "number");
@@ -286,11 +295,12 @@ function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unkn
                 {cols.map((c) => (
                   <div key={c.key} className="grid grid-cols-[minmax(0,1.3fr)_140px_minmax(0,2fr)] items-center gap-3 border-t px-3 py-2 text-sm">
                     <span className="truncate font-medium" title={c.label}>{c.label}</span>
-                    <span className={cn("w-fit rounded-full px-2 py-0.5 text-xs font-semibold", c.type === "calc" ? "bg-primary/15 text-foreground" : "bg-muted text-muted-foreground")}>
+                    <span className={cn("w-fit rounded-full px-2 py-0.5 text-xs font-semibold", c.type === "calc" || c.type === "validity" ? "bg-primary/15 text-foreground" : "bg-muted text-muted-foreground")}>
                       {c.type === "calc" ? (c.calc?.asCurrency ? "Cálculo (R$)" : c.calc?.asPercent ? "Cálculo (%)" : "Cálculo") : TYPE_TEXT[c.type] ?? c.type}
                     </span>
                     <span className="truncate text-xs text-muted-foreground" title={c.calc?.expr ? exprLabel(c.calc.expr, labelOf) : undefined}>
                       {c.calc?.expr ? `= ${exprLabel(c.calc.expr, labelOf)}` : ""}
+                      {c.validity ? `pela data de ${labelOf(c.validity.ref)}` : ""}
                       {c.sum ? `${c.calc?.expr ? " · " : ""}soma no rodapé` : ""}
                     </span>
                   </div>
@@ -334,6 +344,39 @@ function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unkn
                 )}
               </div>
 
+              {(() => {
+                const inf = preview.data.info;
+                const has = (inf.fields?.length ?? 0) + (inf.adjustments?.length ?? 0) + (inf.notes?.length ?? 0) > 0;
+                if (!has) return null;
+                return (
+                  <div className="grid gap-3 rounded-xl border bg-muted/30 p-3 text-sm sm:grid-cols-3">
+                    {!!inf.fields?.length && (
+                      <div>
+                        <p className="mb-1 text-xs font-bold text-muted-foreground">Cabeçalho {inf.title ? `· ${inf.title}` : ""}</p>
+                        {inf.fields.map((f) => (
+                          <p key={f.key} className="truncate"><span className="text-muted-foreground">{f.label}:</span> {f.value || "—"}</p>
+                        ))}
+                      </div>
+                    )}
+                    {!!inf.adjustments?.length && (
+                      <div>
+                        <p className="mb-1 text-xs font-bold text-muted-foreground">Somados ao total</p>
+                        {inf.adjustments.map((a) => (
+                          <p key={a.key} className="truncate">+ {a.label}{a.note ? ` (${a.note})` : ""}: {a.value === null ? "—" : maskBRL(a.value)}</p>
+                        ))}
+                      </div>
+                    )}
+                    {!!inf.notes?.length && (
+                      <div>
+                        <p className="mb-1 text-xs font-bold text-muted-foreground">Observações</p>
+                        {inf.notes.map((n, i) => (
+                          <p key={i} className="line-clamp-2">{n.label ? <span className="text-muted-foreground">{n.label}: </span> : null}{n.value}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {sheet.rows.length > 0 && (
                 <div role="radiogroup" aria-label="O que fazer com os lançamentos atuais" className="grid gap-2 sm:grid-cols-2">
                   {([
@@ -751,6 +794,190 @@ function DepartmentView({
   );
 }
 
+const VALIDITY_TONE: Record<string, string> = {
+  ok: "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+  warn: "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200",
+  action: "bg-orange-100 text-orange-900 dark:bg-orange-500/15 dark:text-orange-200",
+  info: "bg-sky-100 text-sky-900 dark:bg-sky-500/15 dark:text-sky-200",
+  late: "bg-rose-100 text-rose-900 dark:bg-rose-500/15 dark:text-rose-200",
+};
+
+function ValidityChip({ value }: { value: unknown }) {
+  const st = validityState(value);
+  if (!st) return null;
+  return (
+    <span
+      className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold", VALIDITY_TONE[st.tone])}
+      title={st.days > 0 ? `Faltam ${st.days} dia(s)` : st.days === 0 ? "Vence hoje" : `Venceu há ${-st.days} dia(s)`}
+    >
+      {st.label}
+    </span>
+  );
+}
+
+function ValidityLegend() {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {[
+        ["ok", "Válido · mais de 180 dias"],
+        ["warn", "Atenção · até 180 dias"],
+        ["action", "Ação · até 90 dias"],
+        ["info", "Informativo · até 45 dias"],
+        ["late", "Vencido"],
+      ].map(([t, l]) => (
+        <span key={t} className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", VALIDITY_TONE[t])}>
+          {l}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Salva o "info" da planilha (cabeçalho, acréscimos, observações) ao sair do campo. */
+function useSheetInfo(sheet: CostSheet, queryKey: unknown[]) {
+  const qc = useQueryClient();
+  const fn = useServerFn(saveSheetInfo);
+  const [info, setInfo] = useState<SheetInfo>(sheet.info ?? {});
+  useEffect(() => setInfo(sheet.info ?? {}), [sheet.id, sheet.info]);
+  const save = useMutation({
+    mutationFn: (next: SheetInfo) => fn({ data: { sheetId: sheet.id, info: next } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return { info, setInfo, save: (next = info) => save.mutate(next) };
+}
+
+function SheetInfoHeader({
+  info,
+  canEdit,
+  onChange,
+  onCommit,
+}: {
+  info: SheetInfo;
+  canEdit: boolean;
+  onChange: (i: SheetInfo) => void;
+  onCommit: () => void;
+}) {
+  const fields = info.fields ?? [];
+  const alerts = (info.notes ?? []).filter((n) => !n.label && /alerta|aten/i.test(n.value));
+  if (!fields.length && !alerts.length) return null;
+  return (
+    <section aria-label={info.title || "Dados da planilha"} className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-base font-extrabold">{info.title || "Dados da planilha"}</h4>
+        {alerts.map((a, i) => (
+          <span key={i} className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+            ⚠ {a.value}
+          </span>
+        ))}
+      </div>
+      {fields.length > 0 && (
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(160px,1fr))]">
+          {fields.map((f, i) => (
+            <label key={f.key} className="flex min-w-0 flex-col gap-1">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{f.label}</span>
+              <Input
+                className="h-9"
+                value={f.value}
+                disabled={!canEdit}
+                onChange={(e) => {
+                  const next = fields.map((x, j) => (j === i ? { ...x, value: e.target.value } : x));
+                  onChange({ ...info, fields: next });
+                }}
+                onBlur={onCommit}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SheetSummary({
+  info,
+  sheet,
+  itemsTotal,
+  totalLabel,
+  canEdit,
+  onChange,
+  onCommit,
+}: {
+  info: SheetInfo;
+  sheet: CostSheet;
+  itemsTotal: number | null;
+  totalLabel: string;
+  canEdit: boolean;
+  onChange: (i: SheetInfo) => void;
+  onCommit: (i?: SheetInfo) => void;
+}) {
+  const adj = info.adjustments ?? [];
+  const notes = (info.notes ?? []).filter((n) => n.label || !/alerta|aten/i.test(n.value));
+  const hasValidity = sheet.columns.some((c) => c.type === "validity");
+  if (!adj.length && !notes.length && !hasValidity && itemsTotal === null) return null;
+  const grand = (itemsTotal ?? 0) + adj.reduce((a, x) => a + (x.value ?? 0), 0);
+  return (
+    <div className="flex flex-wrap items-start gap-4">
+      {(notes.length > 0 || hasValidity) && (
+        <section aria-label="Condições e observações" className="min-w-[280px] flex-[999_1_480px] space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+          {notes.length > 0 && (
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+              {notes.map((n, i) => (
+                <div key={i} className="min-w-0">
+                  {n.label && <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{n.label}</p>}
+                  <p className="text-sm font-semibold">{n.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {hasValidity && (
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                Situação pela validade (recalculada todo dia)
+              </p>
+              <ValidityLegend />
+            </div>
+          )}
+        </section>
+      )}
+      {itemsTotal !== null && (adj.length > 0 || info.totalKey) && (
+        <section aria-label="Resumo de valores" className="w-full max-w-[420px] flex-[1_1_340px] rounded-2xl border bg-card p-4 shadow-sm">
+          <h4 className="mb-1 text-base font-extrabold">Resumo</h4>
+          <div className="flex items-center justify-between gap-3 border-t py-2.5 text-sm">
+            <span>{totalLabel}</span>
+            <strong className="tabular-nums">{maskBRL(itemsTotal)}</strong>
+          </div>
+          {adj.map((a, i) => (
+            <div key={a.key} className="flex items-center justify-between gap-3 border-t py-2 text-sm">
+              <span>
+                + {a.label} {a.note && <span className="text-muted-foreground">({a.note})</span>}
+              </span>
+              <Input
+                className="h-8 w-32 text-right tabular-nums"
+                inputMode="decimal"
+                disabled={!canEdit}
+                aria-label={a.label}
+                placeholder="0,00"
+                value={a.value === null || a.value === undefined ? "" : String(a.value).replace(".", ",")}
+                onChange={(e) => {
+                  const n = toNumber(e.target.value);
+                  const next = adj.map((x, j) => (j === i ? { ...x, value: e.target.value.trim() === "" ? null : n } : x));
+                  onChange({ ...info, adjustments: next });
+                }}
+                onBlur={() => onCommit()}
+              />
+            </div>
+          ))}
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-primary px-4 py-3 text-base font-extrabold text-primary-foreground">
+            <span>Total geral</span>
+            <span className="tabular-nums">{maskBRL(grand)}</span>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
 function SheetGrid({
   sheet,
   canEdit,
@@ -790,9 +1017,17 @@ function SheetGrid({
     return t;
   }, [cols, rowsData]);
   const hasTotals = cols.some((c) => c.sum);
+  const sheetInfo = useSheetInfo(sheet, queryKey);
+  const totalCol = cols.find((c) => c.key === sheetInfo.info.totalKey && c.sum);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      <SheetInfoHeader
+        info={sheetInfo.info}
+        canEdit={canEdit}
+        onChange={sheetInfo.setInfo}
+        onCommit={() => sheetInfo.save()}
+      />
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full min-w-max border-collapse text-sm">
           <thead className="bg-muted/60">
@@ -874,6 +1109,15 @@ function SheetGrid({
           <Plus className="h-4 w-4" /> Adicionar linha
         </Button>
       )}
+      <SheetSummary
+        info={sheetInfo.info}
+        sheet={sheet}
+        itemsTotal={totalCol ? totals[totalCol.key] ?? 0 : null}
+        totalLabel="Total dos itens"
+        canEdit={canEdit}
+        onChange={sheetInfo.setInfo}
+        onCommit={(i) => sheetInfo.save(i)}
+      />
     </div>
   );
 }
@@ -935,6 +1179,13 @@ function RowEditor({
       <td className="px-2 py-1 text-xs text-muted-foreground tabular-nums">{index + 1}</td>
       {columns.map((c) => {
         const v = data[c.key];
+        if (c.type === "validity") {
+          return (
+            <td key={c.key} className="px-2 py-1.5">
+              <ValidityChip value={c.validity ? data[c.validity.ref] : null} />
+            </td>
+          );
+        }
         if (c.type === "calc") {
           const n = calcValue(c, data, columns);
           return (
@@ -1310,6 +1561,10 @@ function SheetConfigDialog({
           calc: c.type === "calc" ? (c.calc ?? { op: "div", a: "", b: "" }) : undefined,
           sum: ["number", "currency", "calc"].includes(c.type) ? !!c.sum : undefined,
           alert: c.type === "date" ? !!c.alert : undefined,
+          validity:
+            c.type === "validity"
+              ? { ref: c.validity?.ref || cols.find((x) => x.type === "date")?.key || "" }
+              : undefined,
         }));
       return saveFn({
         data: {
@@ -1402,6 +1657,23 @@ function SheetConfigDialog({
                     ))}
                   </SelectContent>
                 </Select>
+                {c.type === "validity" && (
+                  <Select
+                    value={c.validity?.ref || ""}
+                    onValueChange={(v) => patch(i, { validity: { ref: v } })}
+                  >
+                    <SelectTrigger className="h-8 w-[180px]" aria-label="Data usada na situação">
+                      <SelectValue placeholder="Data de referência" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cols.filter((x) => x.type === "date").map((x) => (
+                        <SelectItem key={x.key} value={x.key}>
+                          pela data: {x.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 {["number", "currency", "calc"].includes(c.type) && (
                   <label className="flex items-center gap-1.5 text-xs">
                     <Checkbox

@@ -1,4 +1,4 @@
-import type { CostColumn, CostColumnType } from "./cost-presets";
+import type { CostColumn, CostColumnType, SheetInfo } from "./cost-presets";
 import { translateExcelFormula } from "./sheet-formula";
 
 /**
@@ -12,6 +12,8 @@ export type ImportedSheet = {
   columns: CostColumn[];
   rows: Record<string, string | number | boolean | null>[];
   skippedRows: number;
+  /** dados fora da tabela (cabeçalho, acréscimos ao total, observações) */
+  info: SheetInfo;
 };
 
 export const IMPORT_MAX_COLUMNS = 40;
@@ -86,14 +88,21 @@ function parseBool(v: ImportCell): boolean | null {
   return null;
 }
 
-const MONEY_HINT = /(valor|preco|custo|total|r\$|pago|pagar|receber|orcamento|frete|desconto|unitario|subtotal)/;
-const PERCENT_HINT = /(%|percent|margem|taxa)/;
+const MONEY_HINT = /(valor|val\b|preco|custo|total|r\$|pago|pagar|receber|orcamento|frete|desconto|unitario|subtotal|^st$|substitui)/;
+const PERCENT_HINT = /(%|percent|margem|taxa|icms|ipi\b|pis|cofins|\biss\b|aliquota)/;
+const CODE_HINT = /^(ca|c\.a\.?|cod|codigo|cnpj|cpf|cep|telefone|fone|nf|nota|ncm|sku|ref|referencia)\b/;
 
 function inferType(label: string, values: ImportCell[]): CostColumnType {
   const vals = values.filter((v) => !isEmpty(v));
-  if (!vals.length) return "text";
+  const hint = strip(label).trim();
+  if (CODE_HINT.test(hint) && !vals.some((v) => v instanceof Date)) return "text";
+  if (!vals.length) {
+    // coluna vazia: o nome decide (ex.: IPI → %, ST → R$)
+    if (PERCENT_HINT.test(hint)) return "percent";
+    if (MONEY_HINT.test(hint)) return "currency";
+    return "text";
+  }
   const all = (fn: (v: ImportCell) => unknown) => vals.every((v) => fn(v) !== null);
-  const hint = strip(label);
   if (vals.every((v) => v instanceof Date) || all(parseDateCell)) return "date";
   if (vals.every((v) => typeof v === "boolean") || (all(parseBool) && vals.some((v) => typeof v === "string")))
     return "boolean";
@@ -128,11 +137,26 @@ function convert(type: CostColumnType, v: ImportCell): string | number | boolean
   }
 }
 
-/** Linha de cabeçalho = primeira linha com pelo menos 2 células preenchidas (ou a primeira não vazia). */
+const isText = (v: ImportCell) => typeof v === "string" && v.trim() !== "" && parseNumberBR(v) === null && parseDateCell(v) === null;
+
+/**
+ * Linha de cabeçalho: entre as primeiras 40, a que tem mais títulos (textos curtos)
+ * e logo abaixo dela há dados. Formulários com campos no topo (Nº, Data, Contato) ficam de fora.
+ */
 function headerIndex(grid: ImportCell[][]) {
-  const filled = (r: ImportCell[]) => r.filter((c) => !isEmpty(c)).length;
-  const i = grid.findIndex((r) => filled(r) >= 2);
-  return i >= 0 ? i : grid.findIndex((r) => filled(r) >= 1);
+  const lim = Math.min(grid.length, 40);
+  const titlesOf = (r: ImportCell[]) => r.filter((c) => isText(c) && String(c).trim().length <= 60).length;
+  const labelsOf = (r: ImportCell[]) => r.filter((c) => typeof c === "string" && /:\s*$/.test(c)).length;
+  let max = 0;
+  for (let i = 0; i < lim; i++) max = Math.max(max, titlesOf(grid[i]) - labelsOf(grid[i]));
+  if (max >= 2) {
+    // a primeira linha com pelo menos metade dos títulos da mais "cheia" e sem rótulos "Campo:"
+    for (let i = 0; i < lim; i++) {
+      const t = titlesOf(grid[i]);
+      if (t >= 2 && t >= max * 0.5 && labelsOf(grid[i]) === 0) return i;
+    }
+  }
+  return grid.findIndex((r) => r.some((c) => !isEmpty(c)));
 }
 
 export type ImportOptions = {
@@ -148,6 +172,7 @@ export type ImportOptions = {
 };
 
 const TOTAL_LABEL = /^(total|totais|subtotal|soma|total geral)\b/;
+const INDEX_LABEL = /^(item|itens|n[ºo°.]*|#|seq|sequencia)$/;
 
 function formatHint(fmts: (string | undefined)[]): CostColumnType | null {
   const f = fmts.filter(Boolean) as string[];
@@ -157,6 +182,13 @@ function formatHint(fmts: (string | undefined)[]): CostColumnType | null {
   if (share(/R\$|\[\$R|BRL|\[\$-416\]|"R"|\$/) >= 0.6) return "currency";
   return null;
 }
+
+const cellText = (v: ImportCell) =>
+  v instanceof Date ? (parseDateCell(v) ?? "").split("-").reverse().join("/") : isEmpty(v) ? "" : String(v).trim();
+const cleanLabel = (s: string) =>
+  s.replace(/^\|+\s*/, "").replace(/:\s*$/, "").replace(/^R\$\s*-?\s*/i, "").trim();
+const slug = (s: string) =>
+  strip(s).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "campo";
 
 export function buildImportedSheet(
   name: string,
@@ -170,35 +202,57 @@ export function buildImportedSheet(
   const h = headerIndex(grid);
   if (h < 0) return null;
   const header = grid[h];
-  let bodyIdx = grid
-    .map((_, i) => i)
-    .filter((i) => i > h && grid[i].some((c) => !isEmpty(c)));
-  const width = Math.max(header.length, ...bodyIdx.map((i) => grid[i].length));
+  const blank = (i: number) => !grid[i] || grid[i].every((c) => isEmpty(c));
 
-  // linhas de total no fim (texto "Total…" ou SOMA da coluna inteira): saem dos lançamentos
+  // a tabela vai do cabeçalho até a primeira linha em branco
+  let end = h + 1;
+  while (end < grid.length && !blank(end)) end++;
+  const width = Math.max(header.length, ...grid.slice(h + 1, end).map((r) => r.length));
+
+  // coluna "Item"/"Nº" com 1, 2, 3…: o Core já numera
+  const indexCols = new Set<number>();
+  for (let c = 0; c < width; c++) {
+    if (!INDEX_LABEL.test(strip(cellText(header[c])))) continue;
+    const vals = grid.slice(h + 1, end).map((r) => r[c]).filter((v) => !isEmpty(v));
+    if (vals.length && vals.every((v) => typeof v === "number" && Number.isInteger(v))) indexCols.add(c);
+  }
+  // linha de dados = tem algo digitado (não fórmula) fora da coluna de numeração
+  const isData = (i: number) =>
+    grid[i].some((v, c) => !indexCols.has(c) && !isEmpty(v) && !fAt(i, c));
+  let bodyIdx: number[] = [];
+  for (let i = h + 1; i < end; i++) if (isData(i)) bodyIdx.push(i);
+
+  // linhas de total no fim da tabela (texto "Total…" ou SOMA da coluna): saem dos lançamentos
   const sumCols = new Set<number>();
+  const markSums = (f: string | undefined) => {
+    if (!f) return;
+    for (const m of f.matchAll(/(?:SUM|SOMA)\(\$?([A-Z]{1,3})\$?\d+:\$?\1\$?\d+\)/gi)) {
+      let n = 0;
+      for (const ch of m[1].toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64);
+      sumCols.add(n - 1 - firstCol);
+    }
+  };
   const isTotalRow = (i: number) => {
     const r = grid[i];
     const firstText = r.find((c) => typeof c === "string" && c.trim());
     const labelled = typeof firstText === "string" && TOTAL_LABEL.test(strip(firstText.trim()));
-    const colsums: number[] = [];
+    let colsum = false;
     for (let c = 0; c < width; c++) {
       const f = fAt(i, c);
-      const m = f && /^\s*=?\s*(SUM|SOMA)\(\$?([A-Z]{1,3})\$?\d+:\$?\2\$?\d+\)\s*$/i.exec(f);
-      if (m) colsums.push(c);
+      if (f && /^\s*=?\s*(SUM|SOMA)\(\$?([A-Z]{1,3})\$?\d+:\$?\2\$?\d+\)\s*$/i.test(f)) {
+        markSums(f);
+        colsum = true;
+      }
     }
-    if (labelled || colsums.length) {
-      colsums.forEach((c) => sumCols.add(c));
-      return true;
-    }
-    return false;
+    return labelled || colsum;
   };
   while (bodyIdx.length && isTotalRow(bodyIdx[bodyIdx.length - 1])) bodyIdx = bodyIdx.slice(0, -1);
   const body = bodyIdx.map((i) => grid[i]);
 
-  // colunas usadas (cabeçalho ou algum valor/fórmula)
+  // colunas usadas (cabeçalho, valor ou fórmula), sem a numeração
   const idx: number[] = [];
   for (let c = 0; c < width && idx.length < IMPORT_MAX_COLUMNS; c++) {
+    if (indexCols.has(c)) continue;
     if (!isEmpty(header[c]) || bodyIdx.some((i) => !isEmpty(grid[i][c]) || fAt(i, c))) idx.push(c);
   }
   if (!idx.length) return null;
@@ -207,7 +261,7 @@ export function buildImportedSheet(
   const used = new Set<string>();
   const columns: CostColumn[] = idx.map((c, i) => {
     const raw = header[c];
-    const label = (isEmpty(raw) ? `Coluna ${i + 1}` : raw instanceof Date ? (parseDateCell(raw) ?? "") : String(raw).trim()).slice(0, 80) || `Coluna ${i + 1}`;
+    const label = (isEmpty(raw) ? `Coluna ${i + 1}` : cellText(raw)).slice(0, 80) || `Coluna ${i + 1}`;
     const values = body.map((r) => r[c]);
     const hint = formatHint(bodyIdx.map((r) => zAt(r, c)));
     let type = inferType(label, values);
@@ -220,10 +274,14 @@ export function buildImportedSheet(
     } else key = keyFor(label, used, i);
     const col: CostColumn = { key, label, type };
     if (prev?.width) col.width = prev.width;
+    else if (type === "text") {
+      // largura pelo texto mais comprido (descrições longas não ficam cortadas)
+      const longest = Math.max(label.length, ...values.map((v) => cellText(v).length));
+      col.width = Math.max(120, Math.min(360, Math.round(longest * 7.5 + 24)));
+    }
     // valor unitário/preço não se soma; totais e valores sim
     if (type === "currency" || type === "number") col.sum = type === "currency" && !/(unit|preco|preço)/.test(strip(label));
-    if (sumCols.has(c) && type !== "percent" && type !== "text") col.sum = true;
-    if (type === "date" && (prev?.alert || /(venc|prazo|entrega|previs|validade)/.test(strip(label)))) col.alert = true;
+    if (type === "date" && (prev?.alert || /(venc|prazo|entrega|previs|valid)/.test(strip(label)))) col.alert = true;
     if (type === prev?.type && prev?.options) col.options = prev.options;
     return col;
   });
@@ -234,14 +292,30 @@ export function buildImportedSheet(
     return j >= 0 ? { key: columns[j].key, type: columns[j].calc?.asPercent ? "percent" : columns[j].type } : null;
   };
   const constAt = (excelCol: number, excelRow: number) => {
-    const r = excelRow - firstRow;
-    const v = grid[r]?.[excelCol - firstCol];
+    const v = grid[excelRow - firstRow]?.[excelCol - firstCol];
     // valor como o Excel usa na conta (% fica como fração)
     return typeof v === "number" ? v : parseNumberBR(v as ImportCell);
   };
   idx.forEach((c, j) => {
     const withF = bodyIdx.filter((r) => fAt(r, c));
     if (!withF.length || withF.length < bodyIdx.length / 2) return;
+    const col = columns[j];
+    // situação pela data (ex.: SE(G9-HOJE()>180;"Valido";…)) → coluna de situação automática
+    const today = withF.filter((r) => /TODAY\(\)|HOJE\(\)/i.test(fAt(r, c)!));
+    if (today.length >= withF.length * 0.7) {
+      const ref = /\$?([A-Z]{1,3})\$?(\d+)\s*-\s*(?:TODAY|HOJE)\(\)/i.exec(fAt(today[0], c)!);
+      if (ref) {
+        let n = 0;
+        for (const ch of ref[1].toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64);
+        const target = colAtExcel(n - 1);
+        if (target && target.type === "date") {
+          col.type = "validity";
+          col.validity = { ref: target.key };
+          delete col.sum;
+          return;
+        }
+      }
+    }
     const exprs = new Map<string, number>();
     for (const r of withF) {
       const t = translateExcelFormula(fAt(r, c)!, { row: firstRow + r, colAt: colAtExcel, constAt });
@@ -249,7 +323,6 @@ export function buildImportedSheet(
     }
     const best = [...exprs.entries()].sort((a, b) => b[1] - a[1])[0];
     if (!best || best[1] < withF.length * 0.7) return;
-    const col = columns[j];
     const wasPercent = col.type === "percent";
     const money = col.type === "currency" || MONEY_HINT.test(strip(col.label));
     col.type = "calc";
@@ -260,9 +333,8 @@ export function buildImportedSheet(
       expr: wasPercent ? `(${best[0]})*100` : best[0],
       ...(wasPercent ? { asPercent: true } : money ? { asCurrency: true } : {}),
     };
-    col.sum = !wasPercent && (col.sum || sumCols.has(c) || money);
+    col.sum = !wasPercent && (!!col.sum || money);
   });
-  // coluna calculada que aponta para ela mesma não vale
   for (const col of columns) {
     if (col.calc?.expr && col.calc.expr.includes(`{${col.key}}`)) {
       col.type = "number";
@@ -270,12 +342,121 @@ export function buildImportedSheet(
     }
   }
 
+  // ---- fora da tabela: cabeçalho do formulário (acima) e resumo/observações (abaixo) ----
+  const info: SheetInfo = {};
+  const fields: NonNullable<SheetInfo["fields"]> = [];
+  const notes: NonNullable<SheetInfo["notes"]> = [];
+  const fieldKeys = new Set<string>();
+  const addField = (label: string, value: string) => {
+    let k = slug(label);
+    while (fieldKeys.has(k)) k = `${k}_2`;
+    fieldKeys.add(k);
+    fields.push({ key: k, label: label.slice(0, 80), value: value.slice(0, 500) });
+  };
+  for (let i = 0; i < h; i++) {
+    const r = grid[i] ?? [];
+    for (let c = 0; c < r.length; c++) {
+      const t = cellText(r[c]);
+      if (!t || !isText(r[c])) continue;
+      if (t.length > 40 || /^\|/.test(t)) {
+        if (/^\|/.test(t) || (i === 0 && !info.title && t.length <= 80 && t === t.toUpperCase())) info.title = cleanLabel(t);
+        else notes.push({ label: "", value: t.slice(0, 1000) });
+        continue;
+      }
+      // rótulo: termina com ":" ou é seguido de um valor nas próximas 3 colunas
+      let v = "";
+      let at = -1;
+      for (let k = c + 1; k < Math.min(r.length, c + 4); k++) {
+        if (isEmpty(r[k])) continue;
+        if (typeof r[k] === "string" && (/:\s*$/.test(String(r[k])) || (isText(r[k]) && String(r[k]).length > 40))) break;
+        v = cellText(r[k]);
+        at = k;
+        break;
+      }
+      if (/:\s*$/.test(t) || at >= 0) {
+        addField(cleanLabel(t) || t, v);
+        if (at >= 0) c = at;
+      }
+    }
+  }
+  if (!info.title && grid[0]?.some((x) => !isEmpty(x)) && h > 0) {
+    const t = grid[0].map(cellText).find(Boolean);
+    if (t && !fields.some((f) => f.label === cleanLabel(t))) info.title = cleanLabel(t);
+  }
+
+  // abaixo da tabela: "SOMA" = total + células avulsas (ST, frete…), observações e legenda
+  const hasValidity = columns.some((c) => c.type === "validity");
+  const adjustments: NonNullable<SheetInfo["adjustments"]> = [];
+  const used2 = new Set<string>();
+  for (let i = end; i < grid.length; i++) {
+    const r = grid[i];
+    if (!r || r.every((x) => isEmpty(x))) continue;
+    let handled = false;
+    for (let c = 0; c < r.length; c++) {
+      const f = fAt(i, c);
+      if (!f || !/(SUM|SOMA)\(/i.test(f)) continue;
+      markSums(f);
+      handled = true;
+      // células somadas fora do intervalo: acréscimos ao total
+      const rest = f.replace(/(?:SUM|SOMA)\([^)]*\)/gi, "");
+      for (const m of rest.matchAll(/\$?([A-Z]{1,3})\$?(\d+)/g)) {
+        let n = 0;
+        for (const ch of m[1].toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64);
+        const rr = Number(m[2]) - firstRow;
+        const cc = n - 1 - firstCol;
+        const row = grid[rr] ?? [];
+        let label = "";
+        let note = "";
+        for (let k = cc - 1; k >= 0; k--) {
+          const t = cellText(row[k]);
+          if (!t) continue;
+          if (t.length <= 4 && !label) {
+            note = note || t;
+            continue;
+          }
+          label = cleanLabel(t);
+          break;
+        }
+        // nota que fica entre o rótulo e o valor (ex.: "R$ Frete | FOB | valor")
+        for (let k = cc - 1; k >= 0 && !note; k--) {
+          const t = cellText(row[k]);
+          if (t && t.length <= 4) note = t;
+          if (t && t.length > 4) break;
+        }
+        label = label || `Acréscimo ${adjustments.length + 1}`;
+        let key = slug(label);
+        while (used2.has(key)) key = `${key}_2`;
+        used2.add(key);
+        adjustments.push({ key, label, value: parseNumberBR(row[cc] as ImportCell), ...(note ? { note } : {}) });
+      }
+    }
+    if (handled) continue;
+    const texts = r.map(cellText).filter(Boolean);
+    if (!texts.length) continue;
+    const line = texts.join(" ");
+    if (hasValidity && (/^>>/.test(line) || /^(vencido|vencendo)/i.test(strip(texts[0])))) continue; // legenda da validade
+    const m = /^([^:]{2,60}):\s*(.+)$/.exec(line);
+    if (m) notes.push({ label: cleanLabel(m[1]), value: m[2].trim().slice(0, 1000) });
+    else notes.push({ label: "", value: line.slice(0, 1000) });
+  }
+  // colunas somadas no "SOMA" ganham total no rodapé
+  idx.forEach((c, j) => {
+    if (sumCols.has(c) && columns[j].type !== "percent" && columns[j].type !== "text") columns[j].sum = true;
+  });
+  const totalCol =
+    columns.find((c, j) => sumCols.has(idx[j]) && c.sum) ??
+    [...columns].reverse().find((c) => c.sum && (c.calc?.asCurrency || c.type === "currency"));
+  if (fields.length) info.fields = fields.slice(0, 30);
+  if (adjustments.length) info.adjustments = adjustments.slice(0, 10);
+  if (notes.length) info.notes = notes.slice(0, 20);
+  if (totalCol && (adjustments.length || fields.length)) info.totalKey = totalCol.key;
+
   const kept = body.slice(0, IMPORT_MAX_ROWS);
   const rows = kept.map((r, ri) => {
     const o: Record<string, string | number | boolean | null> = {};
     idx.forEach((c, i) => {
       const col = columns[i];
-      if (col.type === "calc") return; // calculado na tela
+      if (col.type === "calc" || col.type === "validity") return; // calculado na tela
       let v = convert(col.type, r[c]);
       const z = zAt(bodyIdx[ri], c);
       if (col.type === "percent" && typeof r[c] === "number" && z && /%/.test(z)) v = Math.round((r[c] as number) * 10000) / 100;
@@ -288,5 +469,6 @@ export function buildImportedSheet(
     columns,
     rows,
     skippedRows: body.length - kept.length,
+    info,
   };
 }

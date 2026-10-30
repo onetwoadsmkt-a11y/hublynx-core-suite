@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { DEPARTMENT_PRESETS, BLANK_SHEET, type CostColumn } from "./cost-presets";
+import { DEPARTMENT_PRESETS, BLANK_SHEET, type CostColumn, type SheetInfo } from "./cost-presets";
 
 /** Fase 4 — departamentos e planilhas de custo do projeto (regras de acesso no banco). */
 
@@ -20,6 +20,8 @@ export type CostSheet = {
   columns: CostColumn[];
   position: number;
   rows: CostRow[];
+  /** cabeçalho/resumo vindos da planilha importada (migração 26) */
+  info: SheetInfo;
 };
 export type CostDepartment = {
   id: string;
@@ -39,7 +41,7 @@ const columnSchema: z.ZodType<CostColumn> = z.object({
     .max(40)
     .regex(/^[a-z0-9_]+$/),
   label: z.string().trim().min(1).max(80),
-  type: z.enum(["text", "number", "currency", "percent", "date", "status", "boolean", "calc"]),
+  type: z.enum(["text", "number", "currency", "percent", "date", "status", "boolean", "calc", "validity"]),
   options: z
     .array(
       z.object({
@@ -67,7 +69,36 @@ const columnSchema: z.ZodType<CostColumn> = z.object({
     })
     .optional(),
   width: z.number().int().min(60).max(600).optional(),
+  validity: z.object({ ref: z.string().max(40) }).optional(),
 }) as z.ZodType<CostColumn>;
+
+const infoSchema: z.ZodType<SheetInfo> = z.object({
+  title: z.string().max(200).optional(),
+  fields: z
+    .array(z.object({ key: z.string().max(40), label: z.string().max(80), value: z.string().max(500) }))
+    .max(30)
+    .optional(),
+  adjustments: z
+    .array(
+      z.object({
+        key: z.string().max(40),
+        label: z.string().max(80),
+        value: z.number().nullable(),
+        note: z.string().max(80).optional(),
+      }),
+    )
+    .max(10)
+    .optional(),
+  notes: z.array(z.object({ label: z.string().max(80), value: z.string().max(1000) })).max(20).optional(),
+  totalKey: z.string().max(40).optional(),
+}) as z.ZodType<SheetInfo>;
+
+/** cost_sheets.info só existe depois da migração 26: grava sem quebrar antes dela. */
+async function saveInfo(db: Db, sheetId: string, info: SheetInfo | undefined) {
+  if (!info) return true;
+  const { error } = await db.from("cost_sheets").update({ info }).eq("id", sheetId);
+  return !error;
+}
 
 async function projectInfo(db: Db, projectId: string) {
   const { data, error } = await db
@@ -93,14 +124,20 @@ export const listProjectDepartments = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     const list = (depts ?? []) as Omit<CostDepartment, "sheets">[];
     if (!list.length) return [];
-    const { data: sheets, error: sErr } = await db
+    const deptIds = list.map((d) => d.id);
+    let { data: sheets, error: sErr } = await db
       .from("cost_sheets")
-      .select("id, department_id, name, columns, position")
-      .in(
-        "department_id",
-        list.map((d) => d.id),
-      )
+      .select("id, department_id, name, columns, position, info")
+      .in("department_id", deptIds)
       .order("position");
+    if (sErr) {
+      // antes da migração 26 não há a coluna info
+      ({ data: sheets, error: sErr } = await db
+        .from("cost_sheets")
+        .select("id, department_id, name, columns, position")
+        .in("department_id", deptIds)
+        .order("position"));
+    }
     if (sErr) throw new Error(sErr.message);
     const sheetList = (sheets ?? []) as Omit<CostSheet, "rows">[];
     let rows: CostRow[] = [];
@@ -124,6 +161,7 @@ export const listProjectDepartments = createServerFn({ method: "GET" })
         .map((s) => ({
           ...s,
           columns: (s.columns ?? []) as CostColumn[],
+          info: ((s as { info?: SheetInfo }).info ?? {}) as SheetInfo,
           rows: rows.filter((r) => r.sheet_id === s.id),
         })),
     }));
@@ -406,6 +444,7 @@ export const importSheet = createServerFn({ method: "POST" })
             ),
           )
           .max(2000),
+        info: infoSchema.optional(),
       })
       .parse(d),
   )
@@ -449,7 +488,8 @@ export const importSheet = createServerFn({ method: "POST" })
         throw new Error(`Não foi possível gravar as linhas: ${rErr.message}`);
       }
     }
-    return { id: sheet.id as string, rows: rows.length };
+    const infoSaved = await saveInfo(db, sheet.id as string, data.info);
+    return { id: sheet.id as string, rows: rows.length, infoSaved };
   });
 
 /**
@@ -473,6 +513,7 @@ export const replaceSheetFromImport = createServerFn({ method: "POST" })
           )
           .max(2000),
         mode: z.enum(["replace", "append"]).default("replace"),
+        info: infoSchema.optional(),
       })
       .parse(d),
   )
@@ -519,5 +560,26 @@ export const replaceSheetFromImport = createServerFn({ method: "POST" })
       const { error: rErr } = await db.from("cost_sheet_rows").insert(rows.slice(i, i + 500));
       if (rErr) throw new Error(`Colunas atualizadas, mas houve erro ao gravar as linhas: ${rErr.message}`);
     }
-    return { rows: rows.length };
+    const infoSaved = await saveInfo(db, data.sheetId, data.info);
+    return { rows: rows.length, infoSaved };
+  });
+
+/** Edita os dados do cabeçalho/resumo da planilha (Nº, data, contato, frete, ST…). */
+export const saveSheetInfo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ sheetId: uuid, info: infoSchema }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: row, error } = await db
+      .from("cost_sheets")
+      .update({ info: data.info })
+      .eq("id", data.sheetId)
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      if (/info/.test(error.message)) throw new Error("Rode a migração 26 no banco para salvar estes dados.");
+      throw new Error(error.message);
+    }
+    if (!row) throw new Error("Sem permissão para alterar a planilha.");
+    return { ok: true as const };
   });
