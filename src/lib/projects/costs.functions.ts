@@ -58,6 +58,12 @@ const columnSchema: z.ZodType<CostColumn> = z.object({
       a: z.string().max(40),
       b: z.string().max(40),
       asPercent: z.boolean().optional(),
+      asCurrency: z.boolean().optional(),
+      expr: z
+        .string()
+        .max(500)
+        .regex(/^[a-z0-9_{}().,+\-*/ ]*$/)
+        .optional(),
     })
     .optional(),
   width: z.number().int().min(60).max(600).optional(),
@@ -444,4 +450,74 @@ export const importSheet = createServerFn({ method: "POST" })
       }
     }
     return { id: sheet.id as string, rows: rows.length };
+  });
+
+/**
+ * Importa uma planilha DENTRO de uma aba que já existe (ex.: "Itens comprados"):
+ * as colunas passam a ser as do arquivo (com as fórmulas como colunas calculadas)
+ * e os lançamentos são substituídos ou somados aos que já existem.
+ */
+export const replaceSheetFromImport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        sheetId: uuid,
+        columns: z.array(columnSchema).min(1).max(40),
+        rows: z
+          .array(
+            z.record(
+              z.string().max(40),
+              z.union([z.string().max(2000), z.number(), z.boolean(), z.null()]),
+            ),
+          )
+          .max(2000),
+        mode: z.enum(["replace", "append"]).default("replace"),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: sheet, error: sErr } = await db
+      .from("cost_sheets")
+      .select("id, organization_id, columns")
+      .eq("id", data.sheetId)
+      .maybeSingle();
+    if (sErr) throw new Error(sErr.message);
+    if (!sheet) throw new Error("Planilha não encontrada.");
+    const before = sheet.columns as CostColumn[];
+    const { data: upd, error: uErr } = await db
+      .from("cost_sheets")
+      .update({ columns: data.columns })
+      .eq("id", data.sheetId)
+      .select("id")
+      .maybeSingle();
+    if (uErr) throw new Error(uErr.message);
+    if (!upd) throw new Error("Sem permissão para alterar a planilha.");
+    let start = 0;
+    if (data.mode === "replace") {
+      const { error: dErr } = await db.from("cost_sheet_rows").delete().eq("sheet_id", data.sheetId);
+      if (dErr) {
+        await db.from("cost_sheets").update({ columns: before }).eq("id", data.sheetId);
+        throw new Error(`Não foi possível limpar os lançamentos: ${dErr.message}`);
+      }
+    } else {
+      const { count } = await db
+        .from("cost_sheet_rows")
+        .select("id", { count: "exact", head: true })
+        .eq("sheet_id", data.sheetId);
+      start = count ?? 0;
+    }
+    const keys = new Set(data.columns.map((c) => c.key));
+    const rows = data.rows.map((r, i) => ({
+      organization_id: sheet.organization_id,
+      sheet_id: data.sheetId,
+      position: start + i,
+      data: Object.fromEntries(Object.entries(r).filter(([k]) => keys.has(k))),
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error: rErr } = await db.from("cost_sheet_rows").insert(rows.slice(i, i + 500));
+      if (rErr) throw new Error(`Colunas atualizadas, mas houve erro ao gravar as linhas: ${rErr.message}`);
+    }
+    return { rows: rows.length };
   });

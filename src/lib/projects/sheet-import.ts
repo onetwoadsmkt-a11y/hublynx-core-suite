@@ -1,4 +1,5 @@
 import type { CostColumn, CostColumnType } from "./cost-presets";
+import { translateExcelFormula } from "./sheet-formula";
 
 /**
  * Importação de planilha (Excel/CSV) para as planilhas de custo do projeto.
@@ -134,33 +135,151 @@ function headerIndex(grid: ImportCell[][]) {
   return i >= 0 ? i : grid.findIndex((r) => filled(r) >= 1);
 }
 
-export function buildImportedSheet(name: string, grid: ImportCell[][]): ImportedSheet | null {
+export type ImportOptions = {
+  /** fórmulas do Excel alinhadas com a grade (sem o "="), quando houver */
+  formulas?: (string | undefined)[][];
+  /** formato numérico do Excel de cada célula (ex.: "0.00%", "R$ #,##0.00") */
+  formats?: (string | undefined)[][];
+  /** linha (1-based) e coluna (0-based) do Excel onde a grade começa */
+  firstRow?: number;
+  firstCol?: number;
+  /** colunas já configuradas na aba: mesmo nome → mantém a chave e os ajustes */
+  existing?: CostColumn[];
+};
+
+const TOTAL_LABEL = /^(total|totais|subtotal|soma|total geral)\b/;
+
+function formatHint(fmts: (string | undefined)[]): CostColumnType | null {
+  const f = fmts.filter(Boolean) as string[];
+  if (!f.length) return null;
+  const share = (re: RegExp) => f.filter((x) => re.test(x)).length / f.length;
+  if (share(/%/) >= 0.6) return "percent";
+  if (share(/R\$|\[\$R|BRL|\[\$-416\]|"R"|\$/) >= 0.6) return "currency";
+  return null;
+}
+
+export function buildImportedSheet(
+  name: string,
+  grid: ImportCell[][],
+  opts: ImportOptions = {},
+): ImportedSheet | null {
+  const firstRow = opts.firstRow ?? 1;
+  const firstCol = opts.firstCol ?? 0;
+  const fAt = (r: number, c: number) => opts.formulas?.[r]?.[c];
+  const zAt = (r: number, c: number) => opts.formats?.[r]?.[c];
   const h = headerIndex(grid);
   if (h < 0) return null;
   const header = grid[h];
-  const body = grid.slice(h + 1).filter((r) => r.some((c) => !isEmpty(c)));
-  const width = Math.max(header.length, ...body.map((r) => r.length));
-  // colunas usadas (cabeçalho ou algum valor)
+  let bodyIdx = grid
+    .map((_, i) => i)
+    .filter((i) => i > h && grid[i].some((c) => !isEmpty(c)));
+  const width = Math.max(header.length, ...bodyIdx.map((i) => grid[i].length));
+
+  // linhas de total no fim (texto "Total…" ou SOMA da coluna inteira): saem dos lançamentos
+  const sumCols = new Set<number>();
+  const isTotalRow = (i: number) => {
+    const r = grid[i];
+    const firstText = r.find((c) => typeof c === "string" && c.trim());
+    const labelled = typeof firstText === "string" && TOTAL_LABEL.test(strip(firstText.trim()));
+    const colsums: number[] = [];
+    for (let c = 0; c < width; c++) {
+      const f = fAt(i, c);
+      const m = f && /^\s*=?\s*(SUM|SOMA)\(\$?([A-Z]{1,3})\$?\d+:\$?\2\$?\d+\)\s*$/i.exec(f);
+      if (m) colsums.push(c);
+    }
+    if (labelled || colsums.length) {
+      colsums.forEach((c) => sumCols.add(c));
+      return true;
+    }
+    return false;
+  };
+  while (bodyIdx.length && isTotalRow(bodyIdx[bodyIdx.length - 1])) bodyIdx = bodyIdx.slice(0, -1);
+  const body = bodyIdx.map((i) => grid[i]);
+
+  // colunas usadas (cabeçalho ou algum valor/fórmula)
   const idx: number[] = [];
   for (let c = 0; c < width && idx.length < IMPORT_MAX_COLUMNS; c++) {
-    if (!isEmpty(header[c]) || body.some((r) => !isEmpty(r[c]))) idx.push(c);
+    if (!isEmpty(header[c]) || bodyIdx.some((i) => !isEmpty(grid[i][c]) || fAt(i, c))) idx.push(c);
   }
   if (!idx.length) return null;
+
+  const existingBy = new Map((opts.existing ?? []).map((c) => [strip(c.label).trim(), c]));
   const used = new Set<string>();
   const columns: CostColumn[] = idx.map((c, i) => {
     const raw = header[c];
     const label = (isEmpty(raw) ? `Coluna ${i + 1}` : raw instanceof Date ? (parseDateCell(raw) ?? "") : String(raw).trim()).slice(0, 80) || `Coluna ${i + 1}`;
-    const type = inferType(label, body.map((r) => r[c]));
-    const col: CostColumn = { key: keyFor(label, used, i), label, type };
-    if (type === "currency" || type === "number") col.sum = type === "currency";
-    if (type === "date" && /(venc|prazo|entrega|previs)/.test(strip(label))) col.alert = true;
+    const values = body.map((r) => r[c]);
+    const hint = formatHint(bodyIdx.map((r) => zAt(r, c)));
+    let type = inferType(label, values);
+    if (hint && (type === "number" || type === "currency" || type === "percent")) type = hint;
+    const prev = existingBy.get(strip(label).trim());
+    let key: string;
+    if (prev && !used.has(prev.key)) {
+      key = prev.key;
+      used.add(key);
+    } else key = keyFor(label, used, i);
+    const col: CostColumn = { key, label, type };
+    if (prev?.width) col.width = prev.width;
+    // valor unitário/preço não se soma; totais e valores sim
+    if (type === "currency" || type === "number") col.sum = type === "currency" && !/(unit|preco|preço)/.test(strip(label));
+    if (sumCols.has(c) && type !== "percent" && type !== "text") col.sum = true;
+    if (type === "date" && (prev?.alert || /(venc|prazo|entrega|previs|validade)/.test(strip(label)))) col.alert = true;
+    if (type === prev?.type && prev?.options) col.options = prev.options;
     return col;
   });
+
+  // fórmulas por coluna: a mesma conta na maioria das linhas → coluna calculada
+  const colAtExcel = (excelCol: number) => {
+    const j = idx.indexOf(excelCol - firstCol);
+    return j >= 0 ? { key: columns[j].key, type: columns[j].calc?.asPercent ? "percent" : columns[j].type } : null;
+  };
+  const constAt = (excelCol: number, excelRow: number) => {
+    const r = excelRow - firstRow;
+    const v = grid[r]?.[excelCol - firstCol];
+    // valor como o Excel usa na conta (% fica como fração)
+    return typeof v === "number" ? v : parseNumberBR(v as ImportCell);
+  };
+  idx.forEach((c, j) => {
+    const withF = bodyIdx.filter((r) => fAt(r, c));
+    if (!withF.length || withF.length < bodyIdx.length / 2) return;
+    const exprs = new Map<string, number>();
+    for (const r of withF) {
+      const t = translateExcelFormula(fAt(r, c)!, { row: firstRow + r, colAt: colAtExcel, constAt });
+      if (t?.kind === "expr") exprs.set(t.expr, (exprs.get(t.expr) ?? 0) + 1);
+    }
+    const best = [...exprs.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!best || best[1] < withF.length * 0.7) return;
+    const col = columns[j];
+    const wasPercent = col.type === "percent";
+    const money = col.type === "currency" || MONEY_HINT.test(strip(col.label));
+    col.type = "calc";
+    col.calc = {
+      op: "add",
+      a: "",
+      b: "",
+      expr: wasPercent ? `(${best[0]})*100` : best[0],
+      ...(wasPercent ? { asPercent: true } : money ? { asCurrency: true } : {}),
+    };
+    col.sum = !wasPercent && (col.sum || sumCols.has(c) || money);
+  });
+  // coluna calculada que aponta para ela mesma não vale
+  for (const col of columns) {
+    if (col.calc?.expr && col.calc.expr.includes(`{${col.key}}`)) {
+      col.type = "number";
+      delete col.calc;
+    }
+  }
+
   const kept = body.slice(0, IMPORT_MAX_ROWS);
-  const rows = kept.map((r) => {
+  const rows = kept.map((r, ri) => {
     const o: Record<string, string | number | boolean | null> = {};
     idx.forEach((c, i) => {
-      o[columns[i].key] = convert(columns[i].type, r[c]);
+      const col = columns[i];
+      if (col.type === "calc") return; // calculado na tela
+      let v = convert(col.type, r[c]);
+      const z = zAt(bodyIdx[ri], c);
+      if (col.type === "percent" && typeof r[c] === "number" && z && /%/.test(z)) v = Math.round((r[c] as number) * 10000) / 100;
+      o[col.key] = v;
     });
     return o;
   });

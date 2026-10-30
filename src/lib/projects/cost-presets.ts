@@ -1,3 +1,4 @@
+import { evalExpr } from "./sheet-formula";
 /**
  * Departamentos e planilhas de controle de custo (Fase 4). Estrutura genérica:
  * cada empresa cria os departamentos que quiser e define as colunas de cada planilha.
@@ -19,8 +20,11 @@ export type CostColumn = {
   sum?: boolean;
   /** datas: pinta de vermelho quando vencida e a linha não está resolvida */
   alert?: boolean;
-  /** coluna calculada: a (op) b; asPercent mostra em % */
-  calc?: { op: "div" | "mul" | "sub" | "add"; a: string; b: string; asPercent?: boolean };
+  /**
+   * coluna calculada: a (op) b; asPercent mostra em %.
+   * expr (importada do Excel): expressão com {chave} das colunas, + - * / ( ) e round/abs/min/max.
+   */
+  calc?: { op: "div" | "mul" | "sub" | "add"; a: string; b: string; asPercent?: boolean; asCurrency?: boolean; expr?: string };
   width?: number;
 };
 
@@ -264,8 +268,25 @@ export function toNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function calcValue(col: CostColumn, row: Record<string, unknown>): number | null {
+export function calcValue(
+  col: CostColumn,
+  row: Record<string, unknown>,
+  columns?: CostColumn[],
+  depth = 0,
+): number | null {
   if (!col.calc) return null;
+  if (col.calc.expr) {
+    if (depth > 6) return null;
+    try {
+      return evalExpr(col.calc.expr, (key) => {
+        const ref = columns?.find((c) => c.key === key);
+        if (ref && ref.type === "calc") return calcValue(ref, row, columns, depth + 1);
+        return toNumber(row[key]);
+      });
+    } catch {
+      return null;
+    }
+  }
   const a = toNumber(row[col.calc.a]);
   const b = toNumber(row[col.calc.b]);
   if (a === null || b === null) return null;

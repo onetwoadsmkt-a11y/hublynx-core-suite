@@ -56,6 +56,7 @@ import {
   deleteSheet,
   importSheet,
   listProjectDepartments,
+  replaceSheetFromImport,
   loadTemplateDepartments,
   saveDepartmentsToTemplate,
   saveRow,
@@ -65,12 +66,59 @@ import {
   type CostRow,
   type CostSheet,
 } from "@/lib/projects/costs.functions";
-import { buildImportedSheet, IMPORT_MAX_ROWS, type ImportCell } from "@/lib/projects/sheet-import";
+import {
+  buildImportedSheet,
+  IMPORT_MAX_ROWS,
+  type ImportCell,
+  type ImportedSheet,
+  type ImportOptions,
+} from "@/lib/projects/sheet-import";
+import { exprLabel } from "@/lib/projects/sheet-formula";
 
 /** CSV salvo pelo Excel no Brasil costuma vir em Windows-1252: usa UTF-8 e cai para ele se houver caracteres inválidos. */
 function decodeCsv(buf: ArrayBuffer) {
   const utf = new TextDecoder("utf-8").decode(buf);
   return utf.includes("\uFFFD") ? new TextDecoder("windows-1252").decode(buf) : utf;
+}
+
+type ReadSheet = { name: string; grid: ImportCell[][]; opts: ImportOptions };
+
+/** Lê o arquivo no navegador: valores, fórmulas e formatos de cada célula, por aba. */
+async function readWorkbook(file: File): Promise<{ base: string; sheets: ReadSheet[] }> {
+  const XLSX = await import("xlsx");
+  const buf = await file.arrayBuffer();
+  const isCsv = /\.(csv|txt)$/i.test(file.name);
+  const wb = isCsv
+    ? XLSX.read(decodeCsv(buf), { type: "string", raw: true })
+    : XLSX.read(buf, { type: "array", cellDates: true, cellFormula: true, cellNF: true });
+  const base = file.name.replace(/\.[^.]+$/, "");
+  const sheets = wb.SheetNames.map((n) => {
+    const ws = wb.Sheets[n];
+    if (!ws || !ws["!ref"]) return { name: n, grid: [], opts: {} };
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    const lastRow = Math.min(range.e.r, range.s.r + 5000);
+    const lastCol = Math.min(range.e.c, range.s.c + 80);
+    const grid: ImportCell[][] = [];
+    const formulas: (string | undefined)[][] = [];
+    const formats: (string | undefined)[][] = [];
+    for (let r = range.s.r; r <= lastRow; r++) {
+      const vr: ImportCell[] = [];
+      const fr: (string | undefined)[] = [];
+      const zr: (string | undefined)[] = [];
+      for (let c = range.s.c; c <= lastCol; c++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })] as { v?: unknown; f?: string; z?: string; t?: string } | undefined;
+        const v = cell?.v;
+        vr.push(v === undefined || cell?.t === "e" ? null : (v as ImportCell));
+        fr.push(cell?.f);
+        zr.push(typeof cell?.z === "string" ? cell.z : undefined);
+      }
+      grid.push(vr);
+      formulas.push(fr);
+      formats.push(zr);
+    }
+    return { name: n, grid, opts: { formulas, formats, firstRow: range.s.r + 1, firstCol: range.s.c } };
+  });
+  return { base, sheets };
 }
 
 /** Lê um arquivo Excel/CSV no navegador e cria uma aba por planilha não vazia. */
@@ -86,17 +134,10 @@ function useSheetImport(queryKey: unknown[], onDone?: (sheetId: string) => void)
     }
     setBusy(true);
     try {
-      const XLSX = await import("xlsx");
-      const buf = await file.arrayBuffer();
-      const isCsv = /\.(csv|txt)$/i.test(file.name);
-      const wb = isCsv
-        ? XLSX.read(decodeCsv(buf), { type: "string", raw: true })
-        : XLSX.read(buf, { type: "array", cellDates: true });
-      const base = file.name.replace(/\.[^.]+$/, "");
-      const parsed = wb.SheetNames.map((n) => {
-        const grid = XLSX.utils.sheet_to_json<ImportCell[]>(wb.Sheets[n], { header: 1, raw: true, defval: null, blankrows: false });
-        return buildImportedSheet(wb.SheetNames.length === 1 ? base : n, grid);
-      }).filter((x): x is NonNullable<typeof x> => !!x && x.rows.length > 0);
+      const { base, sheets } = await readWorkbook(file);
+      const parsed = sheets
+        .map((sh) => buildImportedSheet(sheets.length === 1 ? base : sh.name, sh.grid, sh.opts))
+        .filter((x): x is NonNullable<typeof x> => !!x && x.rows.length > 0);
       if (!parsed.length) {
         toast.error("Não encontrei linhas com dados nesse arquivo.");
         return;
@@ -128,6 +169,209 @@ function useSheetImport(queryKey: unknown[], onDone?: (sheetId: string) => void)
     }
   }
   return { run, busy };
+}
+
+const TYPE_TEXT: Record<string, string> = { ...COLUMN_TYPE_LABEL, calc: "Cálculo" };
+
+/**
+ * Importa um arquivo DENTRO da aba aberta (ex.: "Itens comprados"): as colunas se organizam
+ * pelo arquivo (tipos, totais e fórmulas viram colunas calculadas) e a pessoa confere antes.
+ */
+function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unknown[] }) {
+  const qc = useQueryClient();
+  const replaceFn = useServerFn(replaceSheetFromImport);
+  const ref = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState(false);
+  const [preview, setPreview] = useState<{ file: string; sheetName: string; data: ImportedSheet } | null>(null);
+  const [mode, setMode] = useState<"replace" | "append">("replace");
+  const save = useMutation({
+    mutationFn: () =>
+      replaceFn({ data: { sheetId: sheet.id, columns: preview!.data.columns, rows: preview!.data.rows, mode } }),
+    onSuccess: (r) => {
+      toast.success(`Planilha "${sheet.name}" atualizada: ${r.rows} linha(s) importada(s).`);
+      setPreview(null);
+      qc.invalidateQueries({ queryKey });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  async function onFile(file: File) {
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Arquivo muito grande (máx. 15 MB).");
+      return;
+    }
+    setReading(true);
+    try {
+      const { base, sheets } = await readWorkbook(file);
+      const norm = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      const built = sheets
+        .map((sh) => ({ sh, data: buildImportedSheet(sheet.name, sh.grid, { ...sh.opts, existing: sheet.columns }) }))
+        .filter((x) => x.data && x.data.rows.length > 0) as { sh: ReadSheet; data: ImportedSheet }[];
+      if (!built.length) {
+        toast.error("Não encontrei linhas com dados nesse arquivo.");
+        return;
+      }
+      // aba com o mesmo nome; senão a que tem mais linhas
+      const pick =
+        built.find((b) => norm(b.sh.name) === norm(sheet.name)) ??
+        [...built].sort((a, b) => b.data.rows.length - a.data.rows.length)[0];
+      setMode("replace");
+      setPreview({ file: base, sheetName: pick.sh.name, data: pick.data });
+    } catch (e) {
+      toast.error(`Não foi possível ler o arquivo: ${(e as Error).message}`);
+    } finally {
+      setReading(false);
+    }
+  }
+
+  const cols = preview?.data.columns ?? [];
+  const labelOf = (k: string) => cols.find((c) => c.key === k)?.label ?? k;
+  const sample = preview?.data.rows.slice(0, 5) ?? [];
+  const fmt = (c: CostColumn, row: Record<string, unknown>) => {
+    if (c.type === "calc") {
+      const n = calcValue(c, row, cols);
+      return fmtNumber(n, c.calc?.asPercent ? "calc-percent" : c.calc?.asCurrency ? "currency" : "number");
+    }
+    const v = row[c.key];
+    if (v === null || v === undefined || v === "") return "";
+    if (c.type === "currency" || c.type === "number" || c.type === "percent") return fmtNumber(toNumber(v), c.type);
+    if (c.type === "boolean") return v ? "Sim" : "Não";
+    if (c.type === "date" && typeof v === "string") return v.split("-").reverse().join("/");
+    return String(v);
+  };
+  const totals = cols
+    .filter((c) => c.sum)
+    .map((c) => ({
+      c,
+      v: (preview?.data.rows ?? []).reduce<number>((acc, r) => acc + ((c.type === "calc" ? calcValue(c, r, cols) : toNumber(r[c.key])) ?? 0), 0),
+    }));
+
+  return (
+    <>
+      <input
+        ref={ref}
+        type="file"
+        accept={IMPORT_ACCEPT}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) onFile(f);
+        }}
+      />
+      <Button size="sm" variant="ghost" className="h-8" disabled={reading} onClick={() => ref.current?.click()} title={`Importar um Excel/CSV para dentro de "${sheet.name}"`}>
+        {reading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Importar nesta aba
+      </Button>
+      <Dialog open={!!preview} onOpenChange={(v) => !v && !save.isPending && setPreview(null)}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Importar para "{sheet.name}"</DialogTitle>
+            <DialogDescription>
+              {preview && (
+                <>
+                  Arquivo <strong>{preview.file}</strong>, aba <strong>{preview.sheetName}</strong>: {preview.data.rows.length} linha(s) e{" "}
+                  {cols.length} coluna(s). Confira como as colunas foram organizadas antes de salvar.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {preview && (
+            <div className="space-y-4">
+              <div className="overflow-hidden rounded-xl border">
+                <div className="grid grid-cols-[minmax(0,1.3fr)_140px_minmax(0,2fr)] gap-3 bg-muted/60 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                  <span>Coluna</span>
+                  <span>Tipo</span>
+                  <span>Cálculo / total</span>
+                </div>
+                {cols.map((c) => (
+                  <div key={c.key} className="grid grid-cols-[minmax(0,1.3fr)_140px_minmax(0,2fr)] items-center gap-3 border-t px-3 py-2 text-sm">
+                    <span className="truncate font-medium" title={c.label}>{c.label}</span>
+                    <span className={cn("w-fit rounded-full px-2 py-0.5 text-xs font-semibold", c.type === "calc" ? "bg-primary/15 text-foreground" : "bg-muted text-muted-foreground")}>
+                      {c.type === "calc" ? (c.calc?.asCurrency ? "Cálculo (R$)" : c.calc?.asPercent ? "Cálculo (%)" : "Cálculo") : TYPE_TEXT[c.type] ?? c.type}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground" title={c.calc?.expr ? exprLabel(c.calc.expr, labelOf) : undefined}>
+                      {c.calc?.expr ? `= ${exprLabel(c.calc.expr, labelOf)}` : ""}
+                      {c.sum ? `${c.calc?.expr ? " · " : ""}soma no rodapé` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Primeiras linhas, já calculadas pelo Core</p>
+                <div className="overflow-x-auto rounded-xl border">
+                  <table className="w-full min-w-max text-sm">
+                    <thead className="bg-muted/60">
+                      <tr>{cols.map((c) => <th key={c.key} className="px-2 py-1.5 text-left text-xs font-semibold">{c.label}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {sample.map((r, i) => (
+                        <tr key={i} className="border-t">
+                          {cols.map((c) => (
+                            <td key={c.key} className={cn("px-2 py-1.5", c.type === "calc" && "font-semibold")}>{fmt(c, r)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                    {totals.length > 0 && (
+                      <tfoot className="bg-muted/40 font-bold">
+                        <tr className="border-t">
+                          {cols.map((c) => {
+                            const t = totals.find((x) => x.c.key === c.key);
+                            return (
+                              <td key={c.key} className="px-2 py-1.5">
+                                {t ? fmtNumber(t.v, c.type === "calc" ? (c.calc?.asPercent ? "calc-percent" : c.calc?.asCurrency ? "currency" : "number") : c.type) : ""}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+                {preview.data.rows.length > 5 && (
+                  <p className="mt-1 text-xs text-muted-foreground">Totais calculados sobre as {preview.data.rows.length} linhas.</p>
+                )}
+              </div>
+
+              {sheet.rows.length > 0 && (
+                <div role="radiogroup" aria-label="O que fazer com os lançamentos atuais" className="grid gap-2 sm:grid-cols-2">
+                  {([
+                    ["replace", "Substituir", `Apaga os ${sheet.rows.length} lançamento(s) atuais e usa só os do arquivo.`],
+                    ["append", "Somar", "Mantém os lançamentos atuais e acrescenta os do arquivo no fim."],
+                  ] as const).map(([v, t, d]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      role="radio"
+                      aria-checked={mode === v}
+                      onClick={() => setMode(v)}
+                      className={cn("rounded-xl border p-3 text-left", mode === v ? "border-primary bg-primary/10" : "hover:bg-muted/50")}
+                    >
+                      <span className="block text-sm font-bold">{t}</span>
+                      <span className="block text-xs text-muted-foreground">{d}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                As colunas da aba passam a ser as do arquivo. Colunas com o mesmo nome mantêm seus ajustes. Fórmulas que o
+                Core não reconhece (SE, PROCV, outras abas) entram como valor fixo.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={save.isPending} onClick={() => setPreview(null)}>
+              Cancelar
+            </Button>
+            <Button disabled={save.isPending} onClick={() => save.mutate()}>
+              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Importar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 const IMPORT_ACCEPT = ".xlsx,.xls,.xlsm,.ods,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv";
@@ -443,6 +687,7 @@ function DepartmentView({
           <div className="flex gap-1">
             {sheet && (
               <>
+                <ImportIntoSheet sheet={sheet} queryKey={queryKey} />
                 <Button
                   size="sm"
                   variant="ghost"
@@ -538,7 +783,7 @@ function SheetGrid({
     for (const c of cols) {
       if (!c.sum) continue;
       t[c.key] = rowsData.reduce<number>((acc, d) => {
-        const v = c.type === "calc" ? calcValue(c, d) : toNumber(d[c.key]);
+        const v = c.type === "calc" ? calcValue(c, d, cols) : toNumber(d[c.key]);
         return acc + (v ?? 0);
       }, 0);
     }
@@ -605,7 +850,9 @@ function SheetGrid({
                           c.type === "calc"
                             ? c.calc?.asPercent
                               ? "calc-percent"
-                              : "number"
+                              : c.calc?.asCurrency
+                                ? "currency"
+                                : "number"
                             : c.type,
                         )
                       : ""}
@@ -689,10 +936,10 @@ function RowEditor({
       {columns.map((c) => {
         const v = data[c.key];
         if (c.type === "calc") {
-          const n = calcValue(c, data);
+          const n = calcValue(c, data, columns);
           return (
-            <td key={c.key} className="px-2 py-1 tabular-nums text-muted-foreground">
-              {fmtNumber(n, c.calc?.asPercent ? "calc-percent" : "number")}
+            <td key={c.key} className="px-2 py-1 tabular-nums text-muted-foreground" title={c.calc?.expr ? "Calculado pela fórmula da planilha" : undefined}>
+              {fmtNumber(n, c.calc?.asPercent ? "calc-percent" : c.calc?.asCurrency ? "currency" : "number")}
             </td>
           );
         }
@@ -1190,6 +1437,12 @@ function SheetConfigDialog({
                   onChange={(e) => patch(i, { optionsText: e.target.value })}
                   placeholder="Ex.: Pendente, Pedido feito, Entregue*"
                 />
+              )}
+              {c.type === "calc" && c.calc?.expr && (
+                <p className="rounded-md bg-primary/10 px-2 py-1.5 text-xs">
+                  Fórmula importada: <strong>= {exprLabel(c.calc.expr, (k) => cols.find((x) => x.key === k)?.label ?? k)}</strong>
+                  <span className="text-muted-foreground"> · escolher outra conta abaixo substitui esta.</span>
+                </p>
               )}
               {c.type === "calc" && (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
