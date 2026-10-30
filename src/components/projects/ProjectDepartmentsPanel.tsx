@@ -610,10 +610,9 @@ export function ProjectDepartmentsPanel({
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition",
                   d.id === activeDept
-                    ? "border-transparent text-white shadow-sm"
-                    : "hover:bg-accent",
+                    ? "border-transparent bg-[var(--brand-dark,#0a2557)] font-bold text-white shadow-sm"
+                    : "bg-background hover:bg-accent",
                 )}
-                style={d.id === activeDept ? { backgroundColor: d.color } : undefined}
               >
                 <span
                   className="h-2 w-2 rounded-full"
@@ -695,18 +694,20 @@ function DepartmentView({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-        <div className="flex flex-wrap items-center gap-1">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-2 border-b">
+        <div role="tablist" aria-label={`Planilhas de ${dept.name}`} className="flex flex-wrap items-center gap-1">
           {dept.sheets.map((s) => (
             <button
               key={s.id}
               type="button"
+              role="tab"
+              aria-selected={s.id === activeSheet}
               onClick={() => setActiveSheet(s.id)}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm",
+                "-mb-px border-b-[3px] px-3 py-2.5 text-sm",
                 s.id === activeSheet
-                  ? "bg-muted font-semibold"
-                  : "text-muted-foreground hover:bg-accent",
+                  ? "border-primary font-extrabold text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               {s.name} <span className="text-xs text-muted-foreground">({s.rows.length})</span>
@@ -727,7 +728,7 @@ function DepartmentView({
           )}
         </div>
         {canEdit && (
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1 pb-2">
             {sheet && (
               <>
                 <ImportIntoSheet sheet={sheet} queryKey={queryKey} />
@@ -924,8 +925,22 @@ function SheetSummary({
             <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
               {notes.map((n, i) => (
                 <div key={i} className="min-w-0">
-                  {n.label && <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{n.label}</p>}
-                  <p className="text-sm font-semibold">{n.value}</p>
+                  {n.label && <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{n.label}</p>}
+                  {canEdit && n.label ? (
+                    <Input
+                      className="h-9 font-semibold"
+                      value={n.value}
+                      aria-label={n.label}
+                      onChange={(e) => {
+                        const all = info.notes ?? [];
+                        const idx = all.indexOf(n);
+                        onChange({ ...info, notes: all.map((x, j) => (j === idx ? { ...x, value: e.target.value } : x)) });
+                      }}
+                      onBlur={() => onCommit()}
+                    />
+                  ) : (
+                    <p className="text-sm font-semibold">{n.value || "—"}</p>
+                  )}
                 </div>
               ))}
             </div>
@@ -1028,18 +1043,22 @@ function SheetGrid({
         onChange={sheetInfo.setInfo}
         onCommit={() => sheetInfo.save()}
       />
-      <div className="overflow-x-auto rounded-xl border">
+      <div className="overflow-x-auto rounded-2xl border bg-card shadow-[0_1px_2px_rgba(10,23,60,.06),0_10px_28px_rgba(10,23,60,.06)]">
         <table className="w-full min-w-max border-collapse text-sm">
-          <thead className="bg-muted/60">
+          <thead className="bg-[var(--brand-dark,#0a2557)] text-white">
             <tr>
-              <th className="w-10 px-2 py-2 text-left text-[11px] font-semibold text-muted-foreground">
-                #
+              <th className="w-10 px-2 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide">
+                Item
               </th>
               {cols.map((c) => (
                 <th
                   key={c.key}
-                  className="whitespace-nowrap px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-                  style={{ minWidth: c.width ?? (c.type === "text" ? 150 : 120) }}
+                  className={cn(
+                    "whitespace-nowrap px-2 py-2.5 text-[11px] font-bold uppercase tracking-wide",
+                    ["currency", "number", "percent", "calc"].includes(c.type) ? "text-right" : "text-left",
+                    c.type === "calc" && c.sum && "bg-primary text-primary-foreground",
+                  )}
+                  style={{ minWidth: c.width ?? (c.type === "text" ? 150 : c.type === "validity" ? 130 : 110) }}
                 >
                   {c.label}
                 </th>
@@ -1074,11 +1093,11 @@ function SheetGrid({
             ))}
           </tbody>
           {hasTotals && sheet.rows.length > 0 && (
-            <tfoot className="bg-muted/40 font-semibold">
-              <tr>
-                <td className="px-2 py-2 text-[11px] text-muted-foreground">Total</td>
+            <tfoot className="bg-muted/60 font-extrabold">
+              <tr className="border-t-2">
+                <td className="whitespace-nowrap px-2 py-2.5 text-xs">Total</td>
                 {cols.map((c) => (
-                  <td key={c.key} className="px-2 py-2 tabular-nums">
+                  <td key={c.key} className={cn("px-2 py-2.5 text-right tabular-nums", c.type === "calc" && c.sum && "bg-primary/20")}>
                     {c.sum
                       ? fmtNumber(
                           totals[c.key] ?? 0,
@@ -1189,14 +1208,14 @@ function RowEditor({
         if (c.type === "calc") {
           const n = calcValue(c, data, columns);
           return (
-            <td key={c.key} className="px-2 py-1 tabular-nums text-muted-foreground" title={c.calc?.expr ? "Calculado pela fórmula da planilha" : undefined}>
+            <td key={c.key} className={cn("px-2 py-1 text-right tabular-nums", c.sum ? "bg-primary/10 font-bold text-foreground" : "text-muted-foreground")} title={c.calc?.expr ? "Calculado pela fórmula da planilha" : undefined}>
               {fmtNumber(n, c.calc?.asPercent ? "calc-percent" : c.calc?.asCurrency ? "currency" : "number")}
             </td>
           );
         }
         if (!canEdit) {
           return (
-            <td key={c.key} className="px-2 py-1.5">
+            <td key={c.key} className={cn("px-2 py-1.5", ["currency", "number", "percent"].includes(c.type) && "text-right tabular-nums")}>
               {c.type === "status" ? (
                 <StatusChip column={c} value={v as string} />
               ) : c.type === "currency" || c.type === "number" || c.type === "percent" ? (

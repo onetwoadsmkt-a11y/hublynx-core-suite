@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { DEPARTMENT_PRESETS, BLANK_SHEET, type CostColumn, type SheetInfo } from "./cost-presets";
+import { DEPARTMENT_PRESETS, BLANK_SHEET, upgradePurchaseSheet, type CostColumn, type SheetInfo } from "./cost-presets";
 
 /** Fase 4 — departamentos e planilhas de custo do projeto (regras de acesso no banco). */
 
@@ -158,12 +158,14 @@ export const listProjectDepartments = createServerFn({ method: "GET" })
       ...d,
       sheets: sheetList
         .filter((s) => s.department_id === d.id)
-        .map((s) => ({
-          ...s,
-          columns: (s.columns ?? []) as CostColumn[],
-          info: ((s as { info?: SheetInfo }).info ?? {}) as SheetInfo,
-          rows: rows.filter((r) => r.sheet_id === s.id),
-        })),
+        .map((s) => {
+          const up = upgradePurchaseSheet(
+            s.name,
+            (s.columns ?? []) as CostColumn[],
+            (s as { info?: SheetInfo }).info,
+          );
+          return { ...s, columns: up.columns, info: up.info, rows: rows.filter((r) => r.sheet_id === s.id) };
+        }),
     }));
   });
 

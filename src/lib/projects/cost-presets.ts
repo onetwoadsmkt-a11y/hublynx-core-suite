@@ -41,6 +41,71 @@ export type SheetInfo = {
   totalKey?: string;
 };
 
+/**
+ * "Itens comprados" no modelo da Solicitação de Compras (SC): mesmas chaves de antes
+ * (os lançamentos continuam valendo) + situação do C.A., ST e o total com IPI.
+ */
+export const PURCHASE_COLUMNS: CostColumn[] = [
+  { key: "fornecedor", label: "Fornecedor", type: "text", width: 160 },
+  { key: "produto", label: "Descrição do produto", type: "text", width: 280 },
+  { key: "certificado", label: "CA", type: "text", width: 100 },
+  { key: "validade", label: "Valid CA", type: "date", alert: true },
+  { key: "situacao_ca", label: "Situação do C.A.", type: "validity", validity: { ref: "validade" } },
+  { key: "fatura_em", label: "Fatura em", type: "text", width: 130 },
+  { key: "valor_unit", label: "Val. unit.", type: "currency" },
+  { key: "quantidade", label: "Quant.", type: "number", sum: true },
+  { key: "st", label: "ST", type: "currency" },
+  { key: "icms", label: "ICMS", type: "percent" },
+  { key: "ipi", label: "IPI", type: "percent" },
+  {
+    key: "total",
+    label: "Valor total",
+    type: "calc",
+    sum: true,
+    calc: { op: "mul", a: "valor_unit", b: "quantidade", asCurrency: true, expr: "{valor_unit}*{quantidade}*(1+({ipi}/100))" },
+  },
+];
+
+/** Cabeçalho, acréscimos e condições da Solicitação de Compras (valores em branco). */
+export const PURCHASE_INFO: SheetInfo = {
+  title: "Solicitação de compras",
+  fields: [
+    { key: "n_s_c", label: "Nº S.C", value: "" },
+    { key: "data", label: "Data", value: "" },
+    { key: "franquia", label: "Franquia", value: "" },
+    { key: "contato", label: "Contato", value: "" },
+    { key: "e_mail", label: "E-mail", value: "" },
+    { key: "telefone", label: "Telefone", value: "" },
+  ],
+  adjustments: [
+    { key: "substituicao_tributaria", label: "Substituição tributária", value: null },
+    { key: "frete", label: "Frete", value: null, note: "FOB" },
+  ],
+  notes: [
+    { label: "Condições de pagamento", value: "" },
+    { label: "Frete", value: "FOB" },
+  ],
+  totalKey: "total",
+};
+
+const OLD_PURCHASE_KEYS = ["fornecedor", "produto", "certificado", "validade", "fatura_em", "valor_unit", "quantidade", "icms", "ipi", "total"];
+const normName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+/**
+ * Aba "Itens comprados" ainda no formato antigo → mostra no modelo da SC (colunas extras
+ * criadas pela empresa ficam no fim). Abas importadas ou já ajustadas não mudam.
+ */
+export function upgradePurchaseSheet(name: string, columns: CostColumn[], info: SheetInfo | null | undefined) {
+  if (normName(name) !== "itens comprados") return { columns, info: info ?? {} };
+  const keys = new Set(columns.map((c) => c.key));
+  const isOld = !columns.some((c) => c.type === "validity") && OLD_PURCHASE_KEYS.every((k) => keys.has(k));
+  const cols = isOld
+    ? [...PURCHASE_COLUMNS, ...columns.filter((c) => !PURCHASE_COLUMNS.some((p) => p.key === c.key))]
+    : columns;
+  const empty = !info || Object.keys(info).length === 0;
+  return { columns: cols, info: empty && isOld ? PURCHASE_INFO : (info ?? {}) };
+}
+
 /** Faixas da situação pela data (mesmas da planilha de compras). */
 export function validityState(dateIso: unknown, today = new Date()) {
   if (typeof dateIso !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(dateIso)) return null;
@@ -163,24 +228,7 @@ export const DEPARTMENT_PRESETS: CostDepartmentPreset[] = [
       },
       {
         name: "Itens comprados",
-        columns: [
-          { key: "fornecedor", label: "Fornecedor", type: "text", width: 160 },
-          { key: "produto", label: "Descrição do produto", type: "text", width: 240 },
-          { key: "certificado", label: "Certificado / CA", type: "text" },
-          { key: "validade", label: "Validade", type: "date", alert: true },
-          { key: "fatura_em", label: "Fatura em", type: "text" },
-          { key: "valor_unit", label: "Valor unitário", type: "currency" },
-          { key: "quantidade", label: "Quantidade", type: "number", sum: true },
-          { key: "icms", label: "ICMS", type: "percent" },
-          { key: "ipi", label: "IPI", type: "percent" },
-          {
-            key: "total",
-            label: "Valor total",
-            type: "calc",
-            sum: true,
-            calc: { op: "mul", a: "valor_unit", b: "quantidade" },
-          },
-        ],
+        columns: PURCHASE_COLUMNS,
       },
       {
         name: "Cotação de frete",
