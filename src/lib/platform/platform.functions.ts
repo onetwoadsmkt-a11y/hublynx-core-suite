@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { ORG_MODULE_DEPENDS_ON, type OrgModuleCode } from "@/lib/org/modules-map";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { DEFAULT_PACKAGES, orgLimits, SHOW_STORAGE_PRICES, type StoragePackage } from "@/lib/platform/storage-plans";
 
 /** Central Administrativa (Etapas 4 e 5). Tudo exige administrador da plataforma. */
 
@@ -458,6 +459,8 @@ export const setSimulationStatus = createServerFn({ method: "POST" })
 
 export type OrgUsage = {
   organization_id: string;
+  /** pacote extra contratado (null = só o Plano Core) */
+  storage_package: string | null;
   organization: string;
   users_count: number;
   contracted_users: number;
@@ -495,6 +498,19 @@ export const recalcUsage = createServerFn({ method: "POST" })
         .eq("organization_id", orgId)
         .eq("status", "active");
 
+      // medição real no banco (migração 28); sem ela, a estimativa antiga
+      const measured = await (db as any).rpc("org_usage_bytes", { _org: orgId });
+      const m = Array.isArray(measured.data) ? measured.data[0] : measured.data;
+      if (!measured.error && m) {
+        await db.from("organization_usage").insert({
+          organization_id: orgId,
+          users_count: users ?? 0,
+          storage_mb: Number((Number(m.files_bytes ?? 0) / (1024 * 1024)).toFixed(2)),
+          database_mb: Number((Number(m.database_bytes ?? 0) / (1024 * 1024)).toFixed(2)),
+        });
+        continue;
+      }
+
       let bytes = 0;
       for (const table of ["files", "lead_files"]) {
         const { data: rows } = await db
@@ -529,8 +545,10 @@ export const listUsage = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<OrgUsage[]> => {
     const db = await adminDb(context.supabase, context.userId);
-    const [{ data: orgs }, { data: usage }, { data: tiers }] = await Promise.all([
-      db.from("organizations").select("id, name, contracted_users").order("name"),
+    let orgsRes = await db.from("organizations").select("id, name, contracted_users, storage_package").order("name");
+    if (orgsRes.error) orgsRes = await db.from("organizations").select("id, name, contracted_users").order("name");
+    const { packages } = await loadPackages(db);
+    const [{ data: usage }, { data: tiers }] = await Promise.all([
       db
         .from("organization_usage")
         .select("organization_id, users_count, storage_mb, database_mb, measured_at")
@@ -542,7 +560,7 @@ export const listUsage = createServerFn({ method: "GET" })
     const latest = new Map<string, any>();
     for (const u of (usage ?? []) as any[]) if (!latest.has(u.organization_id)) latest.set(u.organization_id, u);
 
-    return ((orgs ?? []) as any[]).map((o) => {
+    return ((orgsRes.data ?? []) as any[]).map((o) => {
       const u = latest.get(o.id);
       const users = Number(u?.users_count ?? 0) || Number(o.contracted_users ?? 0);
       const tier = ((tiers ?? []) as any[]).find(
@@ -555,12 +573,140 @@ export const listUsage = createServerFn({ method: "GET" })
         contracted_users: Number(o.contracted_users ?? 0),
         storage_mb: Number(u?.storage_mb ?? 0),
         database_mb: Number(u?.database_mb ?? 0),
-        storage_limit_mb: tier?.storage_limit_mb ?? null,
-        database_limit_mb: tier?.database_limit_mb ?? null,
+        storage_package: (o.storage_package as string | null) ?? null,
+        // limites = Plano Core + pacote extra contratado
+        storage_limit_mb: orgLimits(packages, o.storage_package).storage_mb,
+        database_limit_mb: orgLimits(packages, o.storage_package).database_mb,
         tier: tier?.name ?? null,
         measured_at: u?.measured_at ?? null,
       };
     });
+  });
+
+// ---------------------------------------------------------------- planos de consumo
+
+async function loadPackages(db: { from: (t: string) => any }) {
+  const { data, error } = await db.from("storage_packages").select("*").eq("active", true).order("sort_order");
+  if (error || !data?.length) return { packages: DEFAULT_PACKAGES, stored: false };
+  return {
+    packages: (data as any[]).map((p) => ({
+      code: p.code,
+      name: p.name,
+      database_mb: Number(p.database_mb),
+      storage_mb: Number(p.storage_mb),
+      monthly_price: p.monthly_price === null ? null : Number(p.monthly_price),
+      is_base: !!p.is_base,
+      sort_order: Number(p.sort_order ?? 0),
+    })) as StoragePackage[],
+    stored: true,
+  };
+}
+
+/** Catálogo do plano e dos pacotes (preços só para a administração da plataforma). */
+export const listStoragePackages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await adminDb(context.supabase, context.userId);
+    return loadPackages(db);
+  });
+
+export const saveStoragePackage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        code: z.string().min(1).max(40),
+        name: z.string().trim().min(1).max(60),
+        database_mb: z.number().int().min(0).max(10_000_000),
+        storage_mb: z.number().int().min(0).max(100_000_000),
+        monthly_price: z.number().min(0).max(1_000_000).nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = await adminDb(context.supabase, context.userId);
+    const { error } = await db
+      .from("storage_packages")
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq("code", data.code);
+    if (error) throw new Error(/storage_packages/.test(error.message) ? "Rode a migração 28 no banco." : error.message);
+    return { ok: true as const };
+  });
+
+/** Pacote extra contratado pela empresa (null = só o Plano Core). */
+export const setOrgStoragePackage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ organizationId: uuid, code: z.string().max(40).nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = await adminDb(context.supabase, context.userId);
+    const { error } = await db.from("organizations").update({ storage_package: data.code }).eq("id", data.organizationId);
+    if (error) throw new Error(/storage_package/.test(error.message) ? "Rode a migração 28 no banco." : error.message);
+    return { ok: true as const };
+  });
+
+export type MyOrgUsage = {
+  organization: string;
+  storage_package: string | null;
+  database_mb: number;
+  storage_mb: number;
+  users_count: number;
+  measured_at: string | null;
+  packages: StoragePackage[];
+};
+
+/** Consumo da própria empresa (administrador da empresa). Mede de novo se pedir ou se tiver mais de 1 dia. */
+export const getMyOrgUsage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ organizationId: uuid, refresh: z.boolean().default(false) }).parse(d))
+  .handler(async ({ data, context }): Promise<MyOrgUsage> => {
+    const user = context.supabase as any;
+    const { data: isAdmin } = await user.rpc("is_org_admin", { _org: data.organizationId });
+    const { data: isSuper } = await user.rpc("is_super_admin");
+    if (isAdmin !== true && isSuper !== true) throw new Error("Só o administrador da empresa vê o consumo.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as any;
+    let orgRes = await db.from("organizations").select("name, storage_package").eq("id", data.organizationId).maybeSingle();
+    if (orgRes.error) orgRes = await db.from("organizations").select("name").eq("id", data.organizationId).maybeSingle();
+    const { data: last } = await db
+      .from("organization_usage")
+      .select("users_count, storage_mb, database_mb, measured_at")
+      .eq("organization_id", data.organizationId)
+      .order("measured_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let u = last as any;
+    const stale = !u || Date.now() - new Date(u.measured_at).getTime() > 86_400_000;
+    if (data.refresh || stale) {
+      const measured = await db.rpc("org_usage_bytes", { _org: data.organizationId });
+      const m = Array.isArray(measured.data) ? measured.data[0] : measured.data;
+      if (!measured.error && m) {
+        const { count: users } = await db
+          .from("organization_members")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", data.organizationId)
+          .eq("status", "active");
+        const row = {
+          organization_id: data.organizationId,
+          users_count: users ?? 0,
+          storage_mb: Number((Number(m.files_bytes ?? 0) / (1024 * 1024)).toFixed(2)),
+          database_mb: Number((Number(m.database_bytes ?? 0) / (1024 * 1024)).toFixed(2)),
+          measured_at: new Date().toISOString(),
+        };
+        await db.from("organization_usage").insert(row);
+        u = row;
+      }
+    }
+    const { packages } = await loadPackages(db);
+    return {
+      organization: orgRes.data?.name ?? "",
+      storage_package: orgRes.data?.storage_package ?? null,
+      database_mb: Number(u?.database_mb ?? 0),
+      storage_mb: Number(u?.storage_mb ?? 0),
+      users_count: Number(u?.users_count ?? 0),
+      measured_at: u?.measured_at ?? null,
+      // preços não vão para a empresa enquanto estiverem ocultos
+      packages: packages.map((p) => ({ ...p, monthly_price: SHOW_STORAGE_PRICES ? p.monthly_price : null })),
+    };
   });
 
 // ---------------------------------------------------------------- dashboard

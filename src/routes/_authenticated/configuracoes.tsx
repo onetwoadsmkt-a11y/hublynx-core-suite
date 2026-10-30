@@ -13,6 +13,7 @@ const TABS = [
   { to: "/configuracoes/modelos", label: "Modelos de projeto", adminOnly: false },
   { to: "/configuracoes/modulos", label: "Módulos", adminOnly: true },
   { to: "/configuracoes/aparencia", label: "Aparência", adminOnly: false, orgAdminOnly: true },
+  { to: "/configuracoes/consumo", label: "Consumo", adminOnly: false, orgAdminOnly: true },
 ];
 
 function ConfigLayout() {

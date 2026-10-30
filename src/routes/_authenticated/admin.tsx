@@ -39,7 +39,7 @@ const TABS = [
   { to: "/admin/precos", label: "Preços e faixas" },
   { to: "/admin/simulador", label: "Simulador" },
   { to: "/admin/assinaturas", label: "Assinaturas" },
-  { to: "/admin/armazenamento", label: "Armazenamento" },
+  { to: "/admin/armazenamento", label: "Consumo e planos" },
 ];
 
 function AdminLayout() {
