@@ -9,6 +9,7 @@ import {
   Columns3,
   Download,
   FileSpreadsheet,
+  Paperclip,
   Loader2,
   Pencil,
   Plus,
@@ -80,6 +81,24 @@ import {
   type ImportOptions,
 } from "@/lib/projects/sheet-import";
 import { exprLabel } from "@/lib/projects/sheet-formula";
+import { removeSheetFile, sheetFileUrl, uploadSheetFile } from "@/lib/projects/sheet-files.functions";
+
+/** Guarda o arquivo importado nos anexos da planilha (não impede a importação se falhar). */
+async function attachImported(
+  upload: (a: { data: FormData }) => Promise<unknown>,
+  sheetId: string,
+  file: File,
+) {
+  try {
+    const fd = new FormData();
+    fd.set("sheetId", sheetId);
+    fd.set("file", file);
+    fd.set("imported", "1");
+    await upload({ data: fd });
+  } catch (e) {
+    toast.warning(`A planilha foi importada, mas o arquivo não ficou anexado: ${(e as Error).message}`);
+  }
+}
 
 /** CSV salvo pelo Excel no Brasil costuma vir em Windows-1252: usa UTF-8 e cai para ele se houver caracteres inválidos. */
 function decodeCsv(buf: ArrayBuffer) {
@@ -132,6 +151,7 @@ function useSheetImport(queryKey: unknown[], onDone?: (sheetId: string) => void)
   const qc = useQueryClient();
   const importFn = useServerFn(importSheet);
   const createFn = useServerFn(createDepartment);
+  const uploadFn = useServerFn(uploadSheetFile);
   const [busy, setBusy] = useState(false);
   async function run(file: File, target: { departmentId: string } | { projectId: string }) {
     if (file.size > 15 * 1024 * 1024) {
@@ -160,6 +180,7 @@ function useSheetImport(queryKey: unknown[], onDone?: (sheetId: string) => void)
       for (const sh of parsed) {
         const r = await importFn({ data: { departmentId, name: sh.name, columns: sh.columns, rows: sh.rows, info: sh.info } });
         if (!r.infoSaved) infoLost = true;
+        else await attachImported(uploadFn, r.id, file);
         last = r.id;
         total += r.rows;
         skipped += sh.skippedRows;
@@ -191,13 +212,15 @@ function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unkn
   const replaceFn = useServerFn(replaceSheetFromImport);
   const ref = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState(false);
-  const [preview, setPreview] = useState<{ file: string; sheetName: string; data: ImportedSheet } | null>(null);
+  const [preview, setPreview] = useState<{ file: string; sheetName: string; data: ImportedSheet; raw: File } | null>(null);
+  const uploadFn = useServerFn(uploadSheetFile);
   const [mode, setMode] = useState<"replace" | "append">("replace");
   const save = useMutation({
     mutationFn: () =>
       replaceFn({ data: { sheetId: sheet.id, columns: preview!.data.columns, rows: preview!.data.rows, mode, info: preview!.data.info } }),
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
       toast.success(`Planilha "${sheet.name}" atualizada: ${r.rows} linha(s) importada(s).`);
+      if (r.infoSaved && preview) await attachImported(uploadFn, sheet.id, preview.raw);
       if (!r.infoSaved) toast.warning("Cabeçalho e resumo da planilha não foram guardados: rode a migração 26 no banco.");
       setPreview(null);
       qc.invalidateQueries({ queryKey });
@@ -226,7 +249,7 @@ function ImportIntoSheet({ sheet, queryKey }: { sheet: CostSheet; queryKey: unkn
         built.find((b) => norm(b.sh.name) === norm(sheet.name)) ??
         [...built].sort((a, b) => b.data.rows.length - a.data.rows.length)[0];
       setMode("replace");
-      setPreview({ file: base, sheetName: pick.sh.name, data: pick.data });
+      setPreview({ file: base, sheetName: pick.sh.name, data: pick.data, raw: file });
     } catch (e) {
       toast.error(`Não foi possível ler o arquivo: ${(e as Error).message}`);
     } finally {
@@ -1025,6 +1048,120 @@ function SheetSummary({
   );
 }
 
+const ATTACH_ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc,.csv";
+const fmtSize = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+/** Anexos da planilha: o Excel importado e outros arquivos (cotação, nota, pedido…). */
+function SheetAttachments({ sheet, canEdit, queryKey }: { sheet: CostSheet; canEdit: boolean; queryKey: unknown[] }) {
+  const qc = useQueryClient();
+  const uploadFn = useServerFn(uploadSheetFile);
+  const urlFn = useServerFn(sheetFileUrl);
+  const removeFn = useServerFn(removeSheetFile);
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const files = sheet.info?.attachments ?? [];
+  async function run(key: string, fn: () => Promise<void>) {
+    setBusy(key);
+    try {
+      await fn();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <section aria-label="Anexos da planilha" className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="flex items-center gap-2 text-base font-extrabold">
+          <Paperclip className="h-4 w-4" /> Anexos <span className="font-semibold text-muted-foreground">({files.length})</span>
+        </h4>
+        {canEdit && (
+          <>
+            <input
+              ref={ref}
+              type="file"
+              accept={ATTACH_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                run("up", async () => {
+                  const fd = new FormData();
+                  fd.set("sheetId", sheet.id);
+                  fd.set("file", f);
+                  await uploadFn({ data: fd });
+                  toast.success("Arquivo anexado");
+                  await qc.invalidateQueries({ queryKey });
+                });
+              }}
+            />
+            <Button size="sm" variant="outline" disabled={busy === "up"} onClick={() => ref.current?.click()}>
+              {busy === "up" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Anexar arquivo
+            </Button>
+          </>
+        )}
+      </div>
+      {files.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Nenhum arquivo. A planilha importada nesta aba fica guardada aqui, e você pode anexar cotações, notas e pedidos (PDF, Excel, Word, imagem — até 20 MB).
+        </p>
+      ) : (
+        <ul className="divide-y rounded-xl border">
+          {[...files].reverse().map((f) => (
+            <li key={f.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+              <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", /sheet|excel|csv/.test(f.mime) ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground")}>
+                {/sheet|excel|csv/.test(f.mime) ? <FileSpreadsheet className="h-4 w-4" /> : <Paperclip className="h-4 w-4" />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold" title={f.name}>
+                  {f.name}
+                  {f.imported && <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold">planilha importada</span>}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {fmtSize(f.size)} · {f.author} · {new Date(f.uploaded_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy === f.id}
+                onClick={() =>
+                  run(f.id, async () => {
+                    const { url } = await urlFn({ data: { sheetId: sheet.id, fileId: f.id } });
+                    window.open(url, "_blank", "noopener");
+                  })
+                }
+              >
+                {busy === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Baixar
+              </Button>
+              {canEdit && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9 text-rose-600"
+                  aria-label={`Remover ${f.name}`}
+                  disabled={busy === `rm-${f.id}`}
+                  onClick={() => {
+                    if (!confirm(`Remover o anexo "${f.name}"?`)) return;
+                    run(`rm-${f.id}`, async () => {
+                      await removeFn({ data: { sheetId: sheet.id, fileId: f.id } });
+                      await qc.invalidateQueries({ queryKey });
+                    });
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function SheetGrid({
   sheet,
   canEdit,
@@ -1169,6 +1306,7 @@ function SheetGrid({
         onChange={sheetInfo.setInfo}
         onCommit={(i) => sheetInfo.save(i)}
       />
+      <SheetAttachments sheet={sheet} canEdit={canEdit} queryKey={queryKey} />
     </div>
   );
 }

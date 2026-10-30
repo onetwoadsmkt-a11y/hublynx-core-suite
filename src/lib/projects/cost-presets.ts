@@ -39,6 +39,21 @@ export type SheetInfo = {
   notes?: { label: string; value: string }[];
   /** coluna cujo total é o "total dos itens" do resumo */
   totalKey?: string;
+  /** arquivos anexados à planilha (ex.: o Excel importado) — gravados só pelo servidor */
+  attachments?: SheetAttachment[];
+};
+
+export type SheetAttachment = {
+  id: string;
+  name: string;
+  size: number;
+  mime: string;
+  path: string;
+  uploaded_at: string;
+  uploaded_by: string;
+  author: string;
+  /** veio da importação da planilha */
+  imported?: boolean;
 };
 
 /**
@@ -102,8 +117,9 @@ export function upgradePurchaseSheet(name: string, columns: CostColumn[], info: 
   const cols = isOld
     ? [...PURCHASE_COLUMNS, ...columns.filter((c) => !PURCHASE_COLUMNS.some((p) => p.key === c.key))]
     : columns;
-  const empty = !info || Object.keys(info).length === 0;
-  return { columns: cols, info: empty && isOld ? PURCHASE_INFO : (info ?? {}) };
+  const empty = !info || !(info.fields?.length || info.adjustments?.length || info.notes?.length || info.title);
+  const merged = empty && isOld ? { ...PURCHASE_INFO, ...(info?.attachments ? { attachments: info.attachments } : {}) } : (info ?? {});
+  return { columns: cols, info: merged };
 }
 
 /** Faixas da situação pela data (mesmas da planilha de compras). */

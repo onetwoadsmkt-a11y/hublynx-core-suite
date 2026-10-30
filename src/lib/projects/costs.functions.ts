@@ -91,12 +91,25 @@ const infoSchema: z.ZodType<SheetInfo> = z.object({
     .optional(),
   notes: z.array(z.object({ label: z.string().max(80), value: z.string().max(1000) })).max(20).optional(),
   totalKey: z.string().max(40).optional(),
+  // anexos só mudam pelo servidor (sheet-files.functions); o que vier do navegador é ignorado
+  attachments: z.array(z.any()).max(100).optional(),
 }) as z.ZodType<SheetInfo>;
+
+/** Mantém os anexos que estão no banco (o navegador não grava a lista de anexos). */
+async function withStoredAttachments(db: Db, sheetId: string, info: SheetInfo): Promise<SheetInfo> {
+  const { data } = await db.from("cost_sheets").select("info").eq("id", sheetId).maybeSingle();
+  const stored = ((data as { info?: SheetInfo } | null)?.info?.attachments ?? []) as SheetInfo["attachments"];
+  const { attachments: _drop, ...rest } = info;
+  return stored && stored.length ? { ...rest, attachments: stored } : rest;
+}
 
 /** cost_sheets.info só existe depois da migração 26: grava sem quebrar antes dela. */
 async function saveInfo(db: Db, sheetId: string, info: SheetInfo | undefined) {
   if (!info) return true;
-  const { error } = await db.from("cost_sheets").update({ info }).eq("id", sheetId);
+  const { error } = await db
+    .from("cost_sheets")
+    .update({ info: await withStoredAttachments(db, sheetId, info) })
+    .eq("id", sheetId);
   return !error;
 }
 
@@ -574,7 +587,7 @@ export const saveSheetInfo = createServerFn({ method: "POST" })
     const db = context.supabase as unknown as Db;
     const { data: row, error } = await db
       .from("cost_sheets")
-      .update({ info: data.info })
+      .update({ info: await withStoredAttachments(db, data.sheetId, data.info) })
       .eq("id", data.sheetId)
       .select("id")
       .maybeSingle();
