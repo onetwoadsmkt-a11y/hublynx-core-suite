@@ -84,6 +84,8 @@ import {
   setProjectStageTaskDone,
   setStageTaskClient,
   setStageTaskDates,
+  deleteProjectStageTask,
+  deleteTaskMessage,
   rescheduleProject,
   shiftProjectStages,
   type ProjectStage,
@@ -123,6 +125,9 @@ type TaskCtx = {
   sendMessage: (t: StageTask, body: string, visibility: "equipe" | "cliente") => Promise<void>;
   saveDates: (taskId: string, start: string | null, due: string | null) => Promise<void>;
   highlightId: string | null;
+  /** exclui (fica registrado no histórico do projeto) */
+  deleteMessage?: (m: TaskMessage) => Promise<void>;
+  deleteTask?: (t: StageTask) => Promise<void>;
 };
 const TaskContext = createContext<TaskCtx | null>(null);
 
@@ -461,6 +466,8 @@ export function RoadmapStagesPanel({
     },
   });
   const datesFn = useServerFn(setStageTaskDates);
+  const delTaskFn = useServerFn(deleteProjectStageTask);
+  const delMsgFn = useServerFn(deleteTaskMessage);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const taskCtx = useMemo<TaskCtx>(() => {
     const messages = new Map<string, TaskMessage[]>();
@@ -491,6 +498,17 @@ export function RoadmapStagesPanel({
       saveDates: async (taskId, start, due) => {
         await datesFn({ data: { task_id: taskId, start_date: start, due_date: due } });
         invalidate();
+      },
+      deleteMessage: async (m) => {
+        await delMsgFn({ data: { comment_id: m.id } });
+        qc.invalidateQueries({ queryKey: ["project-task-messages", projectId] });
+        qc.invalidateQueries({ queryKey: ["project-journey", projectId] });
+      },
+      deleteTask: async (t) => {
+        await delTaskFn({ data: { task_id: t.id } });
+        invalidate();
+        qc.invalidateQueries({ queryKey: ["project-journey", projectId] });
+        qc.invalidateQueries({ queryKey: ["my-assigned-tasks"] });
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1850,6 +1868,35 @@ function StageTasksDialog({
   );
 }
 
+/** Excluir tarefa: só quem edita o projeto; a exclusão fica no histórico. */
+function DeleteTaskButton({ t, ctx, className = "" }: { t: StageTask; ctx: TaskCtx | null; className?: string }) {
+  const [busy, setBusy] = useState(false);
+  if (!ctx?.deleteTask || !ctx.canEditAll) return null;
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      className={`inline-flex shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50 ${className}`}
+      aria-label={`Excluir a tarefa ${t.title}`}
+      title="Excluir tarefa (fica registrado no histórico)"
+      onClick={async () => {
+        if (!confirm(`Excluir a tarefa "${t.title}"? Ela sai das etapas e a exclusão fica registrada no histórico do projeto.`)) return;
+        setBusy(true);
+        try {
+          await ctx.deleteTask!(t);
+          toast.success("Tarefa excluída e registrada no histórico");
+        } catch (e) {
+          toast.error((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+  );
+}
+
 /** Estado da tarefa para a faixa do cartão (desktop). */
 function cardState(t: StageTask) {
   if (t.status === "concluido") return { label: "Concluída", band: "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300", ring: "" };
@@ -1915,6 +1962,7 @@ function StageTaskCard({
           {prio && <span className="rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-bold">{prio}</span>}
           {mine && !isDone && <span className="rounded-full bg-[var(--brand-dark,#0a2557)] px-2 py-0.5 text-[11px] font-bold text-white">Sua</span>}
           {isClient && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">Cliente executa</span>}
+          <DeleteTaskButton t={t} ctx={ctx} className="-my-1 h-7 w-7 bg-background/70" />
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-3.5 p-4">
@@ -2101,6 +2149,7 @@ function StageTaskRow({
           </button>
         )}
         <TaskDatesButton t={t} canEdit={canEdit} onSave={ctx?.saveDates} />
+        <DeleteTaskButton t={t} ctx={ctx} className="h-10 w-10 max-sm:border sm:h-7 sm:w-7" />
         {attach && (
           <button
             type="button"
@@ -2257,10 +2306,31 @@ function TaskMessages({ t, ctx, card = false }: { t: StageTask; ctx: TaskCtx; ca
           key={m.id}
           className={`rounded-md px-2.5 py-1.5 text-xs ${m.author_kind === "cliente" ? "bg-amber-50 dark:bg-amber-500/10" : m.visibility === "cliente" ? "bg-sky-50 dark:bg-sky-500/10" : "bg-muted/60"}`}
         >
-          <p className="text-[10px] text-muted-foreground">
+          <p className="flex items-start gap-1 text-[10px] text-muted-foreground">
+            <span className="min-w-0 flex-1">
             <strong className="text-foreground">{m.owner_id === ctx.meId ? "Você" : m.author}</strong>
             {m.author_kind === "cliente" ? " (cliente)" : m.visibility === "cliente" ? " · para o cliente" : " · interna"} ·{" "}
             {new Date(m.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+            </span>
+            {ctx.deleteMessage && (m.owner_id === ctx.meId || ctx.canEditAll) && (
+              <button
+                type="button"
+                className="-m-1 rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
+                aria-label="Excluir mensagem"
+                title="Excluir mensagem (fica registrado no histórico)"
+                onClick={async () => {
+                  if (!confirm("Excluir esta mensagem? A exclusão fica registrada no histórico do projeto.")) return;
+                  try {
+                    await ctx.deleteMessage!(m);
+                    toast.success("Mensagem excluída e registrada no histórico");
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  }
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </p>
           <p className="whitespace-pre-wrap break-words">{plain(m.body)}</p>
         </div>

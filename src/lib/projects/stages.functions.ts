@@ -720,6 +720,7 @@ export const listProjectStageTasks = createServerFn({ method: "GET" })
       )
       .eq("project_id", data.project_id)
       .not("stage_id", "is", null)
+      .neq("status", "cancelado") // excluídas ficam só no histórico
       // sequência do modelo dentro da etapa; depois prazo e criação
       .order("position", { ascending: true })
       .order("due_date", { ascending: true, nullsFirst: false })
@@ -874,6 +875,87 @@ export const setProjectStageTaskDone = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Você só pode concluir as tarefas que são suas neste projeto.");
+    return { ok: true as const };
+  });
+
+/**
+ * Exclui a tarefa da etapa: fica "cancelada" (sai das etapas, do portal e dos avisos) e o
+ * histórico registra quem excluiu e quando. Só quem edita o projeto.
+ */
+export const deleteProjectStageTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ task_id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
+    const { data: task, error } = await db
+      .from("tasks")
+      .select("id, project_id, status")
+      .eq("id", data.task_id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!task?.project_id) throw new Error("Tarefa não encontrada.");
+    const { data: canEdit } = await db.rpc("can_edit_project", { _project: task.project_id });
+    if (canEdit !== true) throw new Error("Só quem edita o projeto pode excluir tarefas.");
+    const { data: row, error: uErr } = await db
+      .from("tasks")
+      .update({ status: "cancelado" })
+      .eq("id", data.task_id)
+      .select("id")
+      .maybeSingle();
+    if (uErr) throw new Error(uErr.message);
+    if (!row) throw new Error("Sem permissão para excluir esta tarefa.");
+    return { ok: true as const };
+  });
+
+/**
+ * Exclui uma mensagem da tarefa. Antes de apagar, grava no histórico (task_history,
+ * ação comment_deleted) o texto, o destino (equipe/cliente), quem excluiu e quando.
+ * Pode excluir quem escreveu ou quem edita o projeto.
+ */
+export const deleteTaskMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ comment_id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
+    let { data: c, error } = await db
+      .from("task_comments")
+      .select("id, task_id, owner_id, body, visibility")
+      .eq("id", data.comment_id)
+      .maybeSingle();
+    if (error) {
+      ({ data: c, error } = await db
+        .from("task_comments")
+        .select("id, task_id, owner_id, body")
+        .eq("id", data.comment_id)
+        .maybeSingle());
+    }
+    if (error) throw new Error(error.message);
+    if (!c) throw new Error("Mensagem não encontrada.");
+    const { data: task } = await db.from("tasks").select("id, project_id, owner_id").eq("id", c.task_id).maybeSingle();
+    if (!task?.project_id) throw new Error("Tarefa não encontrada.");
+    if (c.owner_id !== context.userId) {
+      const { data: canEdit } = await db.rpc("can_edit_project", { _project: task.project_id });
+      if (canEdit !== true) throw new Error("Só quem escreveu ou quem edita o projeto pode excluir a mensagem.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const text = String(c.body ?? "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 600);
+    const { error: hErr } = await admin.from("task_history").insert({
+      task_id: task.id,
+      owner_id: task.owner_id ?? context.userId,
+      actor_id: context.userId,
+      action: "comment_deleted",
+      field: c.visibility ?? "equipe",
+      old_value: text,
+    });
+    if (hErr) throw new Error(`Não foi possível registrar no histórico: ${hErr.message}`);
+    const { error: dErr } = await admin.from("task_comments").delete().eq("id", c.id);
+    if (dErr) throw new Error(dErr.message);
     return { ok: true as const };
   });
 

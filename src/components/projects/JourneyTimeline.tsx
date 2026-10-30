@@ -10,6 +10,7 @@ import {
   PlusCircle,
   RotateCcw,
   Send,
+  Trash2,
   UserRound,
   CalendarClock,
 } from "lucide-react";
@@ -49,7 +50,7 @@ const FILTERS: { id: Filter; label: string }[] = [
 ];
 
 function group(kind: string): Filter {
-  if (kind === "message" || kind === "comment_added") return "mensagens";
+  if (kind === "message" || kind === "comment_added" || kind === "comment_deleted") return "mensagens";
   if (kind === "file_uploaded" || kind === "file_deleted") return "arquivos";
   return "tarefas";
 }
@@ -57,7 +58,15 @@ function group(kind: string): Filter {
 function describe(e: JourneyItem) {
   const task = e.task ? `“${e.task}”` : "uma tarefa";
   switch (e.kind) {
+    case "comment_deleted":
+      return {
+        icon: Trash2,
+        tone: "warn",
+        text: `excluiu uma mensagem${e.visibility === "cliente" ? " enviada ao cliente" : ""} de ${task}`,
+        quote: e.detail,
+      };
     case "status_changed":
+      if (e.detail === "cancelado") return { icon: Trash2, tone: "warn", text: `excluiu a tarefa ${task}` };
       if (e.detail === "concluido")
         return { icon: CheckCircle2, tone: "done", text: `concluiu ${task}` };
       if (e.old === "concluido") return { icon: RotateCcw, tone: "warn", text: `reabriu ${task}` };
