@@ -1,19 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listMyAssignedTasks, type MyTask } from "@/lib/tasks/my-tasks.functions";
+import { dayKey, dueDayKey, isOverdue } from "@/lib/tasks/pending";
 
-const startOfToday = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
 
 export function taskState(t: MyTask): "late" | "today" | "next" | "none" {
   if (!t.due_date) return "none";
-  const due = new Date(t.due_date).getTime();
-  const s = startOfToday();
-  if (due < s) return "late";
-  if (due < s + 86_400_000) return "today";
+  if (isOverdue({ due_date: t.due_date, status: (t as { status?: string | null }).status ?? null })) return "late";
+  if (dueDayKey(t.due_date) === dayKey(new Date())) return "today";
   return "next";
 }
 

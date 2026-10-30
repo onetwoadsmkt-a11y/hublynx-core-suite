@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { isOverdue } from "@/lib/tasks/pending";
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, isToday, isPast, parseISO } from "date-fns";
+import { format, isToday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ function HojePage() {
 
   const today = useMemo(() => tasks.filter((t) => t.due_date && isToday(parseISO(t.due_date))), [tasks]);
   const overdue = useMemo(
-    () => tasks.filter((t) => t.status !== "concluido" && t.due_date && isPast(parseISO(t.due_date)) && !isToday(parseISO(t.due_date))),
+    () => tasks.filter((t) => t.status !== "concluido" && isOverdue({ due_date: t.due_date, status: t.status })),
     [tasks],
   );
   const pending = today.filter((t) => t.status !== "concluido");

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { dueDayKey, isOverdue, isPriorityLevel, unackedAlerts } from "./pending";
+import { dueDayKey, dueHasTime, isDueToday, isOverdue, isPriorityLevel, unackedAlerts } from "./pending";
 
 const now = new Date(2026, 9, 22, 15, 0, 0);
 
@@ -8,8 +8,20 @@ describe("tarefas atrasadas", () => {
   it("prazo de ontem e em aberto fica atrasado", () => {
     assert.equal(isOverdue({ due_date: "2026-10-21T14:00:00", status: "a_fazer" }, now), true);
   });
-  it("prazo de hoje não fica atrasado, mesmo com horário já passado", () => {
-    assert.equal(isOverdue({ due_date: "2026-10-22T08:00:00", status: "a_fazer" }, now), false);
+  it("prazo de hoje com horário já passado fica atrasado", () => {
+    assert.equal(isOverdue({ due_date: "2026-10-22T08:00:00", status: "a_fazer" }, now), true);
+    assert.equal(isOverdue({ due_date: new Date(2026, 9, 22, 14, 42).toISOString(), status: "a_fazer" }, now), true);
+  });
+  it("prazo de hoje com horário ainda por vir não fica atrasado", () => {
+    assert.equal(isOverdue({ due_date: new Date(2026, 9, 22, 17, 42).toISOString(), status: "a_fazer" }, now), false);
+    assert.equal(isDueToday({ due_date: new Date(2026, 9, 22, 17, 42).toISOString(), status: "a_fazer" }, now), true);
+  });
+  it("prazo de hoje só com dia (sem horário) não fica atrasado", () => {
+    assert.equal(isOverdue({ due_date: "2026-10-22T00:00:00Z", status: "a_fazer" }, now), false);
+    assert.equal(isOverdue({ due_date: new Date(2026, 9, 22, 0, 0).toISOString(), status: "a_fazer" }, now), false);
+    assert.equal(isOverdue({ due_date: new Date(2026, 9, 22, 12, 0).toISOString(), status: "a_fazer" }, now), false);
+    assert.equal(isOverdue({ due_date: "2026-10-22", status: "a_fazer" }, now), false);
+    assert.equal(dueHasTime("2026-10-22T12:00:00-03:00"), false);
   });
   it("concluída ou cancelada nunca fica atrasada", () => {
     assert.equal(isOverdue({ due_date: "2026-10-01", status: "concluido" }, now), false);

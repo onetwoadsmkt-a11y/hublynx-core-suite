@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { isOverdue } from "@/lib/tasks/pending";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { FolderKanban, ChevronRight } from "lucide-react";
 import { useMemo } from "react";
-import { isPast, isToday, parseISO } from "date-fns";
+import { isToday, parseISO } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/projetos")({
   component: ProjetosMobile,
@@ -29,7 +30,7 @@ function ProjetosMobile() {
       if (t.status === "concluido") s.done++;
       else {
         s.open++;
-        if (t.due_date && isPast(parseISO(t.due_date)) && !isToday(parseISO(t.due_date))) s.overdue++;
+        if (isOverdue({ due_date: t.due_date, status: t.status })) s.overdue++;
       }
       m.set(t.project_id, s);
     });

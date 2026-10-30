@@ -1,4 +1,5 @@
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { isOverdue } from "@/lib/tasks/pending";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -573,9 +574,8 @@ export function RoadmapStagesPanel({
     if (!t.stage_id) continue;
     tasksByStage.set(t.stage_id, [...(tasksByStage.get(t.stage_id) ?? []), t]);
   }
-  const todayStart = new Date(new Date().toDateString()).getTime();
-  const isLate = (t: StageTask) =>
-    t.status !== "concluido" && t.status !== "cancelado" && !!t.due_date && new Date(t.due_date).getTime() < todayStart;
+  // com horário marcado: atrasada assim que o horário passa; só com dia: a partir do dia seguinte
+  const isLate = (t: StageTask) => isOverdue(t);
   const myCount = allStageTasks.filter((t) => meId && t.assignee_id === meId && t.status !== "concluido").length;
   const lateCount = allStageTasks.filter(isLate).length;
   // lista mostrada (filtro Todas / Minhas / Atrasadas); o progresso usa sempre todas

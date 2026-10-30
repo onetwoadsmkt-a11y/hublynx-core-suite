@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { isOverdue } from "@/lib/tasks/pending";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
@@ -46,7 +47,7 @@ export const listProjects = createServerFn({ method: "GET" })
         if (!taskCounts[pid]) taskCounts[pid] = { total: 0, done: 0, overdue: 0 };
         taskCounts[pid].total += 1;
         if (t.status === "concluido") taskCounts[pid].done += 1;
-        else if (t.due_date && new Date(t.due_date) < now) taskCounts[pid].overdue += 1;
+        else if (isOverdue({ due_date: t.due_date, status: t.status }, now)) taskCounts[pid].overdue += 1;
       });
     }
 
@@ -238,7 +239,7 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     const totalTasks = tasks.length;
     const doneTasks = tasks.filter((t: any) => t.status === "concluido").length;
     const overdueSorted = tasks
-      .filter((t: any) => t.status !== "concluido" && t.status !== "cancelado" && t.due_date && new Date(t.due_date) < now)
+      .filter((t: any) => isOverdue({ due_date: t.due_date, status: t.status }, now))
       .sort((a: any, b: any) => String(a.due_date).localeCompare(String(b.due_date)));
     const overdueTasks = overdueSorted.length;
     const progress = totalTasks
@@ -325,7 +326,7 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
     );
     const newThisWeek = tasks.filter((t: any) => new Date(t.created_at) >= weekStart);
     const overdueList = tasks.filter(
-      (t: any) => t.status !== "concluido" && t.due_date && new Date(t.due_date) < now,
+      (t: any) => isOverdue({ due_date: t.due_date, status: t.status }, now),
     );
 
     // Monthly chart data — last 30 days

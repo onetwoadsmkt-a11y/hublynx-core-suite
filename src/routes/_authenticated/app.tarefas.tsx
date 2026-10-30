@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { isOverdue } from "@/lib/tasks/pending";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Search, Check, ChevronRight } from "lucide-react";
-import { format, isToday, isPast, parseISO } from "date-fns";
+import { format, isToday, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +42,7 @@ function TarefasMobile() {
       if (filter === "concluidas") return t.status === "concluido";
       if (filter === "hoje") return t.due_date && isToday(parseISO(t.due_date));
       if (filter === "atrasadas")
-        return t.status !== "concluido" && t.due_date && isPast(parseISO(t.due_date)) && !isToday(parseISO(t.due_date));
+        return t.status !== "concluido" && isOverdue({ due_date: t.due_date, status: t.status });
       if (filter === "pendentes") return t.status !== "concluido";
       return true;
     });
@@ -104,8 +105,8 @@ function TarefasMobile() {
         )}
         {filtered.map((t: any) => {
           const project = t.project_id ? projectsById.get(t.project_id) : null;
-          const isOverdue =
-            t.status !== "concluido" && t.due_date && isPast(parseISO(t.due_date)) && !isToday(parseISO(t.due_date));
+          const late =
+            t.status !== "concluido" && isOverdue({ due_date: t.due_date, status: t.status });
           return (
             <Card
               key={t.id}
@@ -132,7 +133,7 @@ function TarefasMobile() {
                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
                     {project && <span className="truncate">{(project as any).name}</span>}
                     {t.due_date && (
-                      <span className={cn(isOverdue && "text-rose-600 font-medium")}>
+                      <span className={cn(late && "text-rose-600 font-medium")}>
                         {format(parseISO(t.due_date), "dd/MM HH:mm")}
                       </span>
                     )}
