@@ -230,7 +230,9 @@ export function RoadmapStagesPanel({
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   // no celular o roadmap é sempre vertical (etapas empilhadas)
   const effectiveView = isMobile ? "vertical" : view;
-  const [taskFilter, setTaskFilter] = useState<"todas" | "minhas" | "atrasadas">("todas");
+  const [taskFilter, setTaskFilter] = useState<"todas" | "minhas" | "atrasadas" | "pessoa">("todas");
+  // filtro "Equipe": só as tarefas de uma pessoa
+  const [personId, setPersonId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -581,15 +583,40 @@ export function RoadmapStagesPanel({
     const list = tasksByStage.get(stageId) ?? [];
     if (taskFilter === "minhas") return list.filter((t) => meId && t.assignee_id === meId);
     if (taskFilter === "atrasadas") return list.filter(isLate);
+    if (taskFilter === "pessoa") return list.filter((t) => personId && t.assignee_id === personId);
     return list;
   };
-  const pickFilter = (f: "todas" | "minhas" | "atrasadas") => {
+  const pickFilter = (f: "todas" | "minhas" | "atrasadas" | "pessoa", who: string | null = null) => {
     setTaskFilter(f);
+    setPersonId(f === "pessoa" ? who : null);
     if (f === "todas") return;
     // abre as etapas que têm tarefas no filtro
-    const ids = stages.filter((st) => (tasksByStage.get(st.id) ?? []).some((t) => (f === "minhas" ? meId && t.assignee_id === meId : isLate(t)))).map((st) => st.id);
+    const match = (t: StageTask) =>
+      f === "minhas" ? !!meId && t.assignee_id === meId : f === "pessoa" ? t.assignee_id === who : isLate(t);
+    const ids = stages.filter((st) => (tasksByStage.get(st.id) ?? []).some(match)).map((st) => st.id);
     setExpanded((c) => new Set([...c, ...ids]));
+    // computador: vai para a primeira etapa com tarefas da pessoa
+    if (f === "pessoa" && ids.length) {
+      const firstOpen = stages.find((st) => ids.includes(st.id) && (tasksByStage.get(st.id) ?? []).some((t) => match(t) && t.status !== "concluido"));
+      setSelectedStageId((firstOpen ?? stages.find((st) => st.id === ids[0]))!.id);
+    }
   };
+  // pessoas com tarefas no projeto (para o filtro Equipe)
+  const people = (() => {
+    const by = new Map<string, { open: number; late: number; total: number }>();
+    for (const t of allStageTasks) {
+      if (!t.assignee_id) continue;
+      const c = by.get(t.assignee_id) ?? { open: 0, late: 0, total: 0 };
+      c.total++;
+      if (t.status !== "concluido") c.open++;
+      if (isLate(t)) c.late++;
+      by.set(t.assignee_id, c);
+    }
+    const list = assignees.map((a) => ({ ...a, ...(by.get(a.id) ?? { open: 0, late: 0, total: 0 }) }));
+    for (const [id, c] of by) if (!list.some((p) => p.id === id)) list.push({ id, name: "Pessoa sem acesso ao projeto", role: "", ...c });
+    return list.sort((a, b) => b.open - a.open || a.name.localeCompare(b.name, "pt-BR"));
+  })();
+  const person = people.find((p) => p.id === personId) ?? null;
   const stageProgress = (stageId: string) => {
     const list = tasksByStage.get(stageId) ?? [];
     const done = list.filter((t) => t.status === "concluido").length;
@@ -640,7 +667,7 @@ export function RoadmapStagesPanel({
             </div>
           </div>
           {/* Filtro das tarefas */}
-          <div role="group" aria-label="Mostrar tarefas" className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1 sm:max-w-md">
+          <div role="group" aria-label="Mostrar tarefas" className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 sm:max-w-xl">
             {([
               ["todas", "Todas", null],
               ["minhas", "Minhas", myCount],
@@ -659,7 +686,67 @@ export function RoadmapStagesPanel({
                 {label}{n ? ` ${n}` : ""}
               </button>
             ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-pressed={taskFilter === "pessoa"}
+                  aria-label={person ? `Tarefas de ${person.name}. Trocar pessoa` : "Ver as tarefas de uma pessoa da equipe"}
+                  className={[
+                    "flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-[13px] font-semibold transition sm:h-8",
+                    taskFilter === "pessoa" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+                  ].join(" ")}
+                >
+                  <Users className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{person ? person.name.split(/\s+/)[0] : "Equipe"}</span>
+                  {person ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Limpar filtro da pessoa"
+                      className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-muted"
+                      onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); pickFilter("todas"); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); pickFilter("todas"); } }}
+                    >
+                      <X className="h-3 w-3" />
+                    </span>
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-80 w-72 overflow-y-auto">
+                {people.length === 0 ? (
+                  <p className="px-2 py-3 text-sm text-muted-foreground">Ninguém da equipe tem tarefa neste projeto ainda.</p>
+                ) : (
+                  people.map((p) => (
+                    <DropdownMenuItem key={p.id} onClick={() => pickFilter("pessoa", p.id)} className="flex items-center gap-2.5 py-2">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/15 text-[11px] font-bold">
+                        {p.name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("")}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className={["block truncate text-sm", p.id === personId ? "font-extrabold" : "font-semibold"].join(" ")}>
+                          {p.name}{p.id === meId ? " (você)" : ""}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {p.total === 0 ? "sem tarefas" : `${p.open} aberta${p.open === 1 ? "" : "s"}`}
+                          {p.late > 0 && <span className="font-semibold text-rose-600"> · {p.late} atrasada{p.late === 1 ? "" : "s"}</span>}
+                          {p.role === "cliente" && " · cliente"}
+                        </span>
+                      </span>
+                      {p.id === personId && <Check className="h-4 w-4 shrink-0" />}
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
+          {person && (
+            <p className="text-xs text-muted-foreground">
+              Mostrando só as tarefas de <strong className="text-foreground">{person.name}</strong>: {person.open} aberta{person.open === 1 ? "" : "s"}
+              {person.late > 0 ? `, ${person.late} atrasada${person.late === 1 ? "" : "s"}` : ""} de {person.total}.
+            </p>
+          )}
           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
             {templates.length > 0 && (
               <DropdownMenu>

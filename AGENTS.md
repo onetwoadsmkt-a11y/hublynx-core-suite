@@ -59,3 +59,4 @@
 - **Avisos de projeto** (migração 30): gatilhos em tasks/project_stages/task_attachments/task_comments/project_messages chamam `project_notify` → sino (sem repetir em 2 min) + `project_mail_queue`. `runProjectMail` (cron run-automations e tela aberta) manda um resumo por pessoa: mensagens após 5 min, movimentações após 15 min.
 - **Modo escuro**: `.dark` em styles.css remapeia tons 50/100 e 800/900 das etiquetas coloridas e define `--band-*`/`--task-*`. `BrandTheme` acompanha a classe `dark`; com marca clara usa base grafite (`darkBaseVars`, `vividDarkVars`). Use `var(--card)` em `color-mix`, não `white`.
 - Portal: o card "Sua próxima ação" não tem mais "Marcar como feita" (só "Ver tarefa").
+- **Filtro Equipe no Roadmap** (`RoadmapStages`): quarta opção ao lado de Todas/Minhas/Atrasadas; lista quem tem acesso e/ou tarefas (abertas e atrasadas), filtra `shownTasks` por `assignee_id` e seleciona a primeira etapa com tarefa aberta da pessoa. O "×" limpa.
