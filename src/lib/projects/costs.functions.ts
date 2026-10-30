@@ -341,7 +341,7 @@ export const saveRow = createServerFn({ method: "POST" })
         id: uuid.optional(),
         sheetId: uuid,
         data: z.record(
-          z.string().max(40),
+          z.string().max(64), // colunas + cores ("__cor", "__cor:<coluna>")
           z.union([z.string().max(2000), z.number(), z.boolean(), z.null()]),
         ),
         position: z.number().int().min(0).optional(),

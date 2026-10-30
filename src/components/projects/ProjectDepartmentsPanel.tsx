@@ -10,6 +10,7 @@ import {
   Download,
   FileSpreadsheet,
   Paperclip,
+  Palette,
   Loader2,
   Pencil,
   Plus,
@@ -39,6 +40,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { cloneElement, type ReactElement } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 /** Planilhas de custo do projeto: valores sempre visíveis (sem o cofre de valores do Financeiro). */
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const maskBRL = (n: number | null | undefined) => BRL.format(Number(n ?? 0));
@@ -1335,6 +1338,109 @@ function SheetGrid({
   );
 }
 
+/** Cores de destaque das linhas/células (guardadas na própria linha: "__cor" e "__cor:<coluna>"). */
+const CELL_COLORS: { id: string; label: string; cls: string; dot: string }[] = [
+  { id: "amarelo", label: "Amarelo", cls: "bg-amber-100 dark:bg-amber-500/20", dot: "bg-amber-300" },
+  { id: "laranja", label: "Laranja", cls: "bg-orange-100 dark:bg-orange-500/20", dot: "bg-orange-400" },
+  { id: "vermelho", label: "Vermelho", cls: "bg-rose-100 dark:bg-rose-500/20", dot: "bg-rose-400" },
+  { id: "azul", label: "Azul", cls: "bg-sky-100 dark:bg-sky-500/20", dot: "bg-sky-400" },
+  { id: "verde", label: "Verde", cls: "bg-emerald-100 dark:bg-emerald-500/20", dot: "bg-emerald-400" },
+  { id: "roxo", label: "Roxo", cls: "bg-violet-100 dark:bg-violet-500/20", dot: "bg-violet-400" },
+  { id: "cinza", label: "Cinza", cls: "bg-slate-200 dark:bg-slate-500/25", dot: "bg-slate-400" },
+];
+const ROW_COLOR = "__cor";
+const cellColorKey = (k: string) => `__cor:${k}`;
+const colorCls = (id: unknown) => CELL_COLORS.find((c) => c.id === id)?.cls;
+
+function ColorDots({ value, onPick }: { value: unknown; onPick: (id: string | null) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        type="button"
+        onClick={() => onPick(null)}
+        aria-pressed={!value}
+        title="Sem cor"
+        className={cn("grid h-7 w-7 place-items-center rounded-full border bg-background text-xs text-muted-foreground", !value && "ring-2 ring-primary")}
+      >
+        ✕
+      </button>
+      {CELL_COLORS.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          onClick={() => onPick(c.id)}
+          aria-pressed={value === c.id}
+          aria-label={c.label}
+          title={c.label}
+          className={cn("h-7 w-7 rounded-full border", c.dot, value === c.id && "ring-2 ring-primary ring-offset-1")}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Botão da linha: escolhe a cor da linha inteira ou de uma célula. */
+function RowColorButton({
+  columns,
+  data,
+  onSet,
+}: {
+  columns: CostColumn[];
+  data: Record<string, unknown>;
+  onSet: (key: string, value: string | null) => void;
+}) {
+  const [col, setCol] = useState<string>(columns[0]?.key ?? "");
+  const colored = columns.filter((c) => data[cellColorKey(c.key)]);
+  const hasAny = !!data[ROW_COLOR] || colored.length > 0;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button size="icon" variant="ghost" className={cn("h-7 w-7", hasAny && "text-primary")} aria-label="Cor da linha ou da célula" title="Cor da linha ou da célula">
+          <Palette className="h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 space-y-3">
+        <div className="space-y-1.5">
+          <p className="text-xs font-bold">Cor da linha inteira</p>
+          <ColorDots value={data[ROW_COLOR]} onPick={(id) => onSet(ROW_COLOR, id)} />
+        </div>
+        <div className="space-y-1.5 border-t pt-3">
+          <p className="text-xs font-bold">Cor de uma célula</p>
+          <Select value={col} onValueChange={setCol}>
+            <SelectTrigger className="h-8 text-xs" aria-label="Coluna da célula">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {columns.map((c) => (
+                <SelectItem key={c.key} value={c.key}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {col && <ColorDots value={data[cellColorKey(col)]} onPick={(id) => onSet(cellColorKey(col), id)} />}
+        </div>
+        {colored.length > 0 && (
+          <div className="space-y-1 border-t pt-3">
+            <p className="text-xs font-bold">Células com cor</p>
+            {colored.map((c) => (
+              <div key={c.key} className="flex items-center justify-between gap-2 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className={cn("h-3 w-3 rounded-full", CELL_COLORS.find((x) => x.id === data[cellColorKey(c.key)])?.dot)} />
+                  {c.label}
+                </span>
+                <button type="button" className="text-muted-foreground hover:text-rose-600" onClick={() => onSet(cellColorKey(c.key), null)}>
+                  tirar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function RowEditor({
   index,
   row,
@@ -1389,8 +1495,43 @@ function RowEditor({
         if (dirty && !e.currentTarget.contains(e.relatedTarget as Node)) persist();
       }}
     >
-      <td className="px-2 py-1 text-xs text-muted-foreground tabular-nums">{index + 1}</td>
+      <td className={cn("px-2 py-1 text-xs text-muted-foreground tabular-nums", colorCls(data[ROW_COLOR]))}>{index + 1}</td>
       {columns.map((c) => {
+        const node = renderCell(c);
+        const bg = colorCls(data[cellColorKey(c.key)]) ?? colorCls(data[ROW_COLOR]);
+        return bg ? cloneElement(node, { className: cn(node.props.className, bg) }) : node;
+      })}
+      {canEdit && (
+        <td className={cn("px-1 py-1", colorCls(data[ROW_COLOR]))}>
+          <div className="flex items-center">
+            {dirty && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => persist()}
+                aria-label="Salvar linha"
+              >
+                <Save className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <RowColorButton columns={columns} data={data} onSet={(k, val) => set(k, val, true)} />
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-rose-600"
+              onClick={onDelete}
+              aria-label="Excluir linha"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+
+  function renderCell(c: CostColumn): ReactElement<{ className?: string }> {
         const v = data[c.key];
         if (c.type === "validity") {
           return (
@@ -1477,7 +1618,11 @@ function RowEditor({
             <Input
               type={c.type === "date" ? "date" : "text"}
               inputMode={c.type === "text" || c.type === "date" ? undefined : "decimal"}
-              value={(v as string | number | undefined) ?? ""}
+              value={
+                typeof v === "number" && (c.type === "currency" || c.type === "number" || c.type === "percent")
+                  ? v.toLocaleString("pt-BR", { maximumFractionDigits: 6, useGrouping: false })
+                  : ((v as string | undefined) ?? "")
+              }
               onChange={(e) => set(c.key, e.target.value)}
               placeholder={c.type === "currency" ? "0,00" : c.type === "percent" ? "%" : ""}
               className={cn(
@@ -1490,35 +1635,7 @@ function RowEditor({
             />
           </td>
         );
-      })}
-      {canEdit && (
-        <td className="px-1 py-1">
-          <div className="flex items-center">
-            {dirty && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7"
-                onClick={() => persist()}
-                aria-label="Salvar linha"
-              >
-                <Save className="h-3.5 w-3.5" />
-              </Button>
-            )}
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-rose-600"
-              onClick={onDelete}
-              aria-label="Excluir linha"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </td>
-      )}
-    </tr>
-  );
+  }
 }
 
 function StatusChip({ column, value }: { column: CostColumn; value: string | null | undefined }) {
