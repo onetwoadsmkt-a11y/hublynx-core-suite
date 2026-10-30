@@ -119,7 +119,7 @@ function defaultDrafts(ref: string): StageDraft[] {
 }
 
 /** Linha do tempo dos prazos (mini Gantt) nas cores da marca. */
-function Timeline({ stages, primary, ink }: { stages: { name: string; start: string; end: string }[]; primary: string; ink: string }) {
+function Timeline({ stages, primary, ink, light = false }: { stages: { name: string; start: string; end: string }[]; primary: string; ink: string; light?: boolean }) {
   const valid = stages.filter((s) => s.start && s.end);
   if (!valid.length) return null;
   const min = valid.reduce((m, s) => (s.start < m ? s.start : m), valid[0].start);
@@ -127,7 +127,7 @@ function Timeline({ stages, primary, ink }: { stages: { name: string; start: str
   const total = Math.max(1, isoDiff(max, min) + 1);
   return (
     <div className="space-y-1.5">
-      <div className="flex justify-between text-[10px] font-medium uppercase tracking-wider text-white/70">
+      <div className={`flex justify-between text-[10px] font-medium uppercase tracking-wider ${light ? "text-muted-foreground" : "text-white/70"}`}>
         <span>{br(min)}</span><span>{total} dias</span><span>{br(max)}</span>
       </div>
       {valid.map((s, i) => {
@@ -135,8 +135,8 @@ function Timeline({ stages, primary, ink }: { stages: { name: string; start: str
         const width = Math.max(2, (days(s) / total) * 100);
         return (
           <div key={i} className="flex items-center gap-2">
-            <span className="w-28 shrink-0 truncate text-[11px] font-semibold text-white">{s.name || `Etapa ${i + 1}`}</span>
-            <div className="relative h-4 flex-1 rounded-full bg-white/10">
+            <span className={`w-40 shrink-0 truncate text-[11px] font-semibold ${light ? "text-foreground" : "text-white"}`}>{s.name || `Etapa ${i + 1}`}</span>
+            <div className={`relative h-4 flex-1 rounded-full ${light ? "bg-muted" : "bg-white/10"}`}>
               <div
                 className="absolute top-0 h-4 rounded-full shadow"
                 style={{ left: `${left}%`, width: `${width}%`, background: i % 2 ? `color-mix(in oklab, ${primary} 70%, white)` : primary }}
@@ -383,141 +383,218 @@ function TemplateDialog({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const [tab, setTab] = useState<"etapas" | "equipe" | "cronograma">("etapas");
+  const [sel, setSel] = useState(0);
+  const [showTimeline, setShowTimeline] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setTab("etapas");
+    setSel(0);
+    setShowTimeline(false);
+  }, [open, template]);
+  const selIdx = Math.min(sel, Math.max(0, stages.length - 1));
+  const cur = stages[selIdx] ?? null;
+  const totalTasks = stages.reduce((n, s) => n + s.tasks.length, 0);
+  const phases = [...new Set(stages.map((s) => s.phase).filter(Boolean))] as string[];
+  const first = stages.reduce<string | null>((m, s) => (s.start && (!m || s.start < m) ? s.start : m), null);
+  const last = stages.reduce<string | null>((m, s) => (s.end && (!m || s.end > m) ? s.end : m), null);
+  const totalDays = first && last ? isoDiff(last, first) + 1 : 0;
+  const phaseTone = (ph: string | null) => {
+    const k = ph ? phases.indexOf(ph) : -1;
+    return k <= 0 ? primary : `color-mix(in oklab, ${primary} ${Math.max(55, 100 - k * 18)}%, ${ink})`;
+  };
+  const moveTask = (i: number, k: number, dir: -1 | 1) =>
+    setStages((d) => d.map((x, j) => {
+      if (j !== i) return x;
+      const n = k + dir;
+      if (n < 0 || n >= x.tasks.length) return x;
+      const t = [...x.tasks]; [t[k], t[n]] = [t[n], t[k]];
+      return { ...x, tasks: t };
+    }));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] max-w-5xl overflow-hidden p-0 [&>button]:text-white [&>button]:opacity-80">
-        <div className="flex max-h-[92dvh] flex-col">
-          <DialogHeader className="space-y-3 p-5 text-white" style={{ background: `linear-gradient(135deg, ${ink} 0%, color-mix(in oklab, ${ink} 82%, ${primary}) 100%)` }}>
-            <DialogTitle className="text-white">{template ? "Editar modelo" : "Novo modelo de projeto"}</DialogTitle>
-            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_190px]">
-              <div className="space-y-1">
-                <Label className="text-xs text-white/80">Nome</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Implantação de franquia" className="border-white/20 bg-white/10 text-white placeholder:text-white/50" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-white/80">Descrição</Label>
-                <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Opcional" className="border-white/20 bg-white/10 text-white placeholder:text-white/50" />
-              </div>
-              <div className="space-y-1">
-                <Label className="flex items-center gap-1 text-xs text-white/80"><CalendarRange className="h-3.5 w-3.5" /> Início do cronograma</Label>
-                <Input type="date" value={ref} onChange={(e) => moveRef(e.target.value)} className="border-white/20 bg-white/10 text-white [color-scheme:dark]" />
-              </div>
+      <DialogContent className="flex h-[94dvh] max-h-[94dvh] w-[96vw] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+        {/* cabeçalho compacto */}
+        <DialogHeader className="space-y-3 border-b bg-background px-5 pt-4 text-left sm:px-6">
+          <DialogTitle className="pr-8 text-xl font-extrabold">{template ? "Editar modelo de projeto" : "Novo modelo de projeto"}</DialogTitle>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_180px]">
+            <div className="space-y-1">
+              <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Nome</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Implantação de franquia" className="font-semibold" />
             </div>
-            <Timeline stages={stages} primary={primary} ink={ink} />
-          </DialogHeader>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Descrição</Label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Opcional" />
+            </div>
+            <div className="space-y-1">
+              <Label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground"><CalendarRange className="h-3.5 w-3.5" /> Início do cronograma</Label>
+              <Input type="date" value={ref} onChange={(e) => moveRef(e.target.value)} />
+            </div>
+          </div>
 
-          {/* Fundo mais escuro com as etapas em cards flutuantes */}
-          <div className="flex-1 space-y-4 overflow-y-auto p-5" style={{ background: `color-mix(in oklab, ${ink} 72%, #070d1a)` }}>
-            {/* Equipe do modelo: entra no projeto ao aplicar o modelo */}
-            <section aria-label="Equipe do modelo" className="overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-black/5 dark:bg-card">
-              <div className="flex flex-wrap items-center gap-3 border-l-[6px] px-4 py-3" style={{ borderColor: primary, background: `color-mix(in oklab, ${primary} 8%, white)` }}>
-                <Users className="h-5 w-5 shrink-0" style={{ color: ink }} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-lg font-extrabold tracking-tight" style={{ color: ink }}>Equipe do modelo</p>
-                  <p className="text-xs text-muted-foreground">Ao aplicar o modelo, estas pessoas entram no projeto (só com acesso ao módulo Projetos) e recebem as tarefas definidas para elas.</p>
-                </div>
-              </div>
-              <div className="space-y-2 p-4">
-                {members.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pessoa na equipe do modelo.</p>}
-                {members.map((m) => (
-                  <div key={m.user_id} className="grid items-center gap-2 rounded-xl border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_14rem_auto]">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{m.name || m.email}</p>
-                      {m.email && <p className="truncate text-xs text-muted-foreground">{m.email}</p>}
-                    </div>
-                    <Input value={m.department ?? ""} placeholder="Departamento (ex.: Compras)" className="h-9" maxLength={120}
-                      onChange={(e) => patchMember(m.user_id, { department: e.target.value })} aria-label={`Departamento de ${m.name}`} />
-                    <Select value={m.access_role} onValueChange={(v) => patchMember(m.user_id, { access_role: v as TemplateMember["access_role"] })}>
-                      <SelectTrigger className="h-9 text-xs" aria-label={`Papel de ${m.name}`}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(ROLE_LABEL) as TemplateMember["access_role"][]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={`Tirar ${m.name} da equipe do modelo`} onClick={() => removeMember(m.user_id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+          {/* cronograma recolhido: resumo + faixa das fases */}
+          <div className="space-y-2 rounded-xl border px-3.5 py-2.5" style={{ background: `color-mix(in oklab, ${primary} 9%, white)`, borderColor: `color-mix(in oklab, ${primary} 35%, white)` }}>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
+              <span><strong>{stages.length}</strong> etapas</span>
+              {phases.length > 0 && <span><strong>{phases.length}</strong> fases</span>}
+              <span><strong>{totalTasks}</strong> tarefas</span>
+              {first && last && <span><strong>{totalDays}</strong> dias · {br(first)} → {br(last)}</span>}
+              <span><strong>{members.length}</strong> {members.length === 1 ? "pessoa" : "pessoas"} na equipe</span>
+              <div aria-hidden="true" className="flex h-2.5 min-w-[160px] flex-1 gap-0.5 overflow-hidden rounded-full">
+                {stages.map((s, i) => (
+                  <span key={i} style={{ flex: Math.max(1, days(s)), background: phaseTone(s.phase) }} title={s.name} />
                 ))}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select value={pick} onValueChange={addMember} disabled={teamQ.isLoading || available.length === 0}>
-                    <SelectTrigger className="h-9 w-full sm:w-80" aria-label="Adicionar pessoa à equipe do modelo">
-                      <UserPlus className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <SelectValue placeholder={teamQ.isLoading ? "Carregando equipe…" : available.length ? "Adicionar pessoa da empresa" : "Toda a equipe já está no modelo"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {available.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}{p.email && p.email !== p.name ? ` · ${p.email}` : ""}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">Pessoa nova ainda sem acesso? Convide pela aba Equipe e permissões de um projeto e depois inclua aqui.</p>
-                </div>
               </div>
-            </section>
+              <Button type="button" variant="outline" size="sm" className="h-8 bg-white" onClick={() => setShowTimeline((v) => !v)} aria-expanded={showTimeline}>
+                {showTimeline ? "Recolher cronograma ▴" : "Ver cronograma ▾"}
+              </Button>
+            </div>
+            {showTimeline && <Timeline stages={stages} primary={primary} ink={ink} light />}
+          </div>
 
-            {stages.map((s, i) => (
-              <div key={i} className="overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-black/5 dark:bg-card">
-                <div className="flex items-center gap-3 border-l-[6px] px-4 py-3" style={{ borderColor: primary, background: `color-mix(in oklab, ${primary} 8%, white)` }}>
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow" style={{ background: ink }}>{i + 1}</span>
-                  <Input
-                    value={s.name}
-                    onChange={(e) => patch(i, { name: e.target.value })}
-                    placeholder="Nome da etapa"
-                    className="h-9 border-0 bg-transparent px-1 text-lg md:text-lg font-extrabold tracking-tight shadow-none focus-visible:ring-1"
-                    style={{ color: ink }}
-                  />
-                  <span className="hidden shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white sm:inline" style={{ background: primary }}>
-                    {brShort(s.start)} → {brShort(s.end)} · {days(s)}d
+          <div role="tablist" aria-label="Partes do modelo" className="flex gap-6">
+            {([
+              ["etapas", "Etapas e tarefas", stages.length],
+              ["equipe", "Equipe do modelo", members.length],
+              ["cronograma", "Cronograma", null],
+            ] as const).map(([k, label, n]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={tab === k}
+                onClick={() => setTab(k)}
+                className={`-mb-px flex h-11 items-center gap-2 border-b-[3px] px-1 text-sm ${tab === k ? "font-extrabold text-foreground" : "border-transparent font-semibold text-muted-foreground hover:text-foreground"}`}
+                style={tab === k ? { borderColor: primary } : undefined}
+              >
+                {label}
+                {n !== null && (
+                  <span className="grid h-[22px] min-w-[22px] place-items-center rounded-full px-1.5 text-xs font-bold" style={tab === k ? { background: primary, color: ink } : { background: "hsl(var(--muted))" }}>
+                    {n}
                   </span>
-                  <div className="flex shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Subir etapa" onClick={() => move(i, -1)} disabled={i === 0}><ArrowUp className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Descer etapa" onClick={() => move(i, 1)} disabled={i === stages.length - 1}><ArrowDown className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-600" aria-label="Remover etapa" onClick={() => setStages((d) => d.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
-                  </div>
-                </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </DialogHeader>
 
-                <div className="space-y-3 p-4">
-                  <div className="grid gap-2 sm:grid-cols-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Início</Label>
-                      <Input type="date" value={s.start} min={ref} onChange={(e) => {
-                        const v = e.target.value; if (!v) return;
-                        const len = isoDiff(s.end, s.start);
-                        patch(i, { start: v, end: isoAdd(v, Math.max(0, len)) });
-                      }} />
+        {/* corpo */}
+        <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 px-5 py-4 sm:px-6">
+          {tab === "etapas" && (
+            <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+              <nav aria-label="Etapas do modelo" className="space-y-0.5 rounded-2xl border bg-background p-2.5 lg:sticky lg:top-0">
+                {stages.map((s, i) => {
+                  const newPhase = s.phase && s.phase !== stages[i - 1]?.phase;
+                  const active = i === selIdx;
+                  return (
+                    <div key={i}>
+                      {newPhase && <p className="px-2.5 pb-1 pt-3 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground first:pt-1">{s.phase}</p>}
+                      <button
+                        type="button"
+                        onClick={() => setSel(i)}
+                        aria-current={active ? "step" : undefined}
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition ${active ? "" : "hover:bg-muted"}`}
+                        style={active ? { background: `color-mix(in oklab, ${primary} 14%, white)`, outline: `2px solid ${primary}` } : undefined}
+                      >
+                        <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full text-xs font-extrabold" style={active ? { background: primary, color: ink } : { background: "hsl(var(--muted))" }}>{i + 1}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block truncate text-sm ${active ? "font-extrabold" : "font-semibold"}`}>{s.name || `Etapa ${i + 1}`}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {[s.week_label, `${brShort(s.start)} → ${brShort(s.end)}`, `${s.tasks.length} tarefa${s.tasks.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+                <Button variant="outline" size="sm" className="mt-2 w-full border-dashed" onClick={() => { addStage(); setSel(stages.length); }}>
+                  <Plus className="h-4 w-4" /> Adicionar etapa
+                </Button>
+              </nav>
+
+              {cur ? (
+                <section aria-label={`Etapa ${selIdx + 1}`} className="space-y-4">
+                  <div className="space-y-3 rounded-2xl border bg-background p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold text-white" style={{ background: ink }}>{selIdx + 1}</span>
+                      <Input
+                        value={cur.name}
+                        onChange={(e) => patch(selIdx, { name: e.target.value })}
+                        placeholder="Nome da etapa"
+                        className="h-11 min-w-[200px] flex-1 border-transparent bg-muted/50 text-lg font-extrabold md:text-lg"
+                        aria-label="Nome da etapa"
+                      />
+                      <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Subir etapa" disabled={selIdx === 0} onClick={() => { move(selIdx, -1); setSel(selIdx - 1); }}><ArrowUp className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Descer etapa" disabled={selIdx === stages.length - 1} onClick={() => { move(selIdx, 1); setSel(selIdx + 1); }}><ArrowDown className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="sm" className="h-9 text-rose-600" onClick={() => {
+                        if (!confirm(`Excluir a etapa "${cur.name || selIdx + 1}" e as tarefas dela?`)) return;
+                        setStages((d) => d.filter((_, j) => j !== selIdx));
+                        setSel(Math.max(0, selIdx - 1));
+                      }}>
+                        <Trash2 className="h-4 w-4" /> Excluir etapa
+                      </Button>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Início</Label>
+                        <Input type="date" value={cur.start} min={ref} onChange={(e) => {
+                          const v = e.target.value; if (!v) return;
+                          const len = isoDiff(cur.end, cur.start);
+                          patch(selIdx, { start: v, end: isoAdd(v, Math.max(0, len)) });
+                        }} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Prazo final</Label>
+                        <Input type="date" value={cur.end} min={cur.start} onChange={(e) => e.target.value && patch(selIdx, { end: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Fase</Label>
+                        <Input value={cur.phase ?? ""} placeholder="Ex.: 1ª Fase" onChange={(e) => patch(selIdx, { phase: e.target.value || null })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Semana</Label>
+                        <Input value={cur.week_label ?? ""} placeholder="Ex.: 1ª semana" onChange={(e) => patch(selIdx, { week_label: e.target.value || null })} />
+                      </div>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Prazo final</Label>
-                      <Input type="date" value={s.end} min={s.start} onChange={(e) => e.target.value && patch(i, { end: e.target.value })} />
+                      <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Aviso da etapa</Label>
+                      <div className="relative">
+                        <AlertTriangle className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-500" />
+                        <Input value={cur.alert ?? ""} placeholder="Aviso importante da etapa (opcional)" className="pl-8" onChange={(e) => patch(selIdx, { alert: e.target.value || null })} />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Fase</Label>
-                      <Input value={s.phase ?? ""} placeholder="Ex.: 1ª Fase" onChange={(e) => patch(i, { phase: e.target.value || null })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Semana</Label>
-                      <Input value={s.week_label ?? ""} placeholder="Ex.: 1ª semana" onChange={(e) => patch(i, { week_label: e.target.value || null })} />
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <AlertTriangle className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-500" />
-                    <Input value={s.alert ?? ""} placeholder="Aviso importante da etapa (opcional)" className="pl-8" onChange={(e) => patch(i, { alert: e.target.value || null })} />
                   </div>
 
-                  <div className="space-y-2 rounded-xl bg-muted/40 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tarefas padrão</p>
-                    {s.tasks.map((t, k) => (
-                      <div key={k} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_150px_14rem_auto]">
-                        <Input value={t.title} placeholder="Tarefa" className="h-9 bg-white dark:bg-background" onChange={(e) => patchTask(i, k, { title: e.target.value })} />
-                        <Input type="date" value={t.due} min={s.start} className="col-span-2 h-9 bg-white sm:col-span-1 dark:bg-background" aria-label="Prazo da tarefa" onChange={(e) => e.target.value && patchTask(i, k, { due: e.target.value })} />
+                  <div className="overflow-hidden rounded-2xl border bg-background">
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <p className="flex items-center gap-2 text-[15px] font-extrabold">
+                        Tarefas padrão
+                        <span className="grid h-[22px] min-w-[22px] place-items-center rounded-full bg-muted px-1.5 text-xs font-bold">{cur.tasks.length}</span>
+                      </p>
+                    </div>
+                    <div className="hidden grid-cols-[56px_minmax(0,1fr)_150px_15rem_40px] gap-2 bg-muted/50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground md:grid">
+                      <span>Ordem</span><span>Tarefa</span><span>Prazo</span><span>Quem executa</span><span />
+                    </div>
+                    {cur.tasks.length === 0 && <p className="border-t px-4 py-4 text-sm text-muted-foreground">Nenhuma tarefa padrão nesta etapa.</p>}
+                    {cur.tasks.map((t, k) => (
+                      <div key={k} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t px-4 py-2 md:grid-cols-[56px_minmax(0,1fr)_150px_15rem_40px]">
+                        <div className="hidden items-center md:flex">
+                          <button type="button" className="rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label="Subir tarefa" disabled={k === 0} onClick={() => moveTask(selIdx, k, -1)}><ArrowUp className="h-3.5 w-3.5" /></button>
+                          <button type="button" className="rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-30" aria-label="Descer tarefa" disabled={k === cur.tasks.length - 1} onClick={() => moveTask(selIdx, k, 1)}><ArrowDown className="h-3.5 w-3.5" /></button>
+                        </div>
+                        <Input value={t.title} placeholder="Tarefa" className="h-9" onChange={(e) => patchTask(selIdx, k, { title: e.target.value })} />
+                        <Input type="date" value={t.due} min={cur.start} className="col-span-2 h-9 md:col-span-1" aria-label="Prazo da tarefa" onChange={(e) => e.target.value && patchTask(selIdx, k, { due: e.target.value })} />
                         <Select
                           value={whoValue(t)}
-                          onValueChange={(v) => patchTask(i, k, v === "cliente"
+                          onValueChange={(v) => patchTask(selIdx, k, v === "cliente"
                             ? { responsible_type: "cliente", assignee_user_id: null }
                             : v === "equipe"
                               ? { responsible_type: "equipe", assignee_user_id: null }
                               : { responsible_type: "equipe", assignee_user_id: v.slice(2) })}
                         >
                           <SelectTrigger
-                            className={`h-9 bg-white text-[12px] dark:bg-background ${t.responsible_type === "cliente" ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
+                            className={`h-9 text-[12px] ${t.responsible_type === "cliente" ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
                             aria-label="Quem executa a tarefa"
                           >
                             {t.responsible_type === "cliente" ? <UserRound className="mr-1 h-3.5 w-3.5 shrink-0" /> : <Users className="mr-1 h-3.5 w-3.5 shrink-0" />}
@@ -528,50 +605,97 @@ function TemplateDialog({
                             {members.length > 0 && (
                               <SelectGroup>
                                 <SelectLabel>Equipe do modelo</SelectLabel>
-                                {members.map((m) => <SelectItem key={m.user_id} value={`u:${m.user_id}`}>{memberLabel(m)}</SelectItem>)}
+                                {members.map((mm) => <SelectItem key={mm.user_id} value={`u:${mm.user_id}`}>{memberLabel(mm)}</SelectItem>)}
                               </SelectGroup>
                             )}
                             <SelectItem value="cliente">Cliente (conclui pelo portal)</SelectItem>
                           </SelectContent>
                         </Select>
                         <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label="Remover tarefa padrão"
-                          onClick={() => setStages((d) => d.map((x, j) => (j === i ? { ...x, tasks: x.tasks.filter((_, m) => m !== k) } : x)))}>
+                          onClick={() => setStages((d) => d.map((x, j) => (j === selIdx ? { ...x, tasks: x.tasks.filter((_, mi) => mi !== k) } : x)))}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     ))}
-                    <Button variant="ghost" size="sm" className="h-8 text-xs" style={{ color: primary }}
-                      onClick={() => setStages((d) => d.map((x, j) => (j === i ? { ...x, tasks: [...x.tasks, { title: "", due: x.start, responsible_type: "equipe", assignee_user_id: null }] } : x)))}>
-                      <Plus className="h-3.5 w-3.5" /> Tarefa padrão
-                    </Button>
+                    <div className="border-t px-4 py-2.5">
+                      <Button variant="outline" size="sm" className="border-dashed"
+                        onClick={() => setStages((d) => d.map((x, j) => (j === selIdx ? { ...x, tasks: [...x.tasks, { title: "", due: x.start, responsible_type: "equipe", assignee_user_id: null }] } : x)))}>
+                        <Plus className="h-3.5 w-3.5" /> Tarefa padrão
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
-            <Button variant="outline" className="w-full border-dashed border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white" onClick={addStage}>
-              <Plus className="h-4 w-4" /> Adicionar etapa
-            </Button>
-          </div>
+                </section>
+              ) : (
+                <p className="rounded-2xl border bg-background p-6 text-sm text-muted-foreground">Nenhuma etapa. Use “Adicionar etapa”.</p>
+              )}
+            </div>
+          )}
 
-          <DialogFooter className="flex-col gap-2 border-t bg-background p-4 sm:flex-row sm:items-center">
-            {problems.length > 0 && <p className="mr-auto text-xs text-destructive">{problems[0]}</p>}
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button
-              style={{ background: primary }}
-              className="text-white hover:opacity-90"
-              onClick={() => {
-                if (!name.trim()) return toast.error("Informe o nome do modelo");
-                if (!(template?.organization_id ?? organizationId)) return toast.error("Empresa não identificada");
-                if (!stages.some((s) => s.name.trim())) return toast.error("Adicione ao menos uma etapa");
-                if (problems.length) return toast.error(problems[0]);
-                m.mutate();
-              }}
-              disabled={m.isPending}
-            >
-              Salvar modelo
-            </Button>
-          </DialogFooter>
+          {tab === "equipe" && (
+            <section aria-label="Equipe do modelo" className="space-y-3 rounded-2xl border bg-background p-4">
+              <p className="text-sm text-muted-foreground">
+                Ao aplicar o modelo, estas pessoas entram no projeto (só com acesso ao módulo Projetos) e recebem as tarefas definidas para elas.
+              </p>
+              {members.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pessoa na equipe do modelo.</p>}
+              {members.map((mm) => (
+                <div key={mm.user_id} className="grid items-center gap-2 rounded-xl border p-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_14rem_auto]">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{mm.name || mm.email}</p>
+                    {mm.email && <p className="truncate text-xs text-muted-foreground">{mm.email}</p>}
+                  </div>
+                  <Input value={mm.department ?? ""} placeholder="Departamento (ex.: Compras)" className="h-9" maxLength={120}
+                    onChange={(e) => patchMember(mm.user_id, { department: e.target.value })} aria-label={`Departamento de ${mm.name}`} />
+                  <Select value={mm.access_role} onValueChange={(v) => patchMember(mm.user_id, { access_role: v as TemplateMember["access_role"] })}>
+                    <SelectTrigger className="h-9 text-xs" aria-label={`Papel de ${mm.name}`}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(ROLE_LABEL) as TemplateMember["access_role"][]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={`Tirar ${mm.name} da equipe do modelo`} onClick={() => removeMember(mm.user_id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={pick} onValueChange={addMember} disabled={teamQ.isLoading || available.length === 0}>
+                  <SelectTrigger className="h-9 w-full sm:w-80" aria-label="Adicionar pessoa à equipe do modelo">
+                    <UserPlus className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <SelectValue placeholder={teamQ.isLoading ? "Carregando equipe…" : available.length ? "Adicionar pessoa da empresa" : "Toda a equipe já está no modelo"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {available.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}{p.email && p.email !== p.name ? ` · ${p.email}` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Pessoa nova ainda sem acesso? Convide pela aba Equipe e permissões de um projeto e depois inclua aqui.</p>
+              </div>
+            </section>
+          )}
+
+          {tab === "cronograma" && (
+            <section aria-label="Cronograma" className="rounded-2xl border bg-background p-4">
+              <Timeline stages={stages} primary={primary} ink={ink} light />
+            </section>
+          )}
         </div>
+
+        <DialogFooter className="flex-col gap-2 border-t bg-background px-5 py-3 sm:flex-row sm:items-center sm:px-6">
+          {problems.length > 0 && <p className="mr-auto text-xs text-destructive">{problems[0]}</p>}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button
+            style={{ background: primary, color: ink }}
+            className="font-extrabold hover:opacity-90"
+            onClick={() => {
+              if (!name.trim()) return toast.error("Informe o nome do modelo");
+              if (!(template?.organization_id ?? organizationId)) return toast.error("Empresa não identificada");
+              if (!stages.some((s) => s.name.trim())) return toast.error("Adicione ao menos uma etapa");
+              if (problems.length) return toast.error(problems[0]);
+              m.mutate();
+            }}
+            disabled={m.isPending}
+          >
+            Salvar modelo
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
