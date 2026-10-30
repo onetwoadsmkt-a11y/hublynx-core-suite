@@ -112,6 +112,11 @@ export const requestSignup = createServerFn({ method: "POST" })
       userId = existing.id;
     }
 
+    // empresa de teste liberada na hora (mesmo sem o gatilho do banco instalado)
+    if (userId) {
+      const { ensureSelfServiceWorkspace } = await import("@/lib/org/self-service.server");
+      await ensureSelfServiceWorkspace(admin, userId, { companyName: data.company }).catch(() => undefined);
+    }
     // nome da empresa de teste = o informado (o gatilho usa o nome da pessoa)
     if (userId && createdNow) {
       await admin

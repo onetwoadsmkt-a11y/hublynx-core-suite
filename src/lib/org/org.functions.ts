@@ -76,8 +76,23 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
         .eq("user_id", userId)
         .eq("status", "active");
       if (memberError) throw new Error("Não foi possível carregar vínculos da conta.");
-      const ids = ((members ?? []) as any[]).map((m) => m.organization_id as string);
-      for (const m of (members ?? []) as any[]) roleByOrg.set(m.organization_id, m.role);
+      let memberRows = (members ?? []) as any[];
+      // conta criada pelo próprio usuário e ainda sem empresa: libera o teste na hora
+      if (memberRows.length === 0) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { ensureSelfServiceWorkspace } = await import("./self-service.server");
+        const r = await ensureSelfServiceWorkspace(supabaseAdmin as any, userId).catch(() => ({ created: false }));
+        if (r.created) {
+          const again = await admin
+            .from("organization_members")
+            .select("organization_id, role, status")
+            .eq("user_id", userId)
+            .eq("status", "active");
+          memberRows = (again.data ?? []) as any[];
+        }
+      }
+      const ids = memberRows.map((m) => m.organization_id as string);
+      for (const m of memberRows) roleByOrg.set(m.organization_id, m.role);
       if (ids.length === 0) return { isSuperAdmin, organizations: [] };
       const { data, error } = await admin
         .from("organizations")
