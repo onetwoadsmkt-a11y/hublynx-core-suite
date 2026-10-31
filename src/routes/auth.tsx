@@ -33,10 +33,10 @@ export const Route = createFileRoute("/auth")({
 });
 
 const FEATURES = [
-  { tag: "TAREFAS", label: "Kanban + Lista" },
-  { tag: "PROJETOS", label: "Andamento em %" },
-  { tag: "FINANCEIRO", label: "A pagar / receber" },
-  { tag: "AGENDA", label: "Reuniões e calls" },
+  { tag: "VENDAS", label: "Funil e próxima ação" },
+  { tag: "AGENDA", label: "Tarefas com o Google" },
+  { tag: "PROJETOS", label: "Etapas e responsáveis" },
+  { tag: "CLIENTE", label: "Portal do cliente" },
 ];
 
 function AuthPage() {
@@ -133,17 +133,17 @@ function AuthPage() {
         className="hidden lg:flex flex-col justify-between p-12"
         style={{ background: "linear-gradient(135deg,#071A3D 0%,#0a2557 60%,#00D084 180%)" }}
       >
-        <HublynxLogo className="[&_*]:!text-white" />
+        <HublynxLogo onDark />
 
         <div className="text-white max-w-lg">
           <h1 className="font-display text-4xl font-semibold leading-tight">
-            O sistema operacional
+            Venda, projeto e cliente
             <br />
-            do seu negócio.
+            <span className="text-[#00D084]">num só lugar.</span>
           </h1>
           <p className="mt-4 text-white/70 text-sm leading-relaxed">
-            Tarefas, projetos, clientes, financeiro e agenda em um único lugar. Substitua Trello,
-            planilhas e agendas de papel.
+            Do primeiro contato à entrega: funil de vendas, agenda, projetos com etapas e
+            responsáveis, e um portal para o seu cliente acompanhar tudo. Com a logo e as cores da sua empresa.
           </p>
 
           <div className="mt-8 grid grid-cols-2 gap-3 max-w-md">
@@ -161,7 +161,7 @@ function AuthPage() {
           </div>
         </div>
 
-        <p className="text-white/40 text-xs">© 2026 Hublynx Group</p>
+        <p className="text-white/40 text-xs">© 2026 Core Suite · Hublynx</p>
       </div>
 
       {/* Right panel */}

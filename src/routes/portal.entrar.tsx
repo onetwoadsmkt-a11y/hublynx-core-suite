@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { portalAuth } from "@/lib/portal/portal-client";
 import { CORE_GRADIENT, CORE_GREEN } from "@/components/portal/PortalShell";
 import { usePortalPwa } from "@/components/portal/PortalPwa";
-import coreLogo from "@/assets/core-suite-logo-horizontal.png.asset.json";
+import coreLogoUrl from "@/assets/core-suite-logo.svg?url";
+import coreLogoDarkUrl from "@/assets/core-suite-logo-dark.svg?url";
 import { portalMyProjects, portalPublicInfo } from "@/lib/portal/portal.functions";
 
 /** Login próprio do portal do cliente (não usa nem mexe no login do Core). */
@@ -223,7 +224,8 @@ function PortalLoginPage() {
           </form>
           <div className="mt-8 flex items-center justify-center gap-2 border-t pt-5 text-[11px] text-muted-foreground">
             <span>Tecnologia</span>
-            <img src={coreLogo.url} alt="Core Suite" className="h-7 w-auto object-contain" />
+            <img src={coreLogoUrl} alt="Core Suite" className="h-7 w-auto object-contain dark:hidden" />
+            <img src={coreLogoDarkUrl} alt="Core Suite" className="hidden h-7 w-auto object-contain dark:block" />
           </div>
         </div>
       </main>
