@@ -114,15 +114,32 @@ function readableAnswers(definition: Definition, answers: Record<string, unknown
   return out;
 }
 
+const FORM_COLUMNS =
+  "id, public_id, name, slug, status, organization_id, owner_id, active_version_id, pipeline_id, stage_id, default_source";
+
 async function loadActiveForm(db: Db, publicSlug: string) {
   const publicId = publicIdFromSlug(publicSlug);
   const { data: form } = await db
     .from("lead_forms")
-    .select("id, public_id, name, slug, status, organization_id, owner_id, active_version_id, pipeline_id, stage_id, default_source")
+    .select(FORM_COLUMNS)
     .eq("public_id", publicId)
     .eq("status", "active")
     .maybeSingle();
-  return form as any;
+  if (form) return form as any;
+  // Link antigo (ex.: do Vale Safe Lead Pro em form.hublynx.com.br/f/<id-antigo>-<endereco>):
+  // abre o formulário publicado com o mesmo endereço, se houver exatamente um.
+  const { slugPart } = await import("./form-domain");
+  const slug = slugPart(publicSlug);
+  if (!slug) return null;
+  const { data: bySlug } = await db
+    .from("lead_forms")
+    .select(FORM_COLUMNS)
+    .eq("slug", slug)
+    .eq("status", "active")
+    .not("active_version_id", "is", null)
+    .limit(2);
+  const list = (bySlug ?? []) as any[];
+  return list.length === 1 ? list[0] : null;
 }
 
 // POST evita que o navegador/CDN reaproveite uma definição antiga após publicar.

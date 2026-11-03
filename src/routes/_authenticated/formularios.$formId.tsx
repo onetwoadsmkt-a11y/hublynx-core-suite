@@ -1,3 +1,4 @@
+import { useFormOrigin } from "@/hooks/useFormOrigin";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -101,6 +102,7 @@ function TextFormattingControls({ draft, target, onChange }: { draft: FormDraft;
 
 function FormEditor() {
   const { formId } = Route.useParams();
+  const { origin: formOrigin } = useFormOrigin();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchDraft = useServerFn(getFormDraft);
@@ -172,7 +174,7 @@ function FormEditor() {
           <div><p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Editor</p><h1 className="text-2xl font-extrabold">{draft.name}</h1>{hasUnpublishedChanges ? <p className="mt-1 text-xs font-semibold text-destructive">A prévia mostra as alterações ainda não publicadas. Clique em Publicar para aplicar no link público.</p> : null}</div>
         </div>
         <div className="flex gap-2">
-          {query.data?.form.active_version_id ? <Button variant="outline" asChild><a href={`/f/${query.data.form.public_id}-${draft.slug}`} target="_blank" rel="noreferrer"><Eye className="size-4" /> Visualizar</a></Button> : null}
+          {query.data?.form.active_version_id ? <Button variant="outline" asChild><a href={`${formOrigin}/f/${query.data.form.public_id}-${draft.slug}`} target="_blank" rel="noreferrer"><Eye className="size-4" /> Visualizar</a></Button> : null}
           <Button variant="outline" disabled={mutation.isPending} onClick={() => mutation.mutate("save")}><Save className="size-4" /> Salvar</Button>
           <Button disabled={mutation.isPending} onClick={() => mutation.mutate("publish")}><Send className="size-4" /> Publicar</Button>
         </div>

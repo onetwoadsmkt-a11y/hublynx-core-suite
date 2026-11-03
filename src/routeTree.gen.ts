@@ -62,6 +62,7 @@ import { Route as AuthenticatedFormulariosFormIdRouteImport } from './routes/_au
 import { Route as AuthenticatedGestaoClientesRouteImport } from './routes/_authenticated/gestao.clientes'
 import { Route as AuthenticatedProjetosIndexRouteImport } from './routes/_authenticated/projetos.index'
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
+import { Route as ApiPublicFormsHostRouteImport } from './routes/api/public/forms-host'
 import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authenticated/app.tarefas.$id'
 import { Route as AuthenticatedConfiguracoesIntegracoesIndexRouteImport } from './routes/_authenticated/configuracoes.integracoes.index'
 import { Route as AuthenticatedConfiguracoesIntegracoesLogsRouteImport } from './routes/_authenticated/configuracoes.integracoes.logs'
@@ -361,6 +362,11 @@ const AuthenticatedProjetosIdRoute = AuthenticatedProjetosIdRouteImport.update({
   path: '/projetos/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicFormsHostRoute = ApiPublicFormsHostRouteImport.update({
+  id: '/api/public/forms-host',
+  path: '/api/public/forms-host',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAppTarefasIdRoute =
   AuthenticatedAppTarefasIdRouteImport.update({
     id: '/$id',
@@ -468,6 +474,7 @@ export interface FileRoutesByFullPath {
   '/formularios/$formId': typeof AuthenticatedFormulariosFormIdRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/api/public/forms-host': typeof ApiPublicFormsHostRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
@@ -529,6 +536,7 @@ export interface FileRoutesByTo {
   '/formularios/$formId': typeof AuthenticatedFormulariosFormIdRoute
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/api/public/forms-host': typeof ApiPublicFormsHostRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesIndexRoute
@@ -595,6 +603,7 @@ export interface FileRoutesById {
   '/_authenticated/formularios/$formId': typeof AuthenticatedFormulariosFormIdRoute
   '/_authenticated/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
+  '/api/public/forms-host': typeof ApiPublicFormsHostRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
@@ -661,6 +670,7 @@ export interface FileRouteTypes {
     | '/formularios/$formId'
     | '/gestao/clientes'
     | '/projetos/$id'
+    | '/api/public/forms-host'
     | '/admin/'
     | '/app/'
     | '/configuracoes/'
@@ -722,6 +732,7 @@ export interface FileRouteTypes {
     | '/formularios/$formId'
     | '/gestao/clientes'
     | '/projetos/$id'
+    | '/api/public/forms-host'
     | '/admin'
     | '/app'
     | '/configuracoes'
@@ -787,6 +798,7 @@ export interface FileRouteTypes {
     | '/_authenticated/formularios/$formId'
     | '/_authenticated/gestao/clientes'
     | '/_authenticated/projetos/$id'
+    | '/api/public/forms-host'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/configuracoes/'
@@ -815,6 +827,7 @@ export interface RootRouteChildren {
   PortalAcessoRoute: typeof PortalAcessoRoute
   PortalEntrarRoute: typeof PortalEntrarRoute
   PortalIndexRoute: typeof PortalIndexRoute
+  ApiPublicFormsHostRoute: typeof ApiPublicFormsHostRoute
   ApiPublicFormAssetsSplatRoute: typeof ApiPublicFormAssetsSplatRoute
   ApiPublicHooksRunAutomationsRoute: typeof ApiPublicHooksRunAutomationsRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
@@ -1197,6 +1210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjetosIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/forms-host': {
+      id: '/api/public/forms-host'
+      path: '/api/public/forms-host'
+      fullPath: '/api/public/forms-host'
+      preLoaderRoute: typeof ApiPublicFormsHostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/tarefas/$id': {
       id: '/_authenticated/app/tarefas/$id'
       path: '/$id'
@@ -1450,6 +1470,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalAcessoRoute: PortalAcessoRoute,
   PortalEntrarRoute: PortalEntrarRoute,
   PortalIndexRoute: PortalIndexRoute,
+  ApiPublicFormsHostRoute: ApiPublicFormsHostRoute,
   ApiPublicFormAssetsSplatRoute: ApiPublicFormAssetsSplatRoute,
   ApiPublicHooksRunAutomationsRoute: ApiPublicHooksRunAutomationsRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,

@@ -110,3 +110,8 @@
 ## Abas do projeto no tema escuro
 - `.project-tabs` (styles.css): no escuro, texto claro (`--on-dark` ou `--foreground`), aba selecionada com fundo `--primary` e texto `--primary-foreground` (Valesafe: amarelo/preto; demais: cor da marca). Celular: cartões escuros.
 - `.dark-cards .app-main *` usa `--border` (antes caía em currentColor e as linhas ficavam brancas).
+
+## Domínio dos formulários: form.hublynx.com.br
+- `src/lib/forms/form-domain.ts`: no domínio de formulários só abrem `/f/...` e arquivos; o resto vai para core.hublynx.com.br (`beforeLoad` do `__root`).
+- `/api/public/forms-host` + `useFormOrigin()`: os links "Copiar link"/"Ver" usam form.hublynx.com.br só quando esse domínio já responde pelo Core (senão, o endereço do Core).
+- Links antigos do Vale Safe Lead Pro (`/f/<id-antigo>-<endereco>`): `loadActiveForm` cai para o formulário publicado com o mesmo endereço (se houver só um).

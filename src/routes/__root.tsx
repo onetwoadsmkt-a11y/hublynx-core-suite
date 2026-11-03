@@ -1,3 +1,4 @@
+import { CORE_APP_ORIGIN, isFormDomainPath, isFormHost } from "@/lib/forms/form-domain";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -71,6 +72,13 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // form.hublynx.com.br só abre formulários; qualquer outra página vai para o Core
+  beforeLoad: ({ location }) => {
+    if (typeof window === "undefined") return;
+    if (isFormHost(window.location.hostname) && !isFormDomainPath(location.pathname)) {
+      window.location.replace(`${CORE_APP_ORIGIN}${location.href}`);
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },

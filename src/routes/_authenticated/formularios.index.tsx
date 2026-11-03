@@ -1,3 +1,4 @@
+import { useFormOrigin } from "@/hooks/useFormOrigin";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -34,6 +35,7 @@ export const Route = createFileRoute("/_authenticated/formularios/")({
 const STATUS_LABEL: Record<string, string> = { active: "Ativo", inactive: "Inativo", draft: "Rascunho" };
 
 function FormsCenter() {
+  const { origin: formOrigin } = useFormOrigin();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { activeOrganizationId, activeOrganization, isLoading: wsLoading } = useWorkspace();
@@ -148,7 +150,7 @@ function FormsCenter() {
                           </Badge>
                         </div>
                         <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {published ? publicPath : "Ainda não publicado"}
+                          {published ? `${formOrigin.replace(/^https?:\/\//, "")}${publicPath}` : "Ainda não publicado"}
                         </p>
                       </div>
                       <DropdownMenu>
@@ -207,14 +209,14 @@ function FormsCenter() {
                             size="sm"
                             variant="outline"
                             onClick={() => {
-                              navigator.clipboard.writeText(`${window.location.origin}${publicPath}`);
+                              navigator.clipboard.writeText(`${formOrigin}${publicPath}`);
                               toast.success("Link copiado");
                             }}
                           >
                             <Link2 className="h-4 w-4" /> Copiar link
                           </Button>
                           <Button size="sm" variant="ghost" asChild>
-                            <a href={publicPath} target="_blank" rel="noreferrer">
+                            <a href={`${formOrigin}${publicPath}`} target="_blank" rel="noreferrer">
                               <ExternalLink className="h-4 w-4" /> Ver
                             </a>
                           </Button>
