@@ -5,6 +5,7 @@
 // Cada envio é "reservado" em task_push_log (único por tarefa + pessoa + tipo), então
 // rodar várias vezes (tela aberta, agendamento) não repete e-mail.
 import { CORE_ORIGIN } from "@/lib/core-origin";
+import { dueDayKey, dueHasTime } from "@/lib/tasks/pending";
 
 type Db = { from: (t: string) => any; auth?: any };
 
@@ -17,8 +18,20 @@ function dayIn(date: Date) {
 function hourIn(date: Date) {
   return Number(new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "2-digit", hour12: false }).format(date)) % 24;
 }
-const brDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit", year: "numeric" }) : "sem prazo";
+// dia certo também para prazos "só com dia" (gravados à meia-noite UTC ou como data pura)
+const brDate = (iso: string | null) => {
+  const k = iso ? dueDayKey(iso) : null;
+  return k ? `${k.slice(8, 10)}/${k.slice(5, 7)}/${k.slice(0, 4)}` : "sem prazo";
+};
+
+const PRIO: Record<string, string> = { baixa: "Baixa", media: "Média", alta: "Alta", critica: "Urgente" };
+/** Prazo com horário quando houver (tarefas só com dia mostram só a data). */
+function brDateTime(iso: string | null) {
+  if (!iso) return "sem prazo";
+  if (!dueHasTime(iso)) return brDate(iso);
+  const hm = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  return `${brDate(iso)} às ${hm}`;
+}
 
 export function taskPath(t: { id: string; project_id: string | null }) {
   return t.project_id ? `/projetos/${t.project_id}?aba=etapas&tarefa=${t.id}` : `/tarefas?task=${t.id}`;
@@ -48,25 +61,86 @@ async function unclaim(admin: Db, taskId: string, userId: string, kind: string) 
   await admin.from("task_push_log").delete().eq("task_id", taskId).eq("user_id", userId).eq("kind", kind);
 }
 
-export function mailLayout(orgName: string, firstName: string, intro: string, rows: { title: string; sub: string; href: string; late?: boolean }[], cta: { label: string; href: string }, footer = "Você recebe este aviso porque estas tarefas estão sob sua responsabilidade no Core.") {
+/** Identidade visual da empresa no e-mail (Configurações › Aparência). */
+export type MailBrand = { logoUrl?: string | null; color?: string | null };
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+/** Texto preto ou branco sobre a cor da marca, conforme o contraste. */
+function textOn(hex: string) {
+  const n = parseInt(hex.slice(1), 16);
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L > 0.4 ? "#000000" : "#FFFFFF";
+}
+
+/** Busca logo e cor da marca das empresas (uma consulta, com cache no Map). */
+export async function brandsOf(admin: Db, orgIds: string[], cache = new Map<string, { name: string; brand: MailBrand }>()) {
+  const missing = orgIds.filter((id) => id && !cache.has(id));
+  if (missing.length) {
+    const { data } = await admin.from("organizations").select("id, name, logo_url, brand_color").in("id", missing);
+    for (const o of (data ?? []) as any[])
+      cache.set(o.id, { name: o.name ?? "", brand: { logoUrl: o.logo_url ?? null, color: o.brand_color ?? null } });
+  }
+  return cache;
+}
+
+export type MailRow = { title: string; sub: string; href: string; late?: boolean; details?: [string, string][] };
+
+/**
+ * Modelo de e-mail com a identidade da empresa: faixa e botão na cor da marca, logo no topo
+ * (ou o nome da empresa), cards das tarefas/avisos com borda na cor da marca.
+ */
+export function mailLayout(
+  orgName: string,
+  firstName: string,
+  intro: string,
+  rows: MailRow[],
+  cta: { label: string; href: string },
+  footer = "Você recebe este aviso porque estas tarefas estão sob sua responsabilidade no Core.",
+  brand: MailBrand = {},
+) {
+  const color = brand.color && HEX.test(brand.color) ? brand.color : "#00D084";
+  const onColor = textOn(color);
+  const head = brand.logoUrl
+    ? `<img src="${esc(brand.logoUrl)}" alt="${esc(orgName || "Logo")}" height="44" style="display:block;max-height:44px;max-width:180px;height:auto;width:auto;border:0">`
+    : `<span style="font-size:20px;font-weight:800;color:#0b1220;letter-spacing:.2px">${esc(orgName || "Core Suite")}</span>`;
   const items = rows
-    .map(
-      (r) => `<tr><td style="padding:10px 0;border-bottom:1px solid #eef0f3">
-<a href="${esc(r.href)}" style="color:#0f2b4c;font-weight:bold;text-decoration:none;font-size:15px">${esc(r.title)}</a>
-<div style="font-size:13px;color:${r.late ? "#b42318" : "#6b7280"};margin-top:2px">${esc(r.sub)}</div></td></tr>`,
-    )
+    .map((r) => {
+      const det = (r.details ?? [])
+        .map(
+          ([k, v]) => `<tr><td style="padding:3px 12px 3px 0;font-size:12px;color:#6b7280;white-space:nowrap;vertical-align:top">${esc(k)}</td>
+<td style="padding:3px 0;font-size:13px;color:#111827;font-weight:600">${esc(v)}</td></tr>`,
+        )
+        .join("");
+      return `<tr><td style="padding:0 0 10px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${r.late ? "#f3b4b4" : "#e5e7eb"};border-left:5px solid ${r.late ? "#D7262F" : color};border-radius:10px;background:${r.late ? "#fff5f5" : "#ffffff"}">
+<tr><td style="padding:12px 14px">
+${r.late ? `<div style="font-size:11px;font-weight:800;color:#D7262F;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Atrasada</div>` : ""}
+<a href="${esc(r.href)}" style="color:#0b1220;font-weight:800;text-decoration:none;font-size:15px;line-height:1.35">${esc(r.title)}</a>
+<div style="font-size:13px;color:${r.late ? "#b42318" : "#4b5563"};margin-top:3px">${esc(r.sub)}</div>
+${det ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px">${det}</table>` : ""}
+</td></tr></table></td></tr>`;
+    })
     .join("");
-  return `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif;color:#1f2937">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0"><tr><td align="center">
-<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden">
-<tr><td style="background:#0f2b4c;color:#ffffff;padding:18px 28px;font-size:17px;font-weight:bold">${esc(orgName || "Core")}</td></tr>
-<tr><td style="padding:24px 28px">
-<p style="margin:0 0 12px;font-size:16px">Olá, ${esc(firstName)}!</p>
-<p style="margin:0 0 14px;font-size:15px;line-height:1.5">${esc(intro)}</p>
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
+<body style="margin:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb">
+<tr><td style="height:6px;background:${color};font-size:0;line-height:0">&nbsp;</td></tr>
+<tr><td style="padding:20px 28px 16px;border-bottom:1px solid #f0f1f3">${head}</td></tr>
+<tr><td style="padding:24px 28px 8px">
+<p style="margin:0 0 10px;font-size:17px;font-weight:700;color:#0b1220">Olá, ${esc(firstName)}!</p>
+<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#374151">${esc(intro)}</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items}</table>
-<p style="margin:22px 0 0"><a href="${esc(cta.href)}" style="display:inline-block;background:#0f2b4c;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold;font-size:15px">${esc(cta.label)}</a></p>
-<p style="margin:18px 0 0;font-size:12px;color:#6b7280">${esc(footer)}</p>
-</td></tr></table></td></tr></table></body></html>`;
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 6px"><tr><td style="border-radius:10px;background:${color}">
+<a href="${esc(cta.href)}" style="display:inline-block;padding:13px 24px;font-weight:800;font-size:15px;color:${onColor};text-decoration:none;border-radius:10px">${esc(cta.label)}</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:16px 28px 22px;font-size:12px;line-height:1.5;color:#6b7280;border-top:1px solid #f0f1f3;margin-top:12px">${esc(footer)}<br>${esc(orgName || "")}${orgName ? " · " : ""}enviado pelo Core Suite</td></tr>
+</table></td></tr></table></body></html>`;
 }
 
 export async function personOf(admin: Db, userId: string, cache: Map<string, { email: string | null; name: string }>) {
@@ -98,7 +172,7 @@ export async function runTaskNotifications(
 
   let q = admin
     .from("tasks")
-    .select("id, title, status, due_date, project_id, assignee_id, created_by, owner_id, updated_at, organization_id")
+    .select("id, title, status, due_date, project_id, assignee_id, created_by, owner_id, updated_at, organization_id, priority, description")
     .not("assignee_id", "is", null)
     .not("status", "in", `(${OPEN.join(",")})`)
     .limit(2000);
@@ -115,11 +189,8 @@ export async function runTaskNotifications(
     for (const p of (ps ?? []) as any[]) projName.set(p.id, p.name);
   }
   const orgIds = [...new Set(tasks.map((t) => t.organization_id))];
-  const orgName = new Map<string, string>();
-  {
-    const { data: os } = await admin.from("organizations").select("id, name").in("id", orgIds);
-    for (const o of (os ?? []) as any[]) orgName.set(o.id, o.name);
-  }
+  const brands = await brandsOf(admin, orgIds);
+  const orgName = new Map<string, string>([...brands].map(([id, b]) => [id, b.name]));
   const { sendOrgMail } = await import("@/lib/projects/client-invite.server");
   const label = (t: TaskRow) => (t.project_id ? `${projName.get(t.project_id) ?? "Projeto"}` : "Agenda");
 
@@ -134,6 +205,16 @@ export async function runTaskNotifications(
     const href = `${CORE_ORIGIN}${taskPath(t)}`;
     const first = who.name.split(/\s+/)[0] || "tudo bem";
     const org = orgName.get(t.organization_id) ?? "";
+    const by = t.created_by && t.created_by !== t.assignee_id ? (await personOf(admin, t.created_by, people)).name : null;
+    const when = brDateTime(t.due_date);
+    const prio = PRIO[(t as any).priority as string] ?? null;
+    const details: [string, string][] = [
+      ["Onde", label(t)],
+      ["Prazo", when],
+      ...(prio ? [["Prioridade", prio] as [string, string]] : []),
+      ...(by ? [["Enviada por", by] as [string, string]] : []),
+    ];
+    const desc = ((t as any).description as string | null)?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     const res = await sendOrgMail(admin, {
       organizationId: t.organization_id,
       preferUserIds: [t.created_by, t.owner_id],
@@ -141,10 +222,16 @@ export async function runTaskNotifications(
       toName: who.name,
       build: () => ({
         subject: `Nova tarefa para você: ${t.title}`,
-        text: `Olá, ${first}!\n\nVocê recebeu a tarefa "${t.title}" (${label(t)}), prazo ${brDate(t.due_date)}.\n\nAbrir: ${href}`,
-        html: mailLayout(org, first, "Você recebeu uma nova tarefa:", [
-          { title: t.title, sub: `${label(t)} · prazo ${brDate(t.due_date)}`, href },
-        ], { label: "Abrir a tarefa", href }),
+        text: `Olá, ${first}!\n\nVocê recebeu a tarefa "${t.title}" (${label(t)}), prazo ${when}${by ? `, enviada por ${by}` : ""}.\n\nAbrir: ${href}`,
+        html: mailLayout(
+          org,
+          first,
+          by ? `${by.split(" ")[0]} agendou uma tarefa para você:` : "Uma tarefa foi agendada para você:",
+          [{ title: t.title, sub: desc ? desc.slice(0, 180) : `${label(t)} · prazo ${when}`, href, details }],
+          { label: "Abrir a tarefa", href },
+          "Você recebe este aviso porque esta tarefa foi designada a você no Core.",
+          brands.get(t.organization_id)?.brand,
+        ),
       }),
     });
     if (res.sent) mails++;
@@ -200,7 +287,7 @@ export async function runTaskNotifications(
             sub: `${label(t)} · ${t.late ? "atrasada desde" : "prazo"} ${brDate(t.due_date)}`,
             href: `${CORE_ORIGIN}${taskPath(t)}`,
             late: t.late,
-          })), { label: "Ver minhas tarefas", href: listHref }),
+          })), { label: "Ver minhas tarefas", href: listHref }, undefined, brands.get(org)?.brand),
         }),
       });
       if (res.sent) mails++;

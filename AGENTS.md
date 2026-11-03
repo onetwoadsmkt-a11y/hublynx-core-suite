@@ -82,3 +82,8 @@
 - `task_comments.recipient_id` (pessoa da equipe). No Roadmap, o botão de destino da mensagem virou menu: Equipe (todos) · Direcionar para <pessoa> · Cliente (portal).
 - `tg_task_comment_notify_team`: com `recipient_id`, só a pessoa recebe ("Mensagem para você" no sino + e-mail agrupado); a mensagem segue interna, visível para a equipe na tarefa.
 - Na lista aparece "Você → Nome · interna".
+
+## E-mails com a identidade da empresa + todo aviso do sino por e-mail (migração 34)
+- `mailLayout(..., brand)` (task-notify.server.ts): faixa e botão na cor da marca (texto preto/branco pelo contraste), logo da empresa no topo (ou o nome), cards com borda na cor da marca, atrasadas em vermelho, `details` (Onde/Prazo/Prioridade/Enviada por). `brandsOf()` busca logo/cor.
+- Tarefa agendada para alguém: e-mail "Nova tarefa para você" na hora (runTaskNotifications), com prazo e horário, prioridade e quem enviou.
+- Migração 34: gatilho `tg_notification_to_mail` copia cada notificação nova para `project_mail_queue` (kind `bell`), exceto "Nova tarefa para você" e o resumo diário (já têm e-mail). `bellDuplicates()` une avisos repetidos do mesmo projeto no envio.

@@ -5,7 +5,7 @@
 //   • o aviso mais antigo está pendente há 15 min ou mais.
 // Assim um dia movimentado vira poucos e-mails, e o sino continua avisando na hora.
 import { CORE_ORIGIN } from "@/lib/core-origin";
-import { mailLayout, personOf } from "@/lib/tasks/task-notify.server";
+import { brandsOf, mailLayout, personOf } from "@/lib/tasks/task-notify.server";
 
 type Db = { from: (t: string) => any; auth?: any };
 
@@ -45,6 +45,24 @@ export function dueRecipients(rows: Pick<QueueRow, "user_id" | "is_message" | "c
     .map(([u]) => u);
 }
 
+/** Avisos do sino (kind "bell") repetidos por um aviso do projeto da mesma pessoa e projeto em até 2 min. */
+export function bellDuplicates(rows: Pick<QueueRow, "id" | "user_id" | "project_id" | "kind" | "created_at">[]) {
+  const others = rows.filter((r) => r.kind !== "bell" && r.project_id);
+  return rows
+    .filter(
+      (b) =>
+        b.kind === "bell" &&
+        !!b.project_id &&
+        others.some(
+          (o) =>
+            o.user_id === b.user_id &&
+            o.project_id === b.project_id &&
+            Math.abs(new Date(o.created_at).getTime() - new Date(b.created_at).getTime()) <= 120_000,
+        ),
+    )
+    .map((b) => b.id);
+}
+
 export async function runProjectMail(admin: Db, opts: { organizationId?: string; now?: Date; maxMails?: number } = {}) {
   const now = opts.now ?? new Date();
   const maxMails = opts.maxMails ?? 40;
@@ -61,13 +79,21 @@ export async function runProjectMail(admin: Db, opts: { organizationId?: string;
     if (/project_mail_queue/.test(error.message)) return { mails: 0, pending: 0 };
     throw new Error(error.message);
   }
-  const rows = (data ?? []) as QueueRow[];
+  let rows = (data ?? []) as QueueRow[];
   if (!rows.length) return { mails: 0, pending: 0 };
+  // avisos do sino copiados para o e-mail (migração 34): se o mesmo acontecimento já veio
+  // pelo aviso do projeto, fica só um
+  const dup = bellDuplicates(rows);
+  if (dup.length) {
+    await admin.from("project_mail_queue").update({ sent_at: now.toISOString() }).in("id", dup);
+    rows = rows.filter((r) => !dup.includes(r.id));
+    if (!rows.length) return { mails: 0, pending: 0 };
+  }
 
   const ready = dueRecipients(rows, now);
   const { sendOrgMail } = await import("@/lib/projects/client-invite.server");
   const people = new Map<string, { email: string | null; name: string }>();
-  const orgNames = new Map<string, string>();
+  const brands = await brandsOf(admin, [...new Set(rows.map((r) => r.organization_id).filter(Boolean))] as string[]);
   let mails = 0;
 
   for (const userId of ready) {
@@ -81,10 +107,6 @@ export async function runProjectMail(admin: Db, opts: { organizationId?: string;
       await admin.from("project_mail_queue").update({ sent_at: now.toISOString() }).in("id", ids);
       continue;
     }
-    if (!orgNames.has(org)) {
-      const { data: o } = await admin.from("organizations").select("name").eq("id", org).maybeSingle();
-      orgNames.set(org, (o?.name as string | undefined) ?? "");
-    }
     const first = who.name.split(/\s+/)[0] || "tudo bem";
     const msgs = list.filter((r) => r.is_message).length;
     const acts = list.length - msgs;
@@ -93,7 +115,7 @@ export async function runProjectMail(admin: Db, opts: { organizationId?: string;
       .join(" e ");
     const isClient = list.every((r) => r.audience === "cliente");
     const projectIds = [...new Set(list.map((r) => r.project_id).filter(Boolean))];
-    const ctaHref = `${CORE_ORIGIN}${list[list.length - 1].link ?? (projectIds.length === 1 ? `/projetos/${projectIds[0]}` : "/projetos")}`;
+    const ctaHref = `${CORE_ORIGIN}${list[list.length - 1].link ?? (projectIds.length === 1 ? `/projetos/${projectIds[0]}` : projectIds.length ? "/projetos" : "/")}`;
     const shown = [...list].reverse().slice(0, 30);
     const res = await sendOrgMail(admin, {
       organizationId: org,
@@ -101,14 +123,16 @@ export async function runProjectMail(admin: Db, opts: { organizationId?: string;
       to: who.email,
       toName: who.name,
       build: () => ({
-        subject: msgs && !acts
-          ? `${msgs === 1 ? "Nova mensagem" : `${msgs} novas mensagens`} no projeto`
-          : `Novidades no projeto: ${resume}`,
+        subject: !projectIds.length
+          ? `${list.length === 1 ? list[0].title : `Você tem ${list.length} novos avisos`} — Core`
+          : msgs && !acts
+            ? `${msgs === 1 ? "Nova mensagem" : `${msgs} novas mensagens`} no projeto`
+            : `Novidades no projeto: ${resume}`,
         text: `Olá, ${first}!\n\nVocê tem ${resume}:\n\n${shown
           .map((r) => `- ${r.title}: ${r.body ?? ""}${r.link ? ` (${CORE_ORIGIN}${r.link})` : ""}`)
           .join("\n")}\n\nAbrir: ${ctaHref}`,
         html: mailLayout(
-          orgNames.get(org) ?? "",
+          brands.get(org)?.name ?? "",
           first,
           `Você tem ${resume}:`,
           shown.map((r) => ({
@@ -119,7 +143,10 @@ export async function runProjectMail(admin: Db, opts: { organizationId?: string;
           { label: isClient ? "Abrir o portal do projeto" : "Abrir no Core", href: ctaHref },
           isClient
             ? "Você recebe este aviso porque acompanha este projeto pelo portal do cliente."
-            : "Você recebe este aviso porque participa deste projeto no Core.",
+            : projectIds.length
+              ? "Você recebe este aviso porque participa deste projeto no Core."
+              : "Todo aviso do sino do Core também chega por e-mail.",
+          brands.get(org)?.brand,
         ),
       }),
     });
