@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,7 +102,7 @@ export function NotificationsBell({
           playChime();
           toast(n.title, {
             description: n.body ?? undefined,
-            action: n.link ? { label: "Abrir", onClick: () => go(n.link!) } : undefined,
+            action: n.link ? { label: /tarefa=|task=/.test(n.link) ? "Abrir tarefa" : "Abrir", onClick: () => go(n.link!) } : undefined,
             duration: 8000,
           });
         },
@@ -129,7 +129,7 @@ export function NotificationsBell({
       playChime();
       toast(n.title, {
         description: n.body ?? undefined,
-        action: n.link ? { label: "Abrir", onClick: () => go(n.link!) } : undefined,
+        action: n.link ? { label: /tarefa=|task=/.test(n.link) ? "Abrir tarefa" : "Abrir", onClick: () => go(n.link!) } : undefined,
         duration: 8000,
       });
     }
@@ -152,13 +152,16 @@ export function NotificationsBell({
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
+  const [open, setOpen] = useState(false);
+  // clicar no aviso: marca como lido, fecha o sino e leva direto à tarefa
   function handleClick(n: Notification) {
     if (!n.read) markRead.mutate(n.id);
+    setOpen(false);
     if (n.link) go(n.link);
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className={`relative ${className ?? ""}`} aria-label={unread ? `Notificações: ${unread} nova(s)` : "Notificações"}>
           <Bell className="h-5 w-5" />
@@ -194,8 +197,9 @@ export function NotificationsBell({
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium leading-snug">{n.title}</p>
                       {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ptBR })}
+                      <p className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between gap-2">
+                        <span>{formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ptBR })}</span>
+                        {n.link && <span className="font-semibold text-primary">{/tarefa=|task=/.test(n.link) ? "Abrir tarefa →" : "Abrir →"}</span>}
                       </p>
                     </div>
                   </div>

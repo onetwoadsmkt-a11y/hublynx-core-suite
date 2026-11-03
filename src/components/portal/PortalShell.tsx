@@ -342,7 +342,9 @@ function PortalBell() {
       }}
       openLink={(link) => {
         qc.invalidateQueries({ queryKey: ["portal-project"] });
-        if (link.startsWith("/portal")) router.history.push(link);
+        // leva à tarefa do aviso (k: abrir de novo o mesmo aviso volta a destacar a tarefa)
+        if (link.startsWith("/portal"))
+          router.history.push(link.includes("tarefa=") ? `${link}&k=${Date.now()}` : link);
       }}
     />
   );

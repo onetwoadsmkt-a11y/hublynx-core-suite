@@ -544,12 +544,18 @@ export function RoadmapStagesPanel({
     const st = t && (stagesQ.data ?? []).find((x) => x.id === t.stage_id);
     if (!t || !st) return;
     focusedRef.current = focusTaskId;
+    // filtro (Minhas/Atrasadas/pessoa) não pode esconder a tarefa do aviso
+    setTaskFilter("todas");
+    setPersonId(null);
     setSelectedStageId(st.id);
     if (effectiveView === "vertical") setExpanded((cur) => new Set(cur).add(st.id));
     else setOpenStage(st);
     setHighlightId(t.id);
     const tryScroll = (n: number) => {
       const el = document.getElementById(`stage-task-${t.id}`);
+      // tarefa concluída fica dentro de "Concluídas (n)": abre a lista
+      const box = el?.closest("details");
+      if (box && !box.open) box.open = true;
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       else if (n > 0) setTimeout(() => tryScroll(n - 1), 150);
     };

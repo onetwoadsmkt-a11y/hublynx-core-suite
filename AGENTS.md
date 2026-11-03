@@ -92,3 +92,7 @@
 - `NotificationsBell` aceita `client` (cliente Supabase do portal), `openLink` e `onNew`; toca o som também quando o aviso chega pela consulta (sem tempo real). PortalShell mostra o sino (`PortalBell`).
 - Migração 35: `notifications` no `supabase_realtime`; gatilho `tg_tasks_zzz_client_notify` avisa os clientes do projeto (sino + e-mail com link do portal) quando há tarefa nova do cliente ou o prazo dela muda.
 - `runTaskNotifications` não manda mais e-mail de tarefa do cliente com link do Core (o portal cuida).
+
+## Aviso leva direto à tarefa
+- Core: clicar no aviso (sino ou "Abrir tarefa" do toast) fecha o sino e abre `/projetos/<id>?aba=etapas&tarefa=<id>`; o Roadmap volta o filtro para "Todas", abre a etapa, abre "Concluídas" se preciso, rola e destaca a tarefa.
+- Portal: links `/portal/<projeto>?tarefa=<id>` (migração 35 refaz `project_notify` e `tg_task_comment_notify_client`). A página do portal abre a etapa, rola, destaca a tarefa e abre as mensagens dela (`FocusTaskContext`). `k` na URL força destacar de novo.

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -45,8 +45,16 @@ import DOMPurify from "dompurify";
 export const Route = createFileRoute("/portal/$projectId")({
   ssr: false,
   head: () => ({ meta: [{ title: "Projeto — Portal do cliente" }] }),
+  // ?tarefa=<id> (links dos avisos do sino e do e-mail) abre a etapa e destaca a tarefa
+  validateSearch: (s: Record<string, unknown>): { tarefa?: string; k?: string } => ({
+    tarefa: typeof s.tarefa === "string" && /^[0-9a-f-]{36}$/i.test(s.tarefa) ? s.tarefa : undefined,
+    k: typeof s.k === "string" || typeof s.k === "number" ? String(s.k) : undefined,
+  }),
   component: PortalProjectPage,
 });
+
+/** Tarefa vinda de um aviso: destacada e com as mensagens abertas. */
+const FocusTaskContext = createContext<string | null>(null);
 
 export type View = "vertical" | "horizontal";
 const VIEW_KEY = "portal_roadmap_view";
@@ -259,6 +267,33 @@ function PortalProjectPage() {
       else n.add(id);
       return n;
     });
+  // Chegou por um aviso (?tarefa=): abre a etapa da tarefa, rola até ela e destaca
+  const search = Route.useSearch();
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const focusedKey = useRef<string | null>(null);
+  useEffect(() => {
+    const id = search.tarefa;
+    if (!id || !stages.length) return;
+    const key = `${id}:${search.k ?? ""}`;
+    if (focusedKey.current === key) return;
+    const st = stages.find((x) => x.tasks.some((t) => t.id === id));
+    if (!st) return;
+    focusedKey.current = key;
+    opened.current = true;
+    setMineOnly(false);
+    goToStage(st.stage.id);
+    setFocusId(id);
+    const tryScroll = (n: number) => {
+      const el = document.getElementById(`portal-task-${id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      else if (n > 0) setTimeout(() => tryScroll(n - 1), 150);
+    };
+    setTimeout(() => tryScroll(12), 250);
+    const off = setTimeout(() => setFocusId(null), 8000);
+    return () => clearTimeout(off);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.tarefa, search.k, stages]);
+
   function goToStage(id: string) {
     setOpenIds((cur) => new Set(cur).add(id));
     setSelectedId(id);
@@ -438,6 +473,7 @@ function PortalProjectPage() {
               </div>
             </div>
 
+            <FocusTaskContext.Provider value={focusId}>
             {stages.length === 0 ? (
               <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
                 O roadmap deste projeto ainda está sendo montado pela equipe.
@@ -465,6 +501,7 @@ function PortalProjectPage() {
                 mineOnly={mineOnly}
               />
             )}
+            </FocusTaskContext.Provider>
             <Legend />
           </section>
 
@@ -1010,6 +1047,11 @@ function TaskRow({
   };
   const attachments = task.attachments ?? [];
   const [open, setOpen] = useState(false);
+  const focused = useContext(FocusTaskContext) === task.id;
+  // aberta por um aviso: mostra as mensagens e anexos da tarefa
+  useEffect(() => {
+    if (focused) setOpen(true);
+  }, [focused]);
   const [body, setBody] = useState("");
   const isMine = task.responsible_type === "cliente";
   const isDone = isTaskDone(task);
@@ -1028,8 +1070,10 @@ function TaskRow({
 
   return (
     <li
+      id={`portal-task-${task.id}`}
       className={cn(
-        "rounded-xl transition",
+        "scroll-mt-28 rounded-xl transition",
+        focused && "ring-4 ring-[var(--primary)] ring-offset-2",
         isDone
           ? "py-1.5 pl-1 pr-3 bg-emerald-50 ring-1 ring-emerald-200/70 dark:bg-emerald-500/10 dark:ring-emerald-500/30"
           : overdue
