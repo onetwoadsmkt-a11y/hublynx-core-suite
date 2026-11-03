@@ -77,3 +77,8 @@
 - `styles.css` (fim): `.app-sidebar`/`.app-topbar` pretos com texto `--on-dark`; `.app-main` com texto sobre o preto; superfícies `bg-card`/`bg-background`/`bg-popover`/`bg-white`/`data-slot=card` voltam às cores do claro. Item ativo do menu (`data-nav-active`) na cor da marca com texto preto/branco.
 - Faixa do projeto: `--band-tile-fg`, `--band-tile-sub`, `--band-chip-fg`, `--band-ring-core` (padrão = valores antigos). No `cards`, `cardsVars()` deixa a faixa na cor da marca, indicadores brancos, selos/botão pretos.
 - Logo do escuro: `.logo-on-light` / `.logo-on-dark` (HublynxLogo).
+
+## Mensagem da tarefa direcionada a uma pessoa (migração 33)
+- `task_comments.recipient_id` (pessoa da equipe). No Roadmap, o botão de destino da mensagem virou menu: Equipe (todos) · Direcionar para <pessoa> · Cliente (portal).
+- `tg_task_comment_notify_team`: com `recipient_id`, só a pessoa recebe ("Mensagem para você" no sino + e-mail agrupado); a mensagem segue interna, visível para a equipe na tarefa.
+- Na lista aparece "Você → Nome · interna".

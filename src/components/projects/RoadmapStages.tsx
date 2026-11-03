@@ -49,6 +49,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -115,6 +117,9 @@ type TaskMessage = {
   visibility: "equipe" | "cliente";
   author_kind: "equipe" | "cliente";
   author: string;
+  /** mensagem interna direcionada a uma pessoa da equipe (migração 33) */
+  recipient_id?: string | null;
+  recipient?: string | null;
 };
 
 /** Permissões, mensagens e datas das tarefas, compartilhadas pelas linhas. */
@@ -124,7 +129,7 @@ type TaskCtx = {
   canEditAll: boolean;
   canEditTask: (t: StageTask) => boolean;
   messages: Map<string, TaskMessage[]>;
-  sendMessage: (t: StageTask, body: string, visibility: "equipe" | "cliente") => Promise<void>;
+  sendMessage: (t: StageTask, body: string, visibility: "equipe" | "cliente", recipientId?: string | null) => Promise<void>;
   saveDates: (taskId: string, start: string | null, due: string | null) => Promise<void>;
   highlightId: string | null;
   /** exclui (fica registrado no histórico do projeto) */
@@ -448,14 +453,21 @@ export function RoadmapStagesPanel({
         const chunk = taskIds.slice(i, i + 150);
         let r: any = await supabase
           .from("task_comments")
-          .select("id, task_id, body, created_at, owner_id, visibility, author_kind" as any)
+          .select("id, task_id, body, created_at, owner_id, visibility, author_kind, recipient_id" as any)
           .in("task_id", chunk)
           .order("created_at");
+        // sem a migração 33 não existe o destinatário
+        if (r.error)
+          r = await supabase
+            .from("task_comments")
+            .select("id, task_id, body, created_at, owner_id, visibility, author_kind" as any)
+            .in("task_id", chunk)
+            .order("created_at");
         // sem a migração 23 não existem destino/autor: tudo conta como da equipe
         if (r.error) r = await supabase.from("task_comments").select("id, task_id, body, created_at, owner_id").in("task_id", chunk).order("created_at");
         rows.push(...((r.data ?? []) as any[]));
       }
-      const owners = [...new Set(rows.map((m) => m.owner_id))];
+      const owners = [...new Set([...rows.map((m) => m.owner_id), ...rows.map((m) => m.recipient_id).filter(Boolean)])];
       const names = new Map<string, string>();
       if (owners.length) {
         const { data } = await supabase.from("profiles").select("id, full_name").in("id", owners);
@@ -466,6 +478,8 @@ export function RoadmapStagesPanel({
         visibility: m.visibility ?? "equipe",
         author_kind: m.author_kind ?? "equipe",
         author: names.get(m.owner_id) || (m.author_kind === "cliente" ? "Cliente" : "Equipe"),
+        recipient_id: m.recipient_id ?? null,
+        recipient: m.recipient_id ? names.get(m.recipient_id) || "pessoa da equipe" : null,
       }));
     },
   });
@@ -482,15 +496,19 @@ export function RoadmapStagesPanel({
       canEditTask: (t) => canEditAll || (!!meId && t.assignee_id === meId),
       messages,
       highlightId,
-      sendMessage: async (t, body, visibility) => {
+      sendMessage: async (t, body, visibility, recipientId) => {
         const vis = visibility;
+        const to = vis === "equipe" ? recipientId ?? null : null;
         if (vis === "cliente" && !t.visible_to_client && t.responsible_type !== "cliente") {
           const { error: vErr } = await supabase.from("tasks").update({ visible_to_client: true } as never).eq("id", t.id);
           if (vErr) throw new Error(vErr.message);
         }
         let { error } = await supabase.from("task_comments").insert({
           task_id: t.id, owner_id: meId, body, visibility: vis, author_kind: "equipe",
+          ...(to ? { recipient_id: to } : {}),
         } as never);
+        if (error && to && /recipient_id/.test(error.message))
+          throw new Error("Para direcionar a mensagem a uma pessoa, rode a migração 33 no banco.");
         if (error && /visibility|author_kind/.test(error.message)) {
           ({ error } = await supabase.from("task_comments").insert({ task_id: t.id, owner_id: meId, body } as never));
         }
@@ -2121,7 +2139,7 @@ function StageTaskCard({
           />
         )}
         <div className="mt-auto flex flex-col gap-2 sm:flex-row sm:items-end">
-          {ctx && <div className="min-w-0 flex-1"><TaskMessages t={t} ctx={ctx} card /></div>}
+          {ctx && <div className="min-w-0 flex-1"><TaskMessages t={t} ctx={ctx} card people={assignees} /></div>}
           {canEdit && !isDone && !isClient && (
             <Button
               className="h-11 w-full shrink-0 rounded-xl bg-primary text-[15px] font-extrabold text-primary-foreground hover:bg-primary/90 sm:w-48"
@@ -2272,7 +2290,7 @@ function StageTaskRow({
           />
         </div>
       )}
-      {ctx && <TaskMessages t={t} ctx={ctx} />}
+      {ctx && <TaskMessages t={t} ctx={ctx} people={assignees} />}
     </div>
   );
 }
@@ -2360,10 +2378,14 @@ function TaskDatesButton({
 }
 
 /** Mensagens da tarefa: campo sempre aberto + últimas mensagens. */
-function TaskMessages({ t, ctx, card = false }: { t: StageTask; ctx: TaskCtx; card?: boolean }) {
+function TaskMessages({ t, ctx, card = false, people = [] }: { t: StageTask; ctx: TaskCtx; card?: boolean; people?: Assignee[] }) {
   const list = ctx.messages.get(t.id) ?? [];
   const [body, setBody] = useState("");
   const [vis, setVis] = useState<"equipe" | "cliente">("equipe");
+  // mensagem interna direcionada a uma pessoa da equipe (ela recebe o aviso no sino e por e-mail)
+  const [to, setTo] = useState<string | null>(null);
+  const team = people.filter((p) => p.role !== "cliente" && p.id !== ctx.meId);
+  const toName = to ? team.find((p) => p.id === to)?.name ?? null : null;
   const [all, setAll] = useState(false);
   const [sending, setSending] = useState(false);
   const shown = all ? list : list.slice(-2);
@@ -2372,9 +2394,15 @@ function TaskMessages({ t, ctx, card = false }: { t: StageTask; ctx: TaskCtx; ca
     if (!text) return;
     setSending(true);
     try {
-      await ctx.sendMessage(t, text, vis);
+      await ctx.sendMessage(t, text, vis, vis === "equipe" ? to : null);
       setBody("");
-      toast.success(vis === "cliente" ? "Mensagem enviada ao cliente (portal)" : "Mensagem registrada para a equipe");
+      toast.success(
+        vis === "cliente"
+          ? "Mensagem enviada ao cliente (portal)"
+          : toName
+            ? `Mensagem enviada para ${toName.split(" ")[0]} (sino e e-mail)`
+            : "Mensagem registrada para a equipe",
+      );
     } catch (e) {
       toast.error((e as Error).message || "Não foi possível enviar");
     } finally {
@@ -2396,6 +2424,7 @@ function TaskMessages({ t, ctx, card = false }: { t: StageTask; ctx: TaskCtx; ca
           <p className="flex items-start gap-1 text-[10px] text-muted-foreground">
             <span className="min-w-0 flex-1">
             <strong className="text-foreground">{m.owner_id === ctx.meId ? "Você" : m.author}</strong>
+            {m.recipient ? <> → <strong className="text-foreground">{m.recipient_id === ctx.meId ? "você" : m.recipient}</strong></> : null}
             {m.author_kind === "cliente" ? " (cliente)" : m.visibility === "cliente" ? " · para o cliente" : " · interna"} ·{" "}
             {new Date(m.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
             </span>
@@ -2434,20 +2463,48 @@ function TaskMessages({ t, ctx, card = false }: { t: StageTask; ctx: TaskCtx; ca
             }
           }}
           maxLength={4000}
-          placeholder={vis === "cliente" ? "Mensagem para o cliente (portal)…" : "Mensagem para a equipe…"}
+          placeholder={vis === "cliente" ? "Mensagem para o cliente (portal)…" : toName ? `Mensagem para ${toName.split(" ")[0]}…` : "Mensagem para a equipe…"}
           aria-label={`Mensagem na tarefa ${t.title}`}
           className={`min-w-0 flex-1 ${card ? "h-11 text-sm" : "h-11 text-[15px] sm:h-8 sm:text-xs"} ${vis === "cliente" ? "border-amber-300 bg-amber-50/60 dark:bg-amber-500/5" : "bg-background"}`}
         />
-        <button
-          type="button"
-          onClick={() => setVis((v) => (v === "equipe" ? "cliente" : "equipe"))}
-          className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 font-medium ${card ? "h-11 text-xs" : "h-11 text-xs sm:h-8 sm:px-2 sm:text-[11px]"} ${vis === "cliente" ? "border-amber-300 text-amber-800 dark:text-amber-300" : "text-muted-foreground"}`}
-          title="Trocar destino: equipe (interna) ou cliente (portal)"
-          aria-label={`Destino: ${vis === "cliente" ? "cliente" : "equipe"}. Clique para trocar.`}
-        >
-          {vis === "cliente" ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-          <span>{vis === "cliente" ? "Cliente" : "Equipe"}</span>
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={`inline-flex max-w-[150px] shrink-0 items-center gap-1 rounded-md border px-2.5 font-medium ${card ? "h-11 text-xs" : "h-11 text-xs sm:h-8 sm:px-2 sm:text-[11px]"} ${vis === "cliente" ? "border-amber-300 text-amber-800 dark:text-amber-300" : to ? "border-primary text-foreground" : "text-muted-foreground"}`}
+              title="Destino da mensagem: equipe, uma pessoa da equipe ou o cliente (portal)"
+              aria-label={`Destino: ${vis === "cliente" ? "cliente" : toName ?? "equipe"}. Clique para trocar.`}
+            >
+              {vis === "cliente" ? <Globe className="h-3.5 w-3.5 shrink-0" /> : to ? <UserRound className="h-3.5 w-3.5 shrink-0" /> : <Lock className="h-3.5 w-3.5 shrink-0" />}
+              <span className="truncate">{vis === "cliente" ? "Cliente" : toName ? toName.split(" ")[0] : "Equipe"}</span>
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-80 w-60 overflow-y-auto">
+            <DropdownMenuItem onSelect={() => { setVis("equipe"); setTo(null); }}>
+              <Lock className="h-4 w-4" /> Equipe (todos)
+              {vis === "equipe" && !to && <Check className="ml-auto h-4 w-4" />}
+            </DropdownMenuItem>
+            {team.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Direcionar para</DropdownMenuLabel>
+                {team.map((p) => (
+                  <DropdownMenuItem key={p.id} onSelect={() => { setVis("equipe"); setTo(p.id); }}>
+                    <UserRound className="h-4 w-4" />
+                    <span className="truncate">{p.name}</span>
+                    {vis === "equipe" && to === p.id && <Check className="ml-auto h-4 w-4" />}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => { setVis("cliente"); setTo(null); }}>
+              <Globe className="h-4 w-4" /> Cliente (portal)
+              {vis === "cliente" && <Check className="ml-auto h-4 w-4" />}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button size="icon" className={card ? "h-11 w-11 shrink-0" : "h-11 w-11 shrink-0 sm:h-8 sm:w-8"} disabled={!body.trim() || sending} onClick={send} aria-label="Enviar mensagem">
           <Send className="h-3.5 w-3.5" />
         </Button>
