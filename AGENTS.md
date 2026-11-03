@@ -96,3 +96,4 @@
 ## Aviso leva direto à tarefa
 - Core: clicar no aviso (sino ou "Abrir tarefa" do toast) fecha o sino e abre `/projetos/<id>?aba=etapas&tarefa=<id>`; o Roadmap volta o filtro para "Todas", abre a etapa, abre "Concluídas" se preciso, rola e destaca a tarefa.
 - Portal: links `/portal/<projeto>?tarefa=<id>` (migração 35 refaz `project_notify` e `tg_task_comment_notify_client`). A página do portal abre a etapa, rola, destaca a tarefa e abre as mensagens dela (`FocusTaskContext`). `k` na URL força destacar de novo.
+- Portal: `openPortalNotice()` (PortalShell) aceita link do portal com `?tarefa=`, links antigos do Core (`/projetos/<id>?...tarefa=` / `?task=`) e avisos sem tarefa (evento `portal-focus-text`: a página acha a tarefa pelo título citado no aviso).

@@ -340,12 +340,45 @@ function PortalBell() {
         qc.invalidateQueries({ queryKey: ["portal-project"] });
         qc.invalidateQueries({ queryKey: ["portal-journey"] });
       }}
-      openLink={(link) => {
+      openLink={(link, n) => {
         qc.invalidateQueries({ queryKey: ["portal-project"] });
-        // leva à tarefa do aviso (k: abrir de novo o mesmo aviso volta a destacar a tarefa)
-        if (link.startsWith("/portal"))
-          router.history.push(link.includes("tarefa=") ? `${link}&k=${Date.now()}` : link);
+        openPortalNotice(router, link, n);
       }}
     />
   );
+}
+
+const UUID = "[0-9a-fA-F-]{36}";
+/**
+ * Leva o cliente à tarefa do aviso. Aceita o link do portal (?tarefa=), links antigos do Core
+ * (/projetos/<id>?...tarefa=<id> ou ?task=<id>) e avisos sem tarefa no link: nesses, a página
+ * procura a tarefa pelo título citado no aviso.
+ */
+export function openPortalNotice(
+  router: ReturnType<typeof useRouter>,
+  link: string,
+  n?: { title: string; body: string | null },
+) {
+  const task = new RegExp(`(?:tarefa|task)=(${UUID})`).exec(link)?.[1] ?? null;
+  const here = router.state.location.pathname;
+  let base: string | null = null;
+  const portal = /^\/portal\/([^/?#]+)/.exec(link);
+  const core = new RegExp(`^/projetos/(${UUID})`).exec(link);
+  if (portal) base = `/portal/${portal[1]}`;
+  else if (core) base = `/portal/${core[1]}`;
+  else if (/^\/portal\/[^/]+/.test(here)) base = here;
+  if (!base) return;
+  const k = Date.now();
+  if (task) {
+    router.history.push(`${base}?tarefa=${task}&k=${k}`);
+    return;
+  }
+  router.history.push(`${base}?k=${k}`);
+  // sem a tarefa no link: a página acha pelo título citado no aviso
+  if (n && typeof window !== "undefined") {
+    setTimeout(
+      () => window.dispatchEvent(new CustomEvent("portal-focus-text", { detail: `${n.title} ${n.body ?? ""}` })),
+      300,
+    );
+  }
 }

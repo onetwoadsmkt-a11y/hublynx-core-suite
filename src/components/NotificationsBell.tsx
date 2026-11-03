@@ -58,7 +58,7 @@ export function NotificationsBell({
   className,
 }: {
   client?: SupabaseClient;
-  openLink?: (link: string) => void;
+  openLink?: (link: string, n?: { title: string; body: string | null }) => void;
   /** chamado a cada aviso novo (ex.: o portal recarrega as tarefas) */
   onNew?: () => void;
   className?: string;
@@ -67,7 +67,8 @@ export function NotificationsBell({
   const scope = client ? "portal" : "core";
   const qc = useQueryClient();
   const router = useRouter();
-  const go = (link: string) => (openLink ? openLink(link) : router.history.push(link));
+  const go = (link: string, n?: { title: string; body: string | null }) =>
+    openLink ? openLink(link, n) : router.history.push(link);
 
   const { data: items = [] } = useQuery({
     queryKey: ["notifications", scope],
@@ -102,7 +103,7 @@ export function NotificationsBell({
           playChime();
           toast(n.title, {
             description: n.body ?? undefined,
-            action: n.link ? { label: /tarefa=|task=/.test(n.link) ? "Abrir tarefa" : "Abrir", onClick: () => go(n.link!) } : undefined,
+            action: n.link ? { label: /tarefa=|task=/.test(n.link) ? "Abrir tarefa" : "Abrir", onClick: () => go(n.link!, n) } : undefined,
             duration: 8000,
           });
         },
@@ -129,7 +130,7 @@ export function NotificationsBell({
       playChime();
       toast(n.title, {
         description: n.body ?? undefined,
-        action: n.link ? { label: /tarefa=|task=/.test(n.link) ? "Abrir tarefa" : "Abrir", onClick: () => go(n.link!) } : undefined,
+        action: n.link ? { label: /tarefa=|task=/.test(n.link) ? "Abrir tarefa" : "Abrir", onClick: () => go(n.link!, n) } : undefined,
         duration: 8000,
       });
     }
@@ -157,7 +158,7 @@ export function NotificationsBell({
   function handleClick(n: Notification) {
     if (!n.read) markRead.mutate(n.id);
     setOpen(false);
-    if (n.link) go(n.link);
+    if (n.link) go(n.link, n);
   }
 
   return (

@@ -294,6 +294,38 @@ function PortalProjectPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.tarefa, search.k, stages]);
 
+  // aviso antigo, sem a tarefa no link: acha a tarefa pelo título citado no aviso
+  const stagesRef = useRef(stages);
+  stagesRef.current = stages;
+  useEffect(() => {
+    const onText = (e: Event) => {
+      const text = String((e as CustomEvent).detail ?? "").toLowerCase();
+      if (!text) return;
+      let best: { id: string; stage: string; len: number } | null = null;
+      for (const st of stagesRef.current)
+        for (const t of st.tasks) {
+          const title = t.title.trim().toLowerCase();
+          if (title.length >= 4 && text.includes(title) && (!best || title.length > best.len))
+            best = { id: t.id, stage: st.stage.id, len: title.length };
+        }
+      if (!best) return;
+      setMineOnly(false);
+      goToStage(best.stage);
+      setFocusId(best.id);
+      const id = best.id;
+      const tryScroll = (n: number) => {
+        const el = document.getElementById(`portal-task-${id}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        else if (n > 0) setTimeout(() => tryScroll(n - 1), 150);
+      };
+      setTimeout(() => tryScroll(12), 250);
+      setTimeout(() => setFocusId((cur) => (cur === id ? null : cur)), 8000);
+    };
+    window.addEventListener("portal-focus-text", onText);
+    return () => window.removeEventListener("portal-focus-text", onText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function goToStage(id: string) {
     setOpenIds((cur) => new Set(cur).add(id));
     setSelectedId(id);
