@@ -306,7 +306,7 @@ function ProjectCommandCenter() {
           <div className="lg:border-b">
             <TabsList
               aria-label="Seções do projeto"
-              className="grid h-auto w-full grid-cols-3 gap-2 rounded-none bg-transparent p-0 text-sidebar-foreground sm:grid-cols-4 md:grid-cols-6 lg:flex lg:flex-wrap lg:justify-start lg:gap-x-1 lg:gap-y-0"
+              className="project-tabs grid h-auto w-full grid-cols-3 gap-2 rounded-none bg-transparent p-0 text-sidebar-foreground sm:grid-cols-4 md:grid-cols-6 lg:flex lg:flex-wrap lg:justify-start lg:gap-x-1 lg:gap-y-0"
             >
               {[
                 ["evolution", "Evolução", TrendingUp], ["stages", "Etapas", Flag],

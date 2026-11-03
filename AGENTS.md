@@ -106,3 +106,7 @@
 
 ## Menu "Portal do cliente" (só administradores)
 - Em Administração, visível para admin da plataforma ou da empresa (`org_admin`). Página `/portal-clientes`: projetos da empresa com o link do portal (copiar/abrir), quantos clientes têm acesso e atalho para a aba Equipe (acessos). Botão para a tela de entrada do portal.
+
+## Abas do projeto no tema escuro
+- `.project-tabs` (styles.css): no escuro, texto claro (`--on-dark` ou `--foreground`), aba selecionada com fundo `--primary` e texto `--primary-foreground` (Valesafe: amarelo/preto; demais: cor da marca). Celular: cartões escuros.
+- `.dark-cards .app-main *` usa `--border` (antes caía em currentColor e as linhas ficavam brancas).

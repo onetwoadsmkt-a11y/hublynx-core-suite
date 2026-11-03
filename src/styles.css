@@ -441,6 +441,8 @@
 }
 @layer base {
   .dark-cards :is(.app-sidebar, .app-topbar) * { border-color: rgb(255 255 255 / 0.12); }
+  /* bordas sem cor própria seguem --border do lugar (claro dentro dos cards, sutil sobre o preto) */
+  .dark-cards .app-main * { border-color: var(--border); }
 }
 /* item do menu selecionado: fundo na cor da marca, texto preto/branco conforme o contraste */
 .dark-cards .app-sidebar [data-nav-active="true"] {
@@ -491,3 +493,27 @@
 .logo-on-dark { display: none; }
 .dark .logo-on-dark { display: block; }
 .dark .logo-on-light { display: none; }
+
+/* Abas do projeto no tema escuro (qualquer estilo): texto claro sobre o fundo escuro;
+   aba selecionada na cor da marca com o texto de contraste (amarelo → preto). */
+.dark .project-tabs [role="tab"] {
+  color: var(--on-dark, var(--foreground));
+  background-color: transparent;
+  border-color: rgb(255 255 255 / 0.14);
+}
+.dark .project-tabs [role="tab"]:not([data-state="active"]):hover {
+  background-color: rgb(255 255 255 / 0.08);
+}
+.dark .project-tabs [role="tab"][data-state="active"] {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  font-weight: 700;
+}
+@media (max-width: 1023px) {
+  .dark .project-tabs [role="tab"]:not([data-state="active"]) { background-color: rgb(255 255 255 / 0.06); }
+}
+@media (min-width: 1024px) {
+  .dark .project-tabs { gap: 0.375rem; padding-bottom: 0.5rem; }
+  .dark .project-tabs [role="tab"] { border-radius: 0.75rem; border-bottom-width: 0; }
+}
