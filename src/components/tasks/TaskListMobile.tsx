@@ -5,6 +5,8 @@ import { CalendarCheck, ListTodo, ChevronRight } from "lucide-react";
 import { PRIORITY_LABEL, PRIORITY_TONE, type Priority } from "@/components/tasks/TaskDrawer";
 import type { KanbanColumn } from "@/hooks/useKanbanColumns";
 import { cn } from "@/lib/utils";
+import { isOverdue } from "@/lib/tasks/pending";
+import { OverdueBand, OVERDUE_RING, OVERDUE_TEXT } from "@/components/tasks/OverdueBand";
 
 type Task = {
   id: string;
@@ -35,12 +37,17 @@ export function TaskListMobile({ tasks, kanbanCols, onSelect }: Props) {
         const col = kanbanCols.find((c) => c.key === t.status);
         const meeting = (t.briefing as any)?.type === "reuniao";
         const deadline = (t.briefing as any)?.deadline as string | null | undefined;
+        const late = isOverdue({ due_date: t.due_date, status: t.status });
         return (
           <Card
             key={t.id}
             onClick={() => onSelect(t.id)}
-            className="p-3 rounded-2xl cursor-pointer active:scale-[0.99]"
+            className={cn(
+              "p-3 rounded-2xl cursor-pointer active:scale-[0.99]",
+              late && `overflow-hidden !border-rose-500 ${OVERDUE_RING}`,
+            )}
           >
+            {late && <OverdueBand task={t} className="-mx-3 -mt-3 mb-2" />}
             <div className="flex items-start gap-2">
               {meeting ? (
                 <CalendarCheck className="h-4 w-4 text-indigo-500 mt-0.5 shrink-0" />
@@ -59,7 +66,7 @@ export function TaskListMobile({ tasks, kanbanCols, onSelect }: Props) {
                     {PRIORITY_LABEL[t.priority]}
                   </Badge>
                   {t.due_date && (
-                    <span className="text-[11px] text-muted-foreground tabular-nums">
+                    <span className={cn("text-[11px] tabular-nums", late ? OVERDUE_TEXT : "text-muted-foreground")}>
                       {format(parseISO(t.due_date), "dd/MM HH:mm")}
                     </span>
                   )}

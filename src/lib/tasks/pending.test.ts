@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { dueDayKey, dueHasTime, isDueToday, isOverdue, isPriorityLevel, unackedAlerts } from "./pending";
+import { dueDayKey, dueHasTime, overdueDays, overdueLabel, isDueToday, isOverdue, isPriorityLevel, unackedAlerts } from "./pending";
 
 const now = new Date(2026, 9, 22, 15, 0, 0);
 
@@ -52,5 +52,21 @@ describe("prioridade e avisos", () => {
     ];
     const pending = unackedAlerts(items, ["task:a"]);
     assert.deepEqual(pending.map((i) => `${i.source}:${i.id}`), ["lead:a", "task:b"]);
+  });
+});
+
+describe("overdueLabel", () => {
+  const now = new Date("2026-11-03T20:00:00Z"); // 17:00 em SP
+  it("dia inteiro vencido ontem", () => {
+    assert.equal(overdueDays({ due_date: "2026-11-02", status: "a_fazer" }, now), 1);
+    assert.equal(overdueLabel({ due_date: "2026-11-02", status: "a_fazer" }, now), "Atrasada há 1 dia");
+    assert.equal(overdueLabel({ due_date: "2026-10-30T12:00:00Z", status: "a_fazer" }, now), "Atrasada há 4 dias");
+  });
+  it("hoje com horário passado", () => {
+    assert.equal(overdueLabel({ due_date: "2026-11-03T15:42:00-03:00", status: "a_fazer" }, now), "Atrasada desde 15:42");
+  });
+  it("não atrasada", () => {
+    assert.equal(overdueLabel({ due_date: "2026-11-03", status: "a_fazer" }, now), null);
+    assert.equal(overdueLabel({ due_date: "2026-11-01", status: "concluido" }, now), null);
   });
 });

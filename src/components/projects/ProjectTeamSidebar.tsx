@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { isOverdue } from "@/lib/tasks/pending";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Send, UserPlus } from "lucide-react";
@@ -42,13 +43,12 @@ export function ProjectTeamSidebar({ projectId, onOpenTeam }: { projectId: strin
   });
 
   const load = useMemo(() => {
-    const today = new Date(new Date().toDateString()).getTime();
     const m = new Map<string, { open: number; late: number }>();
     for (const t of tasksQ.data ?? []) {
       if (!t.assignee_id || t.status === "concluido") continue;
       const cur = m.get(t.assignee_id) ?? { open: 0, late: 0 };
       cur.open += 1;
-      if (t.due_date && new Date(new Date(t.due_date).toDateString()).getTime() < today) cur.late += 1;
+      if (isOverdue(t)) cur.late += 1;
       m.set(t.assignee_id, cur);
     }
     return m;

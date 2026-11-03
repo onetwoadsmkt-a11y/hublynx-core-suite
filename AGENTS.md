@@ -64,3 +64,9 @@
 - **Tema por empresa** (`BrandTheme`): `--brand-dark`/`--brand-ink` = cor escura da logo (`useBrandPalette`) → cabeçalhos de tabela, abas e chips ativos. Tema escuro montado da logo (`darkBaseVars(ink, style)`): "marca" (fundo no tom da logo) ou "preto" (`organizations.dark_style`, migração 31, escolhido em Aparência). `.dark` em styles.css clareia textos coloridos 600/700. Não use `#00D084` fixo: use `bg-primary`/`text-primary-foreground`.
 - **Comercial**: larguras das colunas por arrastar a borda do cabeçalho (setas ← → no teclado, duplo clique volta ao padrão) e botões Reduzir/Ampliar; quem edita grava em `columns[].width` (60–600). Abas das planilhas rolam na horizontal, com nome truncado.
 - **Identidade Core Suite** (31/10/2026): logo de quatro blocos (`src/assets/core-suite-logo.svg`, `-dark.svg`, `core-suite-symbol.svg`), usada por `HublynxLogo` quando a empresa não tem logo própria (`onDark` para fundo escuro fixo). Ícones em `public/` (favicon.svg/png, apple-touch-icon, icon-192/512), manifest "Core Suite" com tema #071A3D. Tela de login com o posicionamento "Venda, projeto e cliente num só lugar".
+
+## Destaque vermelho das tarefas atrasadas (padrão único)
+- `src/components/tasks/OverdueBand.tsx`: `OVERDUE_RING` (contorno vermelho), `OVERDUE_BAND` (faixa rosa), `OVERDUE_TEXT` (prazo em vermelho) e `<OverdueBand>` ("Atrasada há N dias" / "Atrasada desde HH:mm").
+- Texto vem de `overdueLabel()`/`overdueDays()` em `src/lib/tasks/pending.ts` (mesma regra de `isOverdue`: com horário vence na hora; só com dia, no dia seguinte).
+- Aplicado em: Roadmap (cartões, inclusive tarefas do cliente, e linhas), Tarefas (kanban e lista), lista mobile, Minhas tarefas, app/tarefas, portal do cliente (linhas e "Sua próxima ação") e contagem por pessoa na equipe do projeto.
+- Toda nova tela de tarefa deve usar esses mesmos tokens.

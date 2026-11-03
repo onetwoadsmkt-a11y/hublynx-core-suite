@@ -46,6 +46,8 @@ import { LeadLink } from "@/components/pipeline/LeadCardHost";
 import { isPriorityLevel } from "@/lib/tasks/pending";
 import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
 import { matchesTaskDateRange } from "@/lib/tasks/date-filter";
+import { isOverdue } from "@/lib/tasks/pending";
+import { OverdueBand, OVERDUE_RING, OVERDUE_TEXT } from "@/components/tasks/OverdueBand";
 
 type ViewMode = "kanban" | "lista" | "calendario";
 
@@ -647,12 +649,17 @@ function TaskListItem({
   const meeting = (task.briefing as any)?.type === "reuniao";
   const deadline = (task.briefing as any)?.deadline as string | null | undefined;
   const dueDate = task.due_date ? parseISO(task.due_date) : null;
+  const late = isOverdue({ due_date: task.due_date, status: task.status });
 
   return (
     <Card
       onClick={onClick}
-      className="group cursor-pointer border-border hover:border-brand-blue/40 hover:shadow-sm transition-all"
+      className={cn(
+        "group cursor-pointer border-border hover:border-brand-blue/40 hover:shadow-sm transition-all",
+        late && `overflow-hidden !border-rose-500 ${OVERDUE_RING}`,
+      )}
     >
+      {late && <OverdueBand task={task} className="px-4" />}
       <div className="px-4 py-3 flex items-start gap-3">
         <div className="mt-1 shrink-0">
           {meeting ? (
@@ -691,7 +698,7 @@ function TaskListItem({
               {dueDate && (
                 <p className={cn(
                   "text-xs font-medium tabular-nums",
-                  dueDate < startOfDay(new Date()) ? "text-rose-500" : "text-muted-foreground"
+                  late ? OVERDUE_TEXT : "text-muted-foreground"
                 )}>
                   {dueFormatter(dueDate)}
                 </p>
@@ -854,9 +861,7 @@ function TaskCard({
       ? due.toLocaleDateString("pt-BR", { timeZone: "UTC" })
       : `${due.toLocaleDateString("pt-BR")} · ${due.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
     : null;
-  const todayKey = format(new Date(), "yyyy-MM-dd");
-  const dueKey = due ? (allDay ? due.toISOString().slice(0, 10) : format(due, "yyyy-MM-dd")) : null;
-  const overdue = !!dueKey && dueKey < todayKey && !done;
+  const overdue = !done && isOverdue({ due_date: task.due_date, status: task.status });
 
   const { unsync } = useGoogleTaskSync();
   const del = useMutation({
@@ -897,8 +902,9 @@ function TaskCard({
         data-task-card
         {...(dragHandle ?? {})}
         onClick={onClick}
-        className={`group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md ${dragging ? "shadow-lg ring-2 ring-primary/30" : ""}`}
+        className={`group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md ${dragging ? "shadow-lg ring-2 ring-primary/30" : ""} ${overdue && !dragging ? `overflow-hidden !border-rose-500 ${OVERDUE_RING}` : ""}`}
       >
+        {overdue && <OverdueBand task={task} className="-mx-3 -mt-3 mb-2" />}
         <div className="flex items-start justify-between gap-2">
           <p className={`line-clamp-2 flex items-center gap-1.5 text-sm font-semibold leading-tight ${done ? "text-muted-foreground line-through" : ""}`}>
             {meeting && <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-primary" />}
@@ -950,13 +956,12 @@ function TaskCard({
         {dueLabel && (
           <p
             className={`mt-1.5 flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-[11px] ${
-              overdue ? "bg-destructive/10 font-medium text-destructive" : "bg-muted text-muted-foreground"
+              overdue ? `bg-rose-50 dark:bg-rose-500/10 ${OVERDUE_TEXT}` : "bg-muted text-muted-foreground"
             }`}
           >
             <AlarmClock className="h-3 w-3 shrink-0" />
             <span className="truncate">
               {dueLabel}
-              {overdue ? " (atrasada)" : ""}
             </span>
           </p>
         )}

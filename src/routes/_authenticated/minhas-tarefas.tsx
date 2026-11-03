@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { taskState, useMyTasks } from "@/hooks/useMyTasks";
 import type { MyTask } from "@/lib/tasks/my-tasks.functions";
 import { cn } from "@/lib/utils";
+import { OverdueBand, OVERDUE_RING, OVERDUE_TEXT } from "@/components/tasks/OverdueBand";
 
 export const Route = createFileRoute("/_authenticated/minhas-tarefas")({
   head: () => ({ meta: [{ title: "Minhas tarefas — Core Suite" }] }),
@@ -77,10 +78,11 @@ function TaskItem({ t, late }: { t: MyTask; late: boolean }) {
       <AppLink
         href={t.href}
         className={cn(
-          "flex items-start gap-3 rounded-xl border bg-card p-3 transition hover:border-primary hover:shadow-sm",
-          late && "border-rose-200 bg-rose-50/60 dark:border-rose-500/30 dark:bg-rose-500/5",
+          "flex flex-wrap items-start gap-3 rounded-xl border bg-card p-3 transition hover:border-primary hover:shadow-sm",
+          late && `overflow-hidden !border-rose-500 ${OVERDUE_RING}`,
         )}
       >
+        {late && <OverdueBand task={{ due_date: t.due_date, status: null }} className="-mx-3 -mt-3 w-[calc(100%+1.5rem)]" />}
         <FolderKanban className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="font-medium leading-snug">{t.title}</p>
@@ -89,7 +91,7 @@ function TaskItem({ t, late }: { t: MyTask; late: boolean }) {
           </p>
         </div>
         {t.due_date && (
-          <span className={cn("shrink-0 text-xs font-semibold", late ? "text-rose-600" : "text-muted-foreground")}>
+          <span className={cn("shrink-0 text-xs font-semibold", late ? OVERDUE_TEXT : "text-muted-foreground")}>
             {new Date(t.due_date).toLocaleDateString("pt-BR")}
           </span>
         )}

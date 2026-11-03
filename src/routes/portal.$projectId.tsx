@@ -38,6 +38,8 @@ import {
   type PortalTask,
 } from "@/lib/portal/portal.functions";
 import { cn } from "@/lib/utils";
+import { isOverdue } from "@/lib/tasks/pending";
+import { OverdueBand, OVERDUE_RING, OVERDUE_TEXT } from "@/components/tasks/OverdueBand";
 import DOMPurify from "dompurify";
 
 export const Route = createFileRoute("/portal/$projectId")({
@@ -366,7 +368,10 @@ function PortalProjectPage() {
             </div>
 
             <div
-              className="flex flex-col gap-2 rounded-3xl p-5 text-white shadow-[0_16px_40px_-20px_rgba(16,24,40,0.45)] sm:col-span-2 sm:p-6 lg:col-span-1"
+              className={cn(
+                "flex flex-col gap-2 rounded-3xl p-5 text-white shadow-[0_16px_40px_-20px_rgba(16,24,40,0.45)] sm:col-span-2 sm:p-6 lg:col-span-1",
+                next && isOverdue({ due_date: next.task.due_date, status: next.task.status }) && OVERDUE_RING,
+              )}
               style={{
                 background:
                   "linear-gradient(140deg, var(--brand-ink) 0%, color-mix(in oklab, var(--brand-ink) 75%, var(--primary)) 100%)",
@@ -377,6 +382,9 @@ function PortalProjectPage() {
               </p>
               {next ? (
                 <>
+                  {isOverdue({ due_date: next.task.due_date, status: next.task.status }) && (
+                    <OverdueBand task={next.task} className="-mx-1 rounded-lg" />
+                  )}
                   <p className="font-display text-lg font-semibold leading-tight">
                     {next.task.title}
                   </p>
@@ -1005,8 +1013,7 @@ function TaskRow({
   const [body, setBody] = useState("");
   const isMine = task.responsible_type === "cliente";
   const isDone = isTaskDone(task);
-  const overdue =
-    !isDone && task.due_date && new Date(task.due_date) < new Date(new Date().toDateString());
+  const overdue = !isDone && isOverdue({ due_date: task.due_date, status: task.status });
 
   const send = useMutation({
     mutationFn: () =>
@@ -1022,13 +1029,18 @@ function TaskRow({
   return (
     <li
       className={cn(
-        "rounded-xl py-1.5 pl-1 pr-3 transition",
+        "rounded-xl transition",
         isDone
-          ? "bg-emerald-50 ring-1 ring-emerald-200/70 dark:bg-emerald-500/10 dark:ring-emerald-500/30"
-          : "bg-background ring-1 ring-black/[0.06] dark:ring-white/10",
+          ? "py-1.5 pl-1 pr-3 bg-emerald-50 ring-1 ring-emerald-200/70 dark:bg-emerald-500/10 dark:ring-emerald-500/30"
+          : overdue
+            ? `overflow-hidden bg-background ${OVERDUE_RING}`
+            : "py-1.5 pl-1 pr-3 bg-background ring-1 ring-black/[0.06] dark:ring-white/10",
       )}
     >
-      <div className="flex items-start gap-1.5">
+      {overdue && (
+        <OverdueBand task={task} prefix={isMine ? "Sua tarefa" : "Equipe"} className="mb-1.5 px-4 py-2 text-[13px]" />
+      )}
+      <div className={cn("flex items-start gap-1.5", overdue && "pb-1.5 pl-1 pr-3")}>
         {isMine ? (
           <button
             type="button"
@@ -1091,9 +1103,8 @@ function TaskRow({
               </span>
             )}
             {task.due_date && !isDone && (
-              <span className={cn("text-muted-foreground", overdue && "font-medium text-rose-600")}>
+              <span className={cn("text-muted-foreground", overdue && OVERDUE_TEXT)}>
                 Prazo {fmtDate(task.due_date)}
-                {overdue ? " (atrasada)" : ""}
               </span>
             )}
             {isDone && (

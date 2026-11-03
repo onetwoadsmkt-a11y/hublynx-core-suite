@@ -78,3 +78,33 @@ export function unackedAlerts<T extends AlertItem>(items: T[], acked: Iterable<s
   const set = new Set(acked);
   return items.filter((i) => !set.has(alertKey(i)));
 }
+
+/**
+ * Há quantos dias a tarefa está atrasada (0 = venceu hoje, com horário já passado).
+ * Retorna null quando não está atrasada.
+ */
+export function overdueDays(
+  item: { due_date: string | null; status?: string | null },
+  now: Date = new Date(),
+): number | null {
+  if (!isOverdue(item, now)) return null;
+  const key = dueDayKey(item.due_date)!;
+  const a = Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10));
+  const t = dayKey(now);
+  const b = Date.UTC(+t.slice(0, 4), +t.slice(5, 7) - 1, +t.slice(8, 10));
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+/** Texto padrão do destaque vermelho: "Atrasada há 3 dias" / "Atrasada desde 17:42". */
+export function overdueLabel(
+  item: { due_date: string | null; status?: string | null },
+  now: Date = new Date(),
+): string | null {
+  const days = overdueDays(item, now);
+  if (days === null) return null;
+  if (days === 0) {
+    const hm = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(parseISO(item.due_date!));
+    return `Atrasada desde ${hm}`;
+  }
+  return `Atrasada há ${days} dia${days > 1 ? "s" : ""}`;
+}

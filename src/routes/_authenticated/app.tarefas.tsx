@@ -10,6 +10,7 @@ import { Search, Check, ChevronRight } from "lucide-react";
 import { format, isToday, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { OverdueBand, OVERDUE_RING, OVERDUE_TEXT } from "@/components/tasks/OverdueBand";
 
 export const Route = createFileRoute("/_authenticated/app/tarefas")({
   component: TarefasMobile,
@@ -110,9 +111,13 @@ function TarefasMobile() {
           return (
             <Card
               key={t.id}
-              className="rounded-2xl p-4 cursor-pointer hover:bg-accent/40 transition"
+              className={cn(
+                "rounded-2xl p-4 cursor-pointer hover:bg-accent/40 transition",
+                late && `overflow-hidden !border-rose-500 ${OVERDUE_RING}`,
+              )}
               onClick={() => navigate({ to: "/app/tarefas/$id", params: { id: t.id } })}
             >
+              {late && <OverdueBand task={t} className="-mx-4 -mt-4 mb-3 px-4" />}
               <div className="flex items-start gap-3">
                 <button
                   onClick={(e) => { e.stopPropagation(); complete.mutate(t.id); }}
@@ -133,7 +138,7 @@ function TarefasMobile() {
                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
                     {project && <span className="truncate">{(project as any).name}</span>}
                     {t.due_date && (
-                      <span className={cn(late && "text-rose-600 font-medium")}>
+                      <span className={cn(late && OVERDUE_TEXT)}>
                         {format(parseISO(t.due_date), "dd/MM HH:mm")}
                       </span>
                     )}

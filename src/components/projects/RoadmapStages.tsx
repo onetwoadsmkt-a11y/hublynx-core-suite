@@ -1,5 +1,6 @@
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { isOverdue } from "@/lib/tasks/pending";
+import { dayKey, dueDayKey, isDueToday, isOverdue, overdueLabel } from "@/lib/tasks/pending";
+import { OverdueBand, OVERDUE_BAND, OVERDUE_RING, OVERDUE_TEXT } from "@/components/tasks/OverdueBand";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -1984,24 +1985,23 @@ function DeleteTaskButton({ t, ctx, className = "" }: { t: StageTask; ctx: TaskC
   );
 }
 
-/** Estado da tarefa para a faixa do cartão (desktop). */
+/** Estado da tarefa para a faixa do cartão (desktop). Atrasada vale para equipe E cliente. */
 function cardState(t: StageTask) {
   if (t.status === "concluido") return { label: "Concluída", band: "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300", ring: "" };
+  const lateLabel = overdueLabel(t);
+  if (lateLabel)
+    return {
+      label: t.responsible_type === "cliente" ? `Com o cliente · ${lateLabel}` : lateLabel,
+      band: OVERDUE_BAND,
+      ring: OVERDUE_RING,
+    };
   if (t.responsible_type === "cliente")
     return { label: `Com o cliente${t.due_date ? ` · ${new Date(t.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}` : ""}`, band: "bg-muted text-foreground/80", ring: "" };
   if (!t.due_date) return { label: "Sem prazo", band: "bg-muted text-muted-foreground", ring: "" };
-  const today = new Date(new Date().toDateString()).getTime();
-  // "AAAA-MM-DD" é dia local (sem fuso); data/hora usa o dia local correspondente
-  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t.due_date);
-  const due = ymd ? new Date(+ymd[1], +ymd[2] - 1, +ymd[3]).getTime() : new Date(new Date(t.due_date).toDateString()).getTime();
-  const days = Math.round((due - today) / 86_400_000);
-  if (days < 0)
-    return {
-      label: `Atrasada há ${Math.abs(days)} dia${Math.abs(days) > 1 ? "s" : ""}`,
-      band: "bg-rose-100 text-rose-900 dark:bg-rose-500/15 dark:text-rose-200",
-      ring: "ring-2 ring-rose-500 shadow-[0_12px_32px_rgba(180,35,24,.14)]",
-    };
-  if (days === 0) return { label: "Vence hoje", band: "bg-[var(--task-today-bg)] text-[var(--task-today-fg)]", ring: "ring-2 ring-[var(--task-today-bg)]" };
+  if (isDueToday(t)) return { label: "Vence hoje", band: "bg-[var(--task-today-bg)] text-[var(--task-today-fg)]", ring: "ring-2 ring-[var(--task-today-bg)]" };
+  const key = dueDayKey(t.due_date)!;
+  const today = dayKey(new Date());
+  const days = Math.max(1, Math.round((Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10)) - Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1, +today.slice(8, 10))) / 86_400_000));
   return { label: `Em dia · faltam ${days} dia${days > 1 ? "s" : ""}`, band: "bg-[var(--task-ontime-bg)] text-[var(--task-ontime-fg)]", ring: "" };
 }
 
@@ -2173,9 +2173,10 @@ function StageTaskRow({
         "scroll-mt-24 rounded-xl border transition-shadow max-sm:mb-2 max-sm:shadow-sm sm:rounded-lg sm:border-transparent",
         isDone ? "bg-accent/50" : "max-sm:bg-card sm:hover:bg-accent/40",
         highlighted ? "border-primary bg-primary/5 ring-2 ring-primary/40" : "",
-        !highlighted && late(t) ? "max-sm:border-rose-200 max-sm:bg-rose-50/60" : "",
+        !highlighted && late(t) ? `overflow-hidden !border-rose-500 bg-rose-50/40 dark:bg-rose-500/5 sm:my-1 ${OVERDUE_RING}` : "",
       ].join(" ")}
     >
+      {late(t) && <OverdueBand task={t} prefix={isClient ? "Com o cliente" : undefined} className="py-1" />}
       <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 sm:flex-nowrap sm:px-2 sm:py-1.5">
         <Checkbox
           className="h-5 w-5 sm:h-4 sm:w-4"
@@ -2276,8 +2277,7 @@ function StageTaskRow({
   );
 }
 
-const late = (t: StageTask) =>
-  t.status !== "concluido" && !!t.due_date && new Date(t.due_date) < new Date(new Date().toDateString());
+const late = (t: StageTask) => isOverdue(t);
 
 const dayOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-CA") : "");
 
@@ -2295,11 +2295,11 @@ function TaskDatesButton({
   const [start, setStart] = useState("");
   const [due, setDue] = useState("");
   const [saving, setSaving] = useState(false);
-  const late = t.status !== "concluido" && !!t.due_date && new Date(t.due_date) < new Date(new Date().toDateString());
+  const late = isOverdue(t);
   const label = t.due_date ? new Date(t.due_date).toLocaleDateString("pt-BR") : "Datas";
   if (!canEdit || !onSave) {
     return t.due_date ? (
-      <span className={`shrink-0 text-[11px] ${late ? "font-semibold text-rose-600" : "text-muted-foreground"}`}>{label}</span>
+      <span className={`shrink-0 text-[11px] ${late ? OVERDUE_TEXT : "text-muted-foreground"}`}>{label}</span>
     ) : null;
   }
   return (
@@ -2316,7 +2316,7 @@ function TaskDatesButton({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`inline-flex h-10 shrink-0 items-center gap-1 rounded-lg px-2.5 text-xs hover:bg-muted max-sm:border sm:h-7 sm:rounded-full sm:px-2 sm:text-[11px] ${late ? "font-semibold text-rose-600 max-sm:border-rose-200" : "text-muted-foreground hover:text-foreground"}`}
+          className={`inline-flex h-10 shrink-0 items-center gap-1 rounded-lg px-2.5 text-xs hover:bg-muted max-sm:border sm:h-7 sm:rounded-full sm:px-2 sm:text-[11px] ${late ? `${OVERDUE_TEXT} max-sm:border-rose-200` : "text-muted-foreground hover:text-foreground"}`}
           title="Editar datas da tarefa"
           aria-label={`Datas da tarefa: ${label}`}
         >
