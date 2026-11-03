@@ -26,6 +26,7 @@ import { Route as AuthenticatedHubRouteImport } from './routes/_authenticated/hu
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedMinhasTarefasRouteImport } from './routes/_authenticated/minhas-tarefas'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
+import { Route as AuthenticatedPortalClientesRouteImport } from './routes/_authenticated/portal-clientes'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedSemanaRouteImport } from './routes/_authenticated/semana'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
@@ -159,6 +160,12 @@ const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
   path: '/pipeline',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPortalClientesRoute =
+  AuthenticatedPortalClientesRouteImport.update({
+    id: '/portal-clientes',
+    path: '/portal-clientes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
@@ -430,6 +437,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AuthenticatedLeadsRoute
   '/minhas-tarefas': typeof AuthenticatedMinhasTarefasRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
+  '/portal-clientes': typeof AuthenticatedPortalClientesRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/semana': typeof AuthenticatedSemanaRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
@@ -490,6 +498,7 @@ export interface FileRoutesByTo {
   '/leads': typeof AuthenticatedLeadsRoute
   '/minhas-tarefas': typeof AuthenticatedMinhasTarefasRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
+  '/portal-clientes': typeof AuthenticatedPortalClientesRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/semana': typeof AuthenticatedSemanaRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
@@ -555,6 +564,7 @@ export interface FileRoutesById {
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/minhas-tarefas': typeof AuthenticatedMinhasTarefasRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
+  '/_authenticated/portal-clientes': typeof AuthenticatedPortalClientesRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/semana': typeof AuthenticatedSemanaRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
@@ -620,6 +630,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/minhas-tarefas'
     | '/pipeline'
+    | '/portal-clientes'
     | '/relatorios'
     | '/semana'
     | '/tarefas'
@@ -680,6 +691,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/minhas-tarefas'
     | '/pipeline'
+    | '/portal-clientes'
     | '/relatorios'
     | '/semana'
     | '/tarefas'
@@ -744,6 +756,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads'
     | '/_authenticated/minhas-tarefas'
     | '/_authenticated/pipeline'
+    | '/_authenticated/portal-clientes'
     | '/_authenticated/relatorios'
     | '/_authenticated/semana'
     | '/_authenticated/tarefas'
@@ -930,6 +943,13 @@ declare module '@tanstack/react-router' {
       path: '/pipeline'
       fullPath: '/pipeline'
       preLoaderRoute: typeof AuthenticatedPipelineRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/portal-clientes': {
+      id: '/_authenticated/portal-clientes'
+      path: '/portal-clientes'
+      fullPath: '/portal-clientes'
+      preLoaderRoute: typeof AuthenticatedPortalClientesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/relatorios': {
@@ -1367,6 +1387,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMinhasTarefasRoute: typeof AuthenticatedMinhasTarefasRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
+  AuthenticatedPortalClientesRoute: typeof AuthenticatedPortalClientesRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedSemanaRoute: typeof AuthenticatedSemanaRoute
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
@@ -1392,6 +1413,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMinhasTarefasRoute: AuthenticatedMinhasTarefasRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
+  AuthenticatedPortalClientesRoute: AuthenticatedPortalClientesRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedSemanaRoute: AuthenticatedSemanaRoute,
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,

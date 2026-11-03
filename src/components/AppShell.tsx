@@ -36,7 +36,7 @@ import { isProjectOnlyAccess, orgModuleForPath } from "@/lib/org/modules-map";
 import { useMyTasks } from "@/hooks/useMyTasks";
 import { runTaskNotificationsNow } from "@/lib/tasks/my-tasks.functions";
 import { ClipboardList, KeyRound } from "lucide-react";
-import { CreditCard } from "lucide-react";
+import { CreditCard, Globe } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 import { PriorityAlertModal, usePriorityAlerts } from "@/components/tasks/PriorityAlerts";
 import { LeadCardHost } from "@/components/pipeline/LeadCardHost";
@@ -112,15 +112,22 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
   }
   if (org.isError) return <div className="p-4 text-sm text-nav-label-fixed"><p>Falha ao carregar acesso.</p><Button variant="ghost" onClick={org.retryAccess}>Tentar novamente</Button></div>;
   if (!org.isSuperAdmin && !org.activeOrg) return <p className="p-4 text-sm text-nav-label-fixed">Aguardando liberação de acesso</p>;
+  // Portal do cliente: só administradores (da plataforma ou da empresa) veem no menu
+  const canPortal = isAdmin || org.isOrgAdmin;
   const groups: NavGroup[] = NAV_GROUPS.map((g) =>
-    g.section === "Administração" && isAdmin
+    g.section === "Administração" && (isAdmin || canPortal)
       ? {
           ...g,
           items: [
             ...g.items,
-            { to: "/admin", label: "Central Administrativa", icon: Shield },
-            { to: "/admin/assinaturas", label: "Assinaturas (Admin)", icon: CreditCard },
-            { to: "/admin/usuarios", label: "Usuários (Admin)", icon: Shield },
+            ...(canPortal ? [{ to: "/portal-clientes", label: "Portal do cliente", icon: Globe }] : []),
+            ...(isAdmin
+              ? [
+                  { to: "/admin", label: "Central Administrativa", icon: Shield },
+                  { to: "/admin/assinaturas", label: "Assinaturas (Admin)", icon: CreditCard },
+                  { to: "/admin/usuarios", label: "Usuários (Admin)", icon: Shield },
+                ]
+              : []),
           ],
         }
       : g,

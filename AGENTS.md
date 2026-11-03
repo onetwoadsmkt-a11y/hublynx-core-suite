@@ -103,3 +103,6 @@
 - Core: `sheet-messages.functions.ts` (setSheetPortal, list/send/deleteSheetMessage); `SheetClientChat` no fim de cada planilha. Link dos avisos: `/projetos/<id>?aba=comercial&planilha=<id>` (abre a planilha e rola até a conversa).
 - Portal: `portalPurchases` agora devolve as planilhas liberadas (uma a uma) + as de compras quando "Compras" está ligado, com mensagens e equipe; `portalSheetMessage` grava a mensagem do cliente (toda a equipe ou uma pessoa). Seção "Planilhas do projeto" (PortalPurchases) com `SheetChat`. Avisos: `/portal/<projeto>?planilha=<id>`.
 - Gatilho `tg_sheet_message_notify`: cliente → pessoa escolhida ou quem cuida do projeto; equipe → clientes do projeto (sino + e-mail).
+
+## Menu "Portal do cliente" (só administradores)
+- Em Administração, visível para admin da plataforma ou da empresa (`org_admin`). Página `/portal-clientes`: projetos da empresa com o link do portal (copiar/abrir), quantos clientes têm acesso e atalho para a aba Equipe (acessos). Botão para a tela de entrada do portal.
