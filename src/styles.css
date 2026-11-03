@@ -2,7 +2,9 @@
 @source "../src";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* "dark-cards" (Preto com cards brancos): o <html> mantém .dark (tema escolhido pela pessoa),
+   mas tudo é pintado como no claro; só o fundo, o menu e o topo ficam pretos (regras no fim). */
+@custom-variant dark (&:is(.dark:not(.dark-cards) *));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -86,6 +88,11 @@
   --band-cta-bg: var(--primary);
   --band-cta-fg: var(--primary-foreground);
   --band-late: oklch(0.85 0.08 25);
+  /* indicadores, selos e anel da faixa (o tema "cards brancos" troca por branco/preto) */
+  --band-tile-fg: var(--band-fg);
+  --band-tile-sub: var(--band-sub);
+  --band-chip-fg: var(--band-fg);
+  --band-ring-core: var(--band-bg);
   --task-ontime-bg: oklch(0.97 0.015 240);
   --task-ontime-fg: oklch(0.38 0.09 245);
   --task-today-bg: oklch(0.95 0.06 85);
@@ -154,7 +161,7 @@
   --sidebar-ring: oklch(0.72 0.20 155);
 }
 
-.dark {
+.dark:not(.dark-cards) {
   /* Deep navy base inspired by Hub Central */
   --background: oklch(0.15 0.06 263);               /* #050F24 */
   --app-bg: oklch(0.15 0.06 263);
@@ -203,6 +210,7 @@
 
   --sidebar: oklch(0.18 0.07 263);
   --sidebar-foreground: oklch(0.97 0.01 250);
+  --nav-label-fixed: oklch(0.97 0.01 250);   /* menu com texto branco no escuro */
   --sidebar-primary: oklch(0.74 0.19 155);
   --sidebar-primary-foreground: oklch(0.15 0.06 263);
   --sidebar-accent: oklch(0.26 0.07 263);
@@ -395,9 +403,91 @@
 
 /* Escuro: textos coloridos feitos para fundo claro (600/700) ganham versão clara,
    para manter contraste nos cards escuros (ex.: "1 atrasada", datas vencidas). */
-.dark :is(.text-rose-600, .text-rose-700, .text-red-600, .text-red-700) { color: oklch(0.8 0.12 18); }
-.dark :is(.text-amber-600, .text-amber-700, .text-orange-600, .text-orange-700, .text-yellow-700) { color: oklch(0.85 0.12 80); }
-.dark :is(.text-emerald-600, .text-emerald-700, .text-green-600, .text-green-700) { color: oklch(0.82 0.13 160); }
-.dark :is(.text-sky-600, .text-sky-700, .text-blue-600, .text-blue-700) { color: oklch(0.8 0.1 240); }
-.dark :is(.text-violet-600, .text-violet-700, .text-purple-600, .text-purple-700) { color: oklch(0.8 0.11 295); }
-.dark :is(.text-slate-600, .text-slate-700, .text-gray-600, .text-gray-700) { color: oklch(0.82 0.015 263); }
+.dark:not(.dark-cards) :is(.text-rose-600, .text-rose-700, .text-red-600, .text-red-700) { color: oklch(0.8 0.12 18); }
+.dark:not(.dark-cards) :is(.text-amber-600, .text-amber-700, .text-orange-600, .text-orange-700, .text-yellow-700) { color: oklch(0.85 0.12 80); }
+.dark:not(.dark-cards) :is(.text-emerald-600, .text-emerald-700, .text-green-600, .text-green-700) { color: oklch(0.82 0.13 160); }
+.dark:not(.dark-cards) :is(.text-sky-600, .text-sky-700, .text-blue-600, .text-blue-700) { color: oklch(0.8 0.1 240); }
+.dark:not(.dark-cards) :is(.text-violet-600, .text-violet-700, .text-purple-600, .text-purple-700) { color: oklch(0.8 0.11 295); }
+.dark:not(.dark-cards) :is(.text-slate-600, .text-slate-700, .text-gray-600, .text-gray-700) { color: oklch(0.82 0.015 263); }
+
+/* ───────── Tema escuro "Preto com cards brancos" (Aparência › Fundo do tema escuro) ─────────
+   Fundo, menu e topo pretos; cards brancos como no claro. Texto sobre o preto em branco
+   ou na cor da marca (--on-dark, definido pelo BrandTheme). Sobre amarelo, texto preto. */
+.dark-cards {
+  --app-bg: #000;
+  --on-dark: #fff;
+  --on-dark-sub: #a3a3a3;
+  --fg-light: oklch(0.22 0.08 263);
+  --muted-fg-light: oklch(0.5 0.015 200);
+  --border-light: oklch(0.925 0.008 160);
+  --muted-light: oklch(0.968 0.005 160);
+  --accent-light: color-mix(in oklab, var(--primary) 14%, white);
+  color-scheme: light;
+}
+.dark-cards .app-sidebar,
+.dark-cards .app-topbar {
+  background: #000;
+  color: var(--on-dark);
+  border-color: rgb(255 255 255 / 0.12);
+  --foreground: var(--on-dark);
+  --nav-label-fixed: var(--on-dark);
+  --muted: rgb(255 255 255 / 0.09);
+  --muted-foreground: var(--on-dark-sub);
+  --accent: rgb(255 255 255 / 0.1);
+  --accent-foreground: var(--on-dark);
+  --background: #161616;
+  --border: rgb(255 255 255 / 0.12);
+  --input: rgb(255 255 255 / 0.18);
+}
+@layer base {
+  .dark-cards :is(.app-sidebar, .app-topbar) * { border-color: rgb(255 255 255 / 0.12); }
+}
+/* item do menu selecionado: fundo na cor da marca, texto preto/branco conforme o contraste */
+.dark-cards .app-sidebar [data-nav-active="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 700;
+}
+.dark-cards .app-sidebar [data-nav-active="true"] svg { color: currentColor; }
+/* área das páginas: texto sobre o preto */
+.dark-cards .app-main {
+  --foreground: var(--on-dark);
+  --muted-foreground: var(--on-dark-sub);
+  --border: rgb(255 255 255 / 0.14);
+  --input: rgb(255 255 255 / 0.22);
+  --muted: rgb(255 255 255 / 0.08);
+  --secondary: rgb(255 255 255 / 0.1);
+  --secondary-foreground: var(--on-dark);
+  --accent: rgb(255 255 255 / 0.1);
+  --accent-foreground: var(--on-dark);
+  color: var(--foreground);
+}
+/* superfícies brancas (cards, tabelas, campos, botões contornados): voltam às cores do claro */
+.dark-cards .app-main :is(
+  [class^="bg-card"], [class*=" bg-card"], [class^="bg-background"], [class*=" bg-background"],
+  [class^="bg-popover"], [class*=" bg-popover"], [class^="bg-white"], [class*=" bg-white"],
+  [data-slot="card"], [data-state="active"][class*=":bg-background"], [data-state="active"][class*=":bg-card"]
+) {
+  --foreground: var(--fg-light);
+  --muted-foreground: var(--muted-fg-light);
+  --border: var(--border-light);
+  --input: var(--border-light);
+  --muted: var(--muted-light);
+  --secondary: var(--muted-light);
+  --secondary-foreground: var(--fg-light);
+  --accent: var(--accent-light);
+  --accent-foreground: var(--fg-light);
+}
+@layer base {
+  .dark-cards .app-main :is(
+    [class^="bg-card"], [class*=" bg-card"], [class^="bg-background"], [class*=" bg-background"],
+    [class^="bg-popover"], [class*=" bg-popover"], [class^="bg-white"], [class*=" bg-white"],
+    [data-slot="card"], [data-state="active"][class*=":bg-background"], [data-state="active"][class*=":bg-card"]
+  ) {
+    color: var(--foreground);
+  }
+}
+/* logo própria para o tema escuro (menu e topo ficam escuros em qualquer estilo de escuro) */
+.logo-on-dark { display: none; }
+.dark .logo-on-dark { display: block; }
+.dark .logo-on-light { display: none; }

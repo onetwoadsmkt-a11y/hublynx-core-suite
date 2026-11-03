@@ -384,14 +384,14 @@ function ExecutiveHeader({ p, d }: any) {
         className="grid h-[88px] w-[88px] shrink-0 place-items-center rounded-full"
         style={{ background: `conic-gradient(var(--band-ring) 0 ${pct}%, var(--band-ring-track) ${pct}% 100%)` }}
       >
-        <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--band-bg)] text-xl font-extrabold">{pct}%</span>
+        <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--band-ring-core)] text-[var(--band-tile-fg)] text-xl font-extrabold">{pct}%</span>
       </div>
       <div className="min-w-[260px] flex-1 space-y-2">
         <div className="flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
+          <span className="rounded-full bg-[var(--band-chip)] text-[var(--band-chip-fg)] px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
           {healthChip[0] && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${healthChip[1]}`}>{healthChip[0]}</span>}
-          {p.commercial_model && <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{COMMERCIAL_LABEL[p.commercial_model]}</span>}
-          {p.service_type && <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
+          {p.commercial_model && <span className="rounded-full bg-[var(--band-chip)] text-[var(--band-chip-fg)] px-2.5 py-1 text-xs font-semibold">{COMMERCIAL_LABEL[p.commercial_model]}</span>}
+          {p.service_type && <span className="rounded-full bg-[var(--band-chip)] text-[var(--band-chip-fg)] px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
         </div>
         <div className="flex items-center gap-3">
           {p.logo_url && <img src={p.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1" />}
@@ -407,10 +407,10 @@ function ExecutiveHeader({ p, d }: any) {
       </div>
       <div className="grid grid-cols-4 gap-2">
         {tiles.map((t) => (
-          <div key={t.label} className="min-w-[92px] rounded-xl bg-[var(--band-tile)] px-3.5 py-2.5">
-            <p className="text-xs text-[var(--band-sub)]">{t.label}</p>
+          <div key={t.label} className="min-w-[92px] rounded-xl bg-[var(--band-tile)] px-3.5 py-2.5 text-[var(--band-tile-fg)]">
+            <p className="text-xs text-[var(--band-tile-sub)]">{t.label}</p>
             <p className="text-[22px] font-extrabold leading-tight tabular-nums">{t.value}</p>
-            <p className={`text-xs ${t.late ? "font-bold text-[var(--band-late)]" : "text-[var(--band-sub)]"}`}>{t.sub}</p>
+            <p className={`text-xs ${t.late ? "font-bold text-[var(--band-late)]" : "text-[var(--band-tile-sub)]"}`}>{t.sub}</p>
           </div>
         ))}
       </div>
@@ -437,9 +437,9 @@ function MobileSummary({ p, d }: any) {
     <div className="space-y-3 md:hidden">
       <section aria-label="Resumo do projeto" className="space-y-3.5 rounded-2xl bg-[var(--band-bg)] p-4 text-[var(--band-fg)]">
         <div className="flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
+          <span className="rounded-full bg-[var(--band-chip)] text-[var(--band-chip-fg)] px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[p.status as ProjectStatus]}</span>
           {healthChip[0] && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${healthChip[1]}`}>{healthChip[0]}</span>}
-          {p.service_type && <span className="rounded-full bg-[var(--band-chip)] px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
+          {p.service_type && <span className="rounded-full bg-[var(--band-chip)] text-[var(--band-chip-fg)] px-2.5 py-1 text-xs font-semibold">{SERVICE_LABEL[p.service_type]}</span>}
         </div>
         <div className="flex items-center gap-3.5">
           <div
@@ -448,7 +448,7 @@ function MobileSummary({ p, d }: any) {
             className="grid h-16 w-16 shrink-0 place-items-center rounded-full"
             style={{ background: `conic-gradient(var(--band-ring) 0 ${pct}%, var(--band-ring-track) ${pct}% 100%)` }}
           >
-            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-[var(--band-bg)] text-[15px] font-extrabold">{pct}%</span>
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-[var(--band-ring-core)] text-[var(--band-tile-fg)] text-[15px] font-extrabold">{pct}%</span>
           </div>
           <div className="min-w-0 flex-1 space-y-1 text-[13px] text-[var(--band-sub)]">
             {p.client && <p className="truncate"><strong className="text-[var(--band-fg)]">Cliente:</strong> {p.client.name}</p>}

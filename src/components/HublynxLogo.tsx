@@ -20,20 +20,27 @@ export function HublynxLogo({
 }) {
   const { activeOrganization, brand } = useWorkspace();
   const orgLogo = brand?.logoUrl ?? null;
+  // logo para o tema escuro (Aparência): troca a logo quando o menu/topo ficam escuros
+  const orgLogoDark = brand?.logoDarkUrl ?? null;
 
-  if (orgLogo) {
+  if (orgLogo || orgLogoDark) {
+    const size = collapsed
+      ? { maxWidth: "34px", maxHeight: "34px", width: "auto", height: "auto" }
+      : { maxWidth: "100px", maxHeight: "50px", width: "auto", height: "auto" };
+    const alt = activeOrganization?.name ?? "Logo da empresa";
+    const light = orgLogo ?? orgLogoDark!;
     return (
       <div className={`flex items-center ${className}`}>
-        <img
-          src={orgLogo}
-          alt={activeOrganization?.name ?? "Logo da empresa"}
-          className="object-contain"
-          style={
-            collapsed
-              ? { maxWidth: "34px", maxHeight: "34px", width: "auto", height: "auto" }
-              : { maxWidth: "100px", maxHeight: "50px", width: "auto", height: "auto" }
-          }
-        />
+        {onDark ? (
+          <img src={orgLogoDark ?? light} alt={alt} className="object-contain" style={size} />
+        ) : orgLogoDark ? (
+          <>
+            <img src={light} alt={alt} className="logo-on-light object-contain" style={size} />
+            <img src={orgLogoDark} alt={alt} className="logo-on-dark object-contain" style={size} />
+          </>
+        ) : (
+          <img src={light} alt={alt} className="object-contain" style={size} />
+        )}
       </div>
     );
   }
@@ -52,8 +59,8 @@ export function HublynxLogo({
         <img src={logoDarkUrl} alt="Core Suite" className="h-10 w-auto" />
       ) : (
         <>
-          <img src={logoUrl} alt="Core Suite" className="h-10 w-auto dark:hidden" />
-          <img src={logoDarkUrl} alt="Core Suite" className="hidden h-10 w-auto dark:block" />
+          <img src={logoUrl} alt="Core Suite" className="logo-on-light h-10 w-auto" />
+          <img src={logoDarkUrl} alt="Core Suite" className="logo-on-dark h-10 w-auto" />
         </>
       )}
     </div>

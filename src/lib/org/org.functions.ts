@@ -18,7 +18,11 @@ export type OrgSummary = {
   logoUrl: string | null;
   brandColor: string | null;
   /** fundo do tema escuro: no tom da marca ou preto */
-  darkStyle?: "marca" | "preto";
+  darkStyle?: "marca" | "preto" | "cards";
+  /** texto sobre o fundo escuro no estilo "cards": branco ou na cor da marca (migração 32) */
+  darkText?: "branco" | "marca";
+  /** logo para o tema escuro (migração 32) */
+  logoDarkUrl?: string | null;
 };
 
 export type OrgAccess = {
@@ -113,9 +117,16 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
       : admin;
     // fundo do tema escuro (migração 31); antes dela a coluna não existe e fica "marca"
     const darkStyle = new Map<string, string>();
+    const darkExtra = new Map<string, { text: string | null; logo: string | null }>();
     try {
-      const { data: ds, error: dsErr } = await reader.from("organizations").select("id, dark_style").in("id", orgIds);
-      if (!dsErr) for (const r of (ds ?? []) as any[]) if (r.dark_style) darkStyle.set(r.id, r.dark_style);
+      // migração 32 (texto e logo do escuro); sem ela, cai para só o fundo (migração 31)
+      const full = await reader.from("organizations").select("id, dark_style, dark_text, logo_dark_url").in("id", orgIds);
+      const res = full.error ? await reader.from("organizations").select("id, dark_style").in("id", orgIds) : full;
+      if (!res.error)
+        for (const r of (res.data ?? []) as any[]) {
+          if (r.dark_style) darkStyle.set(r.id, r.dark_style);
+          darkExtra.set(r.id, { text: r.dark_text ?? null, logo: r.logo_dark_url ?? null });
+        }
     } catch {
       /* sem a coluna */
     }
@@ -160,7 +171,9 @@ export const getMyOrgAccess = createServerFn({ method: "GET" })
         modules: effectiveModules(status, enabled, role, allowed),
         logoUrl: o.logo_url ?? null,
         brandColor: o.brand_color ?? null,
-        darkStyle: darkStyle.get(o.id) === "preto" ? "preto" : "marca",
+        darkStyle: ((v) => (v === "preto" || v === "cards" ? v : "marca"))(darkStyle.get(o.id)),
+        darkText: darkExtra.get(o.id)?.text === "marca" ? "marca" : "branco",
+        logoDarkUrl: darkExtra.get(o.id)?.logo ?? null,
         support: isSuperAdmin && !memberOf.has(o.id),
       };
     });

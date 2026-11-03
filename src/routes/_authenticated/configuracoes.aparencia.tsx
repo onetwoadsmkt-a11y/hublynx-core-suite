@@ -33,44 +33,72 @@ function AppearancePage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const darkFileRef = useRef<HTMLInputElement>(null);
+  const [logoDarkUrl, setLogoDarkUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setLogoUrl(activeOrganization?.logoUrl ?? null);
+    setLogoDarkUrl(activeOrganization?.logoDarkUrl ?? null);
     const c = (activeOrganization?.brandColor ?? CORE_GREEN).toUpperCase();
     setColor(c);
     setHexText(c);
-  }, [activeOrganization?.id, activeOrganization?.logoUrl, activeOrganization?.brandColor]);
+  }, [activeOrganization?.id, activeOrganization?.logoUrl, activeOrganization?.logoDarkUrl, activeOrganization?.brandColor]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["my-org-access"] });
 
-  async function saveOrg(patch: { logo_url?: string | null; brand_color?: string | null; dark_style?: "marca" | "preto" }) {
+  async function saveOrg(patch: {
+    logo_url?: string | null;
+    logo_dark_url?: string | null;
+    brand_color?: string | null;
+    dark_style?: "marca" | "preto" | "cards";
+    dark_text?: "branco" | "marca";
+  }) {
     if (!orgId) throw new Error("Empresa não identificada");
     const { error } = await (supabase as any).from("organizations").update(patch).eq("id", orgId);
     if (error) throw error;
   }
 
-  async function handleFile(file: File) {
+  async function handleFile(file: File, which: "logo" | "dark" = "logo") {
     if (!orgId) return;
     if (!ACCEPT.includes(file.type)) return toast.error("Use PNG, JPG, SVG ou WEBP.");
     if (file.size > MAX_BYTES) return toast.error("A logo precisa ter até 1 MB.");
     setUploading(true);
     try {
       const ext = (file.name.split(".").pop() || "png").toLowerCase();
-      const path = `${orgId}/logo-${Date.now()}.${ext}`;
+      const path = `${orgId}/${which === "dark" ? "logo-escuro" : "logo"}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("org-branding")
         .upload(path, file, { contentType: file.type, upsert: false });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("org-branding").getPublicUrl(path);
-      await saveOrg({ logo_url: data.publicUrl });
-      setLogoUrl(data.publicUrl);
-      toast.success("Logo atualizada");
+      if (which === "dark") {
+        await saveOrg({ logo_dark_url: data.publicUrl });
+        setLogoDarkUrl(data.publicUrl);
+        toast.success("Logo do tema escuro atualizada");
+      } else {
+        await saveOrg({ logo_url: data.publicUrl });
+        setLogoUrl(data.publicUrl);
+        toast.success("Logo atualizada");
+      }
       refresh();
     } catch (e) {
-      toast.error((e as Error).message || "Não foi possível enviar a logo");
+      const msg = (e as Error).message || "";
+      toast.error(/logo_dark_url/.test(msg) ? "Rode a migração 32 no banco para usar esta opção." : msg || "Não foi possível enviar a logo");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+      if (darkFileRef.current) darkFileRef.current.value = "";
+    }
+  }
+
+  async function removeDarkLogo() {
+    try {
+      await saveOrg({ logo_dark_url: null });
+      setLogoDarkUrl(null);
+      toast.success("Logo do tema escuro removida");
+      refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
     }
   }
 
@@ -98,17 +126,34 @@ function AppearancePage() {
     }
   }
 
-  const darkStyle = activeOrganization?.darkStyle === "preto" ? "preto" : "marca";
-  async function saveDarkStyle(next: "marca" | "preto") {
+  const darkStyle = activeOrganization?.darkStyle ?? "marca";
+  const darkText = activeOrganization?.darkText ?? "branco";
+  async function saveDarkStyle(next: "marca" | "preto" | "cards") {
     if (next === darkStyle) return;
     setSaving(true);
     try {
       await saveOrg({ dark_style: next });
-      toast.success(next === "preto" ? "Tema escuro com fundo preto" : "Tema escuro no tom da marca");
+      toast.success(
+        next === "cards" ? "Tema escuro: preto com cards brancos" : next === "preto" ? "Tema escuro com fundo preto" : "Tema escuro no tom da marca",
+      );
       refresh();
     } catch (e) {
       const msg = (e as Error).message || "";
-      toast.error(/dark_style/.test(msg) ? "Rode a migração 31 no banco para usar esta opção." : msg);
+      toast.error(/dark_style/.test(msg) ? "Rode as migrações 31 e 32 no banco para usar esta opção." : msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function saveDarkText(next: "branco" | "marca") {
+    if (next === darkText) return;
+    setSaving(true);
+    try {
+      await saveOrg({ dark_text: next });
+      toast.success(next === "marca" ? "Texto sobre o preto na cor da marca" : "Texto sobre o preto em branco");
+      refresh();
+    } catch (e) {
+      const msg = (e as Error).message || "";
+      toast.error(/dark_text/.test(msg) ? "Rode a migração 32 no banco para usar esta opção." : msg);
     } finally {
       setSaving(false);
     }
@@ -176,6 +221,48 @@ function AppearancePage() {
           </Button>
           {logoUrl && (
             <Button variant="ghost" disabled={!canEdit} onClick={removeLogo} className="text-rose-600">
+              <Trash2 className="h-4 w-4" /> Remover
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      <Card className="rounded-2xl p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">Logo para o tema escuro</h2>
+          <p className="text-xs text-muted-foreground">
+            Opcional. Usada no menu e no topo quando o fundo fica escuro — por exemplo, a versão em branco ou amarelo
+            de uma logo preta. Sem ela, vale a logo acima.
+          </p>
+        </div>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex h-[66px] w-[132px] items-center justify-center rounded-xl border border-black bg-black">
+            {logoDarkUrl || logoUrl ? (
+              <img
+                src={logoDarkUrl ?? logoUrl!}
+                alt="Logo no tema escuro"
+                className="object-contain"
+                style={{ maxWidth: "100px", maxHeight: "50px", width: "auto", height: "auto" }}
+              />
+            ) : (
+              <span className="text-[11px] text-white/70">Logo da Core Suite</span>
+            )}
+          </div>
+          <input
+            ref={darkFileRef}
+            type="file"
+            accept={ACCEPT.join(",")}
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleFile(f, "dark");
+            }}
+          />
+          <Button disabled={!canEdit || uploading} onClick={() => darkFileRef.current?.click()}>
+            <ImageUp className="h-4 w-4" /> {uploading ? "Enviando..." : logoDarkUrl ? "Trocar logo do escuro" : "Enviar logo do escuro"}
+          </Button>
+          {logoDarkUrl && (
+            <Button variant="ghost" disabled={!canEdit} onClick={removeDarkLogo} className="text-rose-600">
               <Trash2 className="h-4 w-4" /> Remover
             </Button>
           )}
@@ -268,10 +355,11 @@ function AppearancePage() {
             um degrau mais claros que o fundo, com texto em alto contraste.
           </p>
         </div>
-        <div role="radiogroup" aria-label="Fundo do tema escuro" className="grid gap-3 sm:grid-cols-2">
+        <div role="radiogroup" aria-label="Fundo do tema escuro" className="grid gap-3 sm:grid-cols-3">
           {([
             ["marca", "Tom da marca", "Fundo escuro na cor escura da logo.", "oklch(0.165 0.03 265)", "oklch(0.215 0.035 265)"],
             ["preto", "Preto", "Fundo preto com cards em cinza-chumbo.", "oklch(0 0 0)", "oklch(0.185 0 0)"],
+            ["cards", "Preto com cards brancos", "Fundo, menu e topo pretos; cards brancos e cabeçalho do projeto na cor da marca.", "oklch(0 0 0)", "#FFFFFF"],
           ] as const).map(([k, title, desc, bg, card]) => (
             <button
               key={k}
@@ -284,11 +372,11 @@ function AppearancePage() {
             >
               <div className="mb-3 space-y-1.5 rounded-lg p-2.5" style={{ background: bg }}>
                 <div className="flex items-center gap-2 rounded-md p-2" style={{ background: card }}>
-                  <span className="h-2 w-16 rounded-full bg-white/85" />
+                  <span className={`h-2 w-16 rounded-full ${k === "cards" ? "bg-black/70" : "bg-white/85"}`} />
                   <span className="ml-auto rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ background: color, color: fg }}>Botão</span>
                 </div>
                 <div className="rounded-md p-2" style={{ background: card }}>
-                  <span className="block h-1.5 w-24 rounded-full bg-white/55" />
+                  <span className={`block h-1.5 w-24 rounded-full ${k === "cards" ? "bg-black/35" : "bg-white/55"}`} />
                 </div>
               </div>
               <p className="text-sm font-semibold">{title}{darkStyle === k ? " · em uso" : ""}</p>
@@ -296,6 +384,35 @@ function AppearancePage() {
             </button>
           ))}
         </div>
+        {darkStyle === "cards" && (
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-sm font-medium">Texto sobre o fundo preto</p>
+            <p className="text-xs text-muted-foreground">Menu, topo e títulos das páginas. Sobre a cor da marca (item selecionado, botões), o texto fica preto ou branco conforme o contraste.</p>
+            <div role="radiogroup" aria-label="Texto sobre o fundo preto" className="flex flex-wrap gap-2">
+              {([
+                ["branco", "Branco", "#FFFFFF"],
+                ["marca", "Cor da marca", color],
+              ] as const).map(([k, label, sample]) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={darkText === k}
+                  disabled={!canEdit || saving}
+                  onClick={() => saveDarkText(k)}
+                  className={`flex items-center gap-2.5 rounded-xl border-2 bg-black px-3 py-2 text-sm font-semibold transition ${darkText === k ? "border-primary" : "border-transparent"}`}
+                  style={{ color: sample }}
+                >
+                  Projetos · Clientes
+                  <span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: color, color: readableOn(color) === "oklch(1 0 0)" ? "#FFFFFF" : "#000000" }}>
+                    Selecionado
+                  </span>
+                  <span className="text-[11px] font-normal text-white/70">{label}{darkText === k ? " · em uso" : ""}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

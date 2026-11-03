@@ -169,6 +169,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                   key={item.to}
                   to={item.to}
                   onClick={onNavigate}
+                  data-nav-active={active && !(isTasks && prioritySearch) ? "true" : undefined}
                   className={`relative flex items-center gap-3 rounded-lg ${collapsed ? "justify-center px-2" : "px-3"} py-2 text-sm font-medium text-nav-label-fixed transition-colors ${
                     active && !(isTasks && prioritySearch)
                       ? "bg-primary/10"
@@ -201,6 +202,7 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
                   key="/minhas-tarefas"
                   to={"/minhas-tarefas" as any}
                   onClick={onNavigate}
+                  data-nav-active={pathname === "/minhas-tarefas" ? "true" : undefined}
                   className={`ml-7 flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium text-nav-label-fixed transition-colors ${
                     pathname === "/minhas-tarefas" ? "bg-primary/10" : "hover:bg-muted"
                   }`}
@@ -361,7 +363,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="h-screen flex w-full bg-app-bg overflow-hidden">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col border-r bg-sidebar shrink-0 transition-[width] duration-200 ${
+        className={`app-sidebar hidden lg:flex flex-col border-r bg-sidebar shrink-0 transition-[width] duration-200 ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
@@ -404,12 +406,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b bg-background flex items-center gap-3 px-4 lg:px-6 shrink-0">
+        <header className="app-topbar h-16 border-b bg-background flex items-center gap-3 px-4 lg:px-6 shrink-0">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden"><Menu className="h-5 w-5" /></Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
+            <SheetContent side="left" className="app-sidebar w-64 p-0">
               <div className="h-16 flex items-center px-5 border-b"><HublynxLogo /></div>
               <SidebarNav onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
@@ -434,7 +436,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <SupportBanner />
-        <main className="flex-1 overflow-y-auto">
+        <main className="app-main flex-1 overflow-y-auto">
           <div key={valuesUnlocked ? "unlocked" : "locked"} className="p-4 lg:p-8 max-w-[1600px] mx-auto w-full">
             {children}
           </div>

@@ -11,7 +11,13 @@ const STORAGE_KEY = "hublynx-active-organization";
 /** Cache legado apagado ao sair; a marca exibida vem da empresa validada. */
 export const BRAND_CACHE_KEY = "hublynx-brand-cache";
 
-export type BrandInfo = { logoUrl: string | null; brandColor: string | null; darkStyle?: "marca" | "preto" };
+export type BrandInfo = {
+  logoUrl: string | null;
+  brandColor: string | null;
+  darkStyle?: "marca" | "preto" | "cards";
+  darkText?: "branco" | "marca";
+  logoDarkUrl?: string | null;
+};
 
 export function clearBrandCache() {
   try {
@@ -34,7 +40,9 @@ export type OrganizationOption = {
   /** White label da empresa. */
   logoUrl: string | null;
   brandColor: string | null;
-  darkStyle?: "marca" | "preto";
+  darkStyle?: "marca" | "preto" | "cards";
+  darkText?: "branco" | "marca";
+  logoDarkUrl?: string | null;
   /** Administrador da plataforma atendendo esta empresa (não é membro dela). */
   support: boolean;
 };
@@ -112,7 +120,9 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
         modules: o.modules,
         logoUrl: o.logoUrl ?? null,
         brandColor: o.brandColor ?? null,
-        darkStyle: o.darkStyle === "preto" ? "preto" : "marca",
+        darkStyle: o.darkStyle === "preto" || o.darkStyle === "cards" ? o.darkStyle : "marca",
+        darkText: o.darkText === "marca" ? "marca" : "branco",
+        logoDarkUrl: o.logoDarkUrl ?? null,
         support: !!o.support,
       })),
     [data],
@@ -194,7 +204,13 @@ export function WorkspaceProvider({ children, userId }: { children: ReactNode; u
     role: activeOrganization?.role ?? null,
     isSuperAdmin: !!data?.isSuperAdmin,
     brand: activeOrganization
-      ? { logoUrl: activeOrganization.logoUrl, brandColor: activeOrganization.brandColor, darkStyle: activeOrganization.darkStyle ?? "marca" }
+      ? {
+          logoUrl: activeOrganization.logoUrl,
+          brandColor: activeOrganization.brandColor,
+          darkStyle: activeOrganization.darkStyle ?? "marca",
+          darkText: activeOrganization.darkText ?? "branco",
+          logoDarkUrl: activeOrganization.logoDarkUrl ?? null,
+        }
       : null,
     setActiveOrganization,
     setActiveWorkspace: setActiveOrganization,

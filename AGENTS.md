@@ -70,3 +70,10 @@
 - Texto vem de `overdueLabel()`/`overdueDays()` em `src/lib/tasks/pending.ts` (mesma regra de `isOverdue`: com horário vence na hora; só com dia, no dia seguinte).
 - Aplicado em: Roadmap (cartões, inclusive tarefas do cliente, e linhas), Tarefas (kanban e lista), lista mobile, Minhas tarefas, app/tarefas, portal do cliente (linhas e "Sua próxima ação") e contagem por pessoa na equipe do projeto.
 - Toda nova tela de tarefa deve usar esses mesmos tokens.
+
+## Tema escuro "Preto com cards brancos" (migração 32)
+- `organizations.dark_style` aceita `cards`; novas colunas `dark_text` (`branco`|`marca`) e `logo_dark_url`.
+- No modo `cards`, o BrandTheme põe `.dark-cards` no `<html>` (junto com `.dark`). O variant `dark:` e o bloco `.dark` só valem em `.dark:not(.dark-cards)`, então a página é pintada como no claro.
+- `styles.css` (fim): `.app-sidebar`/`.app-topbar` pretos com texto `--on-dark`; `.app-main` com texto sobre o preto; superfícies `bg-card`/`bg-background`/`bg-popover`/`bg-white`/`data-slot=card` voltam às cores do claro. Item ativo do menu (`data-nav-active`) na cor da marca com texto preto/branco.
+- Faixa do projeto: `--band-tile-fg`, `--band-tile-sub`, `--band-chip-fg`, `--band-ring-core` (padrão = valores antigos). No `cards`, `cardsVars()` deixa a faixa na cor da marca, indicadores brancos, selos/botão pretos.
+- Logo do escuro: `.logo-on-light` / `.logo-on-dark` (HublynxLogo).

@@ -40,6 +40,48 @@ const VIVID_VARS = [
 ] as const;
 
 const NAVY = NAVY_TEXT;
+
+/** Tema "Preto com cards brancos": faixa do projeto na cor da marca com indicadores brancos e selos/botão pretos. */
+const CARDS_VARS = [
+  "--on-dark",
+  "--band-bg",
+  "--band-fg",
+  "--band-sub",
+  "--band-tile",
+  "--band-tile-fg",
+  "--band-tile-sub",
+  "--band-chip",
+  "--band-chip-fg",
+  "--band-ring",
+  "--band-ring-track",
+  "--band-ring-core",
+  "--band-cta-bg",
+  "--band-cta-fg",
+  "--band-late",
+] as const;
+
+export function cardsVars(hex: string, darkText: "branco" | "marca" = "branco"): Record<(typeof CARDS_VARS)[number], string> {
+  const light = readableOn(hex) === NAVY_TEXT;
+  const ink = light ? "#000000" : "#FFFFFF";
+  const inv = light ? "#FFFFFF" : "#000000";
+  return {
+    "--on-dark": darkText === "marca" && light ? hex : "#FFFFFF",
+    "--band-bg": hex,
+    "--band-fg": ink,
+    "--band-sub": light ? "rgb(0 0 0 / 0.72)" : "rgb(255 255 255 / 0.82)",
+    "--band-tile": "#FFFFFF",
+    "--band-tile-fg": "#000000",
+    "--band-tile-sub": "#4A4A4A",
+    "--band-chip": ink,
+    "--band-chip-fg": inv,
+    "--band-ring": "#000000",
+    "--band-ring-track": "#E5E5E5",
+    "--band-ring-core": "#FFFFFF",
+    "--band-cta-bg": light ? "#000000" : "#FFFFFF",
+    "--band-cta-fg": light ? "#FFFFFF" : "#000000",
+    "--band-late": "#D7262F",
+  };
+}
 const HEADER_VARS = ["--brand-dark", "--brand-ink"] as const;
 
 /** Hex → OKLCH (L 0–1, C, H em graus) — para montar o tema escuro a partir da cor da logo. */
@@ -92,7 +134,7 @@ const DARK_BASE_VARS = [
  * com pouca saturação, em degraus de luminosidade fixos para os cards se destacarem
  * do fundo e os textos terem contraste (texto ~16:1, texto secundário ~8:1 nos cards).
  */
-export type DarkStyle = "marca" | "preto";
+export type DarkStyle = "marca" | "preto" | "cards";
 
 export function darkBaseVars(ink: string, style: DarkStyle = "marca"): Record<(typeof DARK_BASE_VARS)[number], string> {
   const { c, h } = hexToOklch(HEX_RE.test(ink) ? ink : "#0a2557");
@@ -249,8 +291,11 @@ export function BrandTheme() {
   const dark = useIsDark();
   // cor escura da logo (Configurações › Aparência); sem logo, o navy do Core
   const { ink } = useBrandPalette();
-  const darkStyle: DarkStyle = brand?.darkStyle === "preto" ? "preto" : "marca";
+  const darkStyle: DarkStyle = brand?.darkStyle === "preto" || brand?.darkStyle === "cards" ? brand.darkStyle : "marca";
+  const darkText = brand?.darkText === "marca" ? "marca" : "branco";
   const hasBrand = !!(color && HEX_RE.test(color)) || !!brand?.logoUrl;
+  // "Preto com cards brancos": a página é pintada como no claro; só fundo, menu e topo ficam pretos
+  const cards = dark && darkStyle === "cards";
 
   useIsoLayoutEffect(() => {
     if (typeof document === "undefined") return;
@@ -260,30 +305,47 @@ export function BrandTheme() {
       VIVID_VARS.forEach((v) => root.style.removeProperty(v));
       DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
       HEADER_VARS.forEach((v) => root.style.removeProperty(v));
+      CARDS_VARS.forEach((v) => root.style.removeProperty(v));
+      root.classList.remove("dark-cards");
     };
-    if (!hasBrand) {
-      clear();
-      return;
+    clear();
+    const valid = !!(color && HEX_RE.test(color));
+    if (cards) {
+      root.classList.add("dark-cards");
+      const hex = valid ? color! : "#00D084";
+      const hv = headerVars(ink, false);
+      HEADER_VARS.forEach((v) => root.style.setProperty(v, hv[v]));
+      const vars = brandVars(hex, false);
+      // sobre a cor clara da marca (ex.: amarelo), texto preto
+      if (vars["--primary-foreground"] === NAVY_TEXT) {
+        vars["--primary-foreground"] = "#000000";
+        vars["--sidebar-primary-foreground"] = "#000000";
+      }
+      BRAND_VARS.forEach((v) => root.style.setProperty(v, vars[v]));
+      if (isLightBrand(hex)) {
+        const vv = vividVars(hex);
+        VIVID_VARS.forEach((v) => root.style.setProperty(v, vv[v]));
+      }
+      const cv = cardsVars(hex, darkText);
+      CARDS_VARS.forEach((v) => root.style.setProperty(v, cv[v]));
+      return clear;
     }
+    if (!hasBrand) return clear;
     const hv = headerVars(ink, dark);
     HEADER_VARS.forEach((v) => root.style.setProperty(v, hv[v]));
     if (dark) {
       const db = darkBaseVars(ink, darkStyle);
       DARK_BASE_VARS.forEach((v) => root.style.setProperty(v, db[v]));
-    } else DARK_BASE_VARS.forEach((v) => root.style.removeProperty(v));
-    if (!color || !HEX_RE.test(color)) {
-      BRAND_VARS.forEach((v) => root.style.removeProperty(v));
-      VIVID_VARS.forEach((v) => root.style.removeProperty(v));
-      return clear;
     }
-    const vars = brandVars(color, dark);
+    if (!valid) return clear;
+    const vars = brandVars(color!, dark);
     BRAND_VARS.forEach((v) => root.style.setProperty(v, vars[v]));
-    if (isLightBrand(color)) {
-      const vv = dark ? vividDarkVars(color, ink, darkStyle) : vividVars(color);
+    if (isLightBrand(color!)) {
+      const vv = dark ? vividDarkVars(color!, ink, darkStyle) : vividVars(color!);
       VIVID_VARS.forEach((v) => root.style.setProperty(v, vv[v]));
-    } else VIVID_VARS.forEach((v) => root.style.removeProperty(v));
+    }
     return clear;
-  }, [color, dark, ink, hasBrand, darkStyle]);
+  }, [color, dark, ink, hasBrand, darkStyle, darkText, cards]);
 
   return null;
 }
