@@ -87,3 +87,8 @@
 - `mailLayout(..., brand)` (task-notify.server.ts): faixa e botão na cor da marca (texto preto/branco pelo contraste), logo da empresa no topo (ou o nome), cards com borda na cor da marca, atrasadas em vermelho, `details` (Onde/Prazo/Prioridade/Enviada por). `brandsOf()` busca logo/cor.
 - Tarefa agendada para alguém: e-mail "Nova tarefa para você" na hora (runTaskNotifications), com prazo e horário, prioridade e quem enviou.
 - Migração 34: gatilho `tg_notification_to_mail` copia cada notificação nova para `project_mail_queue` (kind `bell`), exceto "Nova tarefa para você" e o resumo diário (já têm e-mail). `bellDuplicates()` une avisos repetidos do mesmo projeto no envio.
+
+## Sino no portal do cliente (migração 35)
+- `NotificationsBell` aceita `client` (cliente Supabase do portal), `openLink` e `onNew`; toca o som também quando o aviso chega pela consulta (sem tempo real). PortalShell mostra o sino (`PortalBell`).
+- Migração 35: `notifications` no `supabase_realtime`; gatilho `tg_tasks_zzz_client_notify` avisa os clientes do projeto (sino + e-mail com link do portal) quando há tarefa nova do cliente ou o prazo dela muda.
+- `runTaskNotifications` não manda mais e-mail de tarefa do cliente com link do Core (o portal cuida).

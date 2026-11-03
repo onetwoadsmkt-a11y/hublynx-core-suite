@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { KeyRound, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -211,6 +213,7 @@ export function PortalShell({
                 {session.email}
               </span>
             )}
+            <PortalBell />
             <PortalInstallButton />
             <Button
               variant="ghost"
@@ -322,5 +325,25 @@ function ChangePasswordDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Sino do portal: avisos do cliente (tarefas para ele, mensagens da equipe), com som. */
+function PortalBell() {
+  const qc = useQueryClient();
+  const router = useRouter();
+  return (
+    <NotificationsBell
+      client={portalAuth()}
+      className="h-10 w-10 text-muted-foreground hover:text-foreground"
+      onNew={() => {
+        qc.invalidateQueries({ queryKey: ["portal-project"] });
+        qc.invalidateQueries({ queryKey: ["portal-journey"] });
+      }}
+      openLink={(link) => {
+        qc.invalidateQueries({ queryKey: ["portal-project"] });
+        if (link.startsWith("/portal")) router.history.push(link);
+      }}
+    />
   );
 }

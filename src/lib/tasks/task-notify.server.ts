@@ -172,14 +172,17 @@ export async function runTaskNotifications(
 
   let q = admin
     .from("tasks")
-    .select("id, title, status, due_date, project_id, assignee_id, created_by, owner_id, updated_at, organization_id, priority, description")
+    .select("id, title, status, due_date, project_id, assignee_id, created_by, owner_id, updated_at, organization_id, priority, description, responsible_type")
     .not("assignee_id", "is", null)
     .not("status", "in", `(${OPEN.join(",")})`)
     .limit(2000);
   if (opts.organizationId) q = q.eq("organization_id", opts.organizationId);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  const tasks = (data ?? []) as (TaskRow & { organization_id: string })[];
+  // tarefas do cliente: o aviso vai pelo portal (sino + e-mail com o link do portal, migração 35)
+  const tasks = ((data ?? []) as (TaskRow & { organization_id: string; responsible_type?: string | null })[]).filter(
+    (t) => t.responsible_type !== "cliente",
+  );
   if (!tasks.length) return { mails, notified };
 
   const projectIds = [...new Set(tasks.map((t) => t.project_id).filter(Boolean))] as string[];

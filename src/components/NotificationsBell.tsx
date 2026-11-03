@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useRouter } from "@tanstack/react-router";
@@ -46,15 +47,32 @@ function playChime() {
   }
 }
 
-export function NotificationsBell() {
+/**
+ * Sino de avisos. No Core usa a sessão do Core; no portal do cliente recebe o cliente
+ * Supabase do portal (`client`) e o `openLink` que leva ao lugar certo dentro do portal.
+ */
+export function NotificationsBell({
+  client,
+  openLink,
+  onNew,
+  className,
+}: {
+  client?: SupabaseClient;
+  openLink?: (link: string) => void;
+  /** chamado a cada aviso novo (ex.: o portal recarrega as tarefas) */
+  onNew?: () => void;
+  className?: string;
+} = {}) {
+  const db = (client ?? supabase) as typeof supabase;
+  const scope = client ? "portal" : "core";
   const qc = useQueryClient();
   const router = useRouter();
-  const go = (link: string) => router.history.push(link);
+  const go = (link: string) => (openLink ? openLink(link) : router.history.push(link));
 
   const { data: items = [] } = useQuery({
-    queryKey: ["notifications"],
+    queryKey: ["notifications", scope],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("notifications").select("*").order("created_at", { ascending: false }).limit(30);
       if (error) throw error;
       return data as Notification[];
@@ -67,10 +85,10 @@ export function NotificationsBell() {
   useEffect(() => {
     let alive = true;
     let ch: ReturnType<typeof supabase.channel> | null = null;
-    supabase.auth.getUser().then(({ data }) => {
+    db.auth.getUser().then(({ data }) => {
       const uid = data.user?.id;
       if (!alive || !uid) return;
-      ch = supabase.channel(`notifications-bell-${uid}-${Math.random().toString(36).slice(2)}`);
+      ch = db.channel(`notifications-bell-${uid}-${Math.random().toString(36).slice(2)}`);
       ch.on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${uid}` },
@@ -80,6 +98,7 @@ export function NotificationsBell() {
           qc.invalidateQueries({ queryKey: ["my-assigned-tasks"] });
           if (!n?.id || seen.current.has(n.id)) return;
           seen.current.add(n.id);
+          onNew?.();
           playChime();
           toast(n.title, {
             description: n.body ?? undefined,
@@ -91,23 +110,44 @@ export function NotificationsBell() {
     });
     return () => {
       alive = false;
-      if (ch) supabase.removeChannel(ch);
+      if (ch) db.removeChannel(ch);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qc]);
+
+  // sem tempo real (ou aba voltando do segundo plano): aviso novo achado na consulta também toca
+  const mountedAt = useRef(Date.now());
+  useEffect(() => {
+    for (const n of items) {
+      if (n.read || seen.current.has(n.id)) continue;
+      if (new Date(n.created_at).getTime() < mountedAt.current - 5_000) {
+        seen.current.add(n.id);
+        continue;
+      }
+      seen.current.add(n.id);
+      onNew?.();
+      playChime();
+      toast(n.title, {
+        description: n.body ?? undefined,
+        action: n.link ? { label: "Abrir", onClick: () => go(n.link!) } : undefined,
+        duration: 8000,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   const unread = items.filter((n) => !n.read).length;
 
   const markRead = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("notifications").update({ read: true }).eq("id", id);
+      await db.from("notifications").update({ read: true }).eq("id", id);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
   const markAll = useMutation({
     mutationFn: async () => {
-      await supabase.from("notifications").update({ read: true }).eq("read", false);
+      await db.from("notifications").update({ read: true }).eq("read", false);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
@@ -120,7 +160,7 @@ export function NotificationsBell() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className={`relative ${className ?? ""}`} aria-label={unread ? `Notificações: ${unread} nova(s)` : "Notificações"}>
           <Bell className="h-5 w-5" />
           {unread > 0 && (
             <span className="absolute top-1.5 right-1.5 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center">
