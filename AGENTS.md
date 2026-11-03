@@ -97,3 +97,9 @@
 - Core: clicar no aviso (sino ou "Abrir tarefa" do toast) fecha o sino e abre `/projetos/<id>?aba=etapas&tarefa=<id>`; o Roadmap volta o filtro para "Todas", abre a etapa, abre "Concluídas" se preciso, rola e destaca a tarefa.
 - Portal: links `/portal/<projeto>?tarefa=<id>` (migração 35 refaz `project_notify` e `tg_task_comment_notify_client`). A página do portal abre a etapa, rola, destaca a tarefa e abre as mensagens dela (`FocusTaskContext`). `k` na URL força destacar de novo.
 - Portal: `openPortalNotice()` (PortalShell) aceita link do portal com `?tarefa=`, links antigos do Core (`/projetos/<id>?...tarefa=` / `?task=`) e avisos sem tarefa (evento `portal-focus-text`: a página acha a tarefa pelo título citado no aviso).
+
+## Planilhas do Comercial no portal + conversa no rodapé (migração 36)
+- `cost_sheets.portal_visible` ("Liberar para o cliente", `SheetPortalBar`) e `cost_sheet_messages` (equipe ↔ cliente, `recipient_id` quando o cliente direciona a uma pessoa).
+- Core: `sheet-messages.functions.ts` (setSheetPortal, list/send/deleteSheetMessage); `SheetClientChat` no fim de cada planilha. Link dos avisos: `/projetos/<id>?aba=comercial&planilha=<id>` (abre a planilha e rola até a conversa).
+- Portal: `portalPurchases` agora devolve as planilhas liberadas (uma a uma) + as de compras quando "Compras" está ligado, com mensagens e equipe; `portalSheetMessage` grava a mensagem do cliente (toda a equipe ou uma pessoa). Seção "Planilhas do projeto" (PortalPurchases) com `SheetChat`. Avisos: `/portal/<projeto>?planilha=<id>`.
+- Gatilho `tg_sheet_message_notify`: cliente → pessoa escolhida ou quem cuida do projeto; equipe → clientes do projeto (sino + e-mail).

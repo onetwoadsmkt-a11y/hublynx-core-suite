@@ -369,6 +369,11 @@ export function openPortalNotice(
   else if (/^\/portal\/[^/]+/.test(here)) base = here;
   if (!base) return;
   const k = Date.now();
+  const sheet = new RegExp(`planilha=(${UUID})`).exec(link)?.[1] ?? null;
+  if (sheet) {
+    router.history.push(`${base}?planilha=${sheet}&k=${k}`);
+    return;
+  }
   if (task) {
     router.history.push(`${base}?tarefa=${task}&k=${k}`);
     return;

@@ -342,6 +342,17 @@ export const portalAddMessage = createServerFn({ method: "POST" })
 
 /* ───────────── Compras visíveis ao cliente (somente leitura) ───────────── */
 
+export type PortalSheetMessage = {
+  id: string;
+  body: string;
+  created_at: string;
+  author: string;
+  author_kind: "equipe" | "cliente";
+  mine: boolean;
+  recipient: string | null;
+};
+export type PortalTeamMember = { id: string; name: string };
+
 export type PortalPurchaseSheet = {
   id: string;
   name: string;
@@ -356,6 +367,8 @@ export type PortalPurchaseSheet = {
     order?: { number?: string; date?: string };
   };
   orderFile: { id: string; name: string; size: number } | null;
+  /** conversa do rodapé da planilha (migração 36) */
+  messages: PortalSheetMessage[];
 };
 
 /** Projeto que o cliente pode ver (mesma conferência do portal) e se Compras está liberado. */
@@ -364,6 +377,8 @@ async function purchasesProject(tokenValue: string, projectRef: string) {
   const { data: id, error } = await db.rpc("portal_resolve", { _ref: projectRef });
   if (error) throw new Error(error.message);
   if (!id) throw new Error("NOT_CLIENT");
+  const { data: who } = await (db as any).auth.getUser(tokenValue);
+  const userId = (who?.user?.id as string | undefined) ?? null;
   const admin = await adminDb();
   const { data: p, error: pErr } = await admin
     .from("projects")
@@ -371,11 +386,15 @@ async function purchasesProject(tokenValue: string, projectRef: string) {
     .eq("id", id)
     .maybeSingle();
   // antes da migração 30 a coluna não existe: Compras fica fechado
-  if (pErr || !p) return { admin, projectId: id as string, enabled: false };
-  return { admin, projectId: id as string, enabled: !!(p as { portal_show_purchases?: boolean }).portal_show_purchases };
+  if (pErr || !p) return { admin, projectId: id as string, userId, enabled: false };
+  return { admin, projectId: id as string, userId, enabled: !!(p as { portal_show_purchases?: boolean }).portal_show_purchases };
 }
 
-async function purchaseSheets(admin: Db, projectId: string) {
+/**
+ * Planilhas que o cliente vê: as liberadas uma a uma ("Liberar para o cliente", migração 36)
+ * e, com Compras liberado no projeto, as planilhas de compras.
+ */
+async function purchaseSheets(admin: Db, projectId: string, purchasesOn = true) {
   const { isPurchaseSheet, upgradePurchaseSheet } = await import("@/lib/projects/cost-presets");
   const { data: depts } = await admin
     .from("cost_departments")
@@ -384,24 +403,83 @@ async function purchaseSheets(admin: Db, projectId: string) {
     .order("position");
   const dl = (depts ?? []) as { id: string; name: string }[];
   if (!dl.length) return [];
-  const { data: sheets } = await admin
+  let res = await admin
     .from("cost_sheets")
-    .select("id, department_id, name, columns, position, info")
+    .select("id, department_id, name, columns, position, info, portal_visible")
     .in("department_id", dl.map((d) => d.id))
     .order("position");
-  const list = ((sheets ?? []) as { id: string; department_id: string; name: string; columns: any[]; info: any }[])
+  if (res.error)
+    res = await admin
+      .from("cost_sheets")
+      .select("id, department_id, name, columns, position, info")
+      .in("department_id", dl.map((d) => d.id))
+      .order("position");
+  const list = ((res.data ?? []) as { id: string; department_id: string; name: string; columns: any[]; info: any; portal_visible?: boolean }[])
     .map((s) => ({ ...s, dept: dl.find((d) => d.id === s.department_id)?.name ?? "" }))
-    .filter((s) => isPurchaseSheet(s.name, s.dept, s.info?.title));
+    .filter((s) => s.portal_visible || (purchasesOn && isPurchaseSheet(s.name, s.dept, s.info?.title)));
   return list.map((s) => ({ ...s, ...upgradePurchaseSheet(s.name, s.columns ?? [], s.info) }));
+}
+
+/** Equipe do projeto (para o cliente direcionar a mensagem). */
+async function projectTeam(admin: Db, projectId: string): Promise<PortalTeamMember[]> {
+  const { data } = await admin
+    .from("project_members")
+    .select("user_id, name, email, access_role, status")
+    .eq("project_id", projectId)
+    .eq("status", "active")
+    .in("access_role", ["gestor", "editor", "executor"]);
+  const rows = ((data ?? []) as any[]).filter((m) => m.user_id);
+  const ids = [...new Set(rows.map((m) => m.user_id as string))];
+  const names = new Map<string, string>();
+  if (ids.length) {
+    const { data: ps } = await admin.from("profiles").select("id, full_name").in("id", ids);
+    for (const p of (ps ?? []) as any[]) if (p.full_name) names.set(p.id, p.full_name);
+  }
+  return ids
+    .map((id) => {
+      const m = rows.find((r) => r.user_id === id);
+      return { id, name: names.get(id) || m?.name || m?.email || "Equipe" };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+async function sheetMessages(admin: Db, sheetIds: string[], userId: string | null) {
+  const out = new Map<string, PortalSheetMessage[]>();
+  if (!sheetIds.length) return out;
+  const { data, error } = await admin
+    .from("cost_sheet_messages")
+    .select("id, sheet_id, body, created_at, author_id, author_kind, recipient_id")
+    .in("sheet_id", sheetIds)
+    .order("created_at");
+  if (error) return out; // antes da migração 36
+  const rows = (data ?? []) as any[];
+  const ids = [...new Set(rows.flatMap((r) => [r.author_id, r.recipient_id]).filter(Boolean))];
+  const names = new Map<string, string>();
+  if (ids.length) {
+    const { data: ps } = await admin.from("profiles").select("id, full_name").in("id", ids);
+    for (const p of (ps ?? []) as any[]) if (p.full_name) names.set(p.id, p.full_name);
+  }
+  for (const r of rows) {
+    const m: PortalSheetMessage = {
+      id: r.id,
+      body: r.body,
+      created_at: r.created_at,
+      author_kind: r.author_kind,
+      author: (r.author_id && names.get(r.author_id)) || (r.author_kind === "cliente" ? "Cliente" : "Equipe"),
+      mine: !!userId && r.author_id === userId,
+      recipient: r.recipient_id ? names.get(r.recipient_id) ?? "Equipe" : null,
+    };
+    out.set(r.sheet_id, [...(out.get(r.sheet_id) ?? []), m]);
+  }
+  return out;
 }
 
 export const portalPurchases = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ token, projectId: ref }).parse(d))
-  .handler(async ({ data }): Promise<{ enabled: boolean; sheets: PortalPurchaseSheet[] }> => {
-    const { admin, projectId, enabled } = await purchasesProject(data.token, data.projectId);
-    if (!enabled) return { enabled: false, sheets: [] };
-    const sheets = await purchaseSheets(admin, projectId);
-    if (!sheets.length) return { enabled: true, sheets: [] };
+  .handler(async ({ data }): Promise<{ enabled: boolean; sheets: PortalPurchaseSheet[]; team: PortalTeamMember[] }> => {
+    const { admin, projectId, enabled, userId } = await purchasesProject(data.token, data.projectId);
+    const sheets = await purchaseSheets(admin, projectId, enabled);
+    if (!sheets.length) return { enabled: false, sheets: [], team: [] };
     const { data: rows } = await admin
       .from("cost_sheet_rows")
       .select("id, sheet_id, position, data")
@@ -409,8 +487,10 @@ export const portalPurchases = createServerFn({ method: "GET" })
       .order("position")
       .order("created_at");
     const rl = (rows ?? []) as { id: string; sheet_id: string; data: Record<string, string | number | boolean | null> }[];
+    const msgs = await sheetMessages(admin, sheets.map((s) => s.id), userId);
     return {
       enabled: true,
+      team: await projectTeam(admin, projectId),
       sheets: sheets.map((s) => {
         const info = (s.info ?? {}) as any;
         const order = [...((info.attachments ?? []) as any[])].reverse().find((a) => a.order);
@@ -423,17 +503,48 @@ export const portalPurchases = createServerFn({ method: "GET" })
           // só o que o cliente precisa ver: sem caminhos de arquivo nem observações internas
           info: { title: info.title, fields: info.fields, adjustments: info.adjustments, totalKey: info.totalKey, order: info.order },
           orderFile: order ? { id: order.id, name: order.name, size: order.size } : null,
+          messages: msgs.get(s.id) ?? [],
         };
       }),
     };
+  });
+
+/** Cliente escreve no rodapé da planilha: para toda a equipe ou para uma pessoa da equipe. */
+export const portalSheetMessage = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z
+      .object({ token, projectId: ref, sheetId: uuid, body: z.string().trim().min(1).max(4000), recipientId: uuid.nullable().optional() })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { admin, projectId, enabled, userId } = await purchasesProject(data.token, data.projectId);
+    if (!userId) throw new Error(PORTAL_AUTH_ERROR);
+    const sheet = (await purchaseSheets(admin, projectId, enabled)).find((s) => s.id === data.sheetId);
+    if (!sheet) throw new Error("Esta planilha não está liberada para você.");
+    let recipient: string | null = null;
+    if (data.recipientId) {
+      const team = await projectTeam(admin, projectId);
+      if (!team.some((m) => m.id === data.recipientId)) throw new Error("Pessoa não faz parte da equipe do projeto.");
+      recipient = data.recipientId;
+    }
+    const { error } = await admin.from("cost_sheet_messages").insert({
+      sheet_id: sheet.id,
+      project_id: projectId,
+      author_id: userId,
+      author_kind: "cliente",
+      recipient_id: recipient,
+      body: data.body,
+    });
+    if (error) throw new Error(/cost_sheet_messages/.test(error.message) ? "Mensagens da planilha ainda não estão ativas." : error.message);
+    return { ok: true as const };
   });
 
 export const portalPurchaseOrderUrl = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ token, projectId: ref, sheetId: uuid, fileId: uuid }).parse(d))
   .handler(async ({ data }) => {
     const { admin, projectId, enabled } = await purchasesProject(data.token, data.projectId);
-    if (!enabled) throw new Error("Compras não está liberado para este projeto.");
-    const sheet = (await purchaseSheets(admin, projectId)).find((s) => s.id === data.sheetId);
+    const sheet = (await purchaseSheets(admin, projectId, enabled)).find((s) => s.id === data.sheetId);
+    if (!sheet) throw new Error("Esta planilha não está liberada para você.");
     const file = ((sheet?.info as any)?.attachments ?? []).find((a: any) => a.id === data.fileId && a.order);
     if (!file) throw new Error("Pedido não encontrado.");
     const { signedDownloadUrl } = await import("@/lib/projects/attachments.server");

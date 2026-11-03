@@ -19,6 +19,10 @@ import {
   Trash2,
   Upload,
   FileText,
+  Eye,
+  EyeOff,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -91,6 +95,7 @@ import {
 } from "@/lib/projects/sheet-import";
 import { exprLabel } from "@/lib/projects/sheet-formula";
 import { removeSheetFile, sheetFileUrl, uploadSheetFile } from "@/lib/projects/sheet-files.functions";
+import { deleteSheetMessage, listSheetMessages, sendSheetMessage, setSheetPortal } from "@/lib/projects/sheet-messages.functions";
 
 /** Guarda o arquivo importado nos anexos da planilha (não impede a importação se falhar). */
 async function attachImported(
@@ -539,10 +544,13 @@ export function ProjectDepartmentsPanel({
   projectId,
   templateId,
   canEdit,
+  focusSheet = null,
 }: {
   projectId: string;
   templateId: string | null;
   canEdit: boolean;
+  /** aviso de mensagem na planilha (?planilha=<id>): abre a planilha e rola até a conversa */
+  focusSheet?: string | null;
 }) {
   const qc = useQueryClient();
   const listFn = useServerFn(listProjectDepartments);
@@ -561,6 +569,21 @@ export function ProjectDepartmentsPanel({
     if (!depts.length) setActiveDept(null);
     else if (!activeDept || !depts.some((d) => d.id === activeDept)) setActiveDept(depts[0].id);
   }, [depts, activeDept]);
+
+  const focusedSheet = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusSheet || focusedSheet.current === focusSheet) return;
+    const d = depts.find((x) => x.sheets.some((s) => s.id === focusSheet));
+    if (!d) return;
+    focusedSheet.current = focusSheet;
+    setActiveDept(d.id);
+    const tryScroll = (n: number) => {
+      const el = document.getElementById(`planilha-conversa-${focusSheet}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      else if (n > 0) setTimeout(() => tryScroll(n - 1), 200);
+    };
+    setTimeout(() => tryScroll(12), 200);
+  }, [focusSheet, depts]);
 
   const load = useMutation({
     mutationFn: () => loadFn({ data: { projectId } }),
@@ -686,6 +709,7 @@ export function ProjectDepartmentsPanel({
             <DepartmentView
               key={dept.id}
               dept={dept}
+              focusSheet={focusSheet}
               canEdit={canEdit}
               queryKey={key}
               onEdit={() => setEditDept(dept)}
@@ -755,12 +779,14 @@ function DepartmentView({
   queryKey,
   onEdit,
   onDelete,
+  focusSheet = null,
 }: {
   dept: CostDepartment;
   canEdit: boolean;
   queryKey: unknown[];
   onEdit: () => void;
   onDelete: () => void;
+  focusSheet?: string | null;
 }) {
   const qc = useQueryClient();
   const sheetFn = useServerFn(saveSheet);
@@ -770,6 +796,9 @@ function DepartmentView({
   useEffect(() => {
     if (!dept.sheets.some((s) => s.id === activeSheet)) setActiveSheet(dept.sheets[0]?.id ?? null);
   }, [dept.sheets, activeSheet]);
+  useEffect(() => {
+    if (focusSheet && dept.sheets.some((s) => s.id === focusSheet)) setActiveSheet(focusSheet);
+  }, [focusSheet, dept.sheets]);
   const delSheet = useMutation({
     mutationFn: (id: string) => delSheetFn({ data: { id } }),
     onSuccess: () => {
@@ -1473,6 +1502,7 @@ function SheetGrid({
 
   return (
     <div className="space-y-3">
+      <SheetPortalBar sheet={sheet} canEdit={canEdit} queryKey={queryKey} />
       <SheetInfoHeader
         info={sheetInfo.info}
         canEdit={canEdit}
@@ -1620,6 +1650,148 @@ function SheetGrid({
         />
       )}
       <SheetAttachments sheet={sheet} canEdit={canEdit} queryKey={queryKey} />
+      <SheetClientChat sheet={sheet} />
+    </div>
+  );
+}
+
+/** "Liberar para o cliente": a planilha aparece no portal do cliente, só para ver. */
+function SheetPortalBar({ sheet, canEdit, queryKey }: { sheet: CostSheet; canEdit: boolean; queryKey: unknown[] }) {
+  const qc = useQueryClient();
+  const fn = useServerFn(setSheetPortal);
+  const on = !!sheet.portal_visible;
+  const m = useMutation({
+    mutationFn: (visible: boolean) => fn({ data: { sheetId: sheet.id, visible } }),
+    onSuccess: (_r, visible) => {
+      toast.success(visible ? "Planilha liberada: o cliente vê no portal (só leitura)" : "Planilha oculta do cliente");
+      qc.invalidateQueries({ queryKey });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2",
+        on ? "border-emerald-300 bg-emerald-50 dark:border-emerald-500/40 dark:bg-emerald-500/10" : "bg-muted/30",
+      )}
+    >
+      <p className="flex items-center gap-2 text-xs">
+        {on ? <Eye className="h-4 w-4 text-emerald-700" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+        <span className={on ? "font-semibold text-emerald-900 dark:text-emerald-200" : "text-muted-foreground"}>
+          {on ? "Liberada para o cliente — ele vê no portal, só para consulta" : "Só a equipe vê esta planilha"}
+        </span>
+      </p>
+      {canEdit && (
+        <Button
+          size="sm"
+          variant={on ? "outline" : "default"}
+          className="h-8"
+          disabled={m.isPending}
+          onClick={() => m.mutate(!on)}
+        >
+          {on ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {on ? "Ocultar do cliente" : "Liberar para o cliente"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Rodapé da planilha: conversa da equipe com o cliente (o cliente responde pelo portal). */
+function SheetClientChat({ sheet }: { sheet: CostSheet }) {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listSheetMessages);
+  const sendFn = useServerFn(sendSheetMessage);
+  const delFn = useServerFn(deleteSheetMessage);
+  const key = ["sheet-messages", sheet.id];
+  const q = useQuery({ queryKey: key, queryFn: () => listFn({ data: { sheetId: sheet.id } }), refetchInterval: 60_000 });
+  const [body, setBody] = useState("");
+  const [all, setAll] = useState(false);
+  const send = useMutation({
+    mutationFn: (text: string) => sendFn({ data: { sheetId: sheet.id, body: text } }),
+    onSuccess: () => {
+      setBody("");
+      toast.success("Mensagem enviada ao cliente (portal e e-mail)");
+      qc.invalidateQueries({ queryKey: key });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => delFn({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (q.data && !q.data.ready) return null; // antes da migração 36
+  const list = q.data?.messages ?? [];
+  const shown = all ? list : list.slice(-4);
+  const on = !!sheet.portal_visible;
+  return (
+    <div id={`planilha-conversa-${sheet.id}`} className="scroll-mt-28 space-y-2 rounded-xl border bg-muted/20 p-3">
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <MessageSquare className="h-4 w-4" /> Conversa com o cliente
+      </p>
+      {!on && (
+        <p className="text-xs text-muted-foreground">Libere a planilha para o cliente ver e conversar com a equipe por aqui.</p>
+      )}
+      {list.length > 4 && (
+        <button type="button" onClick={() => setAll((v) => !v)} className="text-xs font-medium text-primary hover:underline">
+          {all ? "Mostrar só as últimas" : `Ver todas as mensagens (${list.length})`}
+        </button>
+      )}
+      {shown.map((m) => (
+        <div
+          key={m.id}
+          className={cn(
+            "max-w-[92%] rounded-lg px-3 py-2 text-sm",
+            m.author_kind === "cliente" ? "bg-amber-50 ring-1 ring-amber-200/70 dark:bg-amber-500/10" : "ml-auto bg-background ring-1 ring-border",
+          )}
+        >
+          <p className="mb-0.5 flex items-start gap-1 text-[11px] text-muted-foreground">
+            <span className="min-w-0 flex-1">
+              <strong className="text-foreground">{m.author}</strong>
+              {m.author_kind === "cliente" ? ` (cliente) → ${m.recipient ?? "toda a equipe"}` : " → cliente"} ·{" "}
+              {new Date(m.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+            </span>
+            {m.author_kind === "equipe" && (
+              <button
+                type="button"
+                className="-m-1 rounded p-1 hover:text-rose-600"
+                aria-label="Excluir mensagem"
+                onClick={() => confirm("Excluir esta mensagem?") && del.mutate(m.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </p>
+          <p className="whitespace-pre-wrap break-words">{m.body}</p>
+        </div>
+      ))}
+      <div className="flex items-center gap-1.5">
+        <Input
+          value={body}
+          disabled={!on}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && body.trim()) {
+              e.preventDefault();
+              send.mutate(body.trim());
+            }
+          }}
+          maxLength={4000}
+          placeholder={on ? "Mensagem para o cliente…" : "Libere a planilha para conversar com o cliente"}
+          aria-label={`Mensagem ao cliente sobre a planilha ${sheet.name}`}
+          className="h-10 min-w-0 flex-1 bg-background"
+        />
+        <Button
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          disabled={!on || !body.trim() || send.isPending}
+          onClick={() => send.mutate(body.trim())}
+          aria-label="Enviar mensagem ao cliente"
+        >
+          <Send className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

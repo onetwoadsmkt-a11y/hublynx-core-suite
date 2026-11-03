@@ -1,11 +1,26 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, FileText, Loader2, ShoppingCart } from "lucide-react";
+import { Check, ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Lock, MessageSquare, Send, UserRound, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { usePortalSession } from "@/components/portal/PortalShell";
-import { portalPurchaseOrderUrl, portalPurchases, type PortalPurchaseSheet } from "@/lib/portal/portal.functions";
+import {
+  portalPurchaseOrderUrl,
+  portalPurchases,
+  portalSheetMessage,
+  type PortalPurchaseSheet,
+  type PortalTeamMember,
+} from "@/lib/portal/portal.functions";
 import { calcValue, toNumber, validityState, type CostColumn } from "@/lib/projects/cost-presets";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +76,17 @@ function Cell({ c, row, cols }: { c: CostColumn; row: Record<string, unknown>; c
   }
 }
 
-function SheetTable({ sheet, projectId, session }: { sheet: PortalPurchaseSheet; projectId: string; session: ReturnType<typeof usePortalSession> }) {
+function SheetTable({
+  sheet,
+  projectId,
+  session,
+  team = [],
+}: {
+  sheet: PortalPurchaseSheet;
+  projectId: string;
+  session: ReturnType<typeof usePortalSession>;
+  team?: PortalTeamMember[];
+}) {
   const urlFn = useServerFn(portalPurchaseOrderUrl);
   const [busy, setBusy] = useState(false);
   const cols = sheet.columns.filter((c) => !c.key.startsWith("__"));
@@ -171,34 +196,182 @@ function SheetTable({ sheet, projectId, session }: { sheet: PortalPurchaseSheet;
           <div className="flex justify-between border-t pt-1.5 text-base font-extrabold"><span>Total geral</span><span className="tabular-nums">{BRL.format(grand)}</span></div>
         </div>
       )}
+      <SheetChat sheet={sheet} team={team} projectId={projectId} session={session} />
     </div>
   );
 }
 
-/** Seção "Compras" do portal: só aparece quando a equipe liberou no Comercial. */
-export function PortalPurchases({ projectId, session }: { projectId: string; session: ReturnType<typeof usePortalSession> }) {
+/** Rodapé da planilha: conversa com a equipe (toda a equipe ou uma pessoa). */
+function SheetChat({
+  sheet,
+  team,
+  projectId,
+  session,
+}: {
+  sheet: PortalPurchaseSheet;
+  team: PortalTeamMember[];
+  projectId: string;
+  session: ReturnType<typeof usePortalSession>;
+}) {
+  const qc = useQueryClient();
+  const sendFn = useServerFn(portalSheetMessage);
+  const [body, setBody] = useState("");
+  const [to, setTo] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [all, setAll] = useState(false);
+  const toName = to ? team.find((m) => m.id === to)?.name ?? null : null;
+  const list = sheet.messages ?? [];
+  const shown = all ? list : list.slice(-4);
+  async function send() {
+    const text = body.trim();
+    if (!text) return;
+    setSending(true);
+    try {
+      await session.call((token) => sendFn({ data: { token, projectId, sheetId: sheet.id, body: text, recipientId: to } }));
+      setBody("");
+      toast.success(toName ? `Mensagem enviada para ${toName.split(" ")[0]}` : "Mensagem enviada para a equipe");
+      qc.invalidateQueries({ queryKey: ["portal-purchases", projectId] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+  return (
+    <div id="planilha-conversa" className="scroll-mt-28 space-y-2 rounded-2xl border bg-muted/30 p-3">
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <MessageSquare className="h-4 w-4" /> Conversa sobre esta planilha
+      </p>
+      {list.length > 4 && (
+        <button type="button" onClick={() => setAll((v) => !v)} className="text-xs font-medium text-primary hover:underline">
+          {all ? "Mostrar só as últimas" : `Ver todas as mensagens (${list.length})`}
+        </button>
+      )}
+      {shown.length === 0 && <p className="text-xs text-muted-foreground">Dúvida sobre algum item? Escreva para a equipe aqui.</p>}
+      {shown.map((m) => (
+        <div
+          key={m.id}
+          className={cn(
+            "max-w-[92%] rounded-xl px-3 py-2 text-sm",
+            m.author_kind === "cliente" ? "ml-auto bg-amber-50 ring-1 ring-amber-200/70" : "bg-background ring-1 ring-black/[0.06]",
+          )}
+        >
+          <p className="mb-0.5 text-[11px] text-muted-foreground">
+            <strong className="text-foreground">{m.mine ? "Você" : m.author}</strong>
+            {m.author_kind === "cliente" ? (m.recipient ? ` → ${m.recipient}` : " → toda a equipe") : " (equipe)"} ·{" "}
+            {new Date(m.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+          </p>
+          <p className="whitespace-pre-wrap break-words">{m.body}</p>
+        </div>
+      ))}
+      <div className="flex items-center gap-1.5">
+        <Input
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          maxLength={4000}
+          placeholder={toName ? `Mensagem para ${toName.split(" ")[0]}…` : "Mensagem para a equipe…"}
+          aria-label={`Mensagem sobre a planilha ${sheet.name}`}
+          className="h-11 min-w-0 flex-1 bg-background"
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-11 max-w-[150px] shrink-0 items-center gap-1 rounded-md border bg-background px-2.5 text-xs font-medium",
+                to ? "border-primary" : "text-muted-foreground",
+              )}
+              aria-label={`Destino: ${toName ?? "toda a equipe"}. Clique para trocar.`}
+            >
+              {to ? <UserRound className="h-3.5 w-3.5 shrink-0" /> : <Users className="h-3.5 w-3.5 shrink-0" />}
+              <span className="truncate">{toName ? toName.split(" ")[0] : "Equipe"}</span>
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-80 w-60 overflow-y-auto">
+            <DropdownMenuItem onSelect={() => setTo(null)}>
+              <Users className="h-4 w-4" /> Toda a equipe
+              {!to && <Check className="ml-auto h-4 w-4" />}
+            </DropdownMenuItem>
+            {team.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Direcionar para</DropdownMenuLabel>
+                {team.map((m) => (
+                  <DropdownMenuItem key={m.id} onSelect={() => setTo(m.id)}>
+                    <UserRound className="h-4 w-4" />
+                    <span className="truncate">{m.name}</span>
+                    {to === m.id && <Check className="ml-auto h-4 w-4" />}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button size="icon" className="h-11 w-11 shrink-0" disabled={!body.trim() || sending} onClick={send} aria-label="Enviar mensagem">
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        </Button>
+      </div>
+      <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+        <Lock className="h-3 w-3" /> A planilha é só para consulta; as alterações são feitas pela equipe.
+      </p>
+    </div>
+  );
+}
+
+/** Seção "Planilhas do projeto": as planilhas do Comercial liberadas pela equipe (só para ver) + conversa. */
+export function PortalPurchases({
+  projectId,
+  session,
+  focusSheet = null,
+  focusKey = null,
+}: {
+  projectId: string;
+  session: ReturnType<typeof usePortalSession>;
+  /** aviso de mensagem na planilha (?planilha=<id>) */
+  focusSheet?: string | null;
+  focusKey?: string | null;
+}) {
   const fn = useServerFn(portalPurchases);
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["portal-purchases", projectId],
     queryFn: () => session.call((token) => fn({ data: { token, projectId } })),
     enabled: session.ready,
-    refetchInterval: 300_000,
+    refetchInterval: 60_000,
   });
   const sheets = q.data?.enabled ? q.data.sheets : [];
+  const team = q.data?.team ?? [];
   const [active, setActive] = useState<string | null>(null);
+  // aviso de mensagem na planilha (?planilha=<id>): abre a planilha e rola até ela
+  const wanted = focusSheet;
+  useEffect(() => {
+    if (!wanted || !sheets.some((s) => s.id === wanted)) return;
+    setActive(wanted);
+    qc.invalidateQueries({ queryKey: ["portal-purchases", projectId] });
+    setTimeout(() => document.getElementById("planilha-conversa")?.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wanted, focusKey, sheets.length]);
   if (!sheets.length) return null;
   const cur = sheets.find((s) => s.id === active) ?? sheets[0];
   return (
     <section
-      aria-label="Compras"
+      id="planilhas"
+      aria-label="Planilhas do projeto"
       className="rounded-3xl bg-card p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_16px_40px_-20px_rgba(16,24,40,0.22)] dark:ring-1 dark:ring-white/10 sm:p-7"
     >
       <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
-        <ShoppingCart className="h-4 w-4" /> Compras
+        <FileSpreadsheet className="h-4 w-4" /> Planilhas do projeto
       </h2>
-      <p className="mb-4 text-xs text-muted-foreground">Itens comprados para o seu projeto e o pedido enviado ao fornecedor. Somente para consulta.</p>
+      <p className="mb-4 text-xs text-muted-foreground">Planilhas liberadas pela equipe, somente para consulta. Use a conversa no fim de cada planilha para falar com a equipe.</p>
       {sheets.length > 1 && (
-        <div role="tablist" aria-label="Planilhas de compras" className="mb-3 flex flex-wrap gap-1">
+        <div role="tablist" aria-label="Planilhas" className="mb-3 flex flex-wrap gap-1">
           {sheets.map((s) => (
             <button
               key={s.id}
@@ -213,7 +386,7 @@ export function PortalPurchases({ projectId, session }: { projectId: string; ses
           ))}
         </div>
       )}
-      <SheetTable key={cur.id} sheet={cur} projectId={projectId} session={session} />
+      <SheetTable key={cur.id} sheet={cur} projectId={projectId} session={session} team={team} />
     </section>
   );
 }

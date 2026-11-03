@@ -46,8 +46,9 @@ export const Route = createFileRoute("/portal/$projectId")({
   ssr: false,
   head: () => ({ meta: [{ title: "Projeto — Portal do cliente" }] }),
   // ?tarefa=<id> (links dos avisos do sino e do e-mail) abre a etapa e destaca a tarefa
-  validateSearch: (s: Record<string, unknown>): { tarefa?: string; k?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { tarefa?: string; planilha?: string; k?: string } => ({
     tarefa: typeof s.tarefa === "string" && /^[0-9a-f-]{36}$/i.test(s.tarefa) ? s.tarefa : undefined,
+    planilha: typeof s.planilha === "string" && /^[0-9a-f-]{36}$/i.test(s.planilha) ? s.planilha : undefined,
     k: typeof s.k === "string" || typeof s.k === "number" ? String(s.k) : undefined,
   }),
   component: PortalProjectPage,
@@ -537,7 +538,7 @@ function PortalProjectPage() {
             <Legend />
           </section>
 
-          <PortalPurchases projectId={projectId} session={session} />
+          <PortalPurchases projectId={projectId} session={session} focusSheet={search.planilha ?? null} focusKey={search.k ?? null} />
 
           <section className="rounded-3xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_16px_40px_-20px_rgba(16,24,40,0.22)] dark:ring-1 dark:ring-white/10 p-5 sm:p-7">
             <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">

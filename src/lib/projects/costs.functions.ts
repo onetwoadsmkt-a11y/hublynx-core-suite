@@ -22,6 +22,8 @@ export type CostSheet = {
   rows: CostRow[];
   /** cabeçalho/resumo vindos da planilha importada (migração 26) */
   info: SheetInfo;
+  /** liberada para o cliente ver no portal (migração 36) */
+  portal_visible?: boolean;
 };
 export type CostDepartment = {
   id: string;
@@ -141,9 +143,17 @@ export const listProjectDepartments = createServerFn({ method: "GET" })
     const deptIds = list.map((d) => d.id);
     let { data: sheets, error: sErr } = await db
       .from("cost_sheets")
-      .select("id, department_id, name, columns, position, info")
+      .select("id, department_id, name, columns, position, info, portal_visible")
       .in("department_id", deptIds)
       .order("position");
+    if (sErr) {
+      // antes da migração 36 não há portal_visible
+      ({ data: sheets, error: sErr } = await db
+        .from("cost_sheets")
+        .select("id, department_id, name, columns, position, info")
+        .in("department_id", deptIds)
+        .order("position"));
+    }
     if (sErr) {
       // antes da migração 26 não há a coluna info
       ({ data: sheets, error: sErr } = await db

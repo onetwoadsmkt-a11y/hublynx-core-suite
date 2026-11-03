@@ -65,7 +65,8 @@ const TAB_ALIAS: Record<string, string> = {
 const TAB_VALUES = ["evolution", "stages", "team", "journey", "files", "commercial", "deliveries", "kanban", "activity", "risks", "notes"];
 
 export const Route = createFileRoute("/_authenticated/projetos/$id")({
-  validateSearch: (s: Record<string, unknown>): { aba?: string; tarefa?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { aba?: string; tarefa?: string; planilha?: string } => ({
+    planilha: typeof s.planilha === "string" && /^[0-9a-f-]{36}$/i.test(s.planilha) ? s.planilha : undefined,
     aba: typeof s.aba === "string" ? s.aba : undefined,
     tarefa: typeof s.tarefa === "string" && /^[0-9a-f-]{36}$/i.test(s.tarefa) ? s.tarefa : undefined,
   }),
@@ -171,7 +172,7 @@ function ProjectCommandCenter() {
       setFocusTask(search.tarefa);
     } else if (fromUrl && TAB_VALUES.includes(fromUrl)) setTab(fromUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search.aba, search.tarefa]);
+  }, [search.aba, search.tarefa, search.planilha]);
   const openTask = (taskId: string) => {
     navigate({ to: "/projetos/$id", params: { id }, search: { aba: "etapas", tarefa: taskId } as any });
     requestAnimationFrame(() =>
@@ -343,7 +344,7 @@ function ProjectCommandCenter() {
               <ProjectTeamSidebar projectId={id} onOpenTeam={() => setTab("team")} />
             </div>
           </TabsContent>
-          <TabsContent value="commercial"><CommercialPanel commercial={d.commercial} projectId={id} /><ProjectDepartmentsPanel projectId={id} templateId={p.template_id ?? null} canEdit={canEdit} /></TabsContent>
+          <TabsContent value="commercial"><CommercialPanel commercial={d.commercial} projectId={id} /><ProjectDepartmentsPanel projectId={id} templateId={p.template_id ?? null} canEdit={canEdit} focusSheet={search.planilha ?? null} /></TabsContent>
           <TabsContent value="deliveries"><UpcomingDeliveries upcoming={d.upcomingDeliveries} /></TabsContent>
           <TabsContent value="kanban"><KanbanCompact counts={d.kanbanCounts} /></TabsContent>
           <TabsContent value="activity"><ActivityFeed activity={d.activity} /></TabsContent>
