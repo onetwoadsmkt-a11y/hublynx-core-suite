@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { PRIORITY_LABEL, PRIORITY_TONE, type Priority } from "@/components/tasks/TaskDrawer";
-import { LeadLink } from "@/components/pipeline/LeadCardHost";
+import { LeadLink, OpenLeadButton } from "@/components/pipeline/LeadCardHost";
 import { isDoneStatus, isOverdue, type PendingPriority } from "@/lib/tasks/pending";
 import type { LeadScheduledTask } from "@/lib/pipeline/task-display";
 import { PendingItemDetails } from "@/components/tasks/PendingItemDetails";
@@ -114,6 +114,7 @@ export function DayPendingSheet({
                     {time && <span className="tabular-nums">{time}</span>}
                     {overdue && <span className="font-medium text-destructive">Atrasada</span>}
                     {i.leadTask && <LeadLink leadId={i.leadTask.lead_id} name={i.leadTask.leads.name} />}
+                    {i.leadTask && <OpenLeadButton leadId={i.leadTask.lead_id} size="xs" onBeforeOpen={() => onOpenChange(false)} />}
                   </div>
                 </div>
                 <Badge variant="outline" className={cn("shrink-0 text-[10px]", PRIORITY_TONE[i.priority as Priority])}>

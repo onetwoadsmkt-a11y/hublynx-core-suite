@@ -12,7 +12,7 @@ import { deleteLeadTask, toggleLeadTask, upsertLeadTask } from "@/lib/pipeline/p
 import type { LeadScheduledTask } from "@/lib/pipeline/task-display";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { invalidatePendingQueries } from "@/hooks/usePendingItems";
-import { LeadLink } from "@/components/pipeline/LeadCardHost";
+import { OpenLeadButton } from "@/components/pipeline/LeadCardHost";
 import { LeadTaskActions, LeadTaskNotes } from "@/components/pipeline/LeadTaskActions";
 
 const PRIORITIES = [
@@ -54,7 +54,10 @@ export function LeadTaskDialog({ task, onClose }: { task: LeadScheduledTask; onC
       <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Agendamento</DialogTitle>
-          <LeadLink leadId={task.lead_id} name={task.leads.name} className="text-sm" prefix="Abrir cartão do lead · " />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="min-w-0 truncate text-sm text-muted-foreground">Lead: <strong className="text-foreground">{task.leads.name}</strong></span>
+            <OpenLeadButton leadId={task.lead_id} label="Abrir card do lead" onBeforeOpen={onClose} />
+          </div>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1"><Label htmlFor="lead-task-title">Título</Label><Input id="lead-task-title" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} /></div>

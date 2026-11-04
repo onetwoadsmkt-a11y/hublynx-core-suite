@@ -75,7 +75,7 @@ function LeadBlock({ leadId }: { leadId: string }) {
         </>
       )}
       <Button size="sm" className="w-full" onClick={() => openLeadCard(leadId)}>
-        <UserIcon className="mr-1.5 h-4 w-4" /> Abrir cartão do lead
+        <UserIcon className="mr-1.5 h-4 w-4" /> Abrir card do lead
       </Button>
     </section>
   );

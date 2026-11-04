@@ -42,7 +42,7 @@ import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
 import { usePendingItems, invalidatePendingQueries } from "@/hooks/usePendingItems";
 import { useGoogleTaskSync } from "@/hooks/useGoogleSync";
 import { TasksViewSwitch } from "@/components/tasks/TasksViewSwitch";
-import { LeadLink } from "@/components/pipeline/LeadCardHost";
+import { LeadLink, OpenLeadButton } from "@/components/pipeline/LeadCardHost";
 import { isPriorityLevel } from "@/lib/tasks/pending";
 import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
 import { matchesTaskDateRange } from "@/lib/tasks/date-filter";
@@ -674,6 +674,7 @@ function TaskListItem({
               <p className="text-sm font-semibold text-foreground truncate">{task.title}</p>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 {task.leadTask && <span className="inline-flex min-w-0 items-center gap-1"><UserIcon className="h-3 w-3 shrink-0" /><LeadLink leadId={task.leadTask.lead_id} name={task.leadTask.leads.name} /></span>}
+                {task.leadTask && <OpenLeadButton leadId={task.leadTask.lead_id} size="xs" />}
                 {client && (
                   <span className="inline-flex items-center gap-1 truncate max-w-[180px]">
                     <UserIcon className="h-3 w-3 shrink-0" />
@@ -937,6 +938,7 @@ function TaskCard({
         </div>
 
         {task.leadTask && <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><UserIcon className="h-3 w-3 shrink-0" /><LeadLink leadId={task.leadTask.lead_id} name={task.leadTask.leads.name} /></p>}
+        {task.leadTask && <OpenLeadButton leadId={task.leadTask.lead_id} size="xs" className="mt-1.5" />}
         {client && (
           <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
             <Building2 className="h-3 w-3 shrink-0" /> <span className="truncate">{client.name}</span>

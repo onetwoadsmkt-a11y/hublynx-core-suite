@@ -44,6 +44,45 @@ export function LeadLink({
   );
 }
 
+/** Botão "Abrir lead": abre o cartão do lead por cima da tela (fecha antes o que pedir). */
+export function OpenLeadButton({
+  leadId,
+  className,
+  size = "sm",
+  label = "Abrir lead",
+  onBeforeOpen,
+}: {
+  leadId: string;
+  className?: string;
+  size?: "sm" | "xs";
+  label?: string;
+  onBeforeOpen?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onBeforeOpen?.();
+        // deixa o diálogo/painel atual fechar antes de abrir o cartão
+        setTimeout(() => openLeadCard(leadId), onBeforeOpen ? 60 : 0);
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-amber-50 font-semibold text-amber-900 transition hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200",
+        size === "xs" ? "h-6 px-1.5 text-[10px]" : "h-8 px-2.5 text-xs",
+        className,
+      )}
+      title="Abrir o cartão do lead"
+    >
+      <svg viewBox="0 0 24 24" className={size === "xs" ? "h-3 w-3" : "h-3.5 w-3.5"} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
 /** Montado uma vez no AppShell. */
 export function LeadCardHost() {
   const leadId = useSyncExternalStore(subscribe, () => openLeadId, () => null);

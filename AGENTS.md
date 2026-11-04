@@ -122,3 +122,5 @@
 - `usePendingItems` busca as tarefas em páginas (`fetchAllRows`): acima de 1.000 tarefas a nova podia não aparecer.
 - Agenda: evento do Google → "Criar lead no Core" (`createLeadFromGoogleEvent`: cria o lead na etapa escolhida e liga o evento como agendamento, sem criar outro evento). Eventos de agendamentos de qualquer pessoa da equipe deixam de aparecer duplicados em azul.
 - Build: se abortar por memória, `NODE_OPTIONS=--max-old-space-size=4096 npx vite build`.
+
+- **Botão "Abrir card do lead" nos agendamentos:** `OpenLeadButton` (em `src/components/pipeline/LeadCardHost.tsx`) abre o card do lead via `openLeadCard`. Fica no cabeçalho do `LeadTaskDialog` (fecha o diálogo antes), nos detalhes do evento da Agenda, na lista do dia (`DayPendingSheet`) e nos cards de lista/kanban de `/tarefas`. Use `onBeforeOpen` quando precisar fechar um sheet/diálogo antes de abrir o card.

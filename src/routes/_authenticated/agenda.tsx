@@ -28,7 +28,7 @@ import { usePendingItems, invalidatePendingQueries, type PendingItem } from "@/h
 import { PendingItemDetails } from "@/components/tasks/PendingItemDetails";
 import { useGoogleTaskSync } from "@/hooks/useGoogleSync";
 import { DayPendingSheet, type DayExtra } from "@/components/tasks/DayPendingSheet";
-import { LeadLink } from "@/components/pipeline/LeadCardHost";
+import { LeadLink, OpenLeadButton } from "@/components/pipeline/LeadCardHost";
 import { dueDayKey, isOverdue, isPriorityLevel } from "@/lib/tasks/pending";
 import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
 import { PRIORITY_LABEL, PRIORITY_TONE } from "@/components/tasks/TaskDrawer";
@@ -751,8 +751,11 @@ function EventDetails({ event }: { event: AgendaEvent }) {
             )}
           </div>
         )}
-        {event.leadId && event.leadName && (
-          <div className="text-xs"><LeadLink leadId={event.leadId} name={event.leadName} /></div>
+        {event.leadId && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {event.leadName && <LeadLink leadId={event.leadId} name={event.leadName} />}
+            <OpenLeadButton leadId={event.leadId} label="Abrir card do lead" />
+          </div>
         )}
         <div className="text-xs text-muted-foreground">
           {event.allDay ? "Dia inteiro" : fmt(new Date(event.start), { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
