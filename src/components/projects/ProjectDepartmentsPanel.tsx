@@ -1,4 +1,5 @@
 import type React from "react";
+import { CELL_COLORS, ROW_COLOR, cellColorKey, colorCls, fmtNumber, rowIsResolved, StatusChip, ValidityChip, ValidityLegend } from "@/components/projects/sheet-look";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -526,20 +527,6 @@ const DEPT_COLORS = [
   "#64748b",
 ];
 
-function fmtNumber(n: number | null, type: CostColumnType | "calc-percent") {
-  if (n === null) return "";
-  if (type === "currency") return maskBRL(n);
-  if (type === "percent" || type === "calc-percent")
-    return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
-  return n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
-}
-
-function rowIsResolved(columns: CostColumn[], data: Record<string, unknown>) {
-  return columns.some(
-    (c) => c.type === "status" && c.options?.some((o) => o.done && o.label === data[c.key]),
-  );
-}
-
 export function ProjectDepartmentsPanel({
   projectId,
   templateId,
@@ -918,45 +905,6 @@ function DepartmentView({
         }}
         saveFn={sheetFn}
       />
-    </div>
-  );
-}
-
-const VALIDITY_TONE: Record<string, string> = {
-  ok: "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
-  warn: "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200",
-  action: "bg-orange-100 text-orange-900 dark:bg-orange-500/15 dark:text-orange-200",
-  info: "bg-sky-100 text-sky-900 dark:bg-sky-500/15 dark:text-sky-200",
-  late: "bg-rose-100 text-rose-900 dark:bg-rose-500/15 dark:text-rose-200",
-};
-
-function ValidityChip({ value }: { value: unknown }) {
-  const st = validityState(value);
-  if (!st) return null;
-  return (
-    <span
-      className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold", VALIDITY_TONE[st.tone])}
-      title={st.days > 0 ? `Faltam ${st.days} dia(s)` : st.days === 0 ? "Vence hoje" : `Venceu há ${-st.days} dia(s)`}
-    >
-      {st.label}
-    </span>
-  );
-}
-
-function ValidityLegend() {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {[
-        ["ok", "Válido · mais de 180 dias"],
-        ["warn", "Atenção · até 180 dias"],
-        ["action", "Ação · até 90 dias"],
-        ["info", "Informativo · até 45 dias"],
-        ["late", "Vencido"],
-      ].map(([t, l]) => (
-        <span key={t} className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", VALIDITY_TONE[t])}>
-          {l}
-        </span>
-      ))}
     </div>
   );
 }
@@ -1796,20 +1744,6 @@ function SheetClientChat({ sheet }: { sheet: CostSheet }) {
   );
 }
 
-/** Cores de destaque das linhas/células (guardadas na própria linha: "__cor" e "__cor:<coluna>"). */
-const CELL_COLORS: { id: string; label: string; cls: string; dot: string }[] = [
-  { id: "amarelo", label: "Amarelo", cls: "bg-amber-100 dark:bg-amber-500/20", dot: "bg-amber-300" },
-  { id: "laranja", label: "Laranja", cls: "bg-orange-100 dark:bg-orange-500/20", dot: "bg-orange-400" },
-  { id: "vermelho", label: "Vermelho", cls: "bg-rose-100 dark:bg-rose-500/20", dot: "bg-rose-400" },
-  { id: "azul", label: "Azul", cls: "bg-sky-100 dark:bg-sky-500/20", dot: "bg-sky-400" },
-  { id: "verde", label: "Verde", cls: "bg-emerald-100 dark:bg-emerald-500/20", dot: "bg-emerald-400" },
-  { id: "roxo", label: "Roxo", cls: "bg-violet-100 dark:bg-violet-500/20", dot: "bg-violet-400" },
-  { id: "cinza", label: "Cinza", cls: "bg-slate-200 dark:bg-slate-500/25", dot: "bg-slate-400" },
-];
-const ROW_COLOR = "__cor";
-const cellColorKey = (k: string) => `__cor:${k}`;
-const colorCls = (id: unknown) => CELL_COLORS.find((c) => c.id === id)?.cls;
-
 function ColorDots({ value, onPick }: { value: unknown; onPick: (id: string | null) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -2094,20 +2028,6 @@ function RowEditor({
           </td>
         );
   }
-}
-
-function StatusChip({ column, value }: { column: CostColumn; value: string | null | undefined }) {
-  if (!value) return <span className="text-muted-foreground">—</span>;
-  const o = column.options?.find((x) => x.label === value);
-  const color = o?.color ?? "#64748b";
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
-      style={{ backgroundColor: `${color}1f`, color }}
-    >
-      {value}
-    </span>
-  );
 }
 
 function NewDepartmentDialog({

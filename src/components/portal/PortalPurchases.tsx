@@ -21,7 +21,8 @@ import {
   type PortalPurchaseSheet,
   type PortalTeamMember,
 } from "@/lib/portal/portal.functions";
-import { calcValue, toNumber, validityState, type CostColumn } from "@/lib/projects/cost-presets";
+import { calcValue, toNumber, type CostColumn } from "@/lib/projects/cost-presets";
+import { maskBRL, SheetReadOnlyTable, ValidityLegend } from "@/components/projects/sheet-look";
 import { cn } from "@/lib/utils";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -34,46 +35,6 @@ function fmtDate(v: unknown) {
 
 function cellValue(c: CostColumn, row: Record<string, unknown>, cols: CostColumn[]): number | null {
   return c.type === "calc" ? calcValue(c, row, cols) : toNumber(row[c.key]);
-}
-
-function Cell({ c, row, cols }: { c: CostColumn; row: Record<string, unknown>; cols: CostColumn[] }) {
-  const v = row[c.key];
-  switch (c.type) {
-    case "currency":
-      return <>{toNumber(v) === null ? "" : BRL.format(toNumber(v)!)}</>;
-    case "number":
-      return <>{toNumber(v)?.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) ?? ""}</>;
-    case "percent":
-      return <>{toNumber(v) === null ? "" : `${toNumber(v)!.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</>;
-    case "calc": {
-      const n = calcValue(c, row, cols);
-      if (n === null) return null;
-      if (c.calc?.asPercent) return <>{`${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</>;
-      if (c.calc?.asCurrency || c.sum) return <>{BRL.format(n)}</>;
-      return <>{n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</>;
-    }
-    case "date":
-      return <>{fmtDate(v)}</>;
-    case "boolean":
-      return <>{v === true || v === "true" ? "Sim" : v === false || v === "false" ? "Não" : ""}</>;
-    case "status": {
-      const opt = c.options?.find((o) => o.label === v);
-      if (!v) return null;
-      return (
-        <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: `${opt?.color ?? "#64748b"}22`, color: opt?.color }}>
-          {String(v)}
-        </span>
-      );
-    }
-    case "validity": {
-      const st = validityState(c.validity?.ref ? row[c.validity.ref] : null);
-      if (!st) return null;
-      const tone = { ok: "bg-emerald-100 text-emerald-800", warn: "bg-amber-100 text-amber-900", action: "bg-orange-100 text-orange-900", info: "bg-sky-100 text-sky-900", late: "bg-rose-100 text-rose-800" }[st.tone];
-      return <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", tone)}>{st.label}</span>;
-    }
-    default:
-      return <>{v === null || v === undefined ? "" : String(v)}</>;
-  }
 }
 
 function SheetTable({
@@ -101,6 +62,7 @@ function SheetTable({
   const grand = itemsTotal === null ? null : itemsTotal + adjustments.reduce((a, x) => a + (x.value ?? 0), 0);
   const order = sheet.info.order ?? {};
   const fields = (sheet.info.fields ?? []).filter((f) => f.value);
+  const hasValidity = cols.some((c) => c.type === "validity");
 
   return (
     <div className="space-y-3">
@@ -138,62 +100,52 @@ function SheetTable({
         </div>
       )}
 
-      {fields.length > 0 && (
-        <dl className="grid gap-x-4 gap-y-2 rounded-2xl bg-muted/40 p-3 text-sm [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
-          {fields.map((f) => (
-            <div key={f.key} className="min-w-0">
-              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{f.label}</dt>
-              <dd className="truncate font-medium">{f.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-
-      {sheet.rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum item lançado ainda.</p>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="bg-[var(--brand-ink,#0A173C)] text-left text-[11px] font-bold uppercase tracking-wide text-white">
-                {cols.map((c) => (
-                  <th key={c.key} className={cn("px-3 py-2.5", ["currency", "number", "percent", "calc"].includes(c.type) && "text-right")}>{c.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sheet.rows.map((r) => (
-                <tr key={r.id} className="border-t">
-                  {cols.map((c) => (
-                    <td key={c.key} className={cn("px-3 py-2", ["currency", "number", "percent", "calc"].includes(c.type) && "text-right tabular-nums")}>
-                      <Cell c={c} row={r.data} cols={cols} />
-                    </td>
-                  ))}
-                </tr>
+      {/* mesma aparência da equipe: cabeçalho, cores de linha/célula, larguras, coluna de total */}
+      {(fields.length > 0 || sheet.info.title) && (
+        <section aria-label={sheet.info.title || "Dados da planilha"} className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+          <h4 className="text-base font-extrabold">{sheet.info.title || sheet.name}</h4>
+          {fields.length > 0 && (
+            <dl className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(160px,1fr))]">
+              {fields.map((f) => (
+                <div key={f.key} className="flex min-w-0 flex-col gap-1">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{f.label}</dt>
+                  <dd className="truncate rounded-md border bg-muted/30 px-3 py-1.5 font-medium">{f.value}</dd>
+                </div>
               ))}
-            </tbody>
-            {cols.some((c) => c.sum) && (
-              <tfoot>
-                <tr className="border-t-2 bg-muted/50 font-bold">
-                  {cols.map((c, i) => (
-                    <td key={c.key} className={cn("px-3 py-2", c.sum && "text-right tabular-nums")}>
-                      {c.sum ? (c.type === "number" ? totals[c.key].toLocaleString("pt-BR") : BRL.format(totals[c.key])) : i === 0 ? "Total" : ""}
-                    </td>
-                  ))}
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+            </dl>
+          )}
+        </section>
       )}
 
-      {grand !== null && (
-        <div className="ml-auto max-w-sm space-y-1 rounded-2xl border p-3 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">Total dos itens</span><span className="tabular-nums">{BRL.format(itemsTotal!)}</span></div>
-          {adjustments.map((a) => (
-            <div key={a.key} className="flex justify-between"><span className="text-muted-foreground">{a.label}</span><span className="tabular-nums">{BRL.format(a.value!)}</span></div>
-          ))}
-          <div className="flex justify-between border-t pt-1.5 text-base font-extrabold"><span>Total geral</span><span className="tabular-nums">{BRL.format(grand)}</span></div>
+      <SheetReadOnlyTable columns={sheet.columns} rows={sheet.rows} />
+
+      {(hasValidity || grand !== null) && (
+        <div className="flex flex-wrap items-start gap-4">
+          {hasValidity && (
+            <section aria-label="Situação pela validade" className="min-w-[260px] flex-[999_1_420px] space-y-1.5 rounded-2xl border bg-card p-4 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Situação pela validade (recalculada todo dia)</p>
+              <ValidityLegend />
+            </section>
+          )}
+          {grand !== null && (
+            <section aria-label="Resumo de valores" className="ml-auto w-full max-w-[420px] flex-[1_1_340px] rounded-2xl border bg-card p-4 shadow-sm">
+              <h4 className="mb-1 text-base font-extrabold">Resumo</h4>
+              <div className="flex items-center justify-between gap-3 border-t py-2.5 text-sm">
+                <span>Total dos itens</span>
+                <strong className="tabular-nums">{maskBRL(itemsTotal)}</strong>
+              </div>
+              {adjustments.map((a) => (
+                <div key={a.key} className="flex items-center justify-between gap-3 border-t py-2 text-sm">
+                  <span>+ {a.label} {a.note && <span className="text-muted-foreground">({a.note})</span>}</span>
+                  <span className="tabular-nums">{maskBRL(a.value)}</span>
+                </div>
+              ))}
+              <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-primary px-4 py-3 text-base font-extrabold text-primary-foreground">
+                <span>Total geral</span>
+                <span className="tabular-nums">{maskBRL(grand)}</span>
+              </div>
+            </section>
+          )}
         </div>
       )}
       <SheetChat sheet={sheet} team={team} projectId={projectId} session={session} />
