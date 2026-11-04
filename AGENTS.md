@@ -139,3 +139,7 @@
 - Modal: `PopoverContent` em coluna (`flex-col`, altura máx. = espaço disponível `--radix-popover-content-available-height`), corpo `min-h-0 flex-1` com `grid-rows-[minmax(0,1fr)]` — cada coluna rola sozinha no computador; rodapé fixo. No celular vira `Sheet` de baixo (90dvh) com o corpo rolando.
 - Temperatura nos filtros (Pipeline e Relatório) = `leadTemperature()`: classificação do lead scoring primeiro (o que o card mostra), depois a temperatura manual (que é "morno" por padrão). Opção "Nutrição" incluída.
 - Origens: 30 mais usadas por tipo + as já selecionadas; aviso "+N outras — use a busca".
+
+## Arquivos do card do lead (04/11/2026)
+- `src/lib/pipeline/lead-files.functions.ts`: `uploadLeadFile` (FormData, valida com `readAttachment`, guarda no bucket privado `task-attachments` em `l/<empresa>/<lead>/<id>.<ext>` com a chave de serviço e registra em `lead_files` com o cliente do usuário/RLS), `leadFileUrl` (link de 5 min para toda a equipe que vê o lead) e `removeLeadFile` (apaga registro e arquivo). Caminhos antigos (sem `l/`) continuam no bucket `lead-files`.
+- Antes: upload direto do navegador com o nome original no caminho (acento/ç → "Invalid key"), erro engolido, e políticas `owner = auth.uid()` impediam a equipe de baixar.

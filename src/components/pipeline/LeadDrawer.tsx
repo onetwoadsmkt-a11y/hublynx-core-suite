@@ -1,4 +1,6 @@
 import { DuplicateBadge } from "@/components/pipeline/DuplicateLeadDialog";
+import { leadFileUrl, removeLeadFile, uploadLeadFile } from "@/lib/pipeline/lead-files.functions";
+import { ACCEPT_ATTACHMENTS, MAX_ATTACHMENT_MB } from "@/lib/projects/attachments.functions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -18,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  addLeadNote, deleteLeadFile, deleteLeadTask, getLeadDetail, listAllStages, moveLead, registerLeadFile,
+  addLeadNote, deleteLeadTask, getLeadDetail, listAllStages, moveLead,
   toggleLeadTask, upsertLeadTask,
 } from "@/lib/pipeline/pipeline.functions";
 import { setLeadTags } from "@/lib/pipeline/tags.functions";
@@ -119,8 +121,6 @@ export function LeadDrawer({
   const taskFn = useServerFn(upsertLeadTask);
   const toggleFn = useServerFn(toggleLeadTask);
   const delTaskFn = useServerFn(deleteLeadTask);
-  const fileFn = useServerFn(registerLeadFile);
-  const delFileFn = useServerFn(deleteLeadFile);
 
   const noteFn = useServerFn(addLeadNote);
 
@@ -271,27 +271,39 @@ export function LeadDrawer({
     onSuccess: refreshTasks,
     onError: (error: Error) => toast.error(error.message),
   });
+  const removeFileFn = useServerFn(removeLeadFile);
   const removeFile = useMutation({
-    mutationFn: (id: string) => delFileFn({ data: { id } }),
-    onSuccess: refresh,
+    mutationFn: (id: string) => removeFileFn({ data: { id } }),
+    onSuccess: () => { toast.success("Arquivo removido."); refresh(); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
-  async function onUpload(file: File) {
+  // Envio pelo servidor (nome com acento/ç funciona, erro aparece na tela, toda a equipe baixa).
+  const uploadFileFn = useServerFn(uploadLeadFile);
+  const fileUrlFn = useServerFn(leadFileUrl);
+  async function onUpload(list: FileList | File[]) {
     if (!lead) return;
+    const picked = Array.from(list);
+    if (!picked.length) return;
     setUploading(true);
+    let ok = 0;
     try {
-      const path = `${lead.id}/${crypto.randomUUID()}-${file.name}`;
-      const { error } = await supabase.storage.from("lead-files").upload(path, file);
-      if (error) throw error;
-      await fileFn({
-        data: {
-          leadId: lead.id,
-          name: file.name,
-          storage_path: path,
-          mime_type: file.type || null,
-          size_bytes: file.size,
-        },
-      });
+      for (const file of picked) {
+        if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
+          toast.error(`${file.name}: o arquivo deve ter no máximo ${MAX_ATTACHMENT_MB} MB.`);
+          continue;
+        }
+        try {
+          const fd = new FormData();
+          fd.set("leadId", lead.id);
+          fd.set("file", file);
+          await uploadFileFn({ data: fd });
+          ok++;
+        } catch (e: any) {
+          toast.error(`${file.name}: ${e?.message ?? "não foi possível anexar."}`);
+        }
+      }
+      if (ok) toast.success(ok === 1 ? "Arquivo anexado." : `${ok} arquivos anexados.`);
       refresh();
     } finally {
       setUploading(false);
@@ -299,11 +311,13 @@ export function LeadDrawer({
     }
   }
 
-  async function download(path: string, name: string) {
-    const { data: signed } = await supabase.storage
-      .from("lead-files")
-      .createSignedUrl(path, 300, { download: name });
-    if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+  async function download(id: string) {
+    try {
+      const { url } = await fileUrlFn({ data: { id } });
+      window.open(url, "_blank");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Não foi possível abrir o arquivo.");
+    }
   }
 
   const utms = lead
@@ -755,13 +769,16 @@ export function LeadDrawer({
                       <input
                         ref={fileInput}
                         type="file"
+                        multiple
+                        accept={ACCEPT_ATTACHMENTS}
                         className="hidden"
-                        onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
+                        onChange={(e) => e.target.files?.length && onUpload(e.target.files)}
                       />
                       <Button variant="outline" disabled={uploading} onClick={() => fileInput.current?.click()}>
                         <FileUp className="mr-1.5 h-4 w-4" />
                         {uploading ? "Enviando..." : "Anexar arquivo"}
                       </Button>
+                      <p className="text-[11px] text-muted-foreground">PDF, imagem (PNG/JPG/WebP), Excel, Word ou CSV · até {MAX_ATTACHMENT_MB} MB.</p>
                       <div className="space-y-2">
                         {files.map((f) => (
                           <div key={f.id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
@@ -772,10 +789,10 @@ export function LeadDrawer({
                                 {bytes(f.size_bytes)} · {fmt(f.created_at)}
                               </p>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => download(f.storage_path, f.name)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Baixar ${f.name}`} onClick={() => download(f.id)}>
                               <Download className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeFile.mutate(f.id)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Remover ${f.name}`} disabled={removeFile.isPending} onClick={() => { if (confirm(`Remover "${f.name}"?`)) removeFile.mutate(f.id); }}>
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </div>
