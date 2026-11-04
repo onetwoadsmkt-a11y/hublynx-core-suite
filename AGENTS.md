@@ -134,3 +134,8 @@
 - Criação (`TaskCreateDialog`): Responsável (`listTaskAssignees`: equipe do projeto ou da empresa → aviso no sino e e-mail pelo gatilho), Etapa do projeto (tarefa entra no fim da etapa) e Checklist.
 - Lembretes push: `runTaskReminders` (reminders.server.ts) roda junto com run-automations; `/api/public/hooks/run-reminders` exige `x-cron-secret`. Só prazos com hora, sem canceladas, horário em Brasília; agendamentos de lead com a migração 37 (`lead_task_push_log`).
 - Hoje/Semana: dias em Brasília e "minhas" = responsável, ou dono sem responsável.
+
+## Filtro do Pipeline (04/11/2026)
+- Modal: `PopoverContent` em coluna (`flex-col`, altura máx. = espaço disponível `--radix-popover-content-available-height`), corpo `min-h-0 flex-1` com `grid-rows-[minmax(0,1fr)]` — cada coluna rola sozinha no computador; rodapé fixo. No celular vira `Sheet` de baixo (90dvh) com o corpo rolando.
+- Temperatura nos filtros (Pipeline e Relatório) = `leadTemperature()`: classificação do lead scoring primeiro (o que o card mostra), depois a temperatura manual (que é "morno" por padrão). Opção "Nutrição" incluída.
+- Origens: 30 mais usadas por tipo + as já selecionadas; aviso "+N outras — use a busca".

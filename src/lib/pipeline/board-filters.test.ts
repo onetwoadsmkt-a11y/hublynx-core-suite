@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { activeFilterCount, applyBoardFilters, EMPTY_BOARD_FILTERS as E, originOptions, periodRange } from "./board-filters";
+import { activeFilterCount, applyBoardFilters, EMPTY_BOARD_FILTERS as E, EMPTY_BOARD_FILTERS, leadTemperature, originOptions, periodRange } from "./board-filters";
 import { taskStatsByLead } from "./report-filters";
 
 const now = new Date(2026, 9, 23, 10, 0);
@@ -47,5 +47,23 @@ describe("filtros do pipeline", () => {
   it("combina grupos com E e conta filtros ativos", () => {
     assert.deepEqual(ids({ tags: ["lead site"], tasks: ["agendadas"] }), ["1"]);
     assert.equal(activeFilterCount({ ...E, period: "7", tags: ["a", "b"] }), 3);
+  });
+});
+
+describe("temperatura do lead (filtro = o que o card mostra)", () => {
+  it("classificação do formulário vale antes da temperatura manual (padrão morno)", () => {
+    assert.equal(leadTemperature({ lead_classification: "hot", temperature: "morno" }), "quente");
+    assert.equal(leadTemperature({ lead_classification: "Quente", temperature: "morno" }), "quente");
+    assert.equal(leadTemperature({ lead_classification: "nutrição", temperature: "morno" }), "nutricao");
+    assert.equal(leadTemperature({ lead_classification: null, temperature: "frio" }), "frio");
+    assert.equal(leadTemperature({ lead_classification: "desqualificado", temperature: null }), null);
+  });
+  it("atalho Leads quentes encontra lead classificado como quente", () => {
+    const leads = [
+      { id: "a", lead_classification: "hot", temperature: "morno" },
+      { id: "b", lead_classification: null, temperature: "morno" },
+    ];
+    const out = applyBoardFilters(leads, { ...EMPTY_BOARD_FILTERS, temperatures: ["quente"] }, { stats: new Map(), temperatureOf: leadTemperature });
+    assert.deepEqual(out.map((l) => l.id), ["a"]);
   });
 });

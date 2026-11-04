@@ -31,11 +31,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { LeadCard, currency, leadScoreTone } from "@/components/pipeline/LeadCard";
+import { LeadCard, currency } from "@/components/pipeline/LeadCard";
 import { ActiveFilterChips, PipelineFilters, type TagOption } from "@/components/pipeline/PipelineFilters";
 import { PipelineListView } from "@/components/pipeline/PipelineListView";
 import {
-  applyBoardFilters, EMPTY_BOARD_FILTERS, originOptions, type BoardFilters, type Temperature,
+  applyBoardFilters, EMPTY_BOARD_FILTERS, leadTemperature, originOptions, type BoardFilters,
 } from "@/lib/pipeline/board-filters";
 import { taskStatsByLead } from "@/lib/pipeline/report-filters";
 import { LeadDrawer } from "@/components/pipeline/LeadDrawer";
@@ -277,14 +277,9 @@ function PipelinePage() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(term)),
     );
-    const tone: Record<string, Temperature> = { hot: "quente", warm: "morno", cold: "frio" };
     return applyBoardFilters(searched, { ...filters, stageIds: stageFilter }, {
       stats: taskStats,
-      temperatureOf: (l) => {
-        const t = (l.temperature ?? "").toLowerCase();
-        if (t === "quente" || t === "morno" || t === "frio") return t;
-        return tone[leadScoreTone(l.lead_classification)] ?? null;
-      },
+      temperatureOf: (l) => leadTemperature(l),
     });
   }, [leads, q, filters, stageFilter, taskStats]);
 

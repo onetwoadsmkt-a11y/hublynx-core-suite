@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   activeFilterCount, EMPTY_BOARD_FILTERS, type BoardFilters, type OriginKind, type OriginOption,
@@ -19,11 +21,12 @@ export const PERIOD_LABEL: Record<PeriodPreset, string> = {
 export const TASK_LABEL: Record<TaskFilter, string> = {
   agendadas: "Com tarefas agendadas", hoje: "Com tarefa para hoje", atrasadas: "Com tarefas atrasadas", sem: "Sem tarefas",
 };
-export const TEMP_LABEL: Record<Temperature, string> = { quente: "Quente", morno: "Morno", frio: "Frio" };
+export const TEMP_LABEL: Record<Temperature, string> = { quente: "Quente", morno: "Morno", frio: "Frio", nutricao: "Nutrição" };
 const TEMP_TONE: Record<Temperature, string> = {
   quente: "data-[on=true]:border-score-hot data-[on=true]:bg-score-hot/10 data-[on=true]:text-score-hot",
   morno: "data-[on=true]:border-score-warm data-[on=true]:bg-score-warm/10 data-[on=true]:text-score-warm",
   frio: "data-[on=true]:border-score-cold data-[on=true]:bg-score-cold/10 data-[on=true]:text-score-cold",
+  nutricao: "data-[on=true]:border-score-nutrition data-[on=true]:bg-score-nutrition/10 data-[on=true]:text-score-nutrition",
 };
 export const KIND_LABEL: Record<OriginKind, string> = {
   source: "Fonte", utm_source: "utm_source", utm_medium: "utm_medium", utm_campaign: "utm_campaign", anuncio: "Anúncio",
@@ -54,6 +57,7 @@ export function PipelineFilters({
   resultCount: number;
 }) {
   const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
   const [tagQ, setTagQ] = useState("");
   const [originQ, setOriginQ] = useState("");
   const n = activeFilterCount(value);
@@ -67,23 +71,34 @@ export function PipelineFilters({
     const q = originQ.trim().toLowerCase();
     const list = origins.filter((o) => !q || o.label.toLowerCase().includes(q));
     return (Object.keys(KIND_LABEL) as OriginKind[])
-      .map((kind) => ({ kind, items: list.filter((o) => o.kind === kind).slice(0, 30) }))
+      .map((kind) => {
+        const all = list.filter((o) => o.kind === kind);
+        // selecionadas sempre aparecem, mesmo fora das 30 mais usadas
+        const top = all.slice(0, 30);
+        const extra = all.slice(30).filter((o) => value.origins.includes(o.key));
+        return { kind, items: [...top, ...extra], hidden: all.length - top.length - extra.length };
+      })
       .filter((g) => g.items.length);
-  }, [origins, originQ]);
+  }, [origins, originQ, value.origins]);
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant={n ? "default" : "outline"} size="sm" className="h-9 shrink-0 sm:h-8" aria-label="Filtros">
-          <Filter className="h-4 w-4 sm:mr-1.5" />
-          <span className="hidden sm:inline">Filtros</span>
-          {n > 0 && <span className="ml-1 rounded-full bg-primary-foreground/20 px-1.5 text-[11px] font-bold tabular-nums">{n}</span>}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-[min(980px,calc(100vw-1.5rem))] p-0">
-        <div className="grid max-h-[min(78vh,720px)] grid-cols-1 overflow-y-auto md:grid-cols-[220px_minmax(0,1fr)_minmax(0,300px)] md:overflow-hidden">
+  const trigger = (
+    <Button variant={n ? "default" : "outline"} size="sm" className="h-9 shrink-0 sm:h-8" aria-label="Filtros">
+      <Filter className="h-4 w-4 sm:mr-1.5" />
+      <span className="hidden sm:inline">Filtros</span>
+      {n > 0 && <span className="ml-1 rounded-full bg-primary-foreground/20 px-1.5 text-[11px] font-bold tabular-nums">{n}</span>}
+    </Button>
+  );
+
+  // Rolagem: o corpo ocupa o espaço que sobra (min-h-0) e cada coluna rola sozinha no computador;
+  // no celular o corpo inteiro rola. Antes a grade crescia além do limite e a rolagem não funcionava.
+  const body = (
+    <>
+        <div
+          data-testid="filtros-corpo"
+          className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain md:grid-cols-[200px_minmax(0,1fr)_minmax(0,280px)] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden"
+        >
           {/* Atalhos */}
-          <nav aria-label="Atalhos de filtro" className="border-b p-2 md:border-b-0 md:border-r md:overflow-y-auto">
+          <nav aria-label="Atalhos de filtro" className="border-b p-2 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:border-b-0 md:border-r">
             {SHORTCUTS.map((s) => {
               const applied = JSON.stringify({ ...EMPTY_BOARD_FILTERS, ...s.f }) === JSON.stringify(value);
               return (
@@ -97,14 +112,14 @@ export function PipelineFilters({
                   )}
                 >
                   {s.dot && <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", s.dot)} />}
-                  <span className="truncate">{s.label}</span>
+                  <span className="leading-snug">{s.label}</span>
                 </button>
               );
             })}
           </nav>
 
           {/* Propriedades */}
-          <div className="space-y-5 p-4 md:overflow-y-auto">
+          <div className="space-y-5 p-4 md:min-h-0 md:overflow-y-auto md:overscroll-contain">
             <section className="space-y-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Data de entrada</h3>
               <Select value={value.period} onValueChange={(v) => set("period", v as PeriodPreset)}>
@@ -194,13 +209,14 @@ export function PipelineFilters({
                       );
                     })}
                   </div>
+                  {g.hidden > 0 && <p className="text-[11px] text-muted-foreground">+{g.hidden} outras — use a busca acima.</p>}
                 </div>
               ))}
             </section>
           </div>
 
           {/* Tags */}
-          <div className="flex flex-col gap-2 border-t p-4 md:border-l md:border-t-0 md:overflow-y-auto">
+          <div className="flex flex-col gap-2 border-t p-4 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:border-l md:border-t-0">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Tags</h3>
               <div role="group" aria-label="Combinar tags" className="flex rounded-md bg-muted p-0.5 text-[11px] font-semibold">
@@ -237,13 +253,40 @@ export function PipelineFilters({
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-2 border-t px-4 py-2.5">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-popover px-4 py-2.5">
           <span className="text-sm text-muted-foreground"><strong className="text-foreground tabular-nums">{resultCount}</strong> leads encontrados</span>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" disabled={!n} onClick={() => onChange(EMPTY_BOARD_FILTERS)}>Limpar filtros</Button>
             <Button size="sm" onClick={() => setOpen(false)}>Ver leads</Button>
           </div>
         </div>
+    </>
+  );
+
+  if (isMobile) {
+    // Celular: painel de baixo para cima, com rolagem própria e rodapé fixo
+    return (
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>{trigger}</SheetTrigger>
+        <SheetContent side="bottom" className="flex max-h-[90dvh] flex-col gap-0 rounded-t-2xl p-0">
+          <SheetHeader className="shrink-0 border-b px-4 py-3 text-left"><SheetTitle>Filtros</SheetTitle></SheetHeader>
+          {body}
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        collisionPadding={12}
+        // nunca passa da tela: usa a altura que sobra abaixo (ou acima) do botão
+        className="flex max-h-[min(720px,calc(var(--radix-popover-content-available-height)-4px))] w-[min(960px,calc(100vw-1.5rem))] flex-col overflow-hidden p-0"
+      >
+        {body}
       </PopoverContent>
     </Popover>
   );

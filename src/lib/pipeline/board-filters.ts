@@ -5,7 +5,7 @@ import type { TaskStat } from "./report-filters";
  * temperatura, tags e tarefas. Dentro de cada grupo vale "qualquer um" (OU);
  * entre grupos, todos precisam bater (E).
  */
-export type Temperature = "quente" | "morno" | "frio";
+export type Temperature = "quente" | "morno" | "frio" | "nutricao";
 export type PeriodPreset = "todos" | "hoje" | "ontem" | "7" | "30" | "90" | "mes" | "custom";
 export type TaskFilter = "agendadas" | "hoje" | "atrasadas" | "sem";
 export type OriginKind = "source" | "utm_source" | "utm_medium" | "utm_campaign" | "anuncio";
@@ -21,6 +21,24 @@ export type BoardFilters = {
   tagMode: "any" | "all";
   tasks: TaskFilter[];
 };
+
+// Classificação do lead scoring (pt/en), a mesma que aparece no card.
+const CLASSIFICATION: Record<string, Temperature> = {
+  hot: "quente", quente: "quente", warm: "morno", morno: "morno", cold: "frio", frio: "frio",
+  nutrition: "nutricao", "nutrição": "nutricao", nutricao: "nutricao",
+};
+
+/**
+ * Temperatura do lead para os filtros: primeiro a classificação do formulário/lead scoring
+ * (é o que o card mostra), depois a temperatura manual. Antes valia a temperatura manual,
+ * que é "morno" por padrão em todo lead — um lead "Quente" no card caía em "Morno" no filtro.
+ */
+export function leadTemperature(l: { lead_classification?: string | null; temperature?: string | null }): Temperature | null {
+  const c = CLASSIFICATION[(l.lead_classification ?? "").trim().toLowerCase()];
+  if (c) return c;
+  const t = (l.temperature ?? "").trim().toLowerCase();
+  return t === "quente" || t === "morno" || t === "frio" ? t : null;
+}
 
 export const EMPTY_BOARD_FILTERS: BoardFilters = {
   period: "todos", from: "", to: "", origins: [], stageIds: [], temperatures: [], tags: [], tagMode: "any", tasks: [],

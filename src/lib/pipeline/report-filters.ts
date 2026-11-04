@@ -1,3 +1,4 @@
+import { leadTemperature } from "./board-filters";
 import { isWonLead } from "./lead-status";
 
 export type Temperature = "quente" | "morno" | "frio";
@@ -69,7 +70,8 @@ export function applyReportFilters<L extends LeadLike>(
   return leads.filter((l) => {
     if (f.pipelineId && (!l.stage_id || ctx.stagePipeline.get(l.stage_id) !== f.pipelineId)) return false;
     if (f.stageIds.length && (!l.stage_id || !f.stageIds.includes(l.stage_id))) return false;
-    if (f.temperatures.length && !f.temperatures.includes((l.temperature ?? "") as Temperature)) return false;
+    // mesma regra do Pipeline: classificação do lead scoring primeiro, depois a temperatura manual
+    if (f.temperatures.length && !f.temperatures.includes(leadTemperature(l as any) as Temperature)) return false;
     if (wantTags.length) {
       const has = new Set((l.tags ?? []).map((t) => String(t).toLowerCase()));
       const ok = f.tagMode === "all" ? wantTags.every((t) => has.has(t)) : wantTags.some((t) => has.has(t));
