@@ -679,7 +679,8 @@ const leadTaskSchema = z.object({
   notes: z.string().max(8000).nullable().optional(),
   due_at: z.string().nullable().optional(),
   duration_minutes: z.number().int().min(10).max(480).default(30),
-  invite_lead: z.boolean().default(false),
+  /** true = convida o lead; false = sem convite; omitido na edição = mantém os convidados */
+  invite_lead: z.boolean().optional(),
   priority: z.enum(["baixa", "media", "alta", "critica"]).optional(),
 });
 type LeadTaskInput = z.infer<typeof leadTaskSchema>;
@@ -702,37 +703,57 @@ async function saveLeadTask(context: { supabase: any; userId: string }, data: Le
   if (!leadRow) throw new Error("Lead não encontrado ou sem permissão.");
   const lead = leadRow as { name?: string; email?: string | null; organization_id?: string | null };
 
-  let existingEventId: string | null = null;
+  type Prev = { gcal_event_id: string | null; meet_link: string | null; owner_id: string | null; done: boolean | null };
+  let prev: Prev | null = null;
   if (data.id) {
-    const { data: prev } = await supabase
+    const { data: row, error: prevErr } = await supabase
       .from("lead_tasks")
-      .select("gcal_event_id")
+      .select("gcal_event_id, meet_link, owner_id, done")
       .eq("id", data.id)
       .maybeSingle();
-    existingEventId = (prev?.gcal_event_id as string | null) ?? null;
+    if (prevErr) throw new Error(prevErr.message);
+    if (!row) throw new Error("Agendamento não encontrado ou sem permissão.");
+    prev = row as Prev;
   }
 
-  let gcalEventId: string | null = existingEventId;
-  let meetLink: string | null = null;
+  // O evento mora no Google de quem é dono do agendamento (quem criou), não de quem edita.
+  const calendarUser = prev?.owner_id ?? userId;
+  let gcalEventId: string | null = prev?.gcal_event_id ?? null;
+  let meetLink: string | null = prev?.meet_link ?? null;
   let syncError: string | null = null;
+  let googleMissing = false;
 
+  const { upsertLeadCalendarEvent, deleteLeadCalendarEvent, googleSummary } = await import("@/lib/google/lead-calendar.server");
   if (data.due_at) {
-    const { upsertLeadCalendarEvent } = await import("@/lib/google/lead-calendar.server");
-    const res = await upsertLeadCalendarEvent(userId, {
-      title: `[${lead?.name ?? "Lead"}] ${data.title}`,
+    const attendees =
+      data.invite_lead === true && lead?.email
+        ? [lead.email as string]
+        : data.id
+          ? undefined // edição: mantém quem já foi convidado
+          : [];
+    const res = await upsertLeadCalendarEvent(calendarUser, {
+      title: googleSummary(`[${lead?.name ?? "Lead"}] ${data.title}`, !!prev?.done),
       kind: data.kind,
       description: data.notes ?? null,
       startISO: data.due_at,
       durationMinutes: data.duration_minutes,
-      attendees: data.invite_lead && lead?.email ? [lead.email as string] : [],
-      withMeet: data.kind === "reuniao",
-      eventId: existingEventId,
+      attendees,
+      // só pede um Meet novo quando ainda não há um (senão o link mudaria a cada edição)
+      withMeet: data.kind === "reuniao" && !meetLink,
+      eventId: gcalEventId,
     });
-    if (res.error) syncError = res.error;
-    else {
-      gcalEventId = res.eventId ?? existingEventId;
-      meetLink = res.meetLink;
+    if (res.error) {
+      if (res.notConnected) googleMissing = true;
+      else syncError = res.error;
+    } else {
+      gcalEventId = res.eventId ?? gcalEventId;
+      meetLink = res.meetLink ?? meetLink; // nunca apaga o link existente
     }
+  } else if (gcalEventId) {
+    // ficou sem data: tira o evento do Google
+    await deleteLeadCalendarEvent(calendarUser, gcalEventId);
+    gcalEventId = null;
+    meetLink = null;
   }
 
   const row: Record<string, unknown> = {
@@ -761,12 +782,14 @@ async function saveLeadTask(context: { supabase: any; userId: string }, data: Le
     ({ data: saved, error } = await save(row));
   }
   if (error) throw new Error(error.message);
+  if (!saved) throw new Error("Sem permissão para alterar este agendamento.");
   return {
     ok: true as const,
     id: ((saved as { id?: string } | null)?.id ?? data.id ?? null) as string | null,
     synced: !!gcalEventId,
     meetLink,
     syncError,
+    googleMissing,
     priorityPending,
   };
 }
@@ -774,12 +797,13 @@ async function saveLeadTask(context: { supabase: any; userId: string }, data: Le
 /** Concluído no Core → "✓" e cor grafite no Google (sem reenviar convites). */
 async function markLeadTaskInGoogle(
   userId: string,
-  row: { title?: string; gcal_event_id?: string | null; leads?: { name?: string } | null } | null,
+  row: { title?: string; gcal_event_id?: string | null; owner_id?: string | null; leads?: { name?: string } | null } | null,
   done: boolean,
 ) {
   if (!row?.gcal_event_id || !row.title) return;
   const { markCalendarEventDone } = await import("@/lib/google/lead-calendar.server");
-  await markCalendarEventDone(userId, row.gcal_event_id, `[${row.leads?.name ?? "Lead"}] ${row.title}`, done);
+  // o evento está no Google do dono do agendamento
+  await markCalendarEventDone(row.owner_id ?? userId, row.gcal_event_id, `[${row.leads?.name ?? "Lead"}] ${row.title}`, done);
 }
 
 /** Registra um evento na jornada do lead (dono e empresa herdados do lead). */
@@ -852,7 +876,7 @@ export const completeLeadTask = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: task, error } = await supabase
       .from("lead_tasks")
-      .select("id, lead_id, title, notes, done, gcal_event_id, leads(name)")
+      .select("id, lead_id, title, notes, done, gcal_event_id, owner_id, leads(name)")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -861,8 +885,9 @@ export const completeLeadTask = createServerFn({ method: "POST" })
     const result = data.result?.trim() || "";
     const update: Record<string, unknown> = { done: true, completed_at: new Date().toISOString() };
     if (result) update.notes = appendNote(task.notes as string | null, result, "Resultado: ");
-    const { error: upErr } = await supabase.from("lead_tasks").update(update as any).eq("id", data.id);
+    const { data: upRow, error: upErr } = await supabase.from("lead_tasks").update(update as any).eq("id", data.id).select("id").maybeSingle();
     if (upErr) throw new Error(upErr.message);
+    if (!upRow) throw new Error("Sem permissão para concluir este agendamento.");
     await markLeadTaskInGoogle(userId, task as any, true);
 
     if (result) {
@@ -898,9 +923,10 @@ export const toggleLeadTask = createServerFn({ method: "POST" })
       .from("lead_tasks")
       .update({ done: data.done, completed_at: data.done ? new Date().toISOString() : null })
       .eq("id", data.id)
-      .select("title, gcal_event_id, leads(name)")
+      .select("title, gcal_event_id, owner_id, leads(name)")
       .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!row) throw new Error("Agendamento não encontrado ou sem permissão.");
     await markLeadTaskInGoogle(context.userId, row as any, data.done);
     return { ok: true as const };
   });
@@ -911,14 +937,17 @@ export const deleteLeadTask = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: prev } = await context.supabase
       .from("lead_tasks")
-      .select("gcal_event_id")
+      .select("gcal_event_id, owner_id")
       .eq("id", data.id)
       .maybeSingle();
-    const { error } = await context.supabase.from("lead_tasks").delete().eq("id", data.id);
+    const { data: gone, error } = await context.supabase.from("lead_tasks").delete().eq("id", data.id).select("id");
     if (error) throw new Error(error.message);
+    // só mexe no Google se o agendamento saiu mesmo do Core
+    if (!gone?.length) throw new Error("Agendamento não encontrado ou sem permissão.");
     if (prev?.gcal_event_id) {
       const { deleteLeadCalendarEvent } = await import("@/lib/google/lead-calendar.server");
-      await deleteLeadCalendarEvent(context.userId, prev.gcal_event_id as string);
+      // remove do Google do dono (senão o evento ficava órfão e aparecia duplicado na Agenda dele)
+      await deleteLeadCalendarEvent((prev.owner_id as string | null) ?? context.userId, prev.gcal_event_id as string);
     }
     return { ok: true as const };
   });

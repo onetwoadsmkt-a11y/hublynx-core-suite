@@ -30,7 +30,16 @@ export const Route = createFileRoute("/api/public/hooks/run-automations")({
         } catch (e) {
           projects = { error: String((e as Error)?.message ?? e) };
         }
-        return Response.json({ ok: true, ...result, tasks, projects });
+        // lembretes no celular (tarefa em breve / atrasada, inclusive agendamentos de lead)
+        let reminders: unknown = null;
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { runTaskReminders } = await import("@/lib/tasks/reminders.server");
+          reminders = await runTaskReminders(supabaseAdmin as any);
+        } catch (e) {
+          reminders = { error: String((e as Error)?.message ?? e) };
+        }
+        return Response.json({ ok: true, ...result, tasks, projects, reminders });
       },
     },
   },

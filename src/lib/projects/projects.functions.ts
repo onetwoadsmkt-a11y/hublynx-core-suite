@@ -40,7 +40,8 @@ export const listProjects = createServerFn({ method: "GET" })
       const { data: tasks } = await context.supabase
         .from("tasks")
         .select("project_id, status, due_date")
-        .in("project_id", ids);
+        .in("project_id", ids)
+        .neq("status", "cancelado"); // excluídas das etapas não contam
       const now = new Date();
       (tasks ?? []).forEach((t: any) => {
         const pid = t.project_id as string;
@@ -230,7 +231,8 @@ export const getProjectDashboard = createServerFn({ method: "GET" })
         .order("created_at", { ascending: false }),
     ]);
 
-    const tasks = tasksRes.data ?? [];
+    // tarefas excluídas das etapas ("cancelado") não contam no progresso nem nos totais
+    const tasks = (tasksRes.data ?? []).filter((t: any) => t.status !== "cancelado");
     const finances = financesRes.data ?? [];
     const costs = costsRes.data ?? [];
     const risks = risksRes.data ?? [];

@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { dueLabel, dueTime } from "@/lib/tasks/due";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -46,15 +47,16 @@ function DetalheTarefa() {
 
   const complete = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("tasks").update({ status: "concluido" }).eq("id", id);
+      const { data: rows, error } = await supabase.from("tasks").update({ status: "concluido" }).eq("id", id).select("id");
       if (error) throw error;
+      if (!rows?.length) throw new Error("Sem permissão para concluir esta tarefa.");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task", id] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Tarefa concluída.");
       navigate({ to: "/app/tarefas" });
-    },
+    },    onError: (e: any) => toast.error(e?.message ?? "Não foi possível concluir."),
   });
 
   if (!task) return <div className="p-6">Carregando…</div>;
@@ -70,7 +72,7 @@ function DetalheTarefa() {
       <Card className="rounded-2xl p-4 grid grid-cols-2 gap-3 text-sm">
         <Info label="Status" value={task.status} />
         <Info label="Prioridade" value={task.priority} />
-        <Info label="Prazo" value={task.due_date ? format(parseISO(task.due_date), "dd/MM/yyyy HH:mm") : "—"} />
+        <Info label="Prazo" value={dueLabel(task.due_date) ?? "—"} />
         <Info label="Projeto" value={project?.name ?? "—"} />
       </Card>
 

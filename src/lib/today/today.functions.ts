@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { isOverdue } from "@/lib/tasks/pending";
+import { dueDayOffset } from "@/lib/tasks/due";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { resolveOrganizationId } from "@/lib/org/resolve";
@@ -31,22 +33,18 @@ export const getTodayTasks = createServerFn({ method: "POST" })
     const db = context.supabase as any;
     const orgId = await resolveOrganizationId(db as never, context.userId, data.organizationId ?? null);
 
+    // Dias no horário de Brasília (o servidor roda em UTC): até 7 dias à frente.
     const now = new Date();
-    const startToday = new Date(now);
-    startToday.setHours(0, 0, 0, 0);
-    const endToday = new Date(now);
-    endToday.setHours(23, 59, 59, 999);
-    const end7 = new Date(startToday);
-    end7.setDate(end7.getDate() + 8);
-    end7.setMilliseconds(-1);
+    const end7 = new Date(now.getTime() + 8 * 86_400_000);
 
     let q = db
       .from("tasks")
       .select(
         "id, title, due_date, status, priority, client_id, project_id, clients(name), projects(name)",
       )
-      .eq("owner_id", context.userId)
-      .neq("status", "concluido")
+      // minhas: sou o responsável, ou criei e não há responsável
+      .or(`assignee_id.eq.${context.userId},and(assignee_id.is.null,owner_id.eq.${context.userId})`)
+      .not("status", "in", "(concluido,cancelado)")
       .not("due_date", "is", null)
       .lte("due_date", end7.toISOString())
       .order("due_date", { ascending: true })
@@ -74,10 +72,10 @@ export const getTodayTasks = createServerFn({ method: "POST" })
 
     for (const raw of (rows ?? []) as any[]) {
       const task = map(raw);
-      const d = new Date(task.due_date);
-      if (d < startToday) overdue.push(task);
-      else if (d <= endToday) today.push(task);
-      else upcoming.push(task);
+      const offset = dueDayOffset(task.due_date, now) ?? 0;
+      if (offset < 0 || isOverdue(task, now)) overdue.push(task);
+      else if (offset === 0) today.push(task);
+      else if (offset <= 7) upcoming.push(task);
     }
 
     return { overdue, today, upcoming };

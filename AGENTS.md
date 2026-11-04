@@ -124,3 +124,13 @@
 - Build: se abortar por memória, `NODE_OPTIONS=--max-old-space-size=4096 npx vite build`.
 
 - **Botão "Abrir card do lead" nos agendamentos:** `OpenLeadButton` (em `src/components/pipeline/LeadCardHost.tsx`) abre o card do lead via `openLeadCard`. Fica no cabeçalho do `LeadTaskDialog` (fecha o diálogo antes), nos detalhes do evento da Agenda, na lista do dia (`DayPendingSheet`) e nos cards de lista/kanban de `/tarefas`. Use `onBeforeOpen` quando precisar fechar um sheet/diálogo antes de abrir o card.
+
+## Revisão das tarefas (04/11/2026)
+- **Prazo — regra única** (`src/lib/tasks/due.ts`): só com dia = meia-noite UTC; com hora = horário de Brasília (`dueFromParts`, `-03:00`). Horários que coincidem com os marcadores de "dia" (00:00/12:00 UTC ou Brasília) ganham +1 s para continuarem com hora. `dueHasTime` confere UTC e Brasília explicitamente (mesmo resultado no navegador e no servidor). Mostrar com `dueLabel`/`dueTime`/`dueToParts`; agendamento de lead sem hora = 09:00 (`leadDueFromParts`). Nunca use `toISOString().slice(...)` nem `getUTCHours()` para mostrar prazo.
+- Agenda: "Remarcar" (`RescheduleInput`) só grava no botão; TaskDrawer tem Prazo com data + hora e Responsável.
+- Google: tarefa "só com dia" vira evento de dia inteiro; eventos (tarefas e agendamentos de lead) ficam sempre no Google do **dono** (quem criou), mesmo quando outra pessoa edita/conclui/exclui; evento apagado no Google é recriado (404/410). Editar agendamento não mexe nos convidados (só envia convite quando marcado), não cria Meet novo e não apaga o `meet_link`. Sem Google conectado não é erro.
+- Exclusão: `deleteTask` (servidor) — tarefa de etapa vira "cancelado" (histórico), as demais são apagadas; o Google só sai depois que o Core confirmou. Canceladas não aparecem em Agenda/Tarefas/Hoje/Semana nem contam no progresso.
+- Toda alteração de tarefa confere se alguma linha mudou (`.select("id")`): sem permissão mostra erro em vez de "sucesso".
+- Criação (`TaskCreateDialog`): Responsável (`listTaskAssignees`: equipe do projeto ou da empresa → aviso no sino e e-mail pelo gatilho), Etapa do projeto (tarefa entra no fim da etapa) e Checklist.
+- Lembretes push: `runTaskReminders` (reminders.server.ts) roda junto com run-automations; `/api/public/hooks/run-reminders` exige `x-cron-secret`. Só prazos com hora, sem canceladas, horário em Brasília; agendamentos de lead com a migração 37 (`lead_task_push_log`).
+- Hoje/Semana: dias em Brasília e "minhas" = responsável, ou dono sem responsável.

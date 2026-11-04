@@ -18,9 +18,11 @@ import { PRIORITY_LABEL, type Priority } from "@/components/tasks/TaskDrawer";
 import { syncEntityToSheets } from "@/lib/google/sheets-sync.functions";
 import { syncTaskToCalendar } from "@/lib/google/calendar.functions";
 import { upsertLeadTask } from "@/lib/pipeline/pipeline.functions";
+import { listTaskAssignees } from "@/lib/tasks/assignees.functions";
 import { invalidatePendingQueries } from "@/hooks/usePendingItems";
 import { scopeOrganization } from "@/lib/org/filter";
 import { cn } from "@/lib/utils";
+import { dueFromParts, leadDueFromParts, todayKeyBR } from "@/lib/tasks/due";
 
 /**
  * Criação de tarefa padrão do Core (Agenda, Tarefas, app do celular e cartão do lead):
@@ -51,11 +53,7 @@ export type TaskCreateDefaults = {
 
 type LeadPick = { id: string; name: string; company?: string | null; email?: string | null; phone?: string | null };
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const todayKey = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+const todayKey = todayKeyBR;
 
 export function TaskCreateDialog({
   open,
@@ -94,6 +92,11 @@ export function TaskCreateDialog({
   const [invite, setInvite] = useState(true);
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [assignee, setAssignee] = useState<string>("none");
+  const [stageId, setStageId] = useState<string>("none");
+  const [checklist, setChecklist] = useState<string[]>([]);
+  const [checkInput, setCheckInput] = useState("");
+  const projectId = defaults?.projectId ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -107,6 +110,10 @@ export function TaskCreateDialog({
     setDuration("30");
     setInvite(true);
     setTerm("");
+    setAssignee("none");
+    setStageId("none");
+    setChecklist([]);
+    setCheckInput("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -135,6 +142,39 @@ export function TaskCreateDialog({
     },
   });
 
+  // Responsável (equipe do projeto ou da empresa): recebe aviso no sino e por e-mail
+  const assigneesFn = useServerFn(listTaskAssignees);
+  const peopleQ = useQuery({
+    queryKey: ["task-assignees", activeOrganizationId, projectId],
+    enabled: open && !!activeOrganizationId,
+    queryFn: () => assigneesFn({ data: { organizationId: activeOrganizationId!, projectId } }),
+    staleTime: 60_000,
+  });
+  // Etapas do projeto: a tarefa entra numa etapa para aparecer em Projetos › Etapas
+  const stagesQ = useQuery({
+    queryKey: ["task-create-stages", projectId],
+    enabled: open && !!projectId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("project_stages")
+        .select("id, name, status, sort_order")
+        .eq("project_id", projectId)
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; status: string }[];
+    },
+  });
+  useEffect(() => {
+    if (!open || stageId !== "none" || !stagesQ.data?.length) return;
+    setStageId((stagesQ.data.find((st) => st.status !== "done") ?? stagesQ.data[0]).id);
+  }, [open, stagesQ.data, stageId]);
+  const addCheck = () => {
+    const v = checkInput.trim();
+    if (!v) return;
+    setChecklist((c) => [...c, v]);
+    setCheckInput("");
+  };
+
   const needTime = kind === "reuniao" || kind === "call";
   const canSubmit = useMemo(
     () => !!title.trim() && !!date && (!needTime || !!time),
@@ -145,7 +185,8 @@ export function TaskCreateDialog({
     mutationFn: async (): Promise<{ id: string; lead: boolean; synced?: boolean; syncError?: string | null }> => {
       if (lead) {
         // Agendamento do lead: dono = quem cria; Google Agenda sincroniza no servidor
-        const dueIso = new Date(`${date}T${time || "09:00"}:00`).toISOString();
+        const dueIso = leadDueFromParts(date, time);
+        if (!dueIso) throw new Error("Data inválida.");
         const res: any = await leadTaskFn({
           data: {
             leadId: lead.id,
@@ -162,11 +203,28 @@ export function TaskCreateDialog({
       }
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Sem sessão");
-      const dueIso = new Date(`${date}T${time || "00:00"}:00`).toISOString();
+      // sem hora = dia inteiro (meia-noite UTC); com hora = horário de Brasília
+      const dueIso = dueFromParts(date, time);
+      if (!dueIso) throw new Error("Data inválida.");
+      const stage = projectId && stageId !== "none" ? stageId : null;
+      let position = 0;
+      if (stage) {
+        // nova tarefa entra no fim da sequência da etapa
+        const { data: last } = await (supabase as any)
+          .from("tasks")
+          .select("position")
+          .eq("stage_id", stage)
+          .order("position", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        position = (Number(last?.position) || 0) + 1;
+      }
       const { data: inserted, error } = await supabase
         .from("tasks")
         .insert({
           owner_id: u.user.id,
+          stage_id: stage,
+          assignee_id: assignee !== "none" ? assignee : null,
           ...(activeOrganizationId ? { organization_id: activeOrganizationId } : {}),
           title: title.trim(),
           description: description.trim() || null,
@@ -175,12 +233,18 @@ export function TaskCreateDialog({
           project_id: defaults?.projectId ?? null,
           client_id: defaults?.clientId ?? null,
           due_date: dueIso,
-          position: 0,
+          position,
           briefing: { type: kind } as any,
         } as never)
         .select("id")
         .single();
       if (error) throw error;
+      if (checklist.length) {
+        const { error: cErr } = await supabase.from("task_checklists").insert(
+          checklist.map((label, i) => ({ task_id: inserted.id, owner_id: u.user!.id, label, done: false, position: i })) as never,
+        );
+        if (cErr) toast.warning(`Tarefa criada, mas o checklist não foi salvo: ${cErr.message}`);
+      }
       return { id: inserted.id as string, lead: false };
     },
     onSuccess: (r) => {
@@ -327,6 +391,63 @@ export function TaskCreateDialog({
           </div>
         )}
       </div>
+
+      {!lead && (
+        <div className={cn("grid gap-3", projectId && (stagesQ.data?.length ?? 0) > 0 ? "grid-cols-2" : "grid-cols-1")}>
+          <div className="space-y-2">
+            <Label>Responsável</Label>
+            <Select value={assignee} onValueChange={setAssignee}>
+              <SelectTrigger aria-label="Responsável"><SelectValue placeholder="Eu mesmo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Eu mesmo (sem responsável)</SelectItem>
+                {(peopleQ.data ?? []).map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {projectId && (stagesQ.data?.length ?? 0) > 0 && (
+            <div className="space-y-2">
+              <Label>Etapa do projeto</Label>
+              <Select value={stageId} onValueChange={setStageId}>
+                <SelectTrigger aria-label="Etapa do projeto"><SelectValue placeholder="Escolha a etapa" /></SelectTrigger>
+                <SelectContent>
+                  {(stagesQ.data ?? []).map((st) => <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+      {!lead && assignee !== "none" && (
+        <p className="-mt-2 text-[11px] text-muted-foreground">A pessoa recebe o aviso no sino e por e-mail.</p>
+      )}
+
+      {!lead && (
+        <div className="space-y-2">
+          <Label htmlFor="tc-check">Checklist</Label>
+          {checklist.length > 0 && (
+            <ul className="space-y-1">
+              {checklist.map((c, i) => (
+                <li key={`${i}-${c}`} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{c}</span>
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label="Remover item" onClick={() => setChecklist((l) => l.filter((_, j) => j !== i))}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            <Input
+              id="tc-check"
+              value={checkInput}
+              onChange={(e) => setCheckInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCheck(); } }}
+              placeholder="Adicionar item (opcional)"
+            />
+            <Button type="button" variant="outline" onClick={addCheck} disabled={!checkInput.trim()}>Adicionar</Button>
+          </div>
+        </div>
+      )}
 
       {lead && kind === "reuniao" && (
         <label className="flex items-center gap-2 text-xs text-muted-foreground">

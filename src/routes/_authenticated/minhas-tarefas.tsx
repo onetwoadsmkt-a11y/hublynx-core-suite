@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { dueLabel } from "@/lib/tasks/due";
 import { AppLink } from "@/components/AppLink";
 import { AlertCircle, CalendarClock, CheckCircle2, ClipboardList, FolderKanban } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -92,7 +93,7 @@ function TaskItem({ t, late }: { t: MyTask; late: boolean }) {
         </div>
         {t.due_date && (
           <span className={cn("shrink-0 text-xs font-semibold", late ? OVERDUE_TEXT : "text-muted-foreground")}>
-            {new Date(t.due_date).toLocaleDateString("pt-BR")}
+            {dueLabel(t.due_date)}
           </span>
         )}
       </AppLink>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { dueFromParts, dueToParts } from "@/lib/tasks/due";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -29,6 +30,12 @@ import {
   Mail, CalendarPlus, Video, Globe, Users, Lock,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
+import { deleteTask } from "@/lib/tasks/task-actions.functions";
+import { listTaskAssignees } from "@/lib/tasks/assignees.functions";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { RichTextEditor } from "./RichTextEditor";
 import DOMPurify from "dompurify";
 import { TaskCommunicationsTab } from "./TaskCommunicationsTab";
@@ -110,12 +117,14 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
 
   const syncSheet = useServerFn(syncEntityToSheets);
   const deleteSheetRow = useServerFn(deleteEntityRowFromSheets);
-  const { syncNow, unsync } = useGoogleTaskSync();
+  const { syncNow } = useGoogleTaskSync();
 
   const update = useMutation({
     mutationFn: async (patch: any) => {
-      const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
+      const { data: rows, error } = await supabase.from("tasks").update(patch).eq("id", taskId).select("id");
       if (error) throw error;
+      // RLS sem permissão não dá erro: só não altera nada
+      if (!rows?.length) throw new Error("Sem permissão para alterar esta tarefa.");
     },
     onSuccess: (_r, patch) => {
       qc.invalidateQueries({ queryKey: ["task", taskId] });
@@ -129,17 +138,22 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
       // Data, título ou descrição mudaram: atualiza o Google na hora.
       if (taskId && touchesGoogle(patch)) syncNow([taskId]);
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => {
+      toast.error(e.message);
+      qc.invalidateQueries({ queryKey: ["task", taskId] });
+    },
   });
 
+  const deleteTaskFn = useServerFn(deleteTask);
+  const [confirmDel, setConfirmDel] = useState(false);
   const del = useMutation({
-    mutationFn: async () => {
-      if (taskId) await unsync(taskId);
-      const { error } = await supabase.from("tasks").delete().eq("id", taskId);
-      if (error) throw error;
-    },
+    // etapa de projeto: vira "cancelado" (fica no histórico); Google só sai depois de excluir no Core
+    mutationFn: async () => deleteTaskFn({ data: { taskId } }),
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível excluir."),
     onSuccess: () => {
       toast.success("Tarefa excluída.");
+      qc.invalidateQueries({ queryKey: ["priority-alerts"] });
+      qc.invalidateQueries({ queryKey: ["week"] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["project-dashboard"] });
       qc.invalidateQueries({ queryKey: ["project-stage-tasks"] });
@@ -160,7 +174,9 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
         title: task.title + " (cópia)",
         description: task.description,
         priority: task.priority,
-        status: "backlog",
+        status: "a_fazer",
+        due_date: task.due_date ?? null,
+        briefing: task.briefing ?? null,
         project_id: task.project_id,
         stage_id: (task as any).stage_id ?? null,
         client_id: task.client_id,
@@ -226,7 +242,7 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
                 <DropdownMenuItem onClick={() => duplicate.mutate()}>
                   <Copy className="h-4 w-4 mr-2" /> Duplicar
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => del.mutate()} className="text-destructive">
+                <DropdownMenuItem onClick={() => setConfirmDel(true)} className="text-destructive">
                   <Trash2 className="h-4 w-4 mr-2" /> Excluir
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -314,6 +330,28 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
         </ScrollArea>
       </Tabs>
 
+      <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir esta tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {task.stage_id
+                ? "Ela sai das etapas do projeto, do portal e da agenda, mas continua no histórico do projeto."
+                : "Ela sai da agenda, das tarefas e do Google Agenda. Não dá para desfazer."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={del.isPending}
+              onClick={(e) => { e.preventDefault(); del.mutate(undefined, { onSettled: () => setConfirmDel(false) }); }}
+            >
+              {del.isPending ? "Excluindo…" : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {emailOpen && (
         <SendEmailDialog
           open={emailOpen}
@@ -340,13 +378,30 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
 /* ============================== OVERVIEW ============================== */
 function OverviewTab({ task, update }: { task: any; update: any }) {
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
+  const orgId = (task.organization_id as string | null) ?? null;
+  // só projetos e clientes da empresa da tarefa
   const { data: projects = [] } = useQuery({
-    queryKey: ["projects-mini"],
-    queryFn: async () => (await supabase.from("projects").select("id,name").order("name")).data ?? [],
+    queryKey: ["projects-mini", orgId],
+    queryFn: async () => {
+      let q = supabase.from("projects").select("id,name").order("name");
+      if (orgId) q = (q as any).eq("organization_id", orgId);
+      return (await q).data ?? [];
+    },
   });
   const { data: clients = [] } = useQuery({
-    queryKey: ["clients-mini"],
-    queryFn: async () => (await supabase.from("clients").select("id,name,company,phone,whatsapp,email").order("name")).data ?? [],
+    queryKey: ["clients-mini", orgId],
+    queryFn: async () => {
+      let q = supabase.from("clients").select("id,name,company,phone,whatsapp,email").order("name");
+      if (orgId) q = (q as any).eq("organization_id", orgId);
+      return (await q).data ?? [];
+    },
+  });
+  const assigneesFn = useServerFn(listTaskAssignees);
+  const { data: people = [] } = useQuery({
+    queryKey: ["task-assignees", orgId, task.project_id ?? null],
+    enabled: !!orgId,
+    queryFn: () => assigneesFn({ data: { organizationId: orgId!, projectId: task.project_id ?? null } }),
+    staleTime: 60_000,
   });
 
   const project = task.project;
@@ -387,7 +442,11 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
           </Select>
         </Field>
         <Field label="Projeto">
-          <Select value={task.project_id ?? "none"} onValueChange={(v) => update.mutate({ project_id: v === "none" ? null : v })}>
+          <Select
+            value={task.project_id ?? "none"}
+            // trocar de projeto tira a tarefa da etapa do projeto antigo
+            onValueChange={(v) => update.mutate({ project_id: v === "none" ? null : v, stage_id: null })}
+          >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nenhum</SelectItem>
@@ -404,12 +463,22 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
             </SelectContent>
           </Select>
         </Field>
+        <Field label="Responsável">
+          <Select value={task.assignee_id ?? "none"} onValueChange={(v) => update.mutate({ assignee_id: v === "none" ? null : v })}>
+            <SelectTrigger aria-label="Responsável"><SelectValue placeholder="Sem responsável" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Sem responsável</SelectItem>
+              {task.assignee_id && !people.some((p) => p.user_id === task.assignee_id) && (
+                <SelectItem value={task.assignee_id}>Responsável atual</SelectItem>
+              )}
+              {people.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="Início">
-          <Input type="date" value={dateInput(task.start_date)} onChange={(e) => update.mutate({ start_date: e.target.value ? new Date(e.target.value).toISOString() : null })} />
+          <Input type="date" value={dueToParts(task.start_date).date} onChange={(e) => update.mutate({ start_date: dueFromParts(e.target.value) })} />
         </Field>
-        <Field label="Prazo">
-          <Input type="date" value={dateInput(task.due_date)} onChange={(e) => update.mutate({ due_date: e.target.value ? new Date(e.target.value).toISOString() : null })} />
-        </Field>
+        <DueField due={task.due_date} onSave={(due_date) => update.mutate({ due_date })} />
         <Field label="Horas estimadas">
           <Input type="number" step="0.25" value={task.estimated_hours ?? ""} onChange={(e) => update.mutate({ estimated_hours: e.target.value ? Number(e.target.value) : null })} />
         </Field>
@@ -452,7 +521,7 @@ function OverviewTab({ task, update }: { task: any; update: any }) {
               <p className="text-xs text-muted-foreground capitalize">{String(project.status).replace("_", " ")}</p>
             </div>
             <Button variant="ghost" size="sm" asChild>
-              <a href={`/projetos`}><ExternalLink className="h-3.5 w-3.5 mr-1" /> Abrir</a>
+              <a href={`/projetos/${project.id}${task.stage_id ? `?aba=etapas&tarefa=${task.id}` : ""}`}><ExternalLink className="h-3.5 w-3.5 mr-1" /> Abrir</a>
             </Button>
           </div>
           <div className="space-y-1">
@@ -1236,8 +1305,32 @@ function CustomFieldsBlock({ taskId }: { taskId: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{label}</Label>{children}</div>;
 }
-function dateInput(iso: string | null | undefined) {
-  return iso ? new Date(iso).toISOString().slice(0, 10) : "";
+/** Prazo com data e hora (horário de Brasília). Sem hora = dia inteiro. Salva ao sair do campo. */
+function DueField({ due, onSave }: { due: string | null; onSave: (due: string | null) => void }) {
+  const initial = dueToParts(due);
+  const [date, setDate] = useState(initial.date);
+  const [time, setTime] = useState(initial.time);
+  useEffect(() => {
+    const p = dueToParts(due);
+    setDate(p.date);
+    setTime(p.time);
+  }, [due]);
+  const commit = (d: string, t: string) => {
+    // enquanto o ano está sendo digitado (0002, 0020…) não salva
+    if (d && !/^(19|20)\d{2}-/.test(d)) return;
+    const next = d ? dueFromParts(d, t) : null;
+    const cur = dueToParts(due);
+    if (d === cur.date && t === cur.time) return;
+    onSave(next);
+  };
+  return (
+    <Field label="Prazo">
+      <div className="flex gap-2">
+        <Input type="date" aria-label="Data do prazo" value={date} onChange={(e) => { setDate(e.target.value); if (!e.target.value) setTime(""); commit(e.target.value, e.target.value ? time : ""); }} />
+        <Input type="time" aria-label="Hora do prazo" className="w-28" value={time} disabled={!date} onChange={(e) => setTime(e.target.value)} onBlur={(e) => commit(date, e.target.value)} />
+      </div>
+    </Field>
+  );
 }
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;

@@ -50,8 +50,8 @@ export const getWeekOverview = createServerFn({ method: "POST" })
         db
           .from("tasks")
           .select("id, title, due_date, project_id, clients(name), projects(name)")
-          .eq("owner_id", userId)
-          .neq("status", "concluido")
+          .or(`assignee_id.eq.${userId},and(assignee_id.is.null,owner_id.eq.${userId})`)
+          .not("status", "in", "(concluido,cancelado)")
           .limit(500),
       ),
       scope(
@@ -67,7 +67,7 @@ export const getWeekOverview = createServerFn({ method: "POST" })
         db
           .from("tasks")
           .select("project_id")
-          .neq("status", "concluido")
+          .not("status", "in", "(concluido,cancelado)")
           .not("project_id", "is", null)
           .limit(1000),
       ),
@@ -188,16 +188,21 @@ export const setTaskDone = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const when = data.done ? new Date().toISOString() : null;
-    const { error } =
+    const { data: row, error } =
       data.source === "lead"
         ? await context.supabase
             .from("lead_tasks")
             .update({ done: data.done, completed_at: when })
             .eq("id", data.id)
+            .select("id")
+            .maybeSingle()
         : await (context.supabase as any)
             .from("tasks")
             .update({ status: data.done ? "concluido" : "a_fazer", completed_at: when })
-            .eq("id", data.id);
+            .eq("id", data.id)
+            .select("id")
+            .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para alterar esta tarefa.");
     return { ok: true as const };
   });

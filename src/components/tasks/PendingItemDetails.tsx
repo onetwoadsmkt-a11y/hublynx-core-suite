@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { PRIORITY_LABEL, PRIORITY_TONE, type Priority } from "@/components/tasks/TaskDrawer";
 import { openLeadCard } from "@/components/pipeline/LeadCardHost";
 import { LeadTaskNotes } from "@/components/pipeline/LeadTaskActions";
-import { isOverdue } from "@/lib/tasks/pending";
+import { dueDayKey, dueHasTime, isOverdue } from "@/lib/tasks/pending";
 import type { PendingItem } from "@/hooks/usePendingItems";
 import { cn } from "@/lib/utils";
 
@@ -26,8 +26,8 @@ function whenLabel(item: PendingItem) {
   if (!item.due_date) return "Sem data";
   const d = parseISO(item.due_date);
   if (!isValid(d)) return "Sem data";
-  const allDay = !item.leadTask && /T00:00(:00(\.0+)?)?(Z|\+00:?00)?$|^\d{4}-\d{2}-\d{2}$/.test(item.due_date);
-  if (allDay) return format(parseISO(item.due_date.slice(0, 10)), "EEEE, d 'de' MMMM", { locale: ptBR });
+  const allDay = !item.leadTask && !dueHasTime(item.due_date);
+  if (allDay) return format(parseISO(`${dueDayKey(item.due_date)}T12:00:00`), "EEEE, d 'de' MMMM", { locale: ptBR });
   const mins = item.leadTask?.duration_minutes ?? null;
   const end = mins ? new Date(d.getTime() + mins * 60_000) : null;
   return `${format(d, "EEEE, d 'de' MMMM · HH:mm", { locale: ptBR })}${end ? ` – ${format(end, "HH:mm")}` : ""}`;

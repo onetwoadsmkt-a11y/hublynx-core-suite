@@ -29,7 +29,8 @@ import { PendingItemDetails } from "@/components/tasks/PendingItemDetails";
 import { useGoogleTaskSync } from "@/hooks/useGoogleSync";
 import { DayPendingSheet, type DayExtra } from "@/components/tasks/DayPendingSheet";
 import { LeadLink, OpenLeadButton } from "@/components/pipeline/LeadCardHost";
-import { dueDayKey, isOverdue, isPriorityLevel } from "@/lib/tasks/pending";
+import { dueDayKey, dueHasTime, isOverdue, isPriorityLevel } from "@/lib/tasks/pending";
+import { RescheduleInput } from "@/components/tasks/RescheduleInput";
 import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
 import { PRIORITY_LABEL, PRIORITY_TONE } from "@/components/tasks/TaskDrawer";
 import { AlertTriangle } from "lucide-react";
@@ -170,7 +171,8 @@ function AgendaPage() {
       const key = dueDayKey(i.due_date);
       if (!key || !i.due_date) continue;
       const lead = i.leadTask;
-      const allDay = !lead && key === i.due_date.slice(0, 10) && /T00:00(:00(\.0+)?)?(Z|\+00:?00)?$|^\d{4}-\d{2}-\d{2}$/.test(i.due_date);
+      // "Só com dia" (qualquer convenção: meia-noite ou meio-dia) aparece como dia inteiro.
+      const allDay = !lead && !dueHasTime(i.due_date);
       // Dia inteiro: posiciona na meia-noite local do dia gravado.
       const start = allDay ? `${key}T00:00:00` : i.due_date;
       const s0 = new Date(start);
@@ -720,13 +722,7 @@ function EventDetails({ event }: { event: AgendaEvent }) {
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => complete.mutate()}>
               <CheckCircle2 className="h-3 w-3 mr-1" /> Concluir
             </Button>
-            <input
-              type="datetime-local"
-              aria-label="Remarcar"
-              className="h-7 text-xs rounded border border-border bg-background px-1.5"
-              defaultValue={new Date(event.start).toISOString().slice(0,16)}
-              onChange={(e) => { const v = e.target.value; if (v) reschedule.mutate(new Date(v).toISOString()); }}
-            />
+            <RescheduleInput due={pendingItem.due_date} pending={reschedule.isPending} onSave={(iso) => reschedule.mutate(iso)} />
           </div>
         )}
       </div>
@@ -778,15 +774,7 @@ function EventDetails({ event }: { event: AgendaEvent }) {
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => complete.mutate()}>
                 <CheckCircle2 className="h-3 w-3 mr-1" /> Concluir
               </Button>
-              <input
-                type="datetime-local"
-                className="h-7 text-xs rounded border border-border bg-background px-1.5"
-                defaultValue={new Date(event.start).toISOString().slice(0,16)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v) reschedule.mutate(new Date(v).toISOString());
-                }}
-              />
+              <RescheduleInput due={event.allDay ? event.start.slice(0, 10) : event.start} pending={reschedule.isPending} onSave={(iso) => reschedule.mutate(iso)} />
             </>
           )}
           {event.source === "lead" && event.pendingId && (

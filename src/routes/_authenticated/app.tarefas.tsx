@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { dueLabel } from "@/lib/tasks/due";
 import { isOverdue } from "@/lib/tasks/pending";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -51,13 +52,14 @@ function TarefasMobile() {
 
   const complete = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("tasks").update({ status: "concluido" }).eq("id", id);
+      const { data: rows, error } = await supabase.from("tasks").update({ status: "concluido" }).eq("id", id).select("id");
       if (error) throw error;
+      if (!rows?.length) throw new Error("Sem permissão para concluir esta tarefa.");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Tarefa concluída.");
-    },
+    },    onError: (e: any) => toast.error(e?.message ?? "Não foi possível concluir."),
   });
 
   const chips: { key: Filter; label: string }[] = [
@@ -139,7 +141,7 @@ function TarefasMobile() {
                     {project && <span className="truncate">{(project as any).name}</span>}
                     {t.due_date && (
                       <span className={cn(late && OVERDUE_TEXT)}>
-                        {format(parseISO(t.due_date), "dd/MM HH:mm")}
+                        {dueLabel(t.due_date)?.replace(/\/\d{4}/, "")}
                       </span>
                     )}
                     {t.priority === "critica" && (

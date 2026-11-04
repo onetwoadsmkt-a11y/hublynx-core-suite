@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { dueDayKey, dueHasTime } from "@/lib/tasks/pending";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GOOGLE_API_BASE, googleHeaders } from "./google.functions";
@@ -208,11 +209,15 @@ async function pushTaskEvent(
   const wantsMeet = !!opts.withMeet || type === "reuniao";
   const start = new Date(task.due_date as string);
   const end = new Date(start.getTime() + opts.durationMinutes * 60_000);
+  // "Só com dia" vira evento de dia inteiro no Google (antes caía às 21:00 da véspera ou 00:00).
+  const allDay = !dueHasTime(task.due_date);
+  const day = dueDayKey(task.due_date) as string;
+  const nextDay = new Date(Date.UTC(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10) + 1)).toISOString().slice(0, 10);
   const body: any = {
     summary: taskSummary(task),
     description: task.description ?? undefined,
-    start: { dateTime: start.toISOString() },
-    end: { dateTime: end.toISOString() },
+    start: allDay ? { date: day, dateTime: null } : { dateTime: start.toISOString(), date: null },
+    end: allDay ? { date: nextDay, dateTime: null } : { dateTime: end.toISOString(), date: null },
     // grafite quando concluída; null volta para a cor da agenda
     colorId: isTaskDone(task) ? "8" : null,
   };
@@ -221,14 +226,35 @@ async function pushTaskEvent(
       createRequest: { requestId: `task-${task.id}-${Date.now()}`, conferenceSolutionKey: { type: "hangoutsMeet" } },
     };
   }
-  const url = existing?.provider_id
-    ? `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${existing.provider_id}?conferenceDataVersion=1`
-    : `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?conferenceDataVersion=1`;
-  const res = await fetch(url, {
-    method: existing?.provider_id ? "PATCH" : "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const send = (eventId: string | null | undefined, payload: any) =>
+    fetch(
+      eventId
+        ? `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${eventId}?conferenceDataVersion=1`
+        : `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?conferenceDataVersion=1`,
+      {
+        method: eventId ? "PATCH" : "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+  const strip = (b: any) => {
+    // no POST não se manda campo nulo
+    const out = { ...b, start: { ...b.start }, end: { ...b.end } };
+    for (const k of ["start", "end"]) for (const f of ["date", "dateTime"]) if (out[k][f] == null) delete out[k][f];
+    if (out.colorId == null) delete out.colorId;
+    return out;
+  };
+  let res = await send(existing?.provider_id, existing?.provider_id ? body : strip(body));
+  // Evento apagado no Google (ou de outra agenda): cria de novo na agenda do dono.
+  if (existing?.provider_id && (res.status === 404 || res.status === 410)) {
+    const fresh = strip(body);
+    if (wantsMeet) {
+      fresh.conferenceData = {
+        createRequest: { requestId: `task-${task.id}-${Date.now()}`, conferenceSolutionKey: { type: "hangoutsMeet" } },
+      };
+    }
+    res = await send(null, fresh);
+  }
   const json = await res.json().catch(() => ({}) as any);
   if (!res.ok) throw new Error(`Falha ao sincronizar (${res.status}): ${json?.error?.message || JSON.stringify(json)}`);
   const eventId = json?.id as string;
@@ -306,7 +332,8 @@ export const syncTaskToCalendar = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error || !task) throw new Error("Tarefa não encontrada");
     if (!task.due_date) return { ok: false as const, reason: "no_due_date" };
-    const headers = await googleHeaders(userId);
+    // o espelho mora no Google do dono da tarefa
+    const headers = await googleHeaders((task.owner_id as string) ?? userId);
     const existing = (await latestMirrors(supabase, [task.id as string])).get(task.id as string) ?? null;
     const r = await pushTaskEvent(supabase, userId, headers, task as SyncTask, existing, {
       durationMinutes: data.durationMinutes,
@@ -325,21 +352,23 @@ export const syncTasksNow = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ taskIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    let headers: Record<string, string>;
-    try {
-      headers = await googleHeaders(userId);
-    } catch {
-      return { ok: false as const, synced: 0 };
-    }
     const { data: tasks } = await supabase
       .from("tasks")
       .select("id, owner_id, title, description, due_date, briefing, status")
       .in("id", data.taskIds);
     const mirrors = await latestMirrors(supabase, data.taskIds);
+    // Cada tarefa vai para o Google do dono dela (quem edita pode ser outra pessoa da equipe).
+    const headersBy = new Map<string, Promise<Record<string, string> | null>>();
+    const headersOf = (owner: string) => {
+      if (!headersBy.has(owner)) headersBy.set(owner, googleHeaders(owner).catch(() => null));
+      return headersBy.get(owner)!;
+    };
     let synced = 0;
     await runPool((tasks ?? []) as SyncTask[], 5, async (t) => {
       const m = mirrors.get(t.id) ?? null;
       try {
+        const headers = await headersOf(t.owner_id ?? userId);
+        if (!headers) return; // dono sem Google conectado
         if (!t.due_date) {
           if (m?.provider_id) {
             await fetch(`${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${m.provider_id}`, { method: "DELETE", headers });
@@ -365,8 +394,10 @@ export const unsyncTaskFromCalendar = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const m = (await latestMirrors(supabase, [data.taskId])).get(data.taskId);
     if (!m?.provider_id) return { ok: true as const, removed: false };
+    const { data: t } = await supabase.from("tasks").select("owner_id").eq("id", data.taskId).maybeSingle();
     try {
-      const headers = await googleHeaders(userId);
+      // remove do Google do dono da tarefa
+      const headers = await googleHeaders(((t as any)?.owner_id as string | undefined) ?? userId);
       await fetch(`${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events/${m.provider_id}`, { method: "DELETE", headers });
       return { ok: true as const, removed: true };
     } catch {

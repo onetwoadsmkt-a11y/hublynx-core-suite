@@ -63,7 +63,8 @@ export function usePendingItems() {
           .order("position")
           .order("id") as any,
       );
-      return rows;
+      // "cancelado" = tarefa excluída das etapas do projeto: fica só no histórico do projeto
+      return rows.filter((r) => r.status !== "cancelado");
     },
     staleTime: 60_000,
     enabled: !!activeOrganizationId,

@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { dueTime } from "@/lib/tasks/due";
 import { isOverdue } from "@/lib/tasks/pending";
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -48,8 +49,9 @@ function HojePage() {
 
   const complete = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("tasks").update({ status: "concluido" }).eq("id", id);
+      const { data: rows, error } = await supabase.from("tasks").update({ status: "concluido" }).eq("id", id).select("id");
       if (error) throw error;
+      if (!rows?.length) throw new Error("Sem permissão para concluir esta tarefa.");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
@@ -87,7 +89,7 @@ function HojePage() {
           <h2 className="text-xl font-semibold mt-2 leading-tight">{next.title}</h2>
           {next.due_date && (
             <p className="text-sm opacity-90 mt-2">
-              {format(parseISO(next.due_date), "HH:mm")}
+              {dueTime(next.due_date) ?? "Dia todo"}
             </p>
           )}
           <div className="flex gap-2 mt-4">
@@ -147,7 +149,7 @@ function HojePage() {
                 </p>
                 {t.due_date && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {format(parseISO(t.due_date), "HH:mm")}
+                    {dueTime(t.due_date) ?? "Dia todo"}
                   </p>
                 )}
               </div>

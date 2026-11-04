@@ -36,7 +36,10 @@ function clock(d: Date, timeZone?: string): string {
 
 /**
  * O prazo tem horário marcado? Prazos "só com dia" são gravados como data pura,
- * meia-noite (UTC ou local) ou meio-dia (convenção usada nas tarefas dos projetos).
+ * meia-noite (UTC ou Brasília) ou meio-dia (UTC ou Brasília — convenções dos projetos).
+ * A conferência usa UTC e Brasília explicitamente, então dá o mesmo resultado no
+ * navegador e no servidor. Horários escolhidos pela pessoa que caem num desses
+ * marcadores são gravados com 1 segundo a mais (`dueFromParts`), para não virarem "dia".
  */
 export function dueHasTime(due: string | null | undefined): boolean {
   if (!due || /^\d{4}-\d{2}-\d{2}$/.test(due)) return false;
@@ -44,7 +47,7 @@ export function dueHasTime(due: string | null | undefined): boolean {
   if (!isValid(d)) return false;
   if (/T(00|12):00(:00(\.0+)?)?(Z|[+-]00:?00)?$/.test(due)) return false;
   const dayOnly = (c: string) => c === "00:00:00" || c === "12:00:00";
-  return !dayOnly(clock(d)) && !dayOnly(clock(d, TZ));
+  return !dayOnly(clock(d, "UTC")) && !dayOnly(clock(d, TZ));
 }
 
 /**

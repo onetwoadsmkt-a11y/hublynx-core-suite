@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GOOGLE_API_BASE, googleHeaders } from "@/lib/google/google.functions";
 import type { AgendaEvent } from "./types";
+import { dueHasTime } from "@/lib/tasks/pending";
 
 const rangeSchema = z.object({
   from: z.string().min(1),
@@ -38,7 +39,7 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
     for (const t of tasks ?? []) {
       const due = t.due_date as string;
       const d = new Date(due);
-      const allDay = d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
+      const allDay = !dueHasTime(due);
       events.push({
         id: `task-${t.id}`,
         source: "task",
@@ -182,11 +183,14 @@ export const rescheduleTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => rescheduleSchema.parse(data))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { data: row, error } = await context.supabase
       .from("tasks")
       .update({ due_date: data.dueDate })
-      .eq("id", data.taskId);
+      .eq("id", data.taskId)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para remarcar esta tarefa.");
     return { ok: true as const };
   });
 
@@ -195,11 +199,14 @@ export const completeTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ taskId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { data: row, error } = await context.supabase
       .from("tasks")
       .update({ status: "concluido" })
-      .eq("id", data.taskId);
+      .eq("id", data.taskId)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sem permissão para concluir esta tarefa.");
     return { ok: true as const };
   });
 

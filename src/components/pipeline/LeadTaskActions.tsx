@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addLeadTaskNote, completeLeadTask } from "@/lib/pipeline/pipeline.functions";
 import { defaultNextDue, noteLines } from "@/lib/pipeline/lead-task-notes";
+import { localInputToIso } from "@/lib/tasks/due";
 import { invalidatePendingQueries } from "@/hooks/usePendingItems";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +94,7 @@ export function LeadTaskActions({
             ? {
                 title: title.trim() || KINDS.find((k) => k.value === kind)!.label,
                 kind,
-                due_at: due ? new Date(due).toISOString() : null,
+                due_at: due ? localInputToIso(due) : null,
                 duration_minutes: Number(duration),
                 priority,
                 invite_lead: invite && !!leadEmail,

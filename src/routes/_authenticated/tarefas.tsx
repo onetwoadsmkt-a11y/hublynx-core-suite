@@ -39,6 +39,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { type LeadScheduledTask } from "@/lib/pipeline/task-display";
 import { toggleLeadTask } from "@/lib/pipeline/pipeline.functions";
+import { deleteTask } from "@/lib/tasks/task-actions.functions";
 import { usePendingItems, invalidatePendingQueries } from "@/hooks/usePendingItems";
 import { useGoogleTaskSync } from "@/hooks/useGoogleSync";
 import { TasksViewSwitch } from "@/components/tasks/TasksViewSwitch";
@@ -46,7 +47,9 @@ import { LeadLink, OpenLeadButton } from "@/components/pipeline/LeadCardHost";
 import { isPriorityLevel } from "@/lib/tasks/pending";
 import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
 import { matchesTaskDateRange } from "@/lib/tasks/date-filter";
-import { isOverdue } from "@/lib/tasks/pending";
+import { dueDayKey, isOverdue } from "@/lib/tasks/pending";
+import { dueDayOffset, dueLabel, dueTime } from "@/lib/tasks/due";
+import { ptBR } from "date-fns/locale";
 import { OverdueBand, OVERDUE_RING, OVERDUE_TEXT } from "@/components/tasks/OverdueBand";
 
 type ViewMode = "kanban" | "lista" | "calendario";
@@ -206,8 +209,9 @@ function TarefasPage() {
         await toggleSchedule({ data: { id: schedule.id, done: status === "concluido" } });
         return id;
       }
-      const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
+      const { data: rows, error } = await supabase.from("tasks").update({ status }).eq("id", id).select("id");
       if (error) throw error;
+      if (!rows?.length) throw new Error("Sem permissão para mover esta tarefa.");
       return id;
     },
     onMutate: async ({ id, status }) => {
@@ -218,9 +222,9 @@ function TarefasPage() {
       );
       return { prev };
     },
-    onError: (_e, _v, ctx) => {
+    onError: (e: any, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(tasksKey, ctx.prev);
-      toast.error("Não foi possível mover a tarefa.");
+      toast.error(e?.message ?? "Não foi possível mover a tarefa.");
     },
     onSuccess: (id) => {
       const schedule = tasks.find((task) => task.id === id)?.leadTask;
@@ -458,11 +462,8 @@ function TaskListGrouped({
   projectsById: Map<string, { id: string; name: string }>;
   onSelect: (id: string) => void;
 }) {
-  const today = startOfDay(new Date());
-  const tomorrow = addDays(today, 1);
-  const nextWeek = addDays(today, 7);
-
   const groups = useMemo(() => {
+    const now = new Date();
     const g: Record<string, Task[]> = { vencidas: [], hoje: [], semana: [], depois: [], semData: [], concluidas: [] };
     tasks.forEach((t) => {
       // concluídas e canceladas saem da fila e vão para um grupo próprio no fim
@@ -470,14 +471,15 @@ function TaskListGrouped({
         g.concluidas.push(t);
         return;
       }
-      if (!t.due_date) {
+      const offset = dueDayOffset(t.due_date, now);
+      if (offset === null) {
         g.semData.push(t);
         return;
       }
-      const d = parseISO(t.due_date);
-      if (d < today) g.vencidas.push(t);
-      else if (d >= today && d < tomorrow) g.hoje.push(t);
-      else if (d >= tomorrow && d < nextWeek) g.semana.push(t);
+      // mesma regra do destaque vermelho (horário de Brasília; "só com dia" vence no dia seguinte)
+      if (offset < 0 || isOverdue({ due_date: t.due_date, status: t.status }, now)) g.vencidas.push(t);
+      else if (offset === 0) g.hoje.push(t);
+      else if (offset < 7) g.semana.push(t);
       else g.depois.push(t);
     });
     const sorter = (a: Task, b: Task) => {
@@ -492,7 +494,7 @@ function TaskListGrouped({
     g.depois.sort(sorter);
     g.semData.sort((a, b) => a.title.localeCompare(b.title));
     return g;
-  }, [tasks, today, tomorrow, nextWeek]);
+  }, [tasks]);
 
   if (tasks.length === 0) {
     return (
@@ -517,7 +519,7 @@ function TaskListGrouped({
         clientsById={clientsById}
         projectsById={projectsById}
         onSelect={onSelect}
-        dueFormatter={(d) => `Venceu há ${differenceInCalendarDays(today, d)} dia${differenceInCalendarDays(today, d) === 1 ? "" : "s"}`}
+        dueFormatter={(iso) => { const n = -(dueDayOffset(iso) ?? 0); return n <= 0 ? "Venceu hoje" : `Venceu há ${n} dia${n === 1 ? "" : "s"}`; }}
       />
       <TaskGroup
         title="Hoje"
@@ -539,7 +541,7 @@ function TaskListGrouped({
         clientsById={clientsById}
         projectsById={projectsById}
         onSelect={onSelect}
-        dueFormatter={(d) => format(d, "EEEE, dd/MM", { locale: undefined })}
+        dueFormatter={(iso) => format(parseISO(`${dueDayKey(iso)}T12:00:00`), "EEEE, dd/MM", { locale: ptBR })}
       />
       <TaskGroup
         title="Depois"
@@ -550,7 +552,7 @@ function TaskListGrouped({
         clientsById={clientsById}
         projectsById={projectsById}
         onSelect={onSelect}
-        dueFormatter={(d) => format(d, "dd/MM/yyyy")}
+        dueFormatter={(iso) => dueLabel(iso)?.slice(0, 10) ?? ""}
       />
       {groups.concluidas.length > 0 && (
         <details>
@@ -566,7 +568,7 @@ function TaskListGrouped({
             clientsById={clientsById}
             projectsById={projectsById}
             onSelect={onSelect}
-            dueFormatter={(d) => format(d, "dd/MM/yyyy")}
+            dueFormatter={(iso) => dueLabel(iso)?.slice(0, 10) ?? ""}
           />
         </details>
       )}
@@ -606,7 +608,7 @@ function TaskGroup({
   clientsById: Map<string, ClientMini>;
   projectsById: Map<string, { id: string; name: string }>;
   onSelect: (id: string) => void;
-  dueFormatter: (d: Date) => string;
+  dueFormatter: (iso: string) => string;
 }) {
   if (tasks.length === 0) return null;
   return (
@@ -643,12 +645,12 @@ function TaskListItem({
   project?: { id: string; name: string } | null;
   kanbanCols?: KanbanColumn[];
   onClick?: () => void;
-  dueFormatter: (d: Date) => string;
+  dueFormatter: (iso: string) => string;
 }) {
   const col = kanbanCols?.find((c) => c.key === task.status);
   const meeting = (task.briefing as any)?.type === "reuniao";
   const deadline = (task.briefing as any)?.deadline as string | null | undefined;
-  const dueDate = task.due_date ? parseISO(task.due_date) : null;
+  const dueDate = task.due_date ?? null;
   const late = isOverdue({ due_date: task.due_date, status: task.status });
 
   return (
@@ -705,7 +707,7 @@ function TaskListItem({
                 </p>
               )}
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                {dueDate ? format(dueDate, "HH:mm") : "—"}
+                {dueDate ? dueTime(dueDate) ?? "Dia todo" : "—"}
               </p>
             </div>
           </div>
@@ -854,23 +856,14 @@ function TaskCard({
   const qc = useQueryClient();
   const meeting = (task.briefing as any)?.type === "reuniao";
   const done = kanbanCols?.find((c) => c.key === task.status)?.key === "concluido" || task.status === "concluido";
-  // Datas à meia-noite UTC são "dia inteiro": mostra a data gravada, sem converter fuso.
-  const due = task.due_date ? new Date(task.due_date) : null;
-  const allDay = !!due && due.getUTCHours() === 0 && due.getUTCMinutes() === 0;
-  const dueLabel = due
-    ? allDay
-      ? due.toLocaleDateString("pt-BR", { timeZone: "UTC" })
-      : `${due.toLocaleDateString("pt-BR")} · ${due.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-    : null;
+  // Mesma regra em todo o Core: "só com dia" mostra só a data; com hora, no horário de Brasília.
+  const dueText = dueLabel(task.due_date);
   const overdue = !done && isOverdue({ due_date: task.due_date, status: task.status });
 
-  const { unsync } = useGoogleTaskSync();
+  const deleteTaskFn = useServerFn(deleteTask);
   const del = useMutation({
-    mutationFn: async () => {
-      await unsync(task.id);
-      const { error } = await supabase.from("tasks").delete().eq("id", task.id);
-      if (error) throw error;
-    },
+    // etapa de projeto vira "cancelado" (histórico); o Google só sai depois de excluir no Core
+    mutationFn: async () => deleteTaskFn({ data: { taskId: task.id } }),
     onSuccess: () => {
       invalidatePendingQueries(qc);
       toast.success("Tarefa excluída.");
@@ -955,7 +948,7 @@ function TaskCard({
           </p>
         )}
 
-        {dueLabel && (
+        {dueText && (
           <p
             className={`mt-1.5 flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-[11px] ${
               overdue ? `bg-rose-50 dark:bg-rose-500/10 ${OVERDUE_TEXT}` : "bg-muted text-muted-foreground"
@@ -963,7 +956,7 @@ function TaskCard({
           >
             <AlarmClock className="h-3 w-3 shrink-0" />
             <span className="truncate">
-              {dueLabel}
+              {dueText}
             </span>
           </p>
         )}
@@ -1041,21 +1034,3 @@ function TaskCard({
   );
 }
 
-function DeleteTaskBtn({ id }: { id: string }) {
-  const qc = useQueryClient();
-  const del = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("tasks").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Tarefa excluída."); },
-  });
-  return (
-    <Button
-      variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-      onClick={(e) => { e.stopPropagation(); del.mutate(); }}
-    >
-      <Trash2 className="h-4 w-4" />
-    </Button>
-  );
-}
