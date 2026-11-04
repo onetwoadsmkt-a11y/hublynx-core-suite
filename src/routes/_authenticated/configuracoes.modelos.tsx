@@ -4,7 +4,7 @@ import { ptBR } from "date-fns/locale";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus, Trash2, Pencil, CalendarRange, AlertTriangle, ArrowUp, ArrowDown, Users, UserRound, UserPlus } from "lucide-react";
+import { Plus, Trash2, Pencil, CalendarRange, AlertTriangle, ArrowUp, ArrowDown, Users, UserRound, UserPlus, Mail, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,13 +13,15 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useOrgAccess } from "@/hooks/useOrgAccess";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { listOrgTeamMembers } from "@/lib/projects/access.functions";
+import { inviteTemplateMember, listOrgTeamMembers } from "@/lib/projects/access.functions";
 import { supabase } from "@/integrations/supabase/client";
 import {
   listProjectTemplates,
@@ -278,6 +280,8 @@ function TemplateDialog({
   const [stages, setStages] = useState<StageDraft[]>([]);
   const [members, setMembers] = useState<TemplateMember[]>([]);
   const [pick, setPick] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const qcDlg = useQueryClient();
   const orgId = template?.organization_id ?? organizationId;
   const teamFn = useServerFn(listOrgTeamMembers);
   const teamQ = useQuery({
@@ -736,15 +740,9 @@ function TemplateDialog({
                 </div>
               ))}
               <div className="flex flex-wrap items-center gap-2">
-                <Select value={pick} onValueChange={addMember} disabled={teamQ.isLoading || available.length === 0}>
-                  <SelectTrigger className="h-9 w-full sm:w-80" aria-label="Adicionar pessoa à equipe do modelo">
-                    <UserPlus className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <SelectValue placeholder={teamQ.isLoading ? "Carregando equipe…" : available.length ? "Adicionar pessoa da empresa" : "Toda a equipe já está no modelo"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {available.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}{p.email && p.email !== p.name ? ` · ${p.email}` : ""}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Button type="button" className="h-9 font-bold" style={{ background: primary, color: ink }} onClick={() => setAddOpen(true)}>
+                  <UserPlus className="mr-1 h-4 w-4" /> Adicionar participante
+                </Button>
                 {available.length > 1 && (
                   <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => {
                     setMembers((d) => [...d, ...available.map((p) => ({ user_id: p.user_id, name: p.name, email: p.email, department: null, access_role: "executor" as const }))]);
@@ -752,7 +750,7 @@ function TemplateDialog({
                     <Users className="mr-1 h-4 w-4" /> Incluir toda a equipe ({available.length})
                   </Button>
                 )}
-                <p className="text-xs text-muted-foreground">Pessoa nova ainda sem acesso? Convide pela aba Equipe e permissões de um projeto e depois inclua aqui.</p>
+                <p className="text-xs text-muted-foreground">Da equipe da empresa ou uma pessoa nova (recebe convite por e-mail com a senha de acesso).</p>
               </div>
             </section>
           )}
@@ -782,6 +780,165 @@ function TemplateDialog({
             Salvar modelo
           </Button>
         </DialogFooter>
+        <AddParticipantDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          organizationId={orgId}
+          templateName={name.trim() || null}
+          available={available}
+          primary={primary}
+          ink={ink}
+          onAdd={(person, role, department) => {
+            setMembers((d) =>
+              d.some((x) => x.user_id === person.user_id)
+                ? d.map((x) => (x.user_id === person.user_id ? { ...x, access_role: role, department: department || x.department } : x))
+                : [...d, { user_id: person.user_id, name: person.name, email: person.email, department: department || null, access_role: role }],
+            );
+            qcDlg.invalidateQueries({ queryKey: ["org-team-members", orgId] });
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type Person = { user_id: string; name: string; email: string | null };
+type InviteResult = Awaited<ReturnType<typeof inviteTemplateMember>>;
+
+/** Igual a "Adicionar pessoa ao projeto": da equipe da empresa ou pessoa nova com convite. */
+function AddParticipantDialog({
+  open, onOpenChange, organizationId, templateName, available, primary, ink, onAdd,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  organizationId: string | null;
+  templateName: string | null;
+  available: Person[];
+  primary: string;
+  ink: string;
+  onAdd: (p: Person, role: TemplateMember["access_role"], department: string) => void;
+}) {
+  const inviteFn = useServerFn(inviteTemplateMember);
+  const [mode, setMode] = useState<"equipe" | "nova">("equipe");
+  const [userId, setUserId] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<TemplateMember["access_role"]>("executor");
+  const [department, setDepartment] = useState("");
+  const [result, setResult] = useState<InviteResult | null>(null);
+  const effective = mode === "nova" || available.length === 0 ? "nova" : "equipe";
+  useEffect(() => {
+    if (!open) return;
+    setMode("equipe"); setUserId(""); setName(""); setEmail(""); setRole("executor"); setDepartment(""); setResult(null);
+  }, [open]);
+  const invite = useMutation({
+    mutationFn: () => inviteFn({ data: { organizationId: organizationId!, name: name.trim(), email: email.trim(), templateName } }),
+    onSuccess: (r) => {
+      setResult(r);
+      onAdd({ user_id: r.userId, name: r.name, email: r.email }, role, department.trim());
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const message = (r: InviteResult) =>
+    [
+      `Olá, ${r.name.split(/\s+/)[0]}! Seu acesso à equipe de projetos no Core:`,
+      "",
+      `Link: ${r.portalUrl}`,
+      `E-mail: ${r.email}`,
+      r.password ? `Senha: ${r.password}` : "Senha: a mesma que você já usa no Core",
+    ].join("\n");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Adicionar participante ao modelo</DialogTitle>
+          <DialogDescription>
+            Escolha alguém da equipe da empresa ou convide uma pessoa nova por e-mail. Ela entra no projeto quando o modelo for aplicado.
+          </DialogDescription>
+        </DialogHeader>
+        {result ? (
+          <div className="space-y-3 text-sm">
+            {result.emailSent ? (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">
+                Participante incluído. Convite enviado de <strong>{result.sentFrom}</strong> para <strong>{result.email}</strong>.
+              </p>
+            ) : (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                Participante incluído, mas o e-mail não foi enviado: {result.emailError}
+              </p>
+            )}
+            <Label>Dados de acesso (para enviar por WhatsApp)</Label>
+            <Textarea readOnly rows={5} value={message(result)} className="text-xs" />
+            <Button variant="outline" size="sm" onClick={() => navigator.clipboard?.writeText(message(result)).then(() => toast.success("Mensagem copiada"))}>
+              <Copy className="h-4 w-4" /> Copiar mensagem
+            </Button>
+            {!result.password && <p className="text-xs text-muted-foreground">Este e-mail já tinha conta no Core; a senha não foi alterada.</p>}
+            <p className="text-xs text-muted-foreground">Lembre de clicar em “Salvar modelo” para guardar a equipe.</p>
+            <DialogFooter><Button onClick={() => onOpenChange(false)}>Concluir</Button></DialogFooter>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm" role="tablist" aria-label="Tipo de participante">
+              {([["equipe", "Da equipe"], ["nova", "Pessoa nova"]] as const).map(([k, l]) => (
+                <button key={k} type="button" role="tab" aria-selected={effective === k} onClick={() => setMode(k)}
+                  className={`rounded-md px-3 py-1.5 font-medium transition ${effective === k ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-3">
+              {effective === "equipe" ? (
+                <div className="space-y-1.5">
+                  <Label>Pessoa</Label>
+                  <Select value={userId} onValueChange={setUserId}>
+                    <SelectTrigger aria-label="Pessoa da equipe"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {available.map((u) => <SelectItem key={u.user_id} value={u.user_id}>{u.name}{u.email && u.email !== u.name ? ` — ${u.email}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <>
+                  {available.length === 0 && <p className="text-xs text-muted-foreground">Toda a equipe da empresa já está no modelo. Convide uma pessoa nova: ela recebe e-mail e senha de acesso.</p>}
+                  <div className="space-y-1.5"><Label htmlFor="pp-name">Nome</Label><Input id="pp-name" value={name} onChange={(e) => setName(e.target.value)} /></div>
+                  <div className="space-y-1.5"><Label htmlFor="pp-email">E-mail</Label><Input id="pp-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="pessoa@empresa.com" /></div>
+                </>
+              )}
+              <div className="space-y-1.5">
+                <Label>Papel no projeto</Label>
+                <Select value={role} onValueChange={(v) => setRole(v as TemplateMember["access_role"])}>
+                  <SelectTrigger aria-label="Papel no projeto"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(ROLE_LABEL) as TemplateMember["access_role"][]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pp-dep">Departamento / função (opcional)</Label>
+                <Input id="pp-dep" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Ex.: Compras, Arquitetura, Implantação" maxLength={120} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+              {effective === "equipe" ? (
+                <Button disabled={!userId} style={{ background: primary, color: ink }} onClick={() => {
+                  const p = available.find((x) => x.user_id === userId);
+                  if (!p) return;
+                  onAdd(p, role, department.trim());
+                  toast.success(`${p.name} incluído no modelo`);
+                  onOpenChange(false);
+                }}>
+                  <Plus className="h-4 w-4" /> Adicionar
+                </Button>
+              ) : (
+                <Button disabled={!name.trim() || !email.trim() || !organizationId || invite.isPending} style={{ background: primary, color: ink }} onClick={() => invite.mutate()}>
+                  <Mail className="h-4 w-4" /> {invite.isPending ? "Enviando…" : "Adicionar e enviar convite"}
+                </Button>
+              )}
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

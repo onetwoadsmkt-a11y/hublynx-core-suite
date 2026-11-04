@@ -270,6 +270,67 @@ export const setProjectMember = createServerFn({ method: "POST" })
  * Cria a conta com senha gerada (ou usa a conta que já existe) e envia o convite
  * pelo Gmail/SMTP conectado, como no convite do cliente.
  */
+/**
+ * Conta da pessoa da equipe: cria com senha gerada (ou usa a existente, sem trocar a senha)
+ * e liga à empresa como usuária ativa. Cliente do portal não vira equipe.
+ */
+async function ensureTeamAccount(
+  admin: Db & { auth: any },
+  organizationId: string,
+  name: string,
+  email: string,
+): Promise<{ userId: string; password: string | null }> {
+  const { generatePassword } = await import("./client-invite.server");
+
+    // 1) Conta: nova com senha gerada, ou a existente (sem trocar a senha)
+    let userId: string | null = null;
+    let password: string | null = generatePassword();
+    const created = await admin.auth.admin.createUser({
+      email: email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: name, temp_password: true },
+    });
+    if (!created.error && created.data?.user) {
+      userId = created.data.user.id;
+    } else {
+      const gen = await admin.auth.admin.generateLink({ type: "magiclink", email: email });
+      userId = gen.data?.user?.id ?? null;
+      password = null;
+      if (!userId) {
+        throw new Error(
+          created.error?.message ?? gen.error?.message ?? "Não foi possível criar a conta.",
+        );
+      }
+    }
+
+    // 2) Vínculo com a empresa como usuário da equipe (cliente do portal não vira equipe)
+    const { data: membership } = await admin
+      .from("organization_members")
+      .select("id, role, status")
+      .eq("organization_id", organizationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (membership?.role === "guest") {
+      throw new Error(
+        "Este e-mail é de um cliente do portal. Use outro e-mail para a pessoa da equipe.",
+      );
+    }
+    if (!membership) {
+      const { error } = await admin.from("organization_members").insert({
+        organization_id: organizationId,
+        user_id: userId,
+        role: "user",
+        status: "active",
+      });
+      if (error) throw new Error(error.message);
+    } else if (membership.status !== "active") {
+      await admin.from("organization_members").update({ status: "active" }).eq("id", membership.id);
+    }
+
+  return { userId: userId as string, password };
+}
+
 export const inviteTeamMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -292,53 +353,9 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as unknown as Db & { auth: any };
-    const { generatePassword, sendClientInviteMail } = await import("./client-invite.server");
-
-    // 1) Conta: nova com senha gerada, ou a existente (sem trocar a senha)
-    let userId: string | null = null;
-    let password: string | null = generatePassword();
-    const created = await admin.auth.admin.createUser({
-      email: data.email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: data.name, temp_password: true },
-    });
-    if (!created.error && created.data?.user) {
-      userId = created.data.user.id;
-    } else {
-      const gen = await admin.auth.admin.generateLink({ type: "magiclink", email: data.email });
-      userId = gen.data?.user?.id ?? null;
-      password = null;
-      if (!userId) {
-        throw new Error(
-          created.error?.message ?? gen.error?.message ?? "Não foi possível criar a conta.",
-        );
-      }
-    }
-
-    // 2) Vínculo com a empresa como usuário da equipe (cliente do portal não vira equipe)
-    const { data: membership } = await admin
-      .from("organization_members")
-      .select("id, role, status")
-      .eq("organization_id", project.organization_id)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (membership?.role === "guest") {
-      throw new Error(
-        "Este e-mail é de um cliente do portal. Use outro e-mail para a pessoa da equipe.",
-      );
-    }
-    if (!membership) {
-      const { error } = await admin.from("organization_members").insert({
-        organization_id: project.organization_id,
-        user_id: userId,
-        role: "user",
-        status: "active",
-      });
-      if (error) throw new Error(error.message);
-    } else if (membership.status !== "active") {
-      await admin.from("organization_members").update({ status: "active" }).eq("id", membership.id);
-    }
+    const { sendClientInviteMail } = await import("./client-invite.server");
+    // 1) e 2) conta + vínculo com a empresa como equipe
+    const { userId, password } = await ensureTeamAccount(admin, project.organization_id, data.name, data.email);
 
     // 3) Papel no projeto
     const { data: existing } = await admin
@@ -380,6 +397,59 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
     });
     return {
       ok: true as const,
+      portalUrl: loginUrl,
+      email: data.email,
+      password,
+      emailSent: mail.sent,
+      sentFrom: mail.from,
+      emailError: mail.error,
+    };
+  });
+
+/**
+ * Modelo de projeto → "Pessoa nova": cadastra a pessoa na equipe da empresa (com acesso ao
+ * módulo Projetos) e manda o convite com e-mail e senha, como em Equipe e permissões do projeto.
+ * Ela entra nos projetos quando o modelo for aplicado. Só o administrador da empresa.
+ */
+export const inviteTemplateMember = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        organizationId: uuid,
+        name: z.string().trim().min(1).max(160),
+        email: z.string().trim().toLowerCase().email().max(200),
+        templateName: z.string().trim().max(200).nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as unknown as Db;
+    const { data: isAdmin } = await db.rpc("is_org_admin", { _org: data.organizationId });
+    if (isAdmin !== true) throw new Error("Só o administrador da empresa pode cadastrar uma pessoa nova na equipe.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as Db & { auth: any };
+    const { sendClientInviteMail } = await import("./client-invite.server");
+    const { userId, password } = await ensureTeamAccount(admin, data.organizationId, data.name, data.email);
+    await grantProjectModules(admin, data.organizationId, userId);
+    const origin = appOrigin();
+    const ok = /^https:\/\//.test(origin) && !/lovable|localhost|127\.0\.0\.1|preview/i.test(origin);
+    const loginUrl = `${ok ? origin : CORE_ORIGIN}/projetos`;
+    const mail = await sendClientInviteMail(admin, {
+      inviterId: context.userId,
+      organizationId: data.organizationId,
+      projectName: data.templateName?.trim() || "da empresa",
+      projectNumber: null,
+      clientName: data.name,
+      clientEmail: data.email,
+      password,
+      portalUrl: loginUrl,
+      audience: "equipe",
+    });
+    return {
+      ok: true as const,
+      userId,
+      name: data.name,
       portalUrl: loginUrl,
       email: data.email,
       password,
