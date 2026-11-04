@@ -308,11 +308,51 @@ function TemplateDialog({
   const patchMember = (userId: string, p: Partial<TemplateMember>) =>
     setMembers((d) => d.map((m) => (m.user_id === userId ? { ...m, ...p } : m)));
   const removeMember = (userId: string) => {
+    const n = stages.reduce((c, st) => c + st.tasks.filter((t) => t.assignee_user_id === userId).length, 0);
+    const who = members.find((m) => m.user_id === userId);
+    if (n && !confirm(`${who?.name || "Esta pessoa"} é responsável por ${n} tarefa(s) do modelo. Tirar da equipe? As tarefas voltam para "Equipe (sem pessoa)".`)) return;
     setMembers((d) => d.filter((m) => m.user_id !== userId));
     // tarefas dessa pessoa voltam para "Equipe"
     setStages((d) => d.map((s) => ({ ...s, tasks: s.tasks.map((t) => (t.assignee_user_id === userId ? { ...t, assignee_user_id: null } : t)) })));
   };
   const memberLabel = (m: TemplateMember) => `${m.name || m.email || "Pessoa"}${m.department ? ` · ${m.department}` : ""}`;
+  /** Tarefas de cada pessoa no modelo. */
+  const taskCount = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const st of stages) for (const t of st.tasks) if (t.responsible_type !== "cliente" && t.assignee_user_id) c.set(t.assignee_user_id, (c.get(t.assignee_user_id) ?? 0) + 1);
+    return c;
+  }, [stages]);
+  /**
+   * Escolher quem executa já inclui a pessoa na equipe do modelo (ela entra no projeto ao aplicar).
+   * "Só visualiza" não pode ser responsável: passa para Executor.
+   */
+  const ensureMember = (userId: string) => {
+    const inTeam = members.find((m) => m.user_id === userId);
+    if (inTeam) {
+      if (inTeam.access_role === "visualizador") {
+        patchMember(userId, { access_role: "executor" });
+        toast.info(`${inTeam.name || inTeam.email} passou de "Só visualiza" para Executor para poder receber tarefas.`);
+      }
+      return;
+    }
+    const p = (teamQ.data ?? []).find((x) => x.user_id === userId);
+    if (!p) return;
+    setMembers((d) => [...d, { user_id: p.user_id, name: p.name, email: p.email, department: null, access_role: "executor" }]);
+    toast.success(`${p.name} incluído na equipe do modelo: entra no projeto ao aplicar o modelo.`);
+  };
+  const whoPatch = (v: string): Partial<TaskDraft> => {
+    if (v === "cliente") return { responsible_type: "cliente", assignee_user_id: null };
+    if (v === "equipe") return { responsible_type: "equipe", assignee_user_id: null };
+    const id = v.slice(2);
+    ensureMember(id);
+    return { responsible_type: "equipe", assignee_user_id: id };
+  };
+  /** Responsável para todas as tarefas da etapa (menos as do cliente). */
+  const assignStage = (i: number, v: string) => {
+    const p = whoPatch(v);
+    setStages((d) => d.map((x, j) => (j === i ? { ...x, tasks: x.tasks.map((t) => (v !== "cliente" && t.responsible_type === "cliente" ? t : { ...t, ...p })) } : x)));
+  };
+  const othersInCompany = (teamQ.data ?? []).filter((p) => !members.some((m) => m.user_id === p.user_id));
 
   /** Mudar a data de referência leva todo o cronograma junto. */
   const moveRef = (next: string) => {
@@ -456,7 +496,7 @@ function TemplateDialog({
           <div role="tablist" aria-label="Partes do modelo" className="flex gap-6">
             {([
               ["etapas", "Etapas e tarefas", stages.length],
-              ["equipe", "Equipe do modelo", members.length],
+              ["equipe", "Pessoas do projeto", members.length],
               ["cronograma", "Cronograma", null],
             ] as const).map(([k, label, n]) => (
               <button
@@ -567,11 +607,35 @@ function TemplateDialog({
                   </div>
 
                   <div className="overflow-hidden rounded-2xl border bg-background">
-                    <div className="flex items-center justify-between px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                       <p className="flex items-center gap-2 text-[15px] font-extrabold">
                         Tarefas padrão
                         <span className="grid h-[22px] min-w-[22px] place-items-center rounded-full bg-muted px-1.5 text-xs font-bold">{cur.tasks.length}</span>
                       </p>
+                      {cur.tasks.length > 0 && (
+                        <Select value="" onValueChange={(v) => assignStage(selIdx, v)}>
+                          <SelectTrigger className="h-9 w-auto min-w-[15rem] text-[12px]" aria-label="Responsável de todas as tarefas da etapa">
+                            <Users className="mr-1 h-3.5 w-3.5 shrink-0" />
+                            <SelectValue placeholder="Responsável de todas as tarefas da etapa" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="equipe">Equipe (sem pessoa)</SelectItem>
+                            {members.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Equipe do modelo</SelectLabel>
+                                {members.map((mm) => <SelectItem key={mm.user_id} value={`u:${mm.user_id}`}>{memberLabel(mm)}</SelectItem>)}
+                              </SelectGroup>
+                            )}
+                            {othersInCompany.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Outras pessoas da empresa (entram no projeto)</SelectLabel>
+                                {othersInCompany.map((p) => <SelectItem key={p.user_id} value={`u:${p.user_id}`}>{p.name}</SelectItem>)}
+                              </SelectGroup>
+                            )}
+                            <SelectItem value="cliente">Cliente (conclui pelo portal)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                     <div className="hidden grid-cols-[56px_minmax(0,1fr)_150px_15rem_40px] gap-2 bg-muted/50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground md:grid">
                       <span>Ordem</span><span>Tarefa</span><span>Prazo</span><span>Quem executa</span><span />
@@ -587,11 +651,7 @@ function TemplateDialog({
                         <Input type="date" value={t.due} min={cur.start} className="col-span-2 h-9 md:col-span-1" aria-label="Prazo da tarefa" onChange={(e) => e.target.value && patchTask(selIdx, k, { due: e.target.value })} />
                         <Select
                           value={whoValue(t)}
-                          onValueChange={(v) => patchTask(selIdx, k, v === "cliente"
-                            ? { responsible_type: "cliente", assignee_user_id: null }
-                            : v === "equipe"
-                              ? { responsible_type: "equipe", assignee_user_id: null }
-                              : { responsible_type: "equipe", assignee_user_id: v.slice(2) })}
+                          onValueChange={(v) => patchTask(selIdx, k, whoPatch(v))}
                         >
                           <SelectTrigger
                             className={`h-9 text-[12px] ${t.responsible_type === "cliente" ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
@@ -606,6 +666,12 @@ function TemplateDialog({
                               <SelectGroup>
                                 <SelectLabel>Equipe do modelo</SelectLabel>
                                 {members.map((mm) => <SelectItem key={mm.user_id} value={`u:${mm.user_id}`}>{memberLabel(mm)}</SelectItem>)}
+                              </SelectGroup>
+                            )}
+                            {othersInCompany.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Outras pessoas da empresa (entram no projeto)</SelectLabel>
+                                {othersInCompany.map((p) => <SelectItem key={p.user_id} value={`u:${p.user_id}`}>{p.name}</SelectItem>)}
                               </SelectGroup>
                             )}
                             <SelectItem value="cliente">Cliente (conclui pelo portal)</SelectItem>
@@ -634,18 +700,31 @@ function TemplateDialog({
           {tab === "equipe" && (
             <section aria-label="Equipe do modelo" className="space-y-3 rounded-2xl border bg-background p-4">
               <p className="text-sm text-muted-foreground">
-                Ao aplicar o modelo, estas pessoas entram no projeto (só com acesso ao módulo Projetos) e recebem as tarefas definidas para elas.
+                Ao aplicar o modelo, estas pessoas entram no projeto (só com acesso ao módulo Projetos) e recebem as tarefas definidas para elas — cada uma recebe o aviso no sino e por e-mail.
+                Dica: em “Etapas e tarefas”, escolher alguém em “Quem executa” já inclui a pessoa aqui.
               </p>
               {members.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pessoa na equipe do modelo.</p>}
               {members.map((mm) => (
                 <div key={mm.user_id} className="grid items-center gap-2 rounded-xl border p-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_14rem_auto]">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{mm.name || mm.email}</p>
-                    {mm.email && <p className="truncate text-xs text-muted-foreground">{mm.email}</p>}
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[mm.email, (taskCount.get(mm.user_id) ?? 0) ? `${taskCount.get(mm.user_id)} tarefa(s) no modelo` : "sem tarefas no modelo"].filter(Boolean).join(" · ")}
+                    </p>
                   </div>
                   <Input value={mm.department ?? ""} placeholder="Departamento (ex.: Compras)" className="h-9" maxLength={120}
                     onChange={(e) => patchMember(mm.user_id, { department: e.target.value })} aria-label={`Departamento de ${mm.name}`} />
-                  <Select value={mm.access_role} onValueChange={(v) => patchMember(mm.user_id, { access_role: v as TemplateMember["access_role"] })}>
+                  <Select
+                    value={mm.access_role}
+                    onValueChange={(v) => {
+                      const n = taskCount.get(mm.user_id) ?? 0;
+                      if (v === "visualizador" && n) {
+                        if (!confirm(`Quem só visualiza não executa tarefas. As ${n} tarefa(s) de ${mm.name || "esta pessoa"} voltam para "Equipe (sem pessoa)". Continuar?`)) return;
+                        setStages((d) => d.map((st) => ({ ...st, tasks: st.tasks.map((t) => (t.assignee_user_id === mm.user_id ? { ...t, assignee_user_id: null } : t)) })));
+                      }
+                      patchMember(mm.user_id, { access_role: v as TemplateMember["access_role"] });
+                    }}
+                  >
                     <SelectTrigger className="h-9 text-xs" aria-label={`Papel de ${mm.name}`}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(Object.keys(ROLE_LABEL) as TemplateMember["access_role"][]).map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
@@ -666,6 +745,13 @@ function TemplateDialog({
                     {available.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.name}{p.email && p.email !== p.name ? ` · ${p.email}` : ""}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {available.length > 1 && (
+                  <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => {
+                    setMembers((d) => [...d, ...available.map((p) => ({ user_id: p.user_id, name: p.name, email: p.email, department: null, access_role: "executor" as const }))]);
+                  }}>
+                    <Users className="mr-1 h-4 w-4" /> Incluir toda a equipe ({available.length})
+                  </Button>
+                )}
                 <p className="text-xs text-muted-foreground">Pessoa nova ainda sem acesso? Convide pela aba Equipe e permissões de um projeto e depois inclua aqui.</p>
               </div>
             </section>

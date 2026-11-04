@@ -197,48 +197,67 @@ export async function runTaskNotifications(
   const { sendOrgMail } = await import("@/lib/projects/client-invite.server");
   const label = (t: TaskRow) => (t.project_id ? `${projName.get(t.project_id) ?? "Projeto"}` : "Agenda");
 
-  // 1) Tarefa designada (recém criada/atribuída: alterada nos últimos 3 dias)
+  // 1) Tarefa designada (recém criada/atribuída: alterada nos últimos 3 dias).
+  // Várias tarefas da mesma pessoa no mesmo projeto (ex.: modelo aplicado) viram UM e-mail com a lista.
   const recent = now.getTime() - 3 * 86_400_000;
+  const groups = new Map<string, typeof tasks>();
   for (const t of tasks) {
-    if (mails >= maxMails) break;
     if (new Date(t.updated_at).getTime() < recent) continue;
     if (!(await claim(admin, t.id, t.assignee_id, "mail_assigned"))) continue;
+    const key = `${t.assignee_id}|${t.project_id ?? `t:${t.id}`}`;
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+  for (const list of groups.values()) {
+    const t = list[0];
+    const release = async () => { for (const x of list) await unclaim(admin, x.id, x.assignee_id, "mail_assigned"); };
+    if (mails >= maxMails) { await release(); continue; } // fica para a próxima rodada
     const who = await personOf(admin, t.assignee_id, people);
     if (!who.email) continue; // reserva fica: sem e-mail não há o que reenviar
-    const href = `${CORE_ORIGIN}${taskPath(t)}`;
     const first = who.name.split(/\s+/)[0] || "tudo bem";
     const org = orgName.get(t.organization_id) ?? "";
     const by = t.created_by && t.created_by !== t.assignee_id ? (await personOf(admin, t.created_by, people)).name : null;
-    const when = brDateTime(t.due_date);
-    const prio = PRIO[(t as any).priority as string] ?? null;
-    const details: [string, string][] = [
-      ["Onde", label(t)],
-      ["Prazo", when],
-      ...(prio ? [["Prioridade", prio] as [string, string]] : []),
-      ...(by ? [["Enviada por", by] as [string, string]] : []),
-    ];
-    const desc = ((t as any).description as string | null)?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const items = list
+      .slice()
+      .sort((x, y) => String(x.due_date ?? "9").localeCompare(String(y.due_date ?? "9")))
+      .map((x) => {
+        const when = brDateTime(x.due_date);
+        const prio = PRIO[(x as any).priority as string] ?? null;
+        const desc = ((x as any).description as string | null)?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        const details: [string, string][] = [
+          ["Onde", label(x)],
+          ["Prazo", when],
+          ...(prio ? [["Prioridade", prio] as [string, string]] : []),
+          ...(by && list.length === 1 ? [["Enviada por", by] as [string, string]] : []),
+        ];
+        return { title: x.title, sub: desc ? desc.slice(0, 180) : `${label(x)} · prazo ${when}`, href: `${CORE_ORIGIN}${taskPath(x)}`, details };
+      });
+    const many = list.length > 1;
+    const href = many && t.project_id ? `${CORE_ORIGIN}/projetos/${t.project_id}?aba=etapas` : items[0].href;
     const res = await sendOrgMail(admin, {
       organizationId: t.organization_id,
       preferUserIds: [t.created_by, t.owner_id],
       to: who.email,
       toName: who.name,
       build: () => ({
-        subject: `Nova tarefa para você: ${t.title}`,
-        text: `Olá, ${first}!\n\nVocê recebeu a tarefa "${t.title}" (${label(t)}), prazo ${when}${by ? `, enviada por ${by}` : ""}.\n\nAbrir: ${href}`,
+        subject: many ? `${list.length} novas tarefas para você: ${label(t)}` : `Nova tarefa para você: ${t.title}`,
+        text: many
+          ? `Olá, ${first}!\n\nVocê recebeu ${list.length} tarefas (${label(t)}):\n${items.map((i) => `- ${i.title} (prazo ${i.details[1][1]})`).join("\n")}\n\nAbrir: ${href}`
+          : `Olá, ${first}!\n\nVocê recebeu a tarefa "${t.title}" (${label(t)}), prazo ${brDateTime(t.due_date)}${by ? `, enviada por ${by}` : ""}.\n\nAbrir: ${href}`,
         html: mailLayout(
           org,
           first,
-          by ? `${by.split(" ")[0]} agendou uma tarefa para você:` : "Uma tarefa foi agendada para você:",
-          [{ title: t.title, sub: desc ? desc.slice(0, 180) : `${label(t)} · prazo ${when}`, href, details }],
-          { label: "Abrir a tarefa", href },
-          "Você recebe este aviso porque esta tarefa foi designada a você no Core.",
+          many
+            ? `${by ? `${by.split(" ")[0]} incluiu você no projeto. ` : ""}Estas ${list.length} tarefas são suas:`
+            : by ? `${by.split(" ")[0]} agendou uma tarefa para você:` : "Uma tarefa foi agendada para você:",
+          items.slice(0, 40),
+          { label: many ? "Abrir as tarefas no projeto" : "Abrir a tarefa", href },
+          "Você recebe este aviso porque estas tarefas foram designadas a você no Core.",
           brands.get(t.organization_id)?.brand,
         ),
       }),
     });
     if (res.sent) mails++;
-    else await unclaim(admin, t.id, t.assignee_id, "mail_assigned");
+    else await release();
   }
 
   // 2) Resumo do dia por pessoa: para hoje + atrasadas (a partir das 7h)

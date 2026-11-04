@@ -150,3 +150,9 @@
 - Rascunhos (`src/lib/persist/draft.ts`, localStorage `core-draft:*`, 7 dias): anotação do card, ações do agendamento (observação/conclusão/próxima ação), janela do agendamento, formulário do lead, Nova tarefa. Apagados ao salvar ou Cancelar; aviso "recuperado" com Descartar.
 - Anexos do card sem conexão vão para a fila no aparelho (IndexedDB `core-uploads`, `upload-queue.ts`) e são enviados ao abrir o card ou quando a internet volta ("Tentar agora"/descartar). Só falha de rede entra na fila; recusa do servidor mostra o erro.
 - `OfflineBanner` no AppShell; React Query com `refetchOnReconnect: true` (mutações já pausam offline e seguem na volta).
+
+## Modelo de projeto: pessoas e responsáveis (04/11/2026)
+- Aba "Pessoas do projeto" (antes "Equipe do modelo"): quem entra no projeto ao aplicar o modelo, com departamento, papel e quantas tarefas tem; "Incluir toda a equipe"; tirar alguém com tarefas pede confirmação.
+- "Quem executa" de cada tarefa lista a equipe do modelo **e** as outras pessoas da empresa: escolher alguém de fora já o inclui como Executor; "Só visualiza" escolhido como responsável passa a Executor (antes a tarefa ficava sem pessoa ao aplicar). Mudar para "Só visualiza" quem tem tarefas devolve as tarefas para "Equipe".
+- "Responsável de todas as tarefas da etapa" (cabeçalho das tarefas padrão) aplica uma pessoa/Equipe/Cliente a toda a etapa (tarefas do cliente ficam como estão, a não ser que se escolha Cliente).
+- E-mail "Nova tarefa para você" agrupado por pessoa + projeto (`runTaskNotifications`): aplicar um modelo manda um e-mail com a lista, não um por tarefa.
