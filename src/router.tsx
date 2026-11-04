@@ -9,7 +9,7 @@ export const getRouter = () => {
         staleTime: 30_000,
         gcTime: 5 * 60_000,
         refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
+        refetchOnReconnect: true, // internet voltou: atualiza as telas abertas
         retry: 1,
       },
     },

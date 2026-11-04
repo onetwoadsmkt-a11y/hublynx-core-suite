@@ -23,6 +23,7 @@ import { invalidatePendingQueries } from "@/hooks/usePendingItems";
 import { scopeOrganization } from "@/lib/org/filter";
 import { cn } from "@/lib/utils";
 import { dueFromParts, leadDueFromParts, todayKeyBR } from "@/lib/tasks/due";
+import { clearDraft, readDraft, writeDraft } from "@/lib/persist/draft";
 
 /**
  * Criação de tarefa padrão do Core (Agenda, Tarefas, app do celular e cartão do lead):
@@ -98,8 +99,36 @@ export function TaskCreateDialog({
   const [checkInput, setCheckInput] = useState("");
   const projectId = defaults?.projectId ?? null;
 
+  // Rascunho neste aparelho: se a internet cair ou a página recarregar, o que foi
+  // preenchido volta ao abrir "Nova tarefa" de novo no mesmo lugar.
+  const draftKey = `task-create:${lockLead && defaults?.lead ? `lead:${defaults.lead.id}` : projectId ? `projeto:${projectId}` : "geral"}`;
+  type Draft = {
+    kind: TaskKind; title: string; description: string; lead: LeadPick | null; date: string; time: string;
+    priority: Priority; duration: string; invite: boolean; assignee: string; stageId: string; checklist: string[];
+  };
+  const [recovered, setRecovered] = useState(false);
   useEffect(() => {
     if (!open) return;
+    const saved = readDraft<Draft>(draftKey);
+    if (saved) {
+      setRecovered(true);
+      setKind(saved.kind);
+      setTitle(saved.title);
+      setDescription(saved.description);
+      setLead(lockLead ? defaults?.lead ?? null : saved.lead);
+      setDate(saved.date || todayKey());
+      setTime(saved.time);
+      setPriority(saved.priority);
+      setDuration(saved.duration);
+      setInvite(saved.invite);
+      setTerm("");
+      setAssignee(saved.assignee);
+      setStageId(saved.stageId);
+      setChecklist(saved.checklist ?? []);
+      setCheckInput("");
+      return;
+    }
+    setRecovered(false);
     setKind(initialKind(defaults?.kind));
     setTitle("");
     setDescription("");
@@ -175,6 +204,16 @@ export function TaskCreateDialog({
     setCheckInput("");
   };
 
+  const dirty = !!title.trim() || !!description.trim() || checklist.length > 0;
+  useEffect(() => {
+    if (!open || !dirty) return;
+    writeDraft<Draft>(draftKey, { kind, title, description, lead, date, time, priority, duration, invite, assignee, stageId, checklist });
+  }, [open, dirty, draftKey, kind, title, description, lead, date, time, priority, duration, invite, assignee, stageId, checklist]);
+  const cancel = () => {
+    clearDraft(draftKey);
+    onOpenChange(false);
+  };
+
   const needTime = kind === "reuniao" || kind === "call";
   const canSubmit = useMemo(
     () => !!title.trim() && !!date && (!needTime || !!time),
@@ -248,6 +287,7 @@ export function TaskCreateDialog({
       return { id: inserted.id as string, lead: false };
     },
     onSuccess: (r) => {
+      clearDraft(draftKey);
       toast.success(r.lead ? `Agendado para ${lead?.name ?? "o lead"}.` : "Tarefa criada na agenda.");
       invalidatePendingQueries(qc, lead?.id ?? null);
       for (const key of [["project-dashboard"], ["project-stage-tasks"], ["lead-tasks"], ["pipeline"]]) qc.invalidateQueries({ queryKey: key });
@@ -265,6 +305,12 @@ export function TaskCreateDialog({
 
   const Body = (
     <div className="space-y-4">
+      {recovered && (
+        <p className="flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+          Recuperamos a tarefa que você estava criando.
+          <button type="button" className="font-semibold underline" onClick={() => { clearDraft(draftKey); setRecovered(false); setTitle(""); setDescription(""); setChecklist([]); }}>Descartar</button>
+        </p>
+      )}
       {(projectName || clientName) && (
         <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
           {projectName && <div><span className="font-medium text-foreground">Projeto:</span> {projectName}</div>}
@@ -463,7 +509,7 @@ export function TaskCreateDialog({
 
   const Footer = (
     <div className="flex justify-end gap-2">
-      <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+      <Button variant="outline" onClick={cancel}>Cancelar</Button>
       <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>
         {create.isPending ? "Salvando…" : lead ? "Agendar" : "Criar tarefa"}
       </Button>

@@ -40,6 +40,7 @@ import { CreditCard, Globe } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/workspaces/WorkspaceSwitcher";
 import { PriorityAlertModal, usePriorityAlerts } from "@/components/tasks/PriorityAlerts";
 import { LeadCardHost } from "@/components/pipeline/LeadCardHost";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { AlertTriangle } from "lucide-react";
 
 function HeaderInstallModule() {
@@ -454,6 +455,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <TaskNotificationsRunner />
       <PriorityAlertModal />
         <LeadCardHost />
+        <OfflineBanner />
       </div>
     </div>
   );

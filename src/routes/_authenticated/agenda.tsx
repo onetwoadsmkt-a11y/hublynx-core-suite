@@ -53,12 +53,14 @@ type View = "day" | "week" | "month";
 
 export const Route = createFileRoute("/_authenticated/agenda")({
   head: () => ({ meta: [{ title: "Agenda — Hublynx Core" }] }),
-  validateSearch: (s: Record<string, unknown>): { view?: View; date?: string; sources?: string; clientId?: string; mine?: number } => ({
+  validateSearch: (s: Record<string, unknown>): { view?: View; date?: string; sources?: string; clientId?: string; mine?: number; item?: string } => ({
     view: (s.view === "day" || s.view === "week" || s.view === "month" ? s.view : "month") as View,
     date: typeof s.date === "string" ? s.date : undefined,
     sources: typeof s.sources === "string" ? s.sources : DEFAULT_SOURCES,
     clientId: typeof s.clientId === "string" ? s.clientId : undefined,
     mine: s.mine === 1 || s.mine === "1" ? 1 : undefined,
+    // tarefa/agendamento aberto: recarregar a página reabre o mesmo item
+    item: typeof s.item === "string" && /^(lead:)?[0-9a-f-]{36}$/i.test(s.item) ? s.item : undefined,
   }),
   component: AgendaPage,
 });
@@ -161,7 +163,9 @@ function AgendaPage() {
     return allPendingItems.filter((i) =>
       i.leadTask ? i.leadTask.owner_id === meId : (i.assignee_id ?? i.owner_id) === meId);
   }, [allPendingItems, search.mine, meId]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const selected = search.item ?? null;
+  const setSelected = (id: string | null) =>
+    navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, item: id ?? undefined }), replace: true });
   const pendingById = useMemo(() => new Map(allPendingItems.map((i) => [i.id, i])), [allPendingItems]);
   const selectedLead = selected?.startsWith("lead:") ? allPendingItems.find((i) => i.id === selected)?.leadTask : undefined;
   const clientName = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);

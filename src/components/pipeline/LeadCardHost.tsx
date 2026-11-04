@@ -1,4 +1,6 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { useRouterState } from "@tanstack/react-router";
+import { leadCardHref, readLeadParam, writeLeadParam } from "@/lib/persist/lead-url";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
@@ -15,6 +17,8 @@ let openLeadId: string | null = null;
 const listeners = new Set<() => void>();
 function setOpenLead(id: string | null) {
   openLeadId = id;
+  // fica na URL: recarregar a página reabre o card
+  writeLeadParam(id);
   listeners.forEach((l) => l());
 }
 function subscribe(l: () => void) {
@@ -27,20 +31,25 @@ export function openLeadCard(leadId: string) {
   setOpenLead(leadId);
 }
 
-/** Nome do lead como link que abre o cartão dele. */
+/** Nome do lead como link que abre o cartão dele (Ctrl/⌘ ou botão do meio: em outra aba). */
 export function LeadLink({
   leadId, name, className, prefix = "Lead · ",
 }: { leadId: string; name: string; className?: string; prefix?: string }) {
   return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); openLeadCard(leadId); }}
+    <a
+      href={leadCardHref(leadId)}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return; // nova aba/janela
+        e.preventDefault();
+        openLeadCard(leadId);
+      }}
       onPointerDown={(e) => e.stopPropagation()}
       className={cn("inline-flex min-w-0 items-center truncate text-primary underline-offset-2 hover:underline", className)}
-      title={`Abrir cartão do lead ${name}`}
+      title={`Abrir cartão do lead ${name} (Ctrl+clique abre em outra aba)`}
     >
       <span className="truncate">{prefix}{name}</span>
-    </button>
+    </a>
   );
 }
 
@@ -87,6 +96,16 @@ export function OpenLeadButton({
 export function LeadCardHost() {
   const leadId = useSyncExternalStore(subscribe, () => openLeadId, () => null);
   const navigate = useNavigate();
+  const href = useRouterState({ select: (st) => st.location.href });
+  // Recarregou a página com ?lead= → reabre o card (no Pipeline quem reabre é a própria tela).
+  useEffect(() => {
+    const id = readLeadParam();
+    if (id && !window.location.pathname.startsWith("/pipeline")) setOpenLead(id);
+  }, []);
+  // O roteador reescreve a URL ao navegar: mantém ?lead= enquanto o card estiver aberto.
+  useEffect(() => {
+    if (openLeadId) writeLeadParam(openLeadId);
+  }, [href]);
   const tagsFn = useServerFn(listPipelineTags);
 
   const { data: lead } = useQuery({

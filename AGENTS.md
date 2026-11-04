@@ -143,3 +143,10 @@
 ## Arquivos do card do lead (04/11/2026)
 - `src/lib/pipeline/lead-files.functions.ts`: `uploadLeadFile` (FormData, valida com `readAttachment`, guarda no bucket privado `task-attachments` em `l/<empresa>/<lead>/<id>.<ext>` com a chave de serviço e registra em `lead_files` com o cliente do usuário/RLS), `leadFileUrl` (link de 5 min para toda a equipe que vê o lead) e `removeLeadFile` (apaga registro e arquivo). Caminhos antigos (sem `l/`) continuam no bucket `lead-files`.
 - Antes: upload direto do navegador com o nome original no caminho (acento/ç → "Invalid key"), erro engolido, e políticas `owner = auth.uid()` impediam a equipe de baixar.
+
+## Não perder nada ao recarregar / internet cair (04/11/2026)
+- Card do lead na URL (`?lead=<id>`, `src/lib/persist/lead-url.ts`): `openLeadCard`/Pipeline gravam o parâmetro com `history.replaceState` (sem mexer no estado do roteador) e o devolvem após cada navegação; recarregar reabre o card (Pipeline: pela própria tela; lead de outro pipeline ou outra tela: `LeadCardHost`). `LeadLink` é `<a>`: Ctrl/⌘/botão do meio abre em outra aba; botão "Abrir em outra aba" no cabeçalho do card. Aba da direita do card lembrada por lead (sessionStorage).
+- Agenda: item aberto em `?item=` (tarefa ou `lead:<id>`); Tarefas já usava `?task=`.
+- Rascunhos (`src/lib/persist/draft.ts`, localStorage `core-draft:*`, 7 dias): anotação do card, ações do agendamento (observação/conclusão/próxima ação), janela do agendamento, formulário do lead, Nova tarefa. Apagados ao salvar ou Cancelar; aviso "recuperado" com Descartar.
+- Anexos do card sem conexão vão para a fila no aparelho (IndexedDB `core-uploads`, `upload-queue.ts`) e são enviados ao abrir o card ou quando a internet volta ("Tentar agora"/descartar). Só falha de rede entra na fila; recusa do servidor mostra o erro.
+- `OfflineBanner` no AppShell; React Query com `refetchOnReconnect: true` (mutações já pausam offline e seguem na volta).

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDraft } from "@/lib/persist/draft";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { RotateCcw, Save, Trash2 } from "lucide-react";
@@ -31,16 +32,29 @@ export function LeadTaskDialog({ task, onClose }: { task: LeadScheduledTask; onC
   const saveFn = useServerFn(upsertLeadTask);
   const toggleFn = useServerFn(toggleLeadTask);
   const deleteFn = useServerFn(deleteLeadTask);
-  const [title, setTitle] = useState(task.title);
+  // alterações ainda não salvas ficam guardadas neste aparelho (internet caiu / recarregou)
+  type Draft = { title: string; due: string; priority: string; kind: string; duration: string };
+  const draft = useDraft<Draft>(`lead-task:${task.id}`, () => ({
+    title: task.title,
+    due: dueToLocalInput(task.due_at),
+    priority: String(task.priority ?? "media"),
+    kind: ["tarefa", "reuniao", "call", "follow_up"].includes(task.kind) ? task.kind : "tarefa",
+    duration: String(task.duration_minutes ?? 30),
+  }));
+  const set = <K extends keyof Draft>(k: K) => (v: Draft[K]) => draft.set((d) => ({ ...d, [k]: v }));
+  const title = draft.value.title;
+  const setTitle = set("title");
   const notes = task.notes ?? "";
   // horário de Brasília (antes o campo usava o fuso do navegador)
-  const [due, setDue] = useState(dueToLocalInput(task.due_at));
+  const due = draft.value.due;
+  const setDue = set("due");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [priority, setPriority] = useState<LeadPriority>((task.priority ?? "media") as LeadPriority);
-  const [kind, setKind] = useState<TaskKind>(
-    (["tarefa", "reuniao", "call", "follow_up"].includes(task.kind) ? task.kind : "tarefa") as TaskKind,
-  );
-  const [duration, setDuration] = useState(String(task.duration_minutes ?? 30));
+  const priority = draft.value.priority as LeadPriority;
+  const setPriority = (v: LeadPriority) => set("priority")(v);
+  const kind = draft.value.kind as TaskKind;
+  const setKind = (v: TaskKind) => set("kind")(v);
+  const duration = draft.value.duration;
+  const setDuration = set("duration");
   const [invite, setInvite] = useState(false);
   const { data: leadEmail } = useQuery({
     queryKey: ["lead-email", task.lead_id],
@@ -72,6 +86,7 @@ export function LeadTaskDialog({ task, onClose }: { task: LeadScheduledTask; onC
       return result;
     },
     onSuccess: () => {
+      draft.clear();
       invalidatePendingQueries(qc, task.lead_id);
       onClose();
     },
@@ -88,6 +103,12 @@ export function LeadTaskDialog({ task, onClose }: { task: LeadScheduledTask; onC
           </div>
         </DialogHeader>
         <div className="space-y-3">
+          {draft.restored && (
+            <p className="flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+              Alterações não salvas recuperadas deste aparelho.
+              <button type="button" className="font-semibold underline" onClick={() => draft.reset({ title: task.title, due: dueToLocalInput(task.due_at), priority: String(task.priority ?? "media"), kind: task.kind, duration: String(task.duration_minutes ?? 30) })}>Descartar</button>
+            </p>
+          )}
           <div className="space-y-1"><Label htmlFor="lead-task-title">Título</Label><Input id="lead-task-title" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} /></div>
           <div className="space-y-1">
             <Label>Tipo</Label>

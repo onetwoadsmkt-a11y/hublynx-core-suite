@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDraft } from "@/lib/persist/draft";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CalendarPlus, Check, MessageSquarePlus, X } from "lucide-react";
@@ -66,21 +67,27 @@ export function LeadTaskActions({
   const qc = useQueryClient();
   const noteFn = useServerFn(addLeadTaskNote);
   const completeFn = useServerFn(completeLeadTask);
-  const [text, setText] = useState("");
-  const [completing, setCompleting] = useState(false);
-  const [withNext, setWithNext] = useState(true);
-  const [kind, setKind] = useState<Kind>("follow_up");
-  const [title, setTitle] = useState(DEFAULT_TITLE.follow_up);
-  const [due, setDue] = useState(defaultNextDue());
-  const [duration, setDuration] = useState("30");
-  const [priority, setPriority] = useState<Priority>("media");
-  const [invite, setInvite] = useState(false);
+  // Tudo o que está sendo preenchido fica guardado neste aparelho (internet caiu / recarregou).
+  type Draft = { text: string; completing: boolean; withNext: boolean; kind: Kind; title: string; due: string; duration: string; priority: Priority; invite: boolean };
+  const blank = (): Draft => ({ text: "", completing: false, withNext: true, kind: "follow_up", title: DEFAULT_TITLE.follow_up, due: defaultNextDue(), duration: "30", priority: "media", invite: false });
+  const draft = useDraft<Draft>(`lead-task-actions:${task.id}`, blank);
+  const { text, completing, withNext, kind, title, due, duration, priority, invite } = draft.value;
+  const field = <K extends keyof Draft>(k: K) => (v: Draft[K]) => draft.set((d) => ({ ...d, [k]: v }));
+  const setText = field("text");
+  const setCompleting = field("completing");
+  const setWithNext = field("withNext");
+  const setKind = field("kind");
+  const setTitle = field("title");
+  const setDue = field("due");
+  const setDuration = field("duration");
+  const setPriority = field("priority");
+  const setInvite = field("invite");
 
   const refresh = () => invalidatePendingQueries(qc, task.lead_id);
 
   const saveNote = useMutation({
     mutationFn: () => noteFn({ data: { id: task.id, text: text.trim() } }),
-    onSuccess: () => { setText(""); toast.success("Observação registrada na jornada."); refresh(); },
+    onSuccess: () => { draft.reset({ ...draft.value, text: "" }); toast.success("Observação registrada na jornada."); refresh(); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -109,7 +116,7 @@ export function LeadTaskActions({
       else if (n?.priorityPending) toast.warning("Concluída e próxima ação agendada; a prioridade só é salva depois da migração 21.");
       else if (n) toast.success(n.synced ? "Concluída. Próxima ação agendada e sincronizada no Google Agenda." : "Concluída. Próxima ação agendada.");
       else toast.success("Tarefa concluída.");
-      setText(""); setCompleting(false);
+      draft.reset(blank());
       refresh();
       onCompleted?.();
     },

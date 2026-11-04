@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
+import { readLeadParam, writeLeadParam } from "@/lib/persist/lead-url";
+import { openLeadCard } from "@/components/pipeline/LeadCardHost";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -122,7 +124,12 @@ function PipelinePage() {
   const [dragging, setDragging] = useState<Lead | null>(null);
   const [draggingStage, setDraggingStage] = useState<PipelineStage | null>(null);
   const [winLead, setWinLead] = useState<Lead | null>(null);
-  const [openLead, setOpenLead] = useState<Lead | null>(null);
+  const [openLead, setOpenLeadState] = useState<Lead | null>(null);
+  // Card aberto fica na URL (?lead=): recarregar a página reabre o mesmo lead.
+  const setOpenLead = (l: Lead | null) => {
+    setOpenLeadState(l);
+    writeLeadParam(l?.id ?? null);
+  };
   const [editing, setEditing] = useState<Lead | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [stagesOpen, setStagesOpen] = useState(false);
@@ -198,6 +205,29 @@ function PipelinePage() {
   );
 
   useLeadArrivalAlert(leads);
+
+  // Recarregou com ?lead= → reabre o card (se o lead é de outro pipeline, abre pelo card global).
+  const restoredLead = useRef(false);
+  useEffect(() => {
+    if (restoredLead.current || isLoading || !data) return;
+    const id = readLeadParam();
+    restoredLead.current = true;
+    if (!id) return;
+    const found = leads.find((l) => l.id === id);
+    if (found) setOpenLeadState(found);
+    else openLeadCard(id);
+  }, [isLoading, data, leads]);
+  // mantém o card aberto com os dados novos (após salvar, mover etc.)
+  useEffect(() => {
+    if (!openLead) return;
+    const fresh = leads.find((l) => l.id === openLead.id);
+    if (fresh && fresh !== openLead) setOpenLeadState(fresh);
+  }, [leads]); // eslint-disable-line react-hooks/exhaustive-deps
+  // trocar de visão/pipeline reescreve a URL: devolve o ?lead= enquanto o card estiver aberto
+  const locationHref = useRouterState({ select: (st) => st.location.href });
+  useEffect(() => {
+    if (openLead) writeLeadParam(openLead.id);
+  }, [locationHref, openLead]);
 
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["pipeline"] });

@@ -1,4 +1,7 @@
 import { DuplicateBadge } from "@/components/pipeline/DuplicateLeadDialog";
+import { useDraft } from "@/lib/persist/draft";
+import { leadCardHref } from "@/lib/persist/lead-url";
+import { dropQueuedFile, enqueueLeadFile, isNetworkError, queuedLeadFiles, type QueuedFile } from "@/lib/persist/upload-queue";
 import { leadFileUrl, removeLeadFile, uploadLeadFile } from "@/lib/pipeline/lead-files.functions";
 import { ACCEPT_ATTACHMENTS, MAX_ATTACHMENT_MB } from "@/lib/projects/attachments.functions";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -7,6 +10,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   Activity, ArrowRightLeft, Building2, CalendarClock, CalendarDays, CheckCircle2, Download, FileUp,
   AlertTriangle, Mail, MapPin, MessageSquare, Paperclip, Pencil, Phone, Plus, Tag, Trash2, X, Zap,
+  ExternalLink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -126,7 +130,23 @@ export function LeadDrawer({
 
   const [emailOpen, setEmailOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
-  const [noteText, setNoteText] = useState("");
+  // anotação em andamento fica guardada neste aparelho até ser adicionada
+  const noteDraft = useDraft<string>(lead ? `lead-note:${lead.id}` : null, "");
+  const noteText = noteDraft.value;
+  const setNoteText = noteDraft.set;
+  // aba da direita (Tarefas/Arquivos/UTM) lembrada por lead nesta aba do navegador
+  const tabKey = lead ? `lead-tab:${lead.id}` : null;
+  const [sideTab, setSideTabState] = useState<string>("tarefas");
+  useEffect(() => {
+    if (!tabKey) return;
+    try { setSideTabState(sessionStorage.getItem(tabKey) ?? "tarefas"); } catch { setSideTabState("tarefas"); }
+  }, [tabKey]);
+  const setSideTab = (v: string) => {
+    setSideTabState(v);
+    try { if (tabKey) sessionStorage.setItem(tabKey, v); } catch { /* sem armazenamento */ }
+  };
+  // anexos aguardando envio (internet caiu ou página recarregada no meio)
+  const [queued, setQueued] = useState<QueuedFile[]>([]);
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
@@ -258,7 +278,9 @@ export function LeadDrawer({
 
   const addNote = useMutation({
     mutationFn: () => noteFn({ data: { leadId: lead!.id, body: noteText.trim() } }),
-    onSuccess: () => { setNoteText(""); refresh(); },
+    onSuccess: () => { noteDraft.reset(""); refresh(); },
+    // o texto continua no campo (e guardado no aparelho) para tentar de novo
+    onError: (e: Error) => toast.error(`Anotação não salva: ${e.message}. O texto continua guardado.`),
   });
 
   const toggleTask = useMutation({
@@ -281,12 +303,20 @@ export function LeadDrawer({
   // Envio pelo servidor (nome com acento/ç funciona, erro aparece na tela, toda a equipe baixa).
   const uploadFileFn = useServerFn(uploadLeadFile);
   const fileUrlFn = useServerFn(leadFileUrl);
+  const sendOne = async (leadId: string, file: File) => {
+    const fd = new FormData();
+    fd.set("leadId", leadId);
+    fd.set("file", file);
+    await uploadFileFn({ data: fd });
+  };
+
   async function onUpload(list: FileList | File[]) {
     if (!lead) return;
     const picked = Array.from(list);
     if (!picked.length) return;
     setUploading(true);
     let ok = 0;
+    let waiting = 0;
     try {
       for (const file of picked) {
         if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
@@ -294,22 +324,62 @@ export function LeadDrawer({
           continue;
         }
         try {
-          const fd = new FormData();
-          fd.set("leadId", lead.id);
-          fd.set("file", file);
-          await uploadFileFn({ data: fd });
+          await sendOne(lead.id, file);
           ok++;
         } catch (e: any) {
-          toast.error(`${file.name}: ${e?.message ?? "não foi possível anexar."}`);
+          // sem conexão: guarda no aparelho e envia quando a internet voltar
+          if (isNetworkError(e) && (await enqueueLeadFile(lead.id, file))) waiting++;
+          else toast.error(`${file.name}: ${e?.message ?? "não foi possível anexar."}`);
         }
       }
       if (ok) toast.success(ok === 1 ? "Arquivo anexado." : `${ok} arquivos anexados.`);
+      if (waiting) toast.warning(`${waiting} arquivo(s) guardado(s) neste aparelho: serão enviados quando a conexão voltar.`);
       refresh();
+      setQueued(await queuedLeadFiles(lead.id));
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
     }
   }
+
+  // Envia o que ficou na fila (ao abrir o card e quando a internet volta).
+  const flushing = useRef(false);
+  const flushQueue = async (leadId: string) => {
+    if (flushing.current) return;
+    flushing.current = true;
+    try {
+      const items = await queuedLeadFiles(leadId);
+      let sent = 0;
+      for (const it of items) {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) break;
+        try {
+          await sendOne(leadId, new File([it.blob], it.name, { type: it.type }));
+          await dropQueuedFile(it.id);
+          sent++;
+        } catch (e) {
+          if (isNetworkError(e)) break;
+          await dropQueuedFile(it.id); // recusado pelo servidor: não fica tentando para sempre
+          toast.error(`${it.name}: ${(e as Error)?.message ?? "não foi possível anexar."}`);
+        }
+      }
+      if (sent) {
+        toast.success(sent === 1 ? "Arquivo pendente enviado." : `${sent} arquivos pendentes enviados.`);
+        refresh();
+      }
+      setQueued(await queuedLeadFiles(leadId));
+    } finally {
+      flushing.current = false;
+    }
+  };
+  useEffect(() => {
+    if (!lead?.id) return;
+    const id = lead.id;
+    void flushQueue(id);
+    const onOnline = () => void flushQueue(id);
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id]);
 
   async function download(id: string) {
     try {
@@ -483,6 +553,17 @@ export function LeadDrawer({
                   onClick={() => setEmailOpen(true)}
                 >
                   <Mail className="h-4 w-4" />
+                </Button>
+                <Button
+                  asChild
+                  size="icon"
+                  variant="outline"
+                  title="Abrir este lead em outra aba"
+                  className="h-8 w-8 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                >
+                  <a href={leadCardHref(lead.id)} target="_blank" rel="noopener" aria-label="Abrir este lead em outra aba">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
                 </Button>
                 <Button
                   size="icon"
@@ -691,7 +772,7 @@ export function LeadDrawer({
               {/* Coluna direita: agendamentos / arquivos / UTM */}
               <aside className="min-h-0 border-t lg:border-l lg:border-t-0">
                 <div className="min-h-0 h-full overflow-y-auto px-4 py-4">
-                  <Tabs defaultValue="tarefas">
+                  <Tabs value={sideTab} onValueChange={setSideTab}>
                     <TabsList className="lead-gradient-card grid w-full grid-cols-3">
                       <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
                       <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
@@ -780,6 +861,19 @@ export function LeadDrawer({
                       </Button>
                       <p className="text-[11px] text-muted-foreground">PDF, imagem (PNG/JPG/WebP), Excel, Word ou CSV · até {MAX_ATTACHMENT_MB} MB.</p>
                       <div className="space-y-2">
+                        {queued.map((q) => (
+                          <div key={q.id} className="flex items-center gap-3 rounded-lg border border-dashed border-amber-400 bg-amber-50 p-3 dark:bg-amber-500/10">
+                            <Paperclip className="h-4 w-4 text-amber-700" />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">{q.name}</p>
+                              <p className="text-[11px] text-amber-800 dark:text-amber-200">Aguardando conexão para enviar · guardado neste aparelho</p>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => lead && flushQueue(lead.id)}>Tentar agora</Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Descartar ${q.name}`} onClick={async () => { await dropQueuedFile(q.id); if (lead) setQueued(await queuedLeadFiles(lead.id)); }}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
                         {files.map((f) => (
                           <div key={f.id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
                             <Paperclip className="h-4 w-4 text-muted-foreground" />
@@ -797,7 +891,7 @@ export function LeadDrawer({
                             </Button>
                           </div>
                         ))}
-                        {files.length === 0 && (
+                        {files.length === 0 && queued.length === 0 && (
                           <p className="text-sm text-muted-foreground">Nenhum arquivo anexado.</p>
                         )}
                       </div>

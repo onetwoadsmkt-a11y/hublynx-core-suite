@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { clearDraft, readDraft, writeDraft } from "@/lib/persist/draft";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -63,12 +64,28 @@ export function LeadFormDialog({
   const qc = useQueryClient();
   const save = useServerFn(upsertLead);
   const { activeOrganizationId } = useWorkspace();
-  const [form, setForm] = useState<Form>(EMPTY);
+  const [form, setFormState] = useState<Form>(EMPTY);
+  const [recovered, setRecovered] = useState(false);
+  // o que está sendo digitado fica guardado neste aparelho até salvar ou cancelar
+  const draftKey = open ? `lead-form:${lead?.id ?? "novo"}` : null;
+  const setForm = (v: Form | ((f: Form) => Form)) =>
+    setFormState((prev) => {
+      const next = typeof v === "function" ? (v as (f: Form) => Form)(prev) : v;
+      if (draftKey) writeDraft(draftKey, next);
+      return next;
+    });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
-    setForm(
+    const saved = readDraft<Form>(`lead-form:${lead?.id ?? "novo"}`);
+    setRecovered(!!saved);
+    if (saved) {
+      setFormState(saved);
+      setSelectedTags((((lead as any)?.tags as string[] | null) ?? []).map(String));
+      return;
+    }
+    setFormState(
       lead
         ? {
             name: lead.name ?? "",
@@ -124,6 +141,7 @@ export function LeadFormDialog({
         },
       }),
     onSuccess: () => {
+      clearDraft(`lead-form:${lead?.id ?? "novo"}`);
       qc.invalidateQueries({ queryKey: ["pipeline"] });
       toast.success(lead ? "Lead atualizado" : "Lead criado");
       onOpenChange(false);
@@ -139,6 +157,11 @@ export function LeadFormDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{lead ? "Editar lead" : "Novo lead"}</DialogTitle>
+          {recovered && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+              Recuperamos o que você tinha digitado e ainda não salvou.
+            </p>
+          )}
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -276,7 +299,7 @@ export function LeadFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => { clearDraft(`lead-form:${lead?.id ?? "novo"}`); onOpenChange(false); }}>Cancelar</Button>
           <Button disabled={!form.name.trim() || mutation.isPending} onClick={() => mutation.mutate()}>
             {mutation.isPending ? "Salvando..." : "Salvar"}
           </Button>
