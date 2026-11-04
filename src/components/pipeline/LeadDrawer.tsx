@@ -32,6 +32,7 @@ import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { invalidatePendingQueries } from "@/hooks/usePendingItems";
 import { LeadTaskActions, LeadTaskNotes } from "./LeadTaskActions";
+import { TaskCreateDialog } from "@/components/tasks/TaskCreateDialog";
 import { PRIORITY_LABEL, PRIORITY_TONE, type Priority } from "@/components/tasks/TaskDrawer";
 
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -127,6 +128,7 @@ export function LeadDrawer({
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   const [noteText, setNoteText] = useState("");
   const [showAllEvents, setShowAllEvents] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskKind, setTaskKind] = useState<string>("tarefa");
   const [taskDue, setTaskDue] = useState("");
@@ -684,56 +686,16 @@ export function LeadDrawer({
 
 
                     <TabsContent value="tarefas" className="mt-4 space-y-3">
-                      <div className="flex flex-wrap gap-2">
-                        <Input
-                          value={taskTitle}
-                          onChange={(e) => setTaskTitle(e.target.value)}
-                          placeholder="Ex.: Reunião de apresentação"
-                          className="min-w-[200px] flex-1"
-                        />
-                        <Select value={taskKind} onValueChange={setTaskKind}>
-                          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {TASK_KINDS.map((k) => (
-                              <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="datetime-local"
-                          value={taskDue}
-                          onChange={(e) => setTaskDue(e.target.value)}
-                          className="w-[210px]"
-                        />
-                        <Select value={taskPriority} onValueChange={(v) => setTaskPriority(v as typeof taskPriority)}>
-                          <SelectTrigger className="w-[130px]" aria-label="Prioridade"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {LEAD_TASK_PRIORITIES.map((p) => (
-                              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Select value={taskDuration} onValueChange={setTaskDuration}>
-                          <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {["15", "30", "45", "60", "90", "120"].map((m) => (
-                              <SelectItem key={m} value={m}>{m} min</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          disabled={!taskTitle.trim() || addTask.isPending}
-                          onClick={() => addTask.mutate()}
-                        >
-                          <Plus className="mr-1.5 h-4 w-4" />
-                          {addTask.isPending ? "Agendando..." : "Agendar"}
-                        </Button>
-                      </div>
-
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Checkbox checked={inviteLead} onCheckedChange={(v) => setInviteLead(!!v)} />
-                        Convidar o lead por e-mail{lead.email ? ` (${lead.email})` : " (sem e-mail cadastrado)"} · sincroniza no Google Agenda
-                      </label>
+                      <Button className="w-full" onClick={() => setNewTaskOpen(true)}>
+                        <Plus className="mr-1.5 h-4 w-4" /> Nova tarefa para este lead
+                      </Button>
+                      <TaskCreateDialog
+                        open={newTaskOpen}
+                        onOpenChange={setNewTaskOpen}
+                        lockLead
+                        defaults={{ lead: { id: lead.id, name: lead.name, email: lead.email ?? null } }}
+                        onCreated={() => refreshTasks()}
+                      />
 
                       <div className="space-y-2">
                         {tasks.map((t) => (

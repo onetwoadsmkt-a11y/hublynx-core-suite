@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { scopeOrganization } from "@/lib/org/filter";
+import { fetchAllRows } from "@/lib/supabase-paging";
 import { listLeadScheduledTasks } from "@/lib/pipeline/tasks.functions";
 import { leadTaskDisplay, type LeadScheduledTask } from "@/lib/pipeline/task-display";
 import type { PendingPriority } from "@/lib/tasks/pending";
@@ -55,9 +56,14 @@ export function usePendingItems() {
   const general = useQuery({
     queryKey: pendingKeys.tasks(activeOrganizationId),
     queryFn: async () => {
-      const { data, error } = await scopeOrganization(supabase.from("tasks").select("*"), activeOrganizationId).order("position");
-      if (error) throw error;
-      return data as PendingItem[];
+      // O Supabase devolve no máximo 1.000 linhas por consulta: busca em páginas para
+      // a Agenda e as Tarefas enxergarem tudo (tarefa nova não "some" em empresa grande).
+      const rows = await fetchAllRows<PendingItem>(() =>
+        scopeOrganization(supabase.from("tasks").select("*"), activeOrganizationId)
+          .order("position")
+          .order("id") as any,
+      );
+      return rows;
     },
     staleTime: 60_000,
     enabled: !!activeOrganizationId,

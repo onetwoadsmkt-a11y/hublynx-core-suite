@@ -23,4 +23,7 @@ export type AgendaEvent = {
   leadName?: string | null;
   /** Id do item na central de Tarefas ("<uuid>" ou "lead:<uuid>"). */
   pendingId?: string | null;
+  /** Evento do Google: id e convidados (para criar o lead no Core a partir dele). */
+  googleEventId?: string | null;
+  attendees?: { email: string; name: string | null }[];
 };

@@ -1,3 +1,4 @@
+import { TaskCreateDialog } from "@/components/tasks/TaskCreateDialog";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -461,7 +462,7 @@ function MobileSummary({ p, d }: any) {
             )}
           </div>
         </div>
-        <QuickCreateTaskButton projectId={p.id} clientId={p.client?.id ?? null} full />
+        <QuickCreateTaskButton projectId={p.id} clientId={p.client?.id ?? null} projectName={p.name} clientName={p.client?.name ?? null} full />
       </section>
       <section aria-label="Indicadores" className="grid grid-cols-2 gap-2.5">
         {tiles.map((t) => (
@@ -477,58 +478,28 @@ function MobileSummary({ p, d }: any) {
 }
 
 function QuickCreateTaskButton({
-  projectId, clientId, full = false,
+  projectId, clientId, projectName, clientName, full = false,
 }: { projectId: string; clientId: string | null; projectName?: string; clientName?: string | null; full?: boolean }) {
   const qc = useQueryClient();
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = async () => {
-    setCreating(true);
-    try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Sem sessão");
-      const { data: inserted, error } = await supabase
-        .from("tasks")
-        .insert({
-          owner_id: u.user.id,
-          title: "Nova tarefa",
-          status: "a_fazer",
-          priority: "media",
-          project_id: projectId,
-          client_id: clientId,
-          position: 0,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-      setTaskId(inserted.id as string);
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setCreating(false);
-    }
-  };
-
+  const [open, setOpen] = useState(false);
   return (
     <>
       <Button
-        onClick={handleCreate}
-        disabled={creating}
+        onClick={() => setOpen(true)}
         className={full
           ? "h-12 w-full rounded-xl bg-[var(--band-cta-bg)] text-[15px] font-bold text-[var(--band-cta-fg)] hover:opacity-90"
           : "h-11 rounded-xl bg-[var(--band-cta-bg)] px-5 text-[15px] font-extrabold text-[var(--band-cta-fg)] hover:opacity-90"}
       >
-        <Plus className="h-4 w-4 mr-2" /> {creating ? "Criando..." : "Nova tarefa"}
+        <Plus className="h-4 w-4 mr-2" /> Nova tarefa
       </Button>
-      <TaskDrawer
-        taskId={taskId}
-        open={!!taskId}
-        onClose={() => {
-          setTaskId(null);
-          qc.invalidateQueries({ queryKey: ["project-detail"] });
-        }}
+      {/* criação de tarefa padrão do Core (mesma da Agenda), já com projeto e cliente */}
+      <TaskCreateDialog
+        open={open}
+        onOpenChange={setOpen}
+        defaults={{ projectId, clientId }}
+        projectName={projectName ?? null}
+        clientName={clientName ?? null}
+        onCreated={() => qc.invalidateQueries({ queryKey: ["project-detail"] })}
       />
     </>
   );

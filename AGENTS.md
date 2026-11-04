@@ -115,3 +115,10 @@
 - `src/lib/forms/form-domain.ts`: no domínio de formulários só abrem `/f/...` e arquivos; o resto vai para core.hublynx.com.br (`beforeLoad` do `__root`).
 - `/api/public/forms-host` + `useFormOrigin()`: os links "Copiar link"/"Ver" usam form.hublynx.com.br só quando esse domínio já responde pelo Core (senão, o endereço do Core).
 - Links antigos do Vale Safe Lead Pro (`/f/<id-antigo>-<endereco>`): `loadActiveForm` cai para o formulário publicado com o mesmo endereço (se houver só um).
+
+## Criação de tarefa padrão (TaskCreateDialog)
+- `src/components/tasks/TaskCreateDialog.tsx`: tipo (Tarefa/Reunião/Ligação/Follow-up), título, descrição, vincular lead (busca), data (obrigatória, padrão hoje), hora, prioridade. Com lead → `upsertLeadTask` (agendamento do lead, Google no servidor); sem lead → `tasks` com organization_id e data.
+- Usado em: Agenda (NewTaskSheet virou wrapper), Tarefas e app (TaskQuickForm virou wrapper), cartão do lead (LeadDrawer, lead fixo) e botão "Nova tarefa" do projeto (antes criava "Nova tarefa" sem empresa e sem data — não aparecia na Agenda).
+- `usePendingItems` busca as tarefas em páginas (`fetchAllRows`): acima de 1.000 tarefas a nova podia não aparecer.
+- Agenda: evento do Google → "Criar lead no Core" (`createLeadFromGoogleEvent`: cria o lead na etapa escolhida e liga o evento como agendamento, sem criar outro evento). Eventos de agendamentos de qualquer pessoa da equipe deixam de aparecer duplicados em azul.
+- Build: se abortar por memória, `NODE_OPTIONS=--max-old-space-size=4096 npx vite build`.

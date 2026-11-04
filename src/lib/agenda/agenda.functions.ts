@@ -121,11 +121,12 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
 
 
     // Agendamentos de lead também viram evento no Google: guarda os ids para não duplicar.
+    // Vale para os agendamentos de qualquer pessoa da equipe (o convidado recebe o mesmo
+    // evento no Google): ele aparece como "Lead" (laranja, abre o lead), não como Google.
     {
       const { data: ltIds } = await supabase
         .from("lead_tasks")
         .select("gcal_event_id")
-        .eq("owner_id", userId)
         .not("gcal_event_id", "is", null)
         .gte("due_at", fromISO)
         .lte("due_at", toISO)
@@ -160,6 +161,12 @@ export const getAgendaEvents = createServerFn({ method: "POST" })
             meetLink: ev.hangoutLink ?? null,
             htmlLink: ev.htmlLink ?? null,
             description: ev.description ?? null,
+            googleEventId: ev.id ?? null,
+            // convidados (sem a própria pessoa nem salas) — sugestão para criar o lead
+            attendees: ((ev.attendees ?? []) as any[])
+              .filter((a) => a?.email && !a.self && !a.resource)
+              .map((a) => ({ email: String(a.email), name: a.displayName ? String(a.displayName) : null }))
+              .slice(0, 20),
           });
         }
       }
@@ -194,4 +201,88 @@ export const completeTask = createServerFn({ method: "POST" })
       .eq("id", data.taskId);
     if (error) throw new Error(error.message);
     return { ok: true as const };
+  });
+
+/**
+ * Evento do Google Agenda → lead no Core: cria o lead na etapa escolhida e liga o evento
+ * a ele como agendamento (não cria outro evento no Google). Na Agenda o evento passa a
+ * aparecer como "Lead" (laranja) e abre o cartão do lead.
+ */
+export const createLeadFromGoogleEvent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        organizationId: z.string().uuid(),
+        stageId: z.string().uuid(),
+        name: z.string().trim().min(1).max(200),
+        email: z.string().trim().max(200).nullable().optional(),
+        phone: z.string().trim().max(60).nullable().optional(),
+        company: z.string().trim().max(200).nullable().optional(),
+        googleEventId: z.string().min(1).max(1024),
+        title: z.string().trim().min(1).max(200),
+        start: z.string().min(1),
+        end: z.string().nullable().optional(),
+        meetLink: z.string().max(1000).nullable().optional(),
+        notes: z.string().max(8000).nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    // já ligado a um lead? devolve o mesmo (não duplica)
+    const { data: existing } = await supabase
+      .from("lead_tasks")
+      .select("lead_id")
+      .eq("gcal_event_id", data.googleEventId)
+      .limit(1)
+      .maybeSingle();
+    if (existing?.lead_id) return { leadId: existing.lead_id as string, created: false };
+
+    const { data: ok } = await (supabase as any).rpc("is_org_member", { _org: data.organizationId });
+    if (!ok) throw new Error("Sem acesso a esta empresa.");
+    const { data: stage } = await supabase.from("pipeline_stages").select("id").eq("id", data.stageId).maybeSingle();
+    if (!stage) throw new Error("Etapa do pipeline não encontrada.");
+
+    const { data: lead, error } = await supabase
+      .from("leads")
+      .insert({
+        owner_id: userId,
+        organization_id: data.organizationId,
+        stage_id: data.stageId,
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        company: data.company || null,
+        source: "Google Agenda",
+      } as never)
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    const leadId = (lead as { id: string }).id;
+
+    const start = new Date(data.start);
+    const end = data.end ? new Date(data.end) : null;
+    const minutes = end && end > start ? Math.min(480, Math.max(10, Math.round((end.getTime() - start.getTime()) / 60000))) : 30;
+    const { error: tErr } = await supabase.from("lead_tasks").insert({
+      lead_id: leadId,
+      owner_id: userId,
+      organization_id: data.organizationId,
+      title: data.title,
+      kind: "reuniao",
+      notes: data.notes || null,
+      due_at: start.toISOString(),
+      duration_minutes: minutes,
+      gcal_event_id: data.googleEventId,
+      meet_link: data.meetLink || null,
+    } as never);
+    if (tErr) throw new Error(`Lead criado, mas não foi possível ligar a reunião: ${tErr.message}`);
+
+    try {
+      const { fireLeadAutomations } = await import("@/lib/automations/engine.server");
+      await fireLeadAutomations({ leadId, event: { kind: "enter" } });
+    } catch {
+      /* automações da etapa são opcionais */
+    }
+    return { leadId, created: true };
   });

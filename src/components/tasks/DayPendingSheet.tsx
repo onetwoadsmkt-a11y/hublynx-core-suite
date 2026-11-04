@@ -24,7 +24,7 @@ export type DayItem = {
   leadTask?: LeadScheduledTask;
 };
 
-export type DayExtra = { id: string; title: string; time: string | null; label: string; href?: string | null };
+export type DayExtra = { id: string; title: string; time: string | null; label: string; href?: string | null; action?: import("react").ReactNode };
 
 const PRIORITY_ORDER: Record<string, number> = { critica: 0, alta: 1, media: 2, baixa: 3 };
 
@@ -137,7 +137,7 @@ export function DayPendingSheet({
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Outros compromissos</p>
               <div className="space-y-2">
                 {extras.map((e) => (
-                  <div key={e.id} className="flex items-center gap-3 rounded-xl border bg-card p-3 text-sm">
+                  <div key={e.id} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3 text-sm">
                     <span className="w-10 shrink-0 text-xs tabular-nums text-muted-foreground">{e.time ?? "—"}</span>
                     <span className="min-w-0 flex-1 truncate">{e.title}</span>
                     {e.href ? (
@@ -145,6 +145,7 @@ export function DayPendingSheet({
                     ) : (
                       <span className="shrink-0 text-xs text-muted-foreground">{e.label}</span>
                     )}
+                    {e.action}
                   </div>
                 ))}
               </div>

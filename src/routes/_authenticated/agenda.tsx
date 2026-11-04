@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { ScheduleMeetingDialog } from "@/components/tasks/ScheduleMeetingDialog";
 import { NewTaskSheet } from "@/components/tasks/NewTaskSheet";
+import { CreateLeadFromEventButton } from "@/components/tasks/CreateLeadFromEvent";
 import {
   getAgendaEvents, rescheduleTask, completeTask,
 } from "@/lib/agenda/agenda.functions";
@@ -236,6 +237,7 @@ function AgendaPage() {
 
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newTaskDate, setNewTaskDate] = useState<string | null>(null);
 
   const backfillFn = useServerFn(syncAllPendingTasksToCalendar);
   const backfill = useMutation({
@@ -386,7 +388,8 @@ function AgendaPage() {
       <ScheduleMeetingStandalone open={meetingOpen} onClose={() => setMeetingOpen(false)} />
       <NewTaskSheet
         open={newTaskOpen}
-        onOpenChange={setNewTaskOpen}
+        onOpenChange={(o) => { setNewTaskOpen(o); if (!o) setNewTaskDate(null); }}
+        defaults={{ date: newTaskDate ?? toKey(view === "day" ? anchor : new Date()) }}
         onCreated={() => invalidatePendingQueries(qc)}
       />
       <DayPendingSheet
@@ -404,10 +407,11 @@ function AgendaPage() {
             time: e.allDay ? null : fmt(new Date(e.start), { hour: "2-digit", minute: "2-digit" }),
             label: e.source === "meeting" ? (e.meetLink ? "Entrar no Meet" : "Reunião") : "Google",
             href: e.source === "meeting" ? e.meetLink : e.htmlLink,
+            action: e.source === "gcal" ? <CreateLeadFromEventButton event={e} /> : undefined,
           })) : []}
         onOpenChange={(o) => { if (!o) setDayOpen(null); }}
         onSelect={(id) => { setDayOpen(null); setSelected(id); }}
-        onAdd={() => { setDayOpen(null); setNewTaskOpen(true); }}
+        onAdd={(key) => { setDayOpen(null); setNewTaskDate(key); setNewTaskOpen(true); }}
       />
       {selectedLead ? (
         <LeadTaskDialog key={selectedLead.id} task={selectedLead} onClose={() => setSelected(null)} />
@@ -809,6 +813,7 @@ function EventDetails({ event }: { event: AgendaEvent }) {
               Tarefa
             </Button>
           )}
+          {event.source === "gcal" && <CreateLeadFromEventButton event={event} />}
           {event.source === "gcal" && event.htmlLink && (
             <Button asChild size="sm" variant="outline" className="h-7 text-xs">
               <a href={event.htmlLink} target="_blank" rel="noreferrer"><ExternalLink className="h-3 w-3 mr-1" /> Google Calendar</a>
