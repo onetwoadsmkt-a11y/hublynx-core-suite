@@ -160,3 +160,8 @@
 
 ## Planilha no portal = igual à da equipe (04/11/2026)
 - `src/components/projects/sheet-look.tsx` é a fonte única da aparência das planilhas do Comercial (cores de linha/célula `__cor`/`__cor:<coluna>`, larguras `columns[].width`, cabeçalho na cor escura da marca, coluna de total destacada, chips de situação/validade, datas vencidas, rodapé Total). `ProjectDepartmentsPanel` (Core) importa daí; o portal usa `SheetReadOnlyTable` (só leitura) + cabeçalho do formulário, legenda de validade e Resumo (Total dos itens, acréscimos, Total geral) no mesmo estilo. Mudou o visual no Core → mude em sheet-look para o portal acompanhar.
+
+## Aviso de tarefa atrasada para o administrador (05/11/2026)
+- `runAdminOverdueAlerts` (task-notify.server.ts), chamado no fim de `runTaskNotifications` (app aberto ≤10 min e cron run-automations): tarefas de projetos ativos (status fora de concluido/cancelado/em_pausa/pausado) que estão atrasadas pela regra única `isOverdue` — inclusive do cliente e sem responsável — avisam cada `org_admin`/owner/admin ativo da empresa: sino "Tarefas atrasadas nos projetos" (um por projeto) + um e-mail por admin com a lista (projeto, prazo, há quantos dias, responsável), na identidade da empresa. Uma vez por tarefa e admin (`task_push_log` kind `admin_late`); só das 7h às 21h de Brasília; sem cota de e-mail, nada é reservado (fica para a próxima rodada).
+- Migração 38: inclui o título na lista do `tg_notification_to_mail` que já tem e-mail próprio (sem ela o admin também recebe o e-mail genérico do sino).
+- O resumo diário de quem é responsável passou a usar a mesma regra de atraso (antes "só com dia" à meia-noite UTC contava como atrasada um dia antes).

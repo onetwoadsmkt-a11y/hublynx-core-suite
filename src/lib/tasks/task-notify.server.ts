@@ -5,7 +5,7 @@
 // Cada envio é "reservado" em task_push_log (único por tarefa + pessoa + tipo), então
 // rodar várias vezes (tela aberta, agendamento) não repete e-mail.
 import { CORE_ORIGIN } from "@/lib/core-origin";
-import { dueDayKey, dueHasTime } from "@/lib/tasks/pending";
+import { dayKey, dueDayKey, dueHasTime, isOverdue } from "@/lib/tasks/pending";
 
 type Db = { from: (t: string) => any; auth?: any };
 
@@ -183,7 +183,10 @@ export async function runTaskNotifications(
   const tasks = ((data ?? []) as (TaskRow & { organization_id: string; responsible_type?: string | null })[]).filter(
     (t) => t.responsible_type !== "cliente",
   );
-  if (!tasks.length) return { mails, notified };
+  if (!tasks.length) {
+    const a = await runAdminOverdueAlerts(admin, { organizationId: opts.organizationId, now, maxMails });
+    return { mails: mails + a.mails, notified: notified + a.notified };
+  }
 
   const projectIds = [...new Set(tasks.map((t) => t.project_id).filter(Boolean))] as string[];
   const projName = new Map<string, string>();
@@ -265,9 +268,10 @@ export async function runTaskNotifications(
     const byUser = new Map<string, (TaskRow & { organization_id: string; late: boolean })[]>();
     for (const t of tasks) {
       if (!t.due_date) continue;
-      const d = dayIn(new Date(t.due_date));
-      if (d > today) continue;
-      const late = d < today;
+      const d = dueDayKey(t.due_date);
+      if (!d || d > today) continue;
+      // mesma regra do destaque vermelho: com hora vence na hora; só com dia, no dia seguinte
+      const late = isOverdue({ due_date: t.due_date, status: t.status }, now);
       byUser.set(t.assignee_id, [...(byUser.get(t.assignee_id) ?? []), { ...t, late }]);
     }
     for (const [userId, list] of byUser) {
@@ -315,5 +319,162 @@ export async function runTaskNotifications(
       if (res.sent) mails++;
     }
   }
+  // 3) Administradores da empresa: tarefas de projetos ativos que entraram em atraso
+  const a = await runAdminOverdueAlerts(admin, { organizationId: opts.organizationId, now, maxMails: Math.max(0, maxMails - mails) });
+  return { mails: mails + a.mails, notified: notified + a.notified };
+}
+
+/** Título do aviso no sino dos administradores (a migração 38 evita o e-mail genérico repetido). */
+export const ADMIN_LATE_TITLE = "Tarefas atrasadas nos projetos";
+const INACTIVE_PROJECT = ["concluido", "cancelado", "em_pausa", "pausado"];
+
+/**
+ * Avisa os administradores da empresa (org_admin) quando uma tarefa de projeto ativo entra
+ * em atraso — sino (um aviso por projeto) e um e-mail por administrador com a lista.
+ * Cada tarefa avisa cada administrador uma vez (task_push_log, tipo "admin_late").
+ * Vale para tarefas da equipe, do cliente e sem responsável. Só entre 7h e 21h (Brasília):
+ * fora desse horário fica para a próxima rodada.
+ */
+export async function runAdminOverdueAlerts(
+  admin: Db,
+  opts: { organizationId?: string; now?: Date; maxMails?: number } = {},
+) {
+  const now = opts.now ?? new Date();
+  const maxMails = opts.maxMails ?? 40;
+  let mails = 0;
+  let notified = 0;
+  const h = hourIn(now);
+  if (h < 7 || h >= 21) return { mails, notified };
+
+  let q = admin
+    .from("tasks")
+    .select("id, title, status, due_date, project_id, assignee_id, created_by, owner_id, updated_at, organization_id, responsible_type")
+    .not("project_id", "is", null)
+    .not("due_date", "is", null)
+    .not("status", "in", `(${OPEN.join(",")})`)
+    .lte("due_date", now.toISOString())
+    .order("due_date", { ascending: true })
+    .limit(2000);
+  if (opts.organizationId) q = q.eq("organization_id", opts.organizationId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  type Late = TaskRow & { organization_id: string; responsible_type?: string | null };
+  let late = ((data ?? []) as Late[]).filter((t) => t.organization_id && isOverdue({ due_date: t.due_date, status: t.status }, now));
+  if (!late.length) return { mails, notified };
+
+  // só projetos ativos
+  const projectIds = [...new Set(late.map((t) => t.project_id!))];
+  const projects = new Map<string, { name: string; number: number | null }>();
+  for (let i = 0; i < projectIds.length; i += 200) {
+    const { data: ps } = await admin
+      .from("projects")
+      .select("id, name, status, project_number")
+      .in("id", projectIds.slice(i, i + 200));
+    for (const p of (ps ?? []) as any[]) {
+      if (!INACTIVE_PROJECT.includes(String(p.status ?? ""))) projects.set(p.id, { name: p.name, number: p.project_number ?? null });
+    }
+  }
+  late = late.filter((t) => projects.has(t.project_id!));
+  if (!late.length) return { mails, notified };
+
+  // administradores de cada empresa
+  const orgIds = [...new Set(late.map((t) => t.organization_id))];
+  const { data: adm } = await admin
+    .from("organization_members")
+    .select("organization_id, user_id")
+    .in("organization_id", orgIds)
+    .eq("status", "active")
+    .in("role", ["org_admin", "owner", "admin"]);
+  const adminsOf = new Map<string, string[]>();
+  for (const r of (adm ?? []) as any[]) if (r.user_id) adminsOf.set(r.organization_id, [...(adminsOf.get(r.organization_id) ?? []), r.user_id]);
+
+  const people = new Map<string, { email: string | null; name: string }>();
+  const brands = await brandsOf(admin, orgIds);
+  const { sendOrgMail } = await import("@/lib/projects/client-invite.server");
+  const projLabel = (id: string) => {
+    const p = projects.get(id)!;
+    return `${p.number ? `Nº ${p.number} · ` : ""}${p.name}`;
+  };
+  const who = async (id: string | null | undefined) => (id ? (await personOf(admin, id, people)).name || null : null);
+
+  for (const orgId of orgIds) {
+    const admins = adminsOf.get(orgId) ?? [];
+    const orgLate = late.filter((t) => t.organization_id === orgId);
+    for (const adminId of admins) {
+      // sem cota de e-mail agora: nada é reservado, fica tudo para a próxima rodada
+      if (mails >= maxMails) break;
+      // reserva cada tarefa para este administrador (avisa uma vez por tarefa)
+      const fresh: Late[] = [];
+      for (const t of orgLate) if (await claim(admin, t.id, adminId, "admin_late")) fresh.push(t);
+      if (!fresh.length) continue;
+
+      // sino: um aviso por projeto
+      const byProject = new Map<string, Late[]>();
+      for (const t of fresh) byProject.set(t.project_id!, [...(byProject.get(t.project_id!) ?? []), t]);
+      for (const [pid, list] of byProject) {
+        const names = list.slice(0, 3).map((t) => `"${t.title}"`).join(", ");
+        await admin.from("notifications").insert({
+          user_id: adminId,
+          title: ADMIN_LATE_TITLE,
+          body: `${projLabel(pid)}: ${list.length} tarefa(s) em atraso — ${names}${list.length > 3 ? "…" : ""}`.slice(0, 280),
+          link: list.length === 1 ? taskPath(list[0]) : `/projetos/${pid}?aba=etapas`,
+        });
+        notified++;
+      }
+
+      // e-mail: um por administrador, com todas as tarefas que entraram em atraso
+      const person = await personOf(admin, adminId, people);
+      if (!person.email) continue;
+      const first = person.name.split(/\s+/)[0] || "tudo bem";
+      const items: { title: string; sub: string; href: string; late: boolean; details: [string, string][] }[] = [];
+      for (const t of fresh.slice(0, 40)) {
+        const resp = t.responsible_type === "cliente" ? "Cliente (portal)" : (await who(t.assignee_id)) ?? "Sem responsável";
+        const days = (() => {
+          const k = dueDayKey(t.due_date)!;
+          const td = dayKey(now);
+          const n = Math.round((Date.UTC(+td.slice(0, 4), +td.slice(5, 7) - 1, +td.slice(8, 10)) - Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10))) / 86_400_000);
+          return n <= 0 ? "atrasada desde hoje" : `atrasada há ${n} dia${n > 1 ? "s" : ""}`;
+        })();
+        items.push({
+          title: t.title,
+          sub: `${projLabel(t.project_id!)} · ${days}`,
+          href: `${CORE_ORIGIN}${taskPath(t)}`,
+          late: true,
+          details: [
+            ["Projeto", projLabel(t.project_id!)],
+            ["Prazo", brDateTime(t.due_date)],
+            ["Responsável", resp],
+          ] as [string, string][],
+        });
+      }
+      const nProj = byProject.size;
+      const href = nProj === 1 ? `${CORE_ORIGIN}/projetos/${fresh[0].project_id}?aba=etapas` : `${CORE_ORIGIN}/projetos`;
+      const res = await sendOrgMail(admin, {
+        organizationId: orgId,
+        preferUserIds: [adminId],
+        to: person.email,
+        toName: person.name,
+        build: () => ({
+          subject: fresh.length === 1
+            ? `Tarefa em atraso: ${fresh[0].title} (${projLabel(fresh[0].project_id!)})`
+            : `${fresh.length} tarefas em atraso${nProj === 1 ? ` em ${projLabel(fresh[0].project_id!)}` : ` em ${nProj} projetos`}`,
+          text: `Olá, ${first}!\n\nEstas tarefas de projetos ativos entraram em atraso:\n\n${items
+            .map((i) => `- ${i.title} — ${i.sub} · responsável: ${i.details[2][1]}: ${i.href}`)
+            .join("\n")}\n\nAbrir: ${href}`,
+          html: mailLayout(
+            brands.get(orgId)?.name ?? "",
+            first,
+            fresh.length === 1 ? "Uma tarefa de projeto entrou em atraso:" : `${fresh.length} tarefas de projetos entraram em atraso:`,
+            items,
+            { label: nProj === 1 ? "Abrir o projeto" : "Abrir os projetos", href },
+            "Você recebe este aviso porque é administrador da empresa no Core. Cada tarefa é avisada uma vez, quando entra em atraso.",
+            brands.get(orgId)?.brand,
+          ),
+        }),
+      });
+      if (res.sent) mails++;
+    }
+  }
   return { mails, notified };
 }
+
