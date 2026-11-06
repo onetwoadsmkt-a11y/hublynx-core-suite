@@ -177,3 +177,8 @@
 - Botão "Tudo" no período (situação atual, sem comparação); período e pipeline ficam salvos no navegador (por empresa).
 - O dashboard recarrega a cada 60 s e ao voltar para a aba; mostra "Atualizado às HH:MM" (clique = atualizar).
 - `tagSlug` em `funnel.ts`: tag escrita como no Kommo ("REUNIÃO REALIZADA") casa com o slug configurado; `classifyStage` aceita "NUTRÇÃO".
+
+## Aviso de prioridade só no dia da tarefa (06/11/2026)
+- `PriorityAlertModal` mostra Alta/Urgente só quando o prazo já chegou (hoje ou atrasada, dia de Brasília via `dueDayKey`); sem prazo continua avisando. Regra em `dueAlerts`/`alertIsDue` (`pending.ts`, com testes).
+- CIENTE vale a partir do dia em que foi dado: um CIENTE anterior ao dia da tarefa (aviso antigo que aparecia antes, ou tarefa remarcada) não silencia o aviso do dia. `listPriorityAlerts` devolve `ackList` com `acked_at`; o CIENTE local (reserva) guarda "chave|data".
+- O contador do menu continua mostrando todas as prioritárias pendentes.

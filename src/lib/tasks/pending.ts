@@ -83,6 +83,48 @@ export function unackedAlerts<T extends AlertItem>(items: T[], acked: Iterable<s
 }
 
 /**
+ * O aviso de prioridade só aparece a partir do dia da tarefa (no horário de Brasília):
+ * prazo hoje ou atrasada. Tarefa sem prazo continua avisando (não tem "dia").
+ */
+export function alertIsDue(due: string | null | undefined, now: Date = new Date()): boolean {
+  const key = dueDayKey(due);
+  if (!key) return true;
+  return key <= dayKey(now);
+}
+
+export type AlertAck = { key: string; at: string | null };
+
+/**
+ * Avisos a mostrar agora: os que já chegaram ao dia e não têm CIENTE válido.
+ * Um CIENTE dado antes do dia da tarefa (ex.: clicado no aviso antigo, que aparecia
+ * antes do dia, ou antes de a tarefa ser remarcada) não vale: o aviso volta no dia.
+ */
+export function dueAlerts<T extends AlertItem & { due: string | null }>(
+  items: T[],
+  acks: AlertAck[],
+  now: Date = new Date(),
+): T[] {
+  // Dia do CIENTE mais recente de cada aviso; sem data (registro antigo) = vale sempre.
+  const ackedOn = new Map<string, string | null>();
+  for (const a of acks) {
+    const day = a.at ? dayKey(new Date(a.at)) : null;
+    if (!ackedOn.has(a.key)) { ackedOn.set(a.key, day); continue; }
+    const prev = ackedOn.get(a.key)!;
+    if (prev === null) continue;
+    if (day === null || day > prev) ackedOn.set(a.key, day);
+  }
+  return items.filter((i) => {
+    if (!alertIsDue(i.due, now)) return false;
+    const k = alertKey(i);
+    if (!ackedOn.has(k)) return true;
+    const ackDay = ackedOn.get(k);
+    if (ackDay === null) return false;
+    const dueDay = dueDayKey(i.due);
+    return dueDay !== null && ackDay! < dueDay;
+  });
+}
+
+/**
  * Há quantos dias a tarefa está atrasada (0 = venceu hoje, com horário já passado).
  * Retorna null quando não está atrasada.
  */

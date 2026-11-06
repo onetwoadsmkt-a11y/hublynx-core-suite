@@ -7,25 +7,31 @@ import { AlertTriangle, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { listPriorityAlerts, ackPriorityAlerts, type PriorityAlert } from "@/lib/tasks/priority-alerts.functions";
-import { alertKey, isOverdue, unackedAlerts } from "@/lib/tasks/pending";
+import { alertKey, dueAlerts, isOverdue, type AlertAck } from "@/lib/tasks/pending";
 import { LeadLink } from "@/components/pipeline/LeadCardHost";
 import { AppLink } from "@/components/AppLink";
 import { cn } from "@/lib/utils";
 
 const LOCAL_KEY = "core_priority_acks";
 
-// Reserva até a migração 21: guarda o CIENTE só neste navegador.
-function readLocalAcks(): string[] {
+// Reserva até a migração 21: guarda o CIENTE só neste navegador ("chave|data do CIENTE").
+function readLocalAcks(): AlertAck[] {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    const list = raw ? (JSON.parse(raw) as string[]) : [];
+    return list.map((v) => {
+      const [key, at] = v.split("|");
+      return { key: key!, at: at ?? null };
+    });
   } catch {
     return [];
   }
 }
 function writeLocalAcks(keys: string[]) {
   try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(Array.from(new Set([...readLocalAcks(), ...keys])).slice(-500)));
+    const now = new Date().toISOString();
+    const prev = readLocalAcks().filter((a) => !keys.includes(a.key)).map((a) => (a.at ? `${a.key}|${a.at}` : a.key));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify([...prev, ...keys.map((k) => `${k}|${now}`)].slice(-500)));
   } catch {
     // armazenamento bloqueado: o aviso volta na próxima visita
   }
@@ -64,10 +70,16 @@ export function PriorityAlertModal() {
   const ackFn = useServerFn(ackPriorityAlerts);
   const [dismissed, setDismissed] = useState<string[]>([]);
 
+  // Só tarefas que já chegaram ao dia (hoje ou atrasadas) e sem CIENTE válido.
   const pending = useMemo<PriorityAlert[]>(() => {
     if (!data) return [];
-    const acked = [...data.acked, ...dismissed, ...(data.acksAvailable ? [] : readLocalAcks())];
-    return unackedAlerts(data.items, acked);
+    const now = new Date().toISOString();
+    const acks: AlertAck[] = [
+      ...(data.ackList ?? data.acked.map((key) => ({ key, at: null }))),
+      ...dismissed.map((key) => ({ key, at: now })),
+      ...(data.acksAvailable ? [] : readLocalAcks()),
+    ];
+    return dueAlerts(data.items, acks);
   }, [data, dismissed]);
 
   const ack = useMutation({

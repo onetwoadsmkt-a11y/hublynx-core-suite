@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { dueDayKey, dueHasTime, overdueDays, overdueLabel, isDueToday, isOverdue, isPriorityLevel, unackedAlerts } from "./pending";
+import { dueDayKey, dueHasTime, overdueDays, overdueLabel, isDueToday, isOverdue, isPriorityLevel, unackedAlerts, dueAlerts, alertIsDue } from "./pending";
 
 const now = new Date(2026, 9, 22, 15, 0, 0);
 
@@ -68,5 +68,36 @@ describe("overdueLabel", () => {
   it("não atrasada", () => {
     assert.equal(overdueLabel({ due_date: "2026-11-03", status: "a_fazer" }, now), null);
     assert.equal(overdueLabel({ due_date: "2026-11-01", status: "concluido" }, now), null);
+  });
+});
+
+describe("aviso de prioridade só no dia da tarefa", () => {
+  // sexta 06/11/2026 17:30 em Brasília
+  const now = new Date("2026-11-06T20:30:00Z");
+  const it2 = (id: string, due: string | null) => ({ source: "task" as const, id, due });
+
+  it("tarefa de segunda (09/11) não avisa na sexta; hoje, atrasada e sem prazo avisam", () => {
+    assert.equal(alertIsDue("2026-11-09T00:00:00Z", now), false);
+    assert.equal(alertIsDue("2026-11-09T12:00:00.000Z", now), false);
+    assert.equal(alertIsDue("2026-11-06T00:00:00Z", now), true);
+    assert.equal(alertIsDue("2026-11-06T23:30:00-03:00", now), true);
+    assert.equal(alertIsDue("2026-11-03T00:00:00Z", now), true);
+    assert.equal(alertIsDue(null, now), true);
+    const out = dueAlerts([it2("seg", "2026-11-09T12:00:00Z"), it2("hoje", "2026-11-06T00:00:00Z")], [], now);
+    assert.deepEqual(out.map((i) => i.id), ["hoje"]);
+  });
+
+  it("CIENTE dado na sexta não silencia o aviso de segunda", () => {
+    const monday = new Date("2026-11-09T11:00:00Z"); // 08:00 em Brasília
+    const acks = [{ key: "task:seg", at: "2026-11-06T20:00:00Z" }];
+    assert.deepEqual(dueAlerts([it2("seg", "2026-11-09T12:00:00Z")], acks, monday).map((i) => i.id), ["seg"]);
+    // CIENTE dado na própria segunda silencia
+    const acks2 = [...acks, { key: "task:seg", at: "2026-11-09T11:05:00Z" }];
+    assert.deepEqual(dueAlerts([it2("seg", "2026-11-09T12:00:00Z")], acks2, monday), []);
+    // atrasada com CIENTE no dia do prazo: continua silenciada nos dias seguintes
+    const tuesday = new Date("2026-11-10T12:00:00Z");
+    assert.deepEqual(dueAlerts([it2("seg", "2026-11-09T12:00:00Z")], acks2, tuesday), []);
+    // registro sem data (antigo) vale sempre
+    assert.deepEqual(dueAlerts([it2("x", null)], [{ key: "task:x", at: null }], monday), []);
   });
 });

@@ -79,11 +79,17 @@ export const listPriorityAlerts = createServerFn({ method: "GET" })
     // Confirmações "CIENTE" (tabela da migração 21).
     const { data: acks, error: acksError } = await supabase
       .from("task_priority_acks" as any)
-      .select("source, item_id")
+      .select("source, item_id, acked_at")
       .eq("user_id", userId);
-    const acked = acksError ? [] : ((acks ?? []) as any[]).map((a) => alertKey({ source: a.source, id: a.item_id }));
+    const ackRows = acksError ? [] : ((acks ?? []) as any[]);
+    const acked = ackRows.map((a) => alertKey({ source: a.source, id: a.item_id }));
+    // Quando foi dado cada CIENTE: um CIENTE de antes do dia da tarefa não silencia o aviso do dia.
+    const ackList = ackRows.map((a) => ({
+      key: alertKey({ source: a.source, id: a.item_id }),
+      at: (a.acked_at as string | null) ?? null,
+    }));
 
-    return { items, acked, acksAvailable: !acksError, leadPriorityReady };
+    return { items, acked, ackList, acksAvailable: !acksError, leadPriorityReady };
   });
 
 /** Registra o "CIENTE" do usuário para os avisos mostrados. */
