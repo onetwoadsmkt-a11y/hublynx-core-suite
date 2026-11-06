@@ -106,10 +106,11 @@ export async function upsertLeadCalendarEvent(userId: string, input: LeadEventIn
   }
 }
 
-export async function deleteLeadCalendarEvent(userId: string, eventId: string): Promise<void> {
+/** `notify=false`: não manda e-mail de cancelamento aos convidados (exclusão em massa de leads). */
+export async function deleteLeadCalendarEvent(userId: string, eventId: string, notify = true): Promise<void> {
   try {
     const headers = await googleHeaders(userId);
-    await fetch(`${EVENTS_URL}/${eventId}?sendUpdates=all`, { method: "DELETE", headers });
+    await fetch(`${EVENTS_URL}/${eventId}?sendUpdates=${notify ? "all" : "none"}`, { method: "DELETE", headers });
   } catch {
     // best-effort
   }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLeadSelection } from "@/components/pipeline/BulkDeleteLeads";
 import { DuplicateBadge } from "@/components/pipeline/DuplicateLeadDialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -212,7 +213,8 @@ export function LeadCard({
   };
   const remove = useMutation({
     mutationFn: () => del({ data: { id: lead.id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline"] }),
+    onSuccess: () => { toast.success("Lead excluído."); qc.invalidateQueries({ queryKey: ["pipeline"] }); },
+    onError: (e: Error) => toast.error(e.message),
   });
   const exportJourney = useMutation({
     mutationFn: async () => {
@@ -222,6 +224,12 @@ export function LeadCard({
     onSuccess: () => toast.success("Jornada exportada"),
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Modo "Selecionar" do Kanban: clique marca/desmarca e o card não arrasta.
+  const selection = useLeadSelection();
+  const selecting = !!selection?.active && !overlay;
+  const isSelected = selecting && selection!.selected.has(lead.id);
+  if (selecting) draggable = false;
 
   // Card ordenável: arrasta para qualquer posição, na mesma etapa ou em outra.
   const { attributes, listeners, setNodeRef, isDragging, transform, transition } = useSortable({
@@ -250,12 +258,28 @@ export function LeadCard({
       className={cn(
         "group cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md",
         isDragging && "opacity-40",
-        locked &&
+        locked && !selecting &&
           "cursor-not-allowed border-dashed bg-muted/40 hover:border-border hover:shadow-sm",
+        selecting && "relative pl-9",
+        isSelected && "border-primary ring-2 ring-primary/40",
       )}
-      onClick={() => onOpen(lead)}
-      onPointerDown={() => locked && onLockedDrag?.()}
+      onClick={() => (selecting ? selection!.toggle(lead.id) : onOpen(lead))}
+      onPointerDown={() => !selecting && locked && onLockedDrag?.()}
+      role={selecting ? "checkbox" : undefined}
+      aria-checked={selecting ? isSelected : undefined}
+      aria-label={selecting ? `Selecionar ${lead.name}` : undefined}
     >
+      {selecting && (
+        <span
+          aria-hidden
+          className={cn(
+            "absolute left-3 top-3 grid h-4 w-4 place-items-center rounded border-2 text-[10px] font-bold",
+            isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/50 bg-background",
+          )}
+        >
+          {isSelected ? "✓" : ""}
+        </span>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm font-semibold leading-tight">
           {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
@@ -331,7 +355,7 @@ export function LeadCard({
               <FileSpreadsheet className="mr-2 h-3.5 w-3.5" /> Exportar jornada (Excel)
             </DropdownMenuItem>
 
-            <DropdownMenuItem className="text-destructive" onSelect={() => remove.mutate()}>
+            <DropdownMenuItem className="text-destructive" onSelect={() => { if (confirm(`Excluir o lead "${lead.name}"? Não dá para desfazer.`)) remove.mutate(); }}>
               <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
             </DropdownMenuItem>
           </DropdownMenuContent>

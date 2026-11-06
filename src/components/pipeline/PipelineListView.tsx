@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { BulkDeleteLeadsButton } from "@/components/pipeline/BulkDeleteLeads";
 import { ArrowDown, ArrowUp, ArrowUpDown, CalendarClock, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,11 @@ export function PipelineListView({
             onClick={async () => { setBusy(true); try { await onBulkMove([...selected], bulkStage); setSelected(new Set()); setBulkStage(""); } finally { setBusy(false); } }}>
             {busy ? "Movendo…" : "Mover"}
           </Button>
+          <BulkDeleteLeadsButton
+            ids={[...selected]}
+            names={(id) => leads.find((l) => l.id === id)?.name}
+            onDone={() => setSelected(new Set())}
+          />
           <Button size="sm" variant="ghost" className="h-8" onClick={() => setSelected(new Set())}>Limpar seleção</Button>
         </div>
       )}

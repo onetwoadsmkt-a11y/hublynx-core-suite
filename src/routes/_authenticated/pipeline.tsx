@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BulkDeleteLeadsButton, LeadSelectionContext, useCanBulkDelete } from "@/components/pipeline/BulkDeleteLeads";
 import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
 import { readLeadParam, writeLeadParam } from "@/lib/persist/lead-url";
 import { openLeadCard } from "@/components/pipeline/LeadCardHost";
@@ -17,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   CalendarDays, GripVertical, HardDrive, LayoutTemplate, Lock, Mail, Pencil, Plus, Search, Settings, Settings2, Tags, Trash2, Webhook, Zap,
   Columns3, List,
+  CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -125,6 +127,15 @@ function PipelinePage() {
   const [draggingStage, setDraggingStage] = useState<PipelineStage | null>(null);
   const [winLead, setWinLead] = useState<Lead | null>(null);
   const [openLead, setOpenLeadState] = useState<Lead | null>(null);
+  // Modo "Selecionar" do Kanban (excluir/mover vários leads)
+  const [selectMode, setSelectMode] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkTarget, setBulkTarget] = useState("");
+  const canBulkDelete = useCanBulkDelete();
+  const togglePick = (id: string) =>
+    setPicked((cur) => { const n = new Set(cur); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const exitSelect = () => { setSelectMode(false); setPicked(new Set()); setBulkTarget(""); };
+  const selection = { active: selectMode, selected: picked, toggle: togglePick };
   // Card aberto fica na URL (?lead=): recarregar a página reabre o mesmo lead.
   const setOpenLead = (l: Lead | null) => {
     setOpenLeadState(l);
@@ -562,6 +573,20 @@ function PipelinePage() {
             ))}
           </div>
 
+          {view === "kanban" && (
+            <Button
+              size="sm"
+              variant={selectMode ? "default" : "outline"}
+              className="h-9 shrink-0 sm:h-8"
+              aria-pressed={selectMode}
+              onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+              title="Selecionar leads para mover ou excluir"
+            >
+              <CheckSquare className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">{selectMode ? "Cancelar seleção" : "Selecionar"}</span>
+            </Button>
+          )}
+
           <PipelineFilters
             value={filters}
             onChange={setFilters}
@@ -666,6 +691,7 @@ function PipelinePage() {
           onBulkMove={bulkMove}
         />
       ) : (
+        <LeadSelectionContext.Provider value={selection}>
         <DndContext
           sensors={sensors}
           collisionDetection={pipelineCollision}
@@ -733,6 +759,40 @@ function PipelinePage() {
             )}
           </DragOverlay>
         </DndContext>
+        </LeadSelectionContext.Provider>
+      )}
+
+      {/* Barra da seleção (Kanban) */}
+      {view === "kanban" && selectMode && (
+        <div className="fixed inset-x-3 bottom-3 z-40 mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5 shadow-xl sm:inset-x-6">
+          <span className="px-1 text-sm font-semibold">
+            {picked.size ? `${picked.size} selecionado(s)` : "Toque nos cards para selecionar"}
+          </span>
+          <Button size="sm" variant="ghost" className="h-8" onClick={() => setPicked(new Set(filtered.map((l) => l.id)))}>
+            Selecionar todos ({filtered.length})
+          </Button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {picked.size > 0 && (
+              <>
+                <Select value={bulkTarget} onValueChange={setBulkTarget}>
+                  <SelectTrigger className="h-8 w-44" aria-label="Mover para a etapa"><SelectValue placeholder="Mover para…" /></SelectTrigger>
+                  <SelectContent>
+                    {stages.map((st) => <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" variant="outline" className="h-8" disabled={!bulkTarget}
+                  onClick={async () => { await bulkMove([...picked], bulkTarget); exitSelect(); }}>
+                  Mover
+                </Button>
+                <BulkDeleteLeadsButton ids={[...picked]} names={(id) => leads.find((l) => l.id === id)?.name} onDone={exitSelect} />
+              </>
+            )}
+            <Button size="sm" variant="ghost" className="h-8" onClick={exitSelect}>Cancelar</Button>
+          </div>
+          {!canBulkDelete && picked.size > 0 && (
+            <p className="w-full px-1 text-[11px] text-muted-foreground">Excluir em massa é só para o administrador da empresa.</p>
+          )}
+        </div>
       )}
 
       <Dialog open={pipeDialog !== null} onOpenChange={(v) => !v && setPipeDialog(null)}>
