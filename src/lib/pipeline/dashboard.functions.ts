@@ -29,7 +29,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
     );
     const base = (pipelines ?? []) as { id: string; name: string }[];
 
-    // Quantos leads há hoje em cada pipeline (para o seletor e para abrir no pipeline com mais leads).
+    // Quantos leads há hoje em cada pipeline (mostrado no seletor).
     const counts = new Map<string, number>();
     if (base.length > 0) {
       const { data: allStages } = await supabase
@@ -53,9 +53,8 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
       );
     }
     const list = base.map((p) => ({ ...p, leads: counts.get(p.id) ?? 0 }));
-    const busiest = [...list].sort((a, b) => b.leads - a.leads)[0];
-    const current =
-      list.find((p) => p.id === data.pipelineId) ?? (busiest && busiest.leads > 0 ? busiest : list[0]) ?? null;
+    // Sem escolha salva, abre no pipeline principal (o primeiro da ordem, o mesmo da tela Pipeline).
+    const current = list.find((p) => p.id === data.pipelineId) ?? list[0] ?? null;
 
     const { data: stages } = current
       ? await supabase
