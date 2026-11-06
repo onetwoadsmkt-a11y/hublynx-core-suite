@@ -22,10 +22,13 @@ export const deleteLeads = createServerFn({ method: "POST" })
     // leads visíveis para quem pede (regras do banco)
     const { data: rows, error } = await db
       .from("leads")
-      .select("id, name, organization_id, converted_project_id")
+      .select("id, name, organization_id, converted_project_id, converted_client_id, client_id")
       .in("id", ids);
     if (error) throw new Error(error.message);
-    const leads = (rows ?? []) as { id: string; name: string; organization_id: string | null; converted_project_id: string | null }[];
+    const leads = (rows ?? []) as {
+      id: string; name: string; organization_id: string | null; converted_project_id: string | null;
+      converted_client_id: string | null; client_id: string | null;
+    }[];
     if (!leads.length) throw new Error("Nenhum dos leads foi encontrado (ou sem permissão).");
 
     const orgs = [...new Set(leads.map((l) => l.organization_id).filter(Boolean))] as string[];
@@ -38,10 +41,30 @@ export const deleteLeads = createServerFn({ method: "POST" })
       if (platform !== true) throw new Error("Há leads sem empresa: só o administrador da plataforma pode excluí-los.");
     }
 
-    // ligados a projeto ficam
-    const { data: projs } = await db.from("projects").select("lead_id").in("lead_id", leads.map((l) => l.id));
-    const projectLead = new Set(((projs ?? []) as any[]).map((p) => p.lead_id));
-    const kept = leads.filter((l) => l.converted_project_id || projectLead.has(l.id));
+    // Ligados a projeto ficam: direto (projeto do lead) ou pelo cliente (lead → cliente → projeto).
+    const leadIds = leads.map((l) => l.id);
+    const clientIds = [...new Set(leads.flatMap((l) => [l.converted_client_id, l.client_id]).filter(Boolean))] as string[];
+    const { data: byLead, error: pErr } = await db.from("projects").select("lead_id").in("lead_id", leadIds);
+    if (pErr) throw new Error(pErr.message);
+    const { data: byClient, error: cErr } = clientIds.length
+      ? await db.from("projects").select("client_id").in("client_id", clientIds)
+      : { data: [], error: null };
+    if (cErr) throw new Error(cErr.message);
+    const { data: clientLeads } = await db.from("clients").select("lead_id, id").in("lead_id", leadIds);
+    const { data: byClientLead } = (clientLeads ?? []).length
+      ? await db.from("projects").select("client_id").in("client_id", (clientLeads as any[]).map((c) => c.id))
+      : { data: [] };
+    const projectLead = new Set(((byLead ?? []) as any[]).map((p) => p.lead_id));
+    const projectClient = new Set([...(byClient ?? []), ...(byClientLead ?? [])].map((p: any) => p.client_id));
+    const clientOfLead = new Map(((clientLeads ?? []) as any[]).map((c) => [c.lead_id, c.id]));
+    const kept = leads.filter(
+      (l) =>
+        l.converted_project_id ||
+        projectLead.has(l.id) ||
+        (l.converted_client_id && projectClient.has(l.converted_client_id)) ||
+        (l.client_id && projectClient.has(l.client_id)) ||
+        (clientOfLead.has(l.id) && projectClient.has(clientOfLead.get(l.id))),
+    );
     const target = leads.filter((l) => !kept.includes(l)).map((l) => l.id);
     if (!target.length) {
       return { ok: true as const, deleted: 0, kept: kept.map((l) => l.name), notFound: ids.length - leads.length };

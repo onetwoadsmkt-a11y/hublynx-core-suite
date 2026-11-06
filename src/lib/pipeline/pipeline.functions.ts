@@ -429,8 +429,24 @@ export const deleteLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("leads").delete().eq("id", data.id);
+    const db = context.supabase as any;
+    // Lead ligado a projeto (direto ou pelo cliente) não pode ser excluído: o projeto perderia a origem e a jornada.
+    const { data: lead } = await db
+      .from("leads")
+      .select("id, converted_project_id, converted_client_id, client_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!lead) throw new Error("Lead não encontrado ou sem permissão.");
+    const { data: client } = await db.from("clients").select("id").eq("lead_id", data.id).limit(1).maybeSingle();
+    const clientIds = [lead.converted_client_id, lead.client_id, client?.id].filter(Boolean);
+    const { data: p1 } = await db.from("projects").select("id").eq("lead_id", data.id).limit(1);
+    const { data: p2 } = clientIds.length ? await db.from("projects").select("id").in("client_id", clientIds).limit(1) : { data: [] };
+    if (lead.converted_project_id || (p1 ?? []).length || (p2 ?? []).length) {
+      throw new Error("Este lead está ligado a um projeto e não pode ser excluído.");
+    }
+    const { data: gone, error } = await db.from("leads").delete().eq("id", data.id).select("id");
     if (error) throw new Error(error.message);
+    if (!gone?.length) throw new Error("Sem permissão para excluir este lead.");
     return { ok: true as const };
   });
 
