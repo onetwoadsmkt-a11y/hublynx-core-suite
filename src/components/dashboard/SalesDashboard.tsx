@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowRight, CalendarRange, Filter, LayoutGrid, Target } from "lucide-react";
+import { ArrowRight, CalendarRange, Filter, LayoutGrid, RefreshCw, Target } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,20 @@ const readView = (): View => {
   try { return typeof window !== "undefined" && window.localStorage.getItem(VIEW_KEY) === "funil" ? "funil" : "padrao"; } catch { return "padrao"; }
 };
 
-type Preset = 7 | 30 | 90 | "custom";
+type Preset = 7 | 30 | 90 | "all" | "custom";
+const PRESET_KEY = "core_dashboard_preset";
+const PIPE_KEY = "core_dashboard_pipeline:";
+const readStored = (k: string) => {
+  try { return typeof window !== "undefined" ? window.localStorage.getItem(k) : null; } catch { return null; }
+};
+const writeStored = (k: string, v: string) => {
+  try { window.localStorage.setItem(k, v); } catch { /* sem armazenamento: vale só nesta sessão */ }
+};
+const readPreset = (): Preset => {
+  const v = readStored(PRESET_KEY);
+  return v === "all" ? "all" : v === "7" ? 7 : v === "90" ? 90 : 30;
+};
+const ALL_FROM = "2000-01-01";
 
 const DAY = 86_400_000;
 const isoDay = (d: Date) =>
@@ -71,9 +84,15 @@ export function SalesDashboard() {
   const dashFn = useServerFn(pipelineDashboard);
   const { activeOrganizationId, activeOrganization, isLoading: wsLoading } = useWorkspace();
 
-  const [pipelineId, setPipelineId] = useState<string | undefined>();
-  const [preset, setPreset] = useState<Preset>(30);
-  const [range, setRange] = useState(() => presetRange(30));
+  const [pickedPipeline, setPickedPipeline] = useState<string | undefined>();
+  const pipelineId = pickedPipeline ?? (activeOrganizationId ? readStored(PIPE_KEY + activeOrganizationId) ?? undefined : undefined);
+  const setPipelineId = (id: string) => {
+    setPickedPipeline(id);
+    if (activeOrganizationId) writeStored(PIPE_KEY + activeOrganizationId, id);
+  };
+  const [preset, setPreset] = useState<Preset>(readPreset);
+  const [range, setRange] = useState(() => (preset === "all" ? { from: ALL_FROM, to: isoDay(new Date()) } : presetRange(preset === "custom" ? 30 : preset)));
+  const allTime = preset === "all";
   const [draft, setDraft] = useState(range);
   const [customOpen, setCustomOpen] = useState(false);
   const { from, to } = range;
@@ -84,19 +103,27 @@ export function SalesDashboard() {
     try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* sem armazenamento: vale só nesta sessão */ }
   };
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["comercial-dashboard", pipelineId ?? "default", from, to, activeOrganizationId ?? "none"],
+  // Situação atual: recarrega sozinho a cada minuto e ao voltar para a aba.
+  const { data, isLoading, isFetching, dataUpdatedAt, refetch } = useQuery({
+    queryKey: ["comercial-dashboard", pipelineId ?? "default", allTime ? "all" : from, allTime ? "all" : to, activeOrganizationId ?? "none"],
     queryFn: () =>
       dashFn({
-        data: { pipelineId, from, to, ...(activeOrganizationId ? { organizationId: activeOrganizationId } : {}) },
+        data: {
+          ...(pipelineId ? { pipelineId } : {}),
+          ...(allTime ? {} : { from, to }),
+          ...(activeOrganizationId ? { organizationId: activeOrganizationId } : {}),
+        },
       }),
     staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     enabled: !wsLoading,
   });
 
   const pipelines = data?.pipelines ?? [];
   const current = data?.pipeline ?? null;
   const prevRange = previousRange(from, to);
+  const updatedAt = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : null;
 
   const metrics = useMemo(() => {
     const stages = data?.stages ?? [];
@@ -115,7 +142,7 @@ export function SalesDashboard() {
 
     const opts = { tags, mode: "both" as const };
     const m = computeFunnel(stages, leads, opts);
-    const prev = computeFunnel(stages, previousLeads, opts);
+    const prev = computeFunnel(stages, allTime ? [] : previousLeads, opts);
     const conv = pct1(m.ganhos, m.leads);
     const prevConv = pct1(prev.ganhos, prev.leads);
 
@@ -206,7 +233,7 @@ export function SalesDashboard() {
       stages, m, prev, conv, prevConv, closed, prevClosed, open, openValue, total: allLeads.length,
       weeks, last4, prev4, byStage, tagRows, hasTags: tags.length > 0, classes, classified, sourceRows, bestSource,
     };
-  }, [data, from, to, prevRange.from, prevRange.to]);
+  }, [data, from, to, prevRange.from, prevRange.to, allTime]);
 
   const goals = data?.goals ?? DEFAULT_GOALS;
   const goalFunnel = useMemo(() => {
@@ -221,7 +248,8 @@ export function SalesDashboard() {
   const choosePreset = (p: Preset) => {
     if (p === "custom") return;
     setPreset(p);
-    setRange(presetRange(p));
+    writeStored(PRESET_KEY, String(p));
+    setRange(p === "all" ? { from: ALL_FROM, to: isoDay(new Date()) } : presetRange(p));
   };
 
   const header = (
@@ -231,8 +259,21 @@ export function SalesDashboard() {
           {activeOrganization?.name ?? "Comercial"}
         </p>
         <h1 className="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {brLong(from)} a {brLong(to)} · comparado aos {prevRange.days} dias anteriores
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+          <span>
+            {allTime ? "Situação atual · todo o período" : `${brLong(from)} a ${brLong(to)} · comparado aos ${prevRange.days} dias anteriores`}
+          </span>
+          {updatedAt && (
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="inline-flex items-center gap-1 text-xs font-semibold hover:text-foreground"
+              aria-label="Atualizar agora"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+              Atualizado às {updatedAt}
+            </button>
+          )}
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
@@ -265,7 +306,11 @@ export function SalesDashboard() {
               <SelectValue placeholder="Pipeline" />
             </SelectTrigger>
             <SelectContent>
-              {pipelines.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              {pipelines.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name} <span className="text-muted-foreground">· {p.leads}</span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )}
@@ -284,6 +329,17 @@ export function SalesDashboard() {
               {d} dias
             </button>
           ))}
+          <button
+            type="button"
+            aria-pressed={preset === "all"}
+            onClick={() => choosePreset("all")}
+            className={cn(
+              "h-9 flex-1 whitespace-nowrap rounded-lg px-3 text-[13px] font-semibold text-muted-foreground transition-colors sm:flex-none",
+              preset === "all" && "bg-card text-foreground shadow-sm",
+            )}
+          >
+            Tudo
+          </button>
           <Popover open={customOpen} onOpenChange={(o) => { setCustomOpen(o); if (o) setDraft(range); }}>
             <PopoverTrigger asChild>
               <button
@@ -313,7 +369,7 @@ export function SalesDashboard() {
               <Button
                 className="w-full"
                 disabled={!draft.from || !draft.to || draft.from > draft.to}
-                onClick={() => { setRange(draft); setPreset("custom"); setCustomOpen(false); }}
+                onClick={() => { setRange(draft); setPreset("custom"); writeStored(PRESET_KEY, "30"); setCustomOpen(false); }}
               >
                 Aplicar
               </Button>
@@ -406,25 +462,25 @@ export function SalesDashboard() {
       {/* Indicadores principais */}
       <section aria-label="Indicadores principais" className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <Kpi
-          label="Leads novos"
+          label={allTime ? "Leads no pipeline" : "Leads novos"}
           value={String(x.m.leads)}
-          delta={changeBadge(x.m.leads, x.prev.leads)}
-          hint={`vs. ${x.prev.leads} no período anterior`}
+          delta={allTime ? null : changeBadge(x.m.leads, x.prev.leads)}
+          hint={allTime ? "todos os leads, em qualquer etapa" : `vs. ${x.prev.leads} no período anterior`}
           spark={x.weeks.map((w) => w.leads)}
         />
         <Kpi
           label="Taxa de conversão"
           value={fmtPct(x.conv)}
-          delta={ppBadge(x.conv, x.prevConv, x.m.leads + x.prev.leads > 0)}
-          hint="ganhos ÷ leads do período"
+          delta={allTime ? null : ppBadge(x.conv, x.prevConv, x.m.leads + x.prev.leads > 0)}
+          hint={allTime ? "ganhos ÷ todos os leads" : "ganhos ÷ leads do período"}
           spark={x.weeks.map((w) => (w.leads ? w.ganhos / w.leads : 0))}
         />
         <Kpi
           label="Negócios ganhos"
           value={String(x.closed.count)}
           extra={x.closed.value > 0 ? money(x.closed.value) : undefined}
-          delta={changeBadge(x.closed.count, x.prevClosed.count)}
-          hint={`vs. ${x.prevClosed.count} no período anterior`}
+          delta={allTime ? null : changeBadge(x.closed.count, x.prevClosed.count)}
+          hint={allTime ? "em etapas de ganho" : `vs. ${x.prevClosed.count} no período anterior`}
           spark={x.weeks.map((w) => w.ganhos)}
         />
         <div className="flex min-w-0 flex-col gap-1.5 rounded-2xl border border-transparent bg-[var(--brand-dark)] p-4 text-white dark:border-primary/25 dark:bg-[var(--brand-deep)] sm:gap-2.5 sm:p-5">
@@ -582,7 +638,7 @@ export function SalesDashboard() {
                       "mt-1.5 text-xs font-bold",
                       final ? "font-semibold text-muted-foreground" : "text-emerald-700 dark:text-emerald-400",
                     )}>
-                      {final ? "etapa final" : s.agg.periodo ? `+${s.agg.periodo} no período` : "— no período"}
+                      {final ? "etapa final" : allTime ? (kanbanTotal ? `${Math.round((s.agg.count / kanbanTotal) * 100)}% do pipeline` : "—") : s.agg.periodo ? `+${s.agg.periodo} no período` : "— no período"}
                     </p>
                   </div>
                 );

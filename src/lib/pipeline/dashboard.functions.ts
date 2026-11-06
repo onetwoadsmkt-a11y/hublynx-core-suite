@@ -22,13 +22,40 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 
-    const { data: pipelines } = await supabase
-      .from("pipelines")
-      .select("id,name")
-      .order("position");
+    // Só os pipelines da empresa aberta (quem participa de várias empresas não mistura dados).
+    const { data: pipelines } = await scopeOrganization(
+      supabase.from("pipelines").select("id,name").order("position"),
+      data.organizationId,
+    );
+    const base = (pipelines ?? []) as { id: string; name: string }[];
 
-    const list = pipelines ?? [];
-    const current = list.find((p) => p.id === data.pipelineId) ?? list[0] ?? null;
+    // Quantos leads há hoje em cada pipeline (para o seletor e para abrir no pipeline com mais leads).
+    const counts = new Map<string, number>();
+    if (base.length > 0) {
+      const { data: allStages } = await supabase
+        .from("pipeline_stages")
+        .select("id,pipeline_id")
+        .in("pipeline_id", base.map((p) => p.id));
+      const byPipe = new Map<string, string[]>();
+      for (const s of (allStages ?? []) as { id: string; pipeline_id: string }[]) {
+        (byPipe.get(s.pipeline_id) ?? byPipe.set(s.pipeline_id, []).get(s.pipeline_id)!).push(s.id);
+      }
+      await Promise.all(
+        base.map(async (p) => {
+          const ids = byPipe.get(p.id) ?? [];
+          if (ids.length === 0) return counts.set(p.id, 0);
+          const { count } = await scopeOrganization(
+            supabase.from("leads").select("id", { count: "exact", head: true }).in("stage_id", ids),
+            data.organizationId,
+          );
+          counts.set(p.id, count ?? 0);
+        }),
+      );
+    }
+    const list = base.map((p) => ({ ...p, leads: counts.get(p.id) ?? 0 }));
+    const busiest = [...list].sort((a, b) => b.leads - a.leads)[0];
+    const current =
+      list.find((p) => p.id === data.pipelineId) ?? (busiest && busiest.leads > 0 ? busiest : list[0]) ?? null;
 
     const { data: stages } = current
       ? await supabase
@@ -56,7 +83,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
     let leads: Row[] = [];
     let previousLeads: Row[] = [];
 
-    const isFirst = current && list[0] && current.id === list[0].id;
+    const isFirst = current && base[0] && current.id === base[0].id;
 
     const fetchRange = async (fromDay?: string, toDay?: string) => {
       if (stageIds.length === 0) return [] as Row[];
@@ -79,6 +106,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
       return (await fetchAllRows(build)) as unknown as Row[];
     };
 
+    const allTime = !data.from && !data.to;
     leads = await fetchRange(data.from, data.to);
 
     // Período anterior de mesma duração, para comparação
@@ -93,7 +121,7 @@ export const pipelineDashboard = createServerFn({ method: "GET" })
     }
 
     // Todos os leads atualmente no pipeline (sem filtro de data)
-    const allLeads = await fetchRange();
+    const allLeads = allTime ? leads : await fetchRange();
 
     // Quando cada lead entrou numa etapa de ganho (histórico gravado pelo gatilho de etapa).
     // Usado no gráfico de evolução e nos ganhos fechados no período.

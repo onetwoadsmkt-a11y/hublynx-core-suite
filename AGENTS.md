@@ -171,3 +171,9 @@
 - `BulkDeleteLeadsButton`: só admin da empresa/plataforma (`useCanBulkDelete`), confirmação com nomes; acima de 10 leads pede digitar EXCLUIR. Servidor `deleteLeads` (lead-delete.functions.ts): confere `is_org_admin` de cada empresa, até 500 por chamada, **não apaga lead ligado a projeto** (`converted_project_id` ou `projects.lead_id`, devolve os nomes), apaga com RLS (anotações/tarefas/jornada/arquivos/automações saem pelo banco) e depois remove, por melhor esforço, os eventos do Google (agenda do dono, `sendUpdates=none` — sem e-mail de cancelamento ao lead) e os arquivos guardados.
 - "Excluir" do menu do card agora pede confirmação e mostra erro.
 - Proteção "lead ligado a projeto" (exclusão em massa e `deleteLead` do card): vale também pelo cliente — `converted_client_id`/`client_id` do lead ou cliente com `lead_id` = lead, quando esse cliente tem projeto. Antes só olhava `converted_project_id` e `projects.lead_id` (o Guilherme Della Justina, com projeto pelo cliente, passava).
+
+## Dashboard comercial · situação atual do pipeline (06/11/2026)
+- `pipelineDashboard` lista só os pipelines da empresa aberta, conta os leads de cada um e, sem escolha salva, abre no pipeline com mais leads.
+- Botão "Tudo" no período (situação atual, sem comparação); período e pipeline ficam salvos no navegador (por empresa).
+- O dashboard recarrega a cada 60 s e ao voltar para a aba; mostra "Atualizado às HH:MM" (clique = atualizar).
+- `tagSlug` em `funnel.ts`: tag escrita como no Kommo ("REUNIÃO REALIZADA") casa com o slug configurado; `classifyStage` aceita "NUTRÇÃO".

@@ -43,12 +43,21 @@ const norm = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
+/** Tag do lead no mesmo formato do slug configurado ("REUNIÃO REALIZADA" = "reuniao-realizada"). */
+export function tagSlug(raw: unknown) {
+  return norm(String(raw ?? ""))
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
 export function classifyStage(stage: StageLite): FunnelKey {
   const n = norm(stage.name);
   if (/no.?show/.test(n)) return "noshow";
   if (stage.is_lost || /perdid|desqualific/.test(n)) return "perdido";
   if (stage.is_won || /venda ganha|ganho|fechad/.test(n)) return "ganho";
-  if (/nutric/.test(n)) return "nutricao";
+  if (/nutri?c/.test(n)) return "nutricao"; // inclui "NUTRÇÃO" (grafia usada no Kommo)
   if (/cof|proposta/.test(n)) return "cof";
   if (/reuniao (realizada|feita)|realizad/.test(n)) return "realizada";
   if (/reuniao|agendad/.test(n)) return "agendada";
@@ -101,7 +110,7 @@ function keysFromStage(stage: StageLite | undefined): Set<FunnelKey> {
 function keysFromTags(leadTags: string[] | null | undefined, bySlug: Map<string, TagLite>) {
   const out = new Set<FunnelKey>();
   for (const raw of leadTags ?? []) {
-    const t = bySlug.get(String(raw).toLowerCase());
+    const t = bySlug.get(String(raw).toLowerCase()) ?? bySlug.get(tagSlug(raw));
     if (!t || t.active === false) continue;
     if (t.funnel_key === "nenhum") continue;
     out.add(t.funnel_key);
@@ -179,10 +188,9 @@ export function computeFunnel(
 export function countByTag(leads: LeadLite[], tags: TagLite[]) {
   const counts = new Map<string, number>();
   for (const l of leads) {
-    for (const raw of l.tags ?? []) {
-      const slug = String(raw).toLowerCase();
+    for (const slug of new Set((l.tags ?? []).map(tagSlug))) {
       counts.set(slug, (counts.get(slug) ?? 0) + 1);
     }
   }
-  return tags.map((t) => ({ ...t, count: counts.get(t.slug.toLowerCase()) ?? 0 }));
+  return tags.map((t) => ({ ...t, count: counts.get(tagSlug(t.slug)) ?? 0 }));
 }

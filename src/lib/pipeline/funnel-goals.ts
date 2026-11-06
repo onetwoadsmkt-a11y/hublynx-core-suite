@@ -1,4 +1,4 @@
-import { classifyStage, type StageLite } from "./funnel";
+import { tagSlug, classifyStage, type StageLite } from "./funnel";
 
 /**
  * Funil por objetivo: o usuário define o que é conversão (o objetivo), qual papel
@@ -131,7 +131,7 @@ export function computeGoalFunnel(
     const r: Reach = { steps: new Set(["entrada"]), exits: new Set() };
     addRole(l.stage_id ? roleById.get(l.stage_id) : undefined, r);
     if (goals.useHistory) for (const sid of opts.history?.[l.id] ?? []) addRole(roleById.get(sid), r);
-    if (goals.useTags) for (const t of l.tags ?? []) addRole(tagRole.get(String(t).toLowerCase()), r);
+    if (goals.useTags) for (const t of l.tags ?? []) addRole(tagRole.get(String(t).toLowerCase()) ?? tagRole.get(tagSlug(t)), r);
     for (const k of r.steps) counts[k]++;
     for (const e of r.exits) exits[e]++;
     if (r.steps.has("ganho")) wonValue += Number(l.value ?? 0);
