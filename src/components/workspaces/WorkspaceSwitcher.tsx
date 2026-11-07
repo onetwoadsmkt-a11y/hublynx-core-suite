@@ -15,9 +15,9 @@ export function WorkspaceSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="sm" className="min-w-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground sm:gap-2 sm:px-3">
           <Building2 className="h-4 w-4" />
-          <span className="max-w-[160px] truncate">{activeOrganization.support ? `Suporte: ${activeOrganization.name}` : activeOrganization.name}</span>
+          <span className="max-w-[24vw] truncate sm:max-w-[160px]">{activeOrganization.support ? `Suporte: ${activeOrganization.name}` : activeOrganization.name}</span>
           <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

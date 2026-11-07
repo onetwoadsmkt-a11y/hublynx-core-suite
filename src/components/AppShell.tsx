@@ -425,7 +425,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="app-topbar h-16 border-b bg-background flex items-center gap-3 px-4 lg:px-6 shrink-0">
+        <header className="app-topbar flex h-16 min-w-0 shrink-0 items-center gap-2 border-b bg-background px-3 sm:gap-3 sm:px-4 lg:px-6">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden"><Menu className="h-5 w-5" /></Button>
@@ -444,11 +444,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Input placeholder="Buscar tarefas, projetos, clientes..." className="pl-9 bg-muted/50 border-transparent focus-visible:bg-background" />
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2">
             <WorkspaceSwitcher />
             <HeaderInstallModule />
-            <ValuesLockToggle />
-            <ThemeToggle />
+            {/* no celular ficam na gaveta "Mais" do rodapé (a barra de cima não cabe tudo) */}
+            <div className="hidden items-center gap-2 lg:flex">
+              <ValuesLockToggle />
+              <ThemeToggle />
+            </div>
             <NotificationsBell />
             <UserMenu />
           </div>

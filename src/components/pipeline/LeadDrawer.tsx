@@ -431,24 +431,24 @@ export function LeadDrawer({
     <Dialog open={!!lead} onOpenChange={onOpenChange}>
       <DialogContent
         hideClose
-        className="flex h-[100dvh] w-screen max-w-none flex-col gap-0 rounded-none border-0 p-0 sm:max-w-none"
+        className="flex h-[100dvh] max-h-none w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:max-w-none"
       >
         {lead && (
           <>
-            <header className="lead-gradient-card relative flex flex-wrap items-center gap-3 py-4 pl-4 pr-14 shadow-[0_12px_32px_rgba(10,37,87,.18)] md:pl-6 md:pr-16">
+            <header className="lead-gradient-card relative flex shrink-0 flex-wrap items-center gap-3 pb-4 pl-4 pr-14 pt-[calc(1rem+env(safe-area-inset-top,0px))] shadow-[0_12px_32px_rgba(10,37,87,.18)] md:pl-6 md:pr-16">
               {/* Fechar fica sempre no canto, mesmo com muitos botões ou tela estreita */}
               <Button
                 size="icon"
                 variant="ghost"
                 aria-label="Fechar o card"
                 title="Fechar (Esc)"
-                className="absolute right-2 top-2 z-10 h-9 w-9 rounded-full text-[var(--band-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-fg)] md:right-4 md:top-3"
+                className="absolute right-2 top-[calc(0.5rem+env(safe-area-inset-top,0px))] z-10 h-10 w-10 rounded-full text-[var(--band-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-fg)] md:right-4 md:top-3"
                 onClick={() => onOpenChange(false)}
               >
                 <X className="h-5 w-5 stroke-[3]" />
               </Button>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <DialogTitle className="truncate text-xl font-extrabold text-[var(--band-fg)]">{lead.name}</DialogTitle>
                   <LeadQualificationBadge
                     classification={lead.lead_classification}
@@ -527,7 +527,7 @@ export function LeadDrawer({
                     onValueChange={(v) => setPickedPipeline(v === currentPipelineId ? null : v)}
                   >
                     <SelectTrigger
-                      className="h-9 min-w-[8.5rem] flex-1 rounded-xl border-0 bg-[var(--band-tile)] text-[var(--band-tile-fg)] sm:w-[170px] sm:flex-none"
+                      className="h-10 min-w-[8.5rem] flex-1 rounded-xl sm:h-9 border-0 bg-[var(--band-tile)] text-[var(--band-tile-fg)] sm:w-[170px] sm:flex-none"
                       aria-label="Pipeline do lead"
                       title="Pipeline"
                     >
@@ -546,7 +546,7 @@ export function LeadDrawer({
                   disabled={move.isPending}
                 >
                   <SelectTrigger
-                    className="h-9 min-w-[8.5rem] flex-1 rounded-xl border-0 bg-[var(--band-tile)] text-[var(--band-tile-fg)] sm:w-[190px] sm:flex-none"
+                    className="h-10 min-w-[8.5rem] flex-1 rounded-xl sm:h-9 border-0 bg-[var(--band-tile)] text-[var(--band-tile-fg)] sm:w-[190px] sm:flex-none"
                     aria-label="Etapa do lead"
                     title="Etapa"
                   >
@@ -560,7 +560,7 @@ export function LeadDrawer({
                   size="icon"
                   variant="outline"
                   title="Enviar e-mail"
-                  className="h-9 w-9 rounded-xl border-0 bg-[var(--band-chip)] text-[var(--band-chip-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-chip-fg)] hover:opacity-85"
+                  className="h-10 w-10 rounded-xl border-0 bg-[var(--band-chip)] sm:h-9 sm:w-9 text-[var(--band-chip-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-chip-fg)] hover:opacity-85"
                   onClick={() => setEmailOpen(true)}
                 >
                   <Mail className="h-4 w-4" />
@@ -570,7 +570,7 @@ export function LeadDrawer({
                   size="icon"
                   variant="outline"
                   title="Abrir este lead em outra aba"
-                  className="h-9 w-9 rounded-xl border-0 bg-[var(--band-chip)] text-[var(--band-chip-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-chip-fg)] hover:opacity-85"
+                  className="h-10 w-10 rounded-xl border-0 bg-[var(--band-chip)] sm:h-9 sm:w-9 text-[var(--band-chip-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-chip-fg)] hover:opacity-85"
                 >
                   <a href={leadCardHref(lead.id)} target="_blank" rel="noopener" aria-label="Abrir este lead em outra aba">
                     <ExternalLink className="h-4 w-4" />
@@ -579,7 +579,7 @@ export function LeadDrawer({
                 <Button
                   size="icon"
                   title="Editar lead"
-                  className="h-9 w-9 rounded-xl bg-[var(--band-cta-bg)] font-bold text-[var(--band-cta-fg)] hover:bg-[var(--band-cta-bg)] hover:opacity-90"
+                  className="h-10 w-10 rounded-xl bg-[var(--band-cta-bg)] sm:h-9 sm:w-9 font-bold text-[var(--band-cta-fg)] hover:bg-[var(--band-cta-bg)] hover:opacity-90"
                   onClick={() => onEdit(lead)}
                 >
                   <Pencil className="h-4 w-4" />
@@ -596,10 +596,11 @@ export function LeadDrawer({
               </div>
             )}
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden lg:pb-0">
               {/* Coluna principal: dados + jornada + anotações */}
-              <div className="flex min-h-0 flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
+              {/* celular: uma rolagem só para o card inteiro; computador: cada coluna rola */}
+              <div className="flex flex-col lg:min-h-0">
+                <div className="px-4 py-4 md:px-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                   {missing.length > 0 && (
                     <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -758,7 +759,7 @@ export function LeadDrawer({
                     <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
                       <MessageSquare className="h-4 w-4 text-primary" /> Anotações
                     </p>
-                    <div className="flex items-start gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                       <Textarea
                         value={noteText}
                         onChange={(e) => setNoteText(e.target.value)}
@@ -766,7 +767,7 @@ export function LeadDrawer({
                         className="min-h-[72px] flex-1 resize-none bg-white text-foreground"
                       />
                       <Button
-                        className="h-10"
+                        className="h-11 w-full sm:h-10 sm:w-auto"
                         disabled={!noteText.trim() || addNote.isPending}
                         onClick={() => addNote.mutate()}
                       >
@@ -778,8 +779,8 @@ export function LeadDrawer({
               </div>
 
               {/* Coluna direita: agendamentos / arquivos / UTM */}
-              <aside className="min-h-0 border-t lg:border-l lg:border-t-0">
-                <div className="min-h-0 h-full overflow-y-auto px-4 py-4">
+              <aside className="border-t lg:min-h-0 lg:border-l lg:border-t-0">
+                <div className="px-4 py-4 lg:h-full lg:min-h-0 lg:overflow-y-auto">
                   <Tabs value={sideTab} onValueChange={setSideTab}>
                     <TabsList className="lead-gradient-card grid h-11 w-full grid-cols-3 rounded-xl p-1 [&>button]:rounded-lg [&>button]:font-semibold [&>button]:text-[var(--band-sub)] [&>button[data-state=active]]:bg-[var(--band-cta-bg)] [&>button[data-state=active]]:text-[var(--band-cta-fg)]">
                       <TabsTrigger value="tarefas">Tarefas</TabsTrigger>

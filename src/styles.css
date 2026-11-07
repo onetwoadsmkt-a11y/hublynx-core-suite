@@ -535,3 +535,13 @@
   height: calc(4rem + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
 }
+
+/* Celular: nada passa da largura da tela (sem "zoom para caber" no iPhone) */
+@media (max-width: 63.99rem) {
+  html, body { overflow-x: hidden; max-width: 100%; }
+}
+/* Gavetas (Sheet) fora da barra de status e da barra de gestos do iPhone:
+   borda transparente do tamanho da área segura (o fundo da gaveta continua por baixo). */
+.sheet-safe-y { border-top: env(safe-area-inset-top, 0px) solid transparent; border-bottom: env(safe-area-inset-bottom, 0px) solid transparent; }
+.sheet-safe-top { border-top: env(safe-area-inset-top, 0px) solid transparent; }
+.sheet-safe-bottom { border-bottom: env(safe-area-inset-bottom, 0px) solid transparent; }

@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { usePriorityAlerts } from "@/components/tasks/PriorityAlerts";
 import { useMyTasks } from "@/hooks/useMyTasks";
 import type { useNavModel } from "@/components/AppShell";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ValuesLockToggle } from "@/components/security/ValuesLockToggle";
 
 type Model = ReturnType<typeof useNavModel>;
 type Item = Model["groups"][number]["items"][number];
@@ -162,6 +164,11 @@ function MoreSheet({
               {label}
             </Link>
           ))}
+        </div>
+        {/* saíram da barra de cima no celular */}
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-2.5 text-sm">
+          <span className="font-semibold">Exibição</span>
+          <span className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Valores</span><ValuesLockToggle /><span className="text-xs text-muted-foreground">Tema</span><ThemeToggle /></span>
         </div>
       </div>
     </>

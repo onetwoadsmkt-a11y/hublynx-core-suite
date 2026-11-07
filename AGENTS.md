@@ -196,3 +196,9 @@
 - Fica **no fluxo** da coluna do AppShell (não `fixed`): o `main` termina acima dele, então conteúdo e `sticky bottom-0` não ficam escondidos. Raiz do AppShell `h-[100dvh]` (iOS sem a barra do navegador cobrindo o rodapé) com classe `.app-shell`.
 - Elementos `fixed` no rodapé usam `bottom-[calc(var(--mobile-nav-h,0px)+…)]` (`--mobile-nav-h` = 4rem + safe-area no celular, 0 a partir de 1024px): barra de rolagem do Kanban, barra de seleção do Pipeline, "+" de Tarefas, aviso de prioridade. Novo elemento fixo embaixo → use a mesma variável.
 - `viewport-fit=cover` no `__root` + `env(safe-area-inset-bottom)` no rodapé e `safe-area-inset-top` na barra de cima (app instalado).
+
+## Ajustes do celular (07/11/2026)
+- Card do lead (LeadDrawer): topo e "x" respeitam a barra do iPhone (`env(safe-area-inset-top)`); no celular o card tem **uma** rolagem (dados, respostas, histórico, anotações e depois Tarefas/Arquivos/UTM); no computador cada coluna rola (`lg:`). Botões do topo com 40px no celular; anotação com botão em largura total.
+- Barra de cima no celular: tema e "ocultar valores" vão para a gaveta "Mais" (só aparecem na barra a partir de `lg`); nome da empresa truncado (`max-w-[24vw]`). `html, body { overflow-x: hidden }` abaixo de 1024px — nada empurra a página para fora da tela.
+- Agenda no celular: sem margem dupla; Mês compacto (número do dia + bolinhas por tipo + quantidade, vermelho = atrasado; toque abre a lista do dia); Semana vira lista de dias; filtros numa linha que desliza; "Sincronizar Google" só com o ícone.
+- Base: `DialogContent` nunca maior que a tela (max-h com safe-area + rolagem; diálogos de tela cheia usam `max-h-none`); `Sheet` com borda transparente do tamanho da área segura (`.sheet-safe-*`).

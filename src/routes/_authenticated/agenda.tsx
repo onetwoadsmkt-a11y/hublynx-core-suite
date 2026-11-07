@@ -272,8 +272,9 @@ function AgendaPage() {
 
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1600px] px-4 py-4 space-y-3">
+    <div className="bg-background sm:min-h-screen">
+      {/* no celular o AppShell já tem margem: sem margem dupla, o calendário usa a largura toda */}
+      <div className="mx-auto max-w-[1600px] space-y-3 sm:px-4 sm:py-4">
         {/* Header estilo Google Calendar */}
         <header className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 mr-1">
@@ -302,9 +303,9 @@ function AgendaPage() {
             </Button>
           </div>
 
-          <h2 className="text-xl font-normal text-foreground capitalize">{periodLabel}</h2>
+          <h2 className="min-w-0 truncate text-lg font-normal capitalize text-foreground sm:text-xl">{periodLabel}</h2>
 
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             </Button>
@@ -330,13 +331,13 @@ function AgendaPage() {
               onClick={() => backfill.mutate()}
               disabled={backfill.isPending}
             >
-              <RefreshCw className={`h-4 w-4 mr-1.5 ${backfill.isPending ? "animate-spin" : ""}`} />
-              Sincronizar Google
+              <RefreshCw className={`h-4 w-4 sm:mr-1.5 ${backfill.isPending ? "animate-spin" : ""}`} />
+              <span className="sr-only sm:not-sr-only">Sincronizar Google</span>
             </Button>
             <Button size="sm" className="h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMeetingOpen(true)}>
               <Video className="h-4 w-4 mr-1.5" /> Reunião
             </Button>
-            <Button size="sm" className="h-9 rounded-full" onClick={() => setNewTaskOpen(true)}>
+            <Button size="sm" className="ml-auto h-9 rounded-full sm:ml-0" onClick={() => setNewTaskOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Criar
             </Button>
 
@@ -344,11 +345,11 @@ function AgendaPage() {
         </header>
 
         {/* Filtros leves */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
           <button
             onClick={() => navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, mine: p.mine ? undefined : 1 }), replace: true })}
             aria-pressed={!!search.mine}
-            className={`rounded-full border px-3 h-7 text-xs font-medium transition-all ${
+            className={`shrink-0 rounded-full border px-3 h-8 sm:h-7 text-xs font-medium transition-all ${
               search.mine ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"
             }`}
           >
@@ -362,7 +363,7 @@ function AgendaPage() {
                 <button
                   key={s}
                   onClick={() => toggleSource(s)}
-                  className={`flex items-center gap-1.5 rounded-full border px-3 h-7 text-xs transition-all ${
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 h-8 sm:h-7 text-xs transition-all ${
                     active ? "border-border bg-card text-foreground" : "border-transparent bg-muted/40 text-muted-foreground"
                   }`}
                 >
@@ -373,7 +374,7 @@ function AgendaPage() {
             })}
           </div>
           <Select value={search.clientId ?? "all"} onValueChange={setClient}>
-            <SelectTrigger className="h-7 w-[180px] text-xs rounded-full"><SelectValue placeholder="Cliente" /></SelectTrigger>
+            <SelectTrigger className="h-8 w-[170px] shrink-0 rounded-full text-xs sm:h-7 sm:w-[180px]"><SelectValue placeholder="Cliente" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os clientes</SelectItem>
               {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -503,7 +504,7 @@ function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaE
 
   return (
     <Card className="rounded-2xl border-border/60 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-border/60">
+      <div className="hidden grid-cols-7 border-b border-border/60 sm:grid">
         {days.map((d) => {
           const isToday = sameDay(d, today);
           return (
@@ -522,13 +523,20 @@ function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaE
           );
         })}
       </div>
-      <div className="grid grid-cols-7 min-h-[560px]">
+      <div className="grid grid-cols-1 sm:min-h-[560px] sm:grid-cols-7">
         {days.map((d) => {
           const dayEvents = events
             .filter((e) => sameDay(new Date(e.start), d))
             .sort((a, b) => a.start.localeCompare(b.start));
+          const isToday = sameDay(d, today);
           return (
-            <div key={d.toISOString()} className="border-r border-border/40 last:border-r-0 p-1.5 space-y-1">
+            <div key={d.toISOString()} className="space-y-1 border-b border-border/40 p-2 last:border-b-0 sm:border-b-0 sm:border-r sm:p-1.5 sm:last:border-r-0">
+              {/* celular: cabeçalho do dia na própria linha */}
+              <button type="button" onClick={() => onPickDay(d)} className="flex w-full items-center gap-2 pb-1 text-left sm:hidden">
+                <span className={`grid h-8 w-8 place-items-center rounded-full text-sm font-semibold ${isToday ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>{d.getDate()}</span>
+                <span className="text-sm font-medium capitalize">{fmt(d, { weekday: "long" })}</span>
+                <span className="ml-auto text-xs text-muted-foreground">{dayEvents.length ? `${dayEvents.length} item(ns)` : "livre"}</span>
+              </button>
               {dayEvents.map((e) => <EventRow key={e.id} event={e} />)}
             </div>
           );
@@ -550,8 +558,8 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
     <Card className="rounded-2xl border-border/60 shadow-sm overflow-hidden">
       <div className="grid grid-cols-7 border-b border-border/60">
         {weekdays.map((w) => (
-          <div key={w} className="px-2 py-2 text-[10px] uppercase tracking-[0.12em] text-muted-foreground text-center font-medium border-r border-border/40 last:border-r-0">
-            {w}.
+          <div key={w} className="border-r border-border/40 px-0.5 py-2 text-center text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 sm:px-2 sm:tracking-[0.12em]">
+            <span className="sm:hidden">{w.slice(0, 1)}</span><span className="hidden sm:inline">{w}.</span>
           </div>
         ))}
       </div>
@@ -568,23 +576,38 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
             <button
               key={d.toISOString()}
               onClick={() => onPickDay(d)}
-              className={`relative text-left border-r border-b border-border/40 p-1.5 min-h-[112px] hover:bg-muted/30 transition-colors flex flex-col ${inMonth ? "" : "bg-muted/10"} ${overdueCount ? "ring-1 ring-inset ring-destructive/40" : ""}`}
+              aria-label={`${fmt(d, { day: "2-digit", month: "long" })}: ${dayEvents.length} item(ns)${overdueCount ? `, ${overdueCount} atrasado(s)` : ""}`}
+              className={`relative flex min-h-[58px] min-w-0 flex-col border-b border-r border-border/40 p-0.5 text-left transition-colors hover:bg-muted/30 sm:min-h-[112px] sm:p-1.5 ${inMonth ? "" : "bg-muted/10"} ${overdueCount ? "ring-1 ring-inset ring-destructive/40" : ""}`}
             >
               {overdueCount > 0 && (
-                <span className="absolute right-1.5 top-1.5 rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" title={`${overdueCount} atrasada(s)`}>
+                <span className="absolute right-1.5 top-1.5 hidden rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground sm:inline" title={`${overdueCount} atrasada(s)`}>
                   {overdueCount}
                 </span>
               )}
-              <div className="flex items-center justify-center mb-1">
-                <span className={`inline-flex items-center justify-center h-7 min-w-[28px] px-1.5 rounded-full text-xs font-medium ${
+              <div className="mb-1 flex items-center justify-center">
+                <span className={`inline-flex h-7 min-w-[28px] items-center justify-center rounded-full px-1.5 text-xs font-medium ${
                   isToday
                     ? "bg-primary text-primary-foreground"
                     : inMonth ? "text-foreground" : "text-muted-foreground/60"
                 }`}>
-                  {isFirstOfMonth ? `${d.getDate()} ${fmt(d, { month: "short" }).replace(".", "")}.` : d.getDate()}
+                  <span className="sm:hidden">{d.getDate()}</span>
+                  <span className="hidden sm:inline">{isFirstOfMonth ? `${d.getDate()} ${fmt(d, { month: "short" }).replace(".", "")}.` : d.getDate()}</span>
                 </span>
               </div>
-              <div className="space-y-0.5 flex-1 overflow-hidden">
+              {/* celular: bolinhas por tipo + quantidade; toque abre a lista do dia */}
+              {dayEvents.length > 0 && (
+                <div className="flex flex-col items-center gap-0.5 sm:hidden">
+                  <div className="flex items-center gap-0.5">
+                    {dayEvents.slice(0, 4).map((e) => (
+                      <span key={e.id} className={`h-1.5 w-1.5 rounded-full ${e.overdue ? "bg-destructive" : SOURCE_META[e.source].dot}`} />
+                    ))}
+                  </div>
+                  <span className={`text-[10px] font-semibold tabular-nums leading-none ${overdueCount ? "text-destructive" : "text-muted-foreground"}`}>
+                    {dayEvents.length}
+                  </span>
+                </div>
+              )}
+              <div className="hidden flex-1 space-y-0.5 overflow-hidden sm:block">
                 {dayEvents.slice(0, 3).map((e) => <EventRow key={e.id} event={e} compact />)}
                 {dayEvents.length > 3 && (
                   <div className="text-[10px] text-muted-foreground px-1.5">+{dayEvents.length - 3} mais</div>
