@@ -82,7 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Core Suite — Venda, projeto e cliente num só lugar" },
       { name: "description", content: "Core Suite: CRM, agenda, projetos e portal do cliente para pequenas e médias empresas. Teste 14 dias grátis." },
       { name: "author", content: "Hublynx Group" },

@@ -62,7 +62,7 @@ function AtendimentoPage() {
 
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_300px]">
         {/* Coluna 1 — conversas */}
-        <Card className="flex h-[calc(100vh-16rem)] min-h-[420px] flex-col overflow-hidden">
+        <Card className="flex h-[calc(100dvh-16rem-var(--mobile-nav-h,0px))] min-h-[420px] flex-col overflow-hidden">
           <div className="border-b p-3 space-y-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -116,7 +116,7 @@ function AtendimentoPage() {
         </Card>
 
         {/* Coluna 2 — conversa */}
-        <Card className="flex h-[calc(100vh-16rem)] min-h-[420px] flex-col overflow-hidden">
+        <Card className="flex h-[calc(100dvh-16rem-var(--mobile-nav-h,0px))] min-h-[420px] flex-col overflow-hidden">
           <div className="flex items-center gap-3 border-b px-4 py-3">
             <Avatar className="h-9 w-9">
               <AvatarFallback className="text-xs">
@@ -171,7 +171,7 @@ function AtendimentoPage() {
         </Card>
 
         {/* Coluna 3 — cliente */}
-        <Card className="h-[calc(100vh-16rem)] min-h-[420px] overflow-y-auto p-4">
+        <Card className="h-[calc(100dvh-16rem-var(--mobile-nav-h,0px))] min-h-[420px] overflow-y-auto p-4">
           <h2 className="text-sm font-semibold">Informações do cliente</h2>
           <div className="mt-3 space-y-3">
             <InfoRow icon={User} label="Nome" value={selected?.nome} />

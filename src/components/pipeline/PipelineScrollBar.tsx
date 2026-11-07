@@ -51,7 +51,7 @@ export function PipelineScrollBar({ boardRef }: { boardRef: RefObject<HTMLDivEle
     <div
       role="region"
       aria-label="Rolagem lateral do pipeline"
-      className="fixed bottom-4 z-30 flex h-12 items-center gap-3 rounded-lg border bg-background/95 px-2 text-foreground shadow-lg backdrop-blur-sm"
+      className="fixed bottom-[calc(var(--mobile-nav-h,0px)+1rem)] z-30 flex h-12 items-center gap-3 rounded-lg border bg-background/95 px-2 text-foreground shadow-lg backdrop-blur-sm"
       style={{ left: position.left, width: position.width }}
     >
       <Button variant="ghost" size="icon" className="shrink-0" aria-label="Mover pipeline para a esquerda" title="Mover para a esquerda" disabled={position.value <= 1} onClick={() => move(-1)}>

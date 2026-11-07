@@ -42,6 +42,7 @@ import { PriorityAlertModal, usePriorityAlerts } from "@/components/tasks/Priori
 import { LeadCardHost } from "@/components/pipeline/LeadCardHost";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { AlertTriangle } from "lucide-react";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 
 function HeaderInstallModule() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -81,39 +82,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const prioritySearch = useRouterState({ select: (s) => (s.location.search as { prioridade?: number }).prioridade });
+/** Itens do menu que a pessoa pode ver (mesma regra no menu lateral e no rodapé do celular). */
+export function useNavModel() {
   const { isAdmin } = useIsAdmin();
-  const { count: priorityCount } = usePriorityAlerts();
-  const listMods = useServerFn(listUserModules);
-  const { data: modules } = useQuery({
-    queryKey: ["user-modules"],
-    queryFn: async () => {
-      const { data: s } = await supabase.auth.getSession();
-      if (!s.session?.access_token) return [];
-      return listMods();
-    },
-    staleTime: 60_000,
-    retry: false,
-  });
-  const { can } = useAccess();
   const org = useOrgAccess();
   const projectOnly = isProjectOnlyAccess(org);
-  const mine = useMyTasks(!org.isLoading && !!org.activeOrg);
-  const myBadge = mine.late + mine.today;
-  if (org.isLoading) {
-    return (
-      <nav className={`flex flex-col gap-2 ${collapsed ? "px-2" : "px-3"} py-4`} aria-busy="true">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-8 rounded-lg bg-muted/60 animate-pulse" />
-        ))}
-      </nav>
-    );
-  }
-  if (org.isError) return <div className="p-4 text-sm text-nav-label-fixed"><p>Falha ao carregar acesso.</p><Button variant="ghost" onClick={org.retryAccess}>Tentar novamente</Button></div>;
-  if (!org.isSuperAdmin && !org.activeOrg) return <p className="p-4 text-sm text-nav-label-fixed">Aguardando liberação de acesso</p>;
-  // Portal do cliente: só administradores (da plataforma ou da empresa) veem no menu
   const canPortal = isAdmin || org.isOrgAdmin;
   const groups: NavGroup[] = NAV_GROUPS.map((g) =>
     g.section === "Administração" && (isAdmin || canPortal)
@@ -148,6 +121,43 @@ function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void
       }),
     }))
     .filter((g) => g.items.length > 0);
+  const hasAgenda = org.hasModule("tasks") && !projectOnly;
+  const ready = !org.isLoading && !org.isError && (org.isSuperAdmin || !!org.activeOrg);
+  return { org, groups, projectOnly, hasAgenda, ready };
+}
+
+function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const prioritySearch = useRouterState({ select: (s) => (s.location.search as { prioridade?: number }).prioridade });
+  const { count: priorityCount } = usePriorityAlerts();
+  const listMods = useServerFn(listUserModules);
+  const { data: modules } = useQuery({
+    queryKey: ["user-modules"],
+    queryFn: async () => {
+      const { data: s } = await supabase.auth.getSession();
+      if (!s.session?.access_token) return [];
+      return listMods();
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+  const { can } = useAccess();
+  const navModel = useNavModel();
+  const { org, projectOnly } = navModel;
+  const mine = useMyTasks(!org.isLoading && !!org.activeOrg);
+  const myBadge = mine.late + mine.today;
+  if (org.isLoading) {
+    return (
+      <nav className={`flex flex-col gap-2 ${collapsed ? "px-2" : "px-3"} py-4`} aria-busy="true">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-8 rounded-lg bg-muted/60 animate-pulse" />
+        ))}
+      </nav>
+    );
+  }
+  if (org.isError) return <div className="p-4 text-sm text-nav-label-fixed"><p>Falha ao carregar acesso.</p><Button variant="ghost" onClick={org.retryAccess}>Tentar novamente</Button></div>;
+  if (!org.isSuperAdmin && !org.activeOrg) return <p className="p-4 text-sm text-nav-label-fixed">Aguardando liberação de acesso</p>;
+  const { groups } = navModel;
   return (
     <TooltipProvider delayDuration={0}>
       <nav className={`flex flex-col gap-1 ${collapsed ? "px-2" : "px-3"} py-2`}>
@@ -358,6 +368,7 @@ function TaskNotificationsRunner() {
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const valuesUnlocked = useValuesUnlocked();
+  const navModel = useNavModel();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sidebar-collapsed") === "1";
@@ -368,7 +379,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [collapsed]);
 
   return (
-    <div className="h-screen flex w-full bg-app-bg overflow-hidden">
+    <div className="app-shell flex h-screen h-[100dvh] w-full overflow-hidden bg-app-bg">
       {/* Desktop sidebar */}
       <aside
         className={`app-sidebar hidden lg:flex flex-col border-r bg-sidebar shrink-0 transition-[width] duration-200 ${
@@ -452,8 +463,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             HubLynx Core Suite · Todos os direitos reservados
           </footer>
         </main>
+        {/* Celular: menu de rodapé no fluxo (o conteúdo termina acima dele) */}
+        <MobileBottomNav model={navModel} />
         <TaskNotificationsRunner />
-      <PriorityAlertModal />
+        <PriorityAlertModal />
         <LeadCardHost />
         <OfflineBanner />
       </div>

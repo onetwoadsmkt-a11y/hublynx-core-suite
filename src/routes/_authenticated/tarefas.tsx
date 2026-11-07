@@ -423,7 +423,7 @@ function TarefasPage() {
       {isMobile && (
         <button
           onClick={() => openNewIn()}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg flex items-center justify-center z-40 active:scale-95 transition"
+          className="fixed bottom-[calc(var(--mobile-nav-h,0px)+1.5rem)] right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg flex items-center justify-center z-40 active:scale-95 transition"
           aria-label="Nova tarefa"
         >
           <Plus className="h-6 w-6" />

@@ -764,7 +764,7 @@ function PipelinePage() {
 
       {/* Barra da seleção (Kanban) */}
       {view === "kanban" && selectMode && (
-        <div className="fixed inset-x-3 bottom-3 z-40 mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5 shadow-xl sm:inset-x-6">
+        <div className="fixed inset-x-3 bottom-[calc(var(--mobile-nav-h,0px)+0.75rem)] z-40 mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5 shadow-xl sm:inset-x-6">
           <span className="px-1 text-sm font-semibold">
             {picked.size ? `${picked.size} selecionado(s)` : "Toque nos cards para selecionar"}
           </span>

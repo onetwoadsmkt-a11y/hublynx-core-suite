@@ -521,3 +521,17 @@
   .dark .project-tabs { gap: 0.375rem; padding-bottom: 0.5rem; }
   .dark .project-tabs [role="tab"] { border-radius: 0.75rem; border-bottom-width: 0; }
 }
+
+/* Menu de rodapé no celular (MobileBottomNav): altura que os elementos fixos usam para
+   ficar acima dele — 4rem + barra de gestos do iPhone. No computador (≥1024px) é 0. */
+.app-shell {
+  --mobile-nav-h: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 64rem) {
+  .app-shell { --mobile-nav-h: 0px; }
+}
+/* App instalado (tela cheia): a barra de cima não fica sob o relógio/entalhe do iPhone. */
+.app-shell .app-topbar {
+  height: calc(4rem + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+}

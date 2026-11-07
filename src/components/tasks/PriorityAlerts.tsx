@@ -103,7 +103,7 @@ export function PriorityAlertModal() {
     <div
       role="alertdialog"
       aria-labelledby="priority-alert-title"
-      className="fixed bottom-4 right-4 z-[60] w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-destructive/30 bg-background shadow-2xl animate-in slide-in-from-bottom-4 fade-in"
+      className="fixed bottom-[calc(var(--mobile-nav-h,0px)+1rem)] right-4 z-[60] w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-destructive/30 bg-background shadow-2xl animate-in slide-in-from-bottom-4 fade-in"
     >
       <div className="flex items-center gap-2 bg-destructive px-4 py-3 text-destructive-foreground">
         <BellRing className="h-4 w-4 shrink-0" />

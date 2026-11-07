@@ -190,3 +190,9 @@
 ## Card do lead no padrão da faixa dos projetos (07/11/2026)
 - `lead-gradient-card` (styles.css) = faixa de resumo dos projetos: fundo `--band-bg`, texto `--band-fg` (sem degradê), trocados pelo `BrandTheme` conforme Configurações › Aparência (marca clara, escura, preto, cards brancos).
 - Dentro do card (LeadDrawer/LeadViewDialog), os mesmos papéis da faixa: selos (valor, tag, e-mail, abrir em outra aba) = `--band-chip`/`--band-chip-fg`; seletores de pipeline/etapa e campos de "Dados de cadastro" = indicadores `--band-tile`/`--band-tile-fg`/`--band-tile-sub`; texto secundário = `--band-sub`; Editar e aba ativa = `--band-cta-bg`/`--band-cta-fg`. Ficam com cor própria: tags coloridas, selo de qualificação (branco) e WhatsApp.
+
+## Menu de rodapé no celular (07/11/2026)
+- `MobileBottomNav` (abaixo de 1024px): Dashboard, Pipeline, Agenda e Projetos em destaque + "Mais" (gaveta com o resto: Prioridade, Minhas tarefas, Leads, Clientes, Formulários, Atendimento, Relatórios, Portal do cliente, Configurações, admin). Itens visíveis vêm de `useNavModel()` (AppShell) — mesma regra do menu lateral (módulos da empresa, só-Projetos, admin). Badge de prioridades na Agenda.
+- Fica **no fluxo** da coluna do AppShell (não `fixed`): o `main` termina acima dele, então conteúdo e `sticky bottom-0` não ficam escondidos. Raiz do AppShell `h-[100dvh]` (iOS sem a barra do navegador cobrindo o rodapé) com classe `.app-shell`.
+- Elementos `fixed` no rodapé usam `bottom-[calc(var(--mobile-nav-h,0px)+…)]` (`--mobile-nav-h` = 4rem + safe-area no celular, 0 a partir de 1024px): barra de rolagem do Kanban, barra de seleção do Pipeline, "+" de Tarefas, aviso de prioridade. Novo elemento fixo embaixo → use a mesma variável.
+- `viewport-fit=cover` no `__root` + `env(safe-area-inset-bottom)` no rodapé e `safe-area-inset-top` na barra de cima (app instalado).
