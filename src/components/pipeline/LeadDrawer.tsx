@@ -435,7 +435,18 @@ export function LeadDrawer({
       >
         {lead && (
           <>
-            <header className="lead-gradient-card flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3 md:px-6">
+            <header className="lead-gradient-card relative flex flex-wrap items-center gap-2 border-b border-white/10 py-3 pl-4 pr-14 md:pl-6 md:pr-16">
+              {/* Fechar fica sempre no canto, mesmo com muitos botões ou tela estreita */}
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Fechar o card"
+                title="Fechar (Esc)"
+                className="absolute right-2 top-2 z-10 h-9 w-9 text-white hover:bg-white/10 hover:text-white md:right-4 md:top-3"
+                onClick={() => onOpenChange(false)}
+              >
+                <X className="h-5 w-5 stroke-[3]" />
+              </Button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <DialogTitle className="truncate text-xl text-white">{lead.name}</DialogTitle>
@@ -504,7 +515,7 @@ export function LeadDrawer({
                   Criado em {fmt(lead.created_at)}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 {lead.value != null && (
                   <Badge className="border-white/20 bg-white/10 font-semibold text-white hover:bg-white/20">
                     {currency(Number(lead.value))}
@@ -516,7 +527,7 @@ export function LeadDrawer({
                     onValueChange={(v) => setPickedPipeline(v === currentPipelineId ? null : v)}
                   >
                     <SelectTrigger
-                      className="h-8 w-[170px] border-white/20 text-white"
+                      className="h-8 min-w-[8.5rem] flex-1 border-white/20 text-white sm:w-[170px] sm:flex-none"
                       aria-label="Pipeline do lead"
                       title="Pipeline"
                     >
@@ -535,7 +546,7 @@ export function LeadDrawer({
                   disabled={move.isPending}
                 >
                   <SelectTrigger
-                    className="h-8 w-[190px] border-white/20 text-white"
+                    className="h-8 min-w-[8.5rem] flex-1 border-white/20 text-white sm:w-[190px] sm:flex-none"
                     aria-label="Etapa do lead"
                     title="Etapa"
                   >
@@ -572,9 +583,6 @@ export function LeadDrawer({
                   onClick={() => onEdit(lead)}
                 >
                   <Pencil className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/10" onClick={() => onOpenChange(false)}>
-                  <X className="h-5 w-5 stroke-[3]" />
                 </Button>
               </div>
             </header>

@@ -182,3 +182,7 @@
 - `PriorityAlertModal` mostra Alta/Urgente só quando o prazo já chegou (hoje ou atrasada, dia de Brasília via `dueDayKey`); sem prazo continua avisando. Regra em `dueAlerts`/`alertIsDue` (`pending.ts`, com testes).
 - CIENTE vale a partir do dia em que foi dado: um CIENTE anterior ao dia da tarefa (aviso antigo que aparecia antes, ou tarefa remarcada) não silencia o aviso do dia. `listPriorityAlerts` devolve `ackList` com `acked_at`; o CIENTE local (reserva) guarda "chave|data".
 - O contador do menu continua mostrando todas as prioritárias pendentes.
+
+## Card do lead: botão Fechar sempre visível (07/11/2026)
+- O "x" do `LeadDrawer` fica fixo no canto do cabeçalho (absolute, `aria-label="Fechar o card"`); antes era o último item de uma linha sem quebra e sumia à direita quando havia seletor de pipeline (mais de um pipeline) ou tela estreita.
+- A linha de ações quebra (`flex-wrap`); seletores de pipeline/etapa crescem no celular (mín. 8.5rem) e voltam a 170/190px a partir de `sm`.
