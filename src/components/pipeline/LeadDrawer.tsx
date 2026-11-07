@@ -435,25 +435,25 @@ export function LeadDrawer({
       >
         {lead && (
           <>
-            <header className="lead-gradient-card relative flex flex-wrap items-center gap-2 border-b border-current/10 py-3 pl-4 pr-14 md:pl-6 md:pr-16">
+            <header className="lead-gradient-card relative flex flex-wrap items-center gap-3 py-4 pl-4 pr-14 shadow-[0_12px_32px_rgba(10,37,87,.18)] md:pl-6 md:pr-16">
               {/* Fechar fica sempre no canto, mesmo com muitos botões ou tela estreita */}
               <Button
                 size="icon"
                 variant="ghost"
                 aria-label="Fechar o card"
                 title="Fechar (Esc)"
-                className="absolute right-2 top-2 z-10 h-9 w-9 text-current hover:bg-current/10 hover:text-current md:right-4 md:top-3"
+                className="absolute right-2 top-2 z-10 h-9 w-9 rounded-full text-[var(--band-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-fg)] md:right-4 md:top-3"
                 onClick={() => onOpenChange(false)}
               >
                 <X className="h-5 w-5 stroke-[3]" />
               </Button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <DialogTitle className="truncate text-xl text-current">{lead.name}</DialogTitle>
+                  <DialogTitle className="truncate text-xl font-extrabold text-[var(--band-fg)]">{lead.name}</DialogTitle>
                   <LeadQualificationBadge
                     classification={lead.lead_classification}
                     score={leadScore}
-                    className="h-6 px-2.5 text-[11px] shadow-sm ring-1 ring-current/40 bg-white"
+                    className="h-6 rounded-full bg-white px-2.5 text-[11px] shadow-sm"
                   />
                   <DuplicateBadge lead={lead as never} />
                   {(
@@ -463,7 +463,7 @@ export function LeadDrawer({
                           size="icon"
                           variant="ghost"
                           title="Adicionar tag"
-                          className="h-7 w-7 shrink-0 text-current hover:bg-current/10 hover:text-current"
+                          className="h-7 w-7 shrink-0 rounded-full bg-[var(--band-chip)] text-[var(--band-chip-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-chip-fg)] hover:opacity-85"
                         >
                           <Tag className="h-4 w-4" />
                         </Button>
@@ -511,13 +511,13 @@ export function LeadDrawer({
                     </Badge>
                   ))}
                 </div>
-                <p className="text-xs text-current/70">
+                <p className="text-xs text-[var(--band-sub)]">
                   Criado em {fmt(lead.created_at)}
                 </p>
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 {lead.value != null && (
-                  <Badge className="border-current/20 bg-current/10 font-semibold text-current hover:bg-current/20">
+                  <Badge className="rounded-full border-0 px-2.5 py-1 text-xs font-semibold bg-[var(--band-chip)] text-[var(--band-chip-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-chip-fg)] hover:opacity-85">
                     {currency(Number(lead.value))}
                   </Badge>
                 )}
@@ -527,7 +527,7 @@ export function LeadDrawer({
                     onValueChange={(v) => setPickedPipeline(v === currentPipelineId ? null : v)}
                   >
                     <SelectTrigger
-                      className="h-8 min-w-[8.5rem] flex-1 border-current/20 text-current sm:w-[170px] sm:flex-none"
+                      className="h-9 min-w-[8.5rem] flex-1 rounded-xl border-0 bg-[var(--band-tile)] text-[var(--band-tile-fg)] sm:w-[170px] sm:flex-none"
                       aria-label="Pipeline do lead"
                       title="Pipeline"
                     >
@@ -546,7 +546,7 @@ export function LeadDrawer({
                   disabled={move.isPending}
                 >
                   <SelectTrigger
-                    className="h-8 min-w-[8.5rem] flex-1 border-current/20 text-current sm:w-[190px] sm:flex-none"
+                    className="h-9 min-w-[8.5rem] flex-1 rounded-xl border-0 bg-[var(--band-tile)] text-[var(--band-tile-fg)] sm:w-[190px] sm:flex-none"
                     aria-label="Etapa do lead"
                     title="Etapa"
                   >
@@ -560,7 +560,7 @@ export function LeadDrawer({
                   size="icon"
                   variant="outline"
                   title="Enviar e-mail"
-                  className="h-8 w-8 border-current/30 bg-current/10 text-current hover:bg-current/20 hover:text-current"
+                  className="h-9 w-9 rounded-xl border-0 bg-[var(--band-chip)] text-[var(--band-chip-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-chip-fg)] hover:opacity-85"
                   onClick={() => setEmailOpen(true)}
                 >
                   <Mail className="h-4 w-4" />
@@ -570,7 +570,7 @@ export function LeadDrawer({
                   size="icon"
                   variant="outline"
                   title="Abrir este lead em outra aba"
-                  className="h-8 w-8 border-current/30 bg-current/10 text-current hover:bg-current/20 hover:text-current"
+                  className="h-9 w-9 rounded-xl border-0 bg-[var(--band-chip)] text-[var(--band-chip-fg)] hover:bg-[var(--band-chip)] hover:text-[var(--band-chip-fg)] hover:opacity-85"
                 >
                   <a href={leadCardHref(lead.id)} target="_blank" rel="noopener" aria-label="Abrir este lead em outra aba">
                     <ExternalLink className="h-4 w-4" />
@@ -579,7 +579,7 @@ export function LeadDrawer({
                 <Button
                   size="icon"
                   title="Editar lead"
-                  className="h-8 w-8 bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                  className="h-9 w-9 rounded-xl bg-[var(--band-cta-bg)] font-bold text-[var(--band-cta-fg)] hover:bg-[var(--band-cta-bg)] hover:opacity-90"
                   onClick={() => onEdit(lead)}
                 >
                   <Pencil className="h-4 w-4" />
@@ -610,24 +610,24 @@ export function LeadDrawer({
                     </div>
                   )}
 
-                  <div className="lead-gradient-card rounded-xl border p-3 text-sm">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-current/70">Dados de cadastro</p>
-                    <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                  <div className="lead-gradient-card rounded-2xl p-4 text-sm">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--band-sub)]">Dados de cadastro</p>
+                    <dl className="grid gap-2.5 sm:grid-cols-2 [&>div]:rounded-xl [&>div]:bg-[var(--band-tile)] [&>div]:px-3.5 [&>div]:py-2.5 [&>div]:text-[var(--band-tile-fg)]">
                       <div className="flex items-start gap-2">
                         <dt className="sr-only">Nome</dt>
-                        <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-current/80" />
+                        <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--band-tile-sub)]" />
                         <dd className="min-w-0 break-words">
-                          <span className="block text-[11px] text-current/60">Nome / empresa</span>
+                          <span className="block text-[11px] text-[var(--band-tile-sub)]">Nome / empresa</span>
                           {lead.name}{lead.company ? ` · ${lead.company}` : ""}
                         </dd>
                       </div>
                       <div className="flex items-start gap-2">
-                        <Phone className="mt-0.5 h-4 w-4 shrink-0 text-current/80" />
+                        <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[var(--band-tile-sub)]" />
                         <dd className="min-w-0">
-                          <span className="block text-[11px] text-current/60">Telefone / WhatsApp</span>
+                          <span className="block text-[11px] text-[var(--band-tile-sub)]">Telefone / WhatsApp</span>
                           {lead.phone ? (
                             <span className="inline-flex items-center gap-1">
-                              <a href={`tel:${lead.phone}`} className="underline underline-offset-2 hover:text-current/90">{lead.phone}</a>
+                              <a href={`tel:${lead.phone}`} className="underline underline-offset-2 hover:opacity-80">{lead.phone}</a>
                               <a
                                 href={`https://wa.me/${lead.phone.replace(/\D/g, "").replace(/^(?!55)(\d{10,11})$/, "55$1")}`}
                                 target="_blank"
@@ -639,43 +639,43 @@ export function LeadDrawer({
                               </a>
                             </span>
                           ) : (
-                            <span className="italic text-current/50">Não informado</span>
+                            <span className="italic text-[var(--band-tile-sub)]">Não informado</span>
                           )}
                         </dd>
                       </div>
                       <div className="flex items-start gap-2">
-                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-current/80" />
+                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[var(--band-tile-sub)]" />
                         <dd className="min-w-0 break-all">
-                          <span className="block text-[11px] text-current/60">E-mail</span>
+                          <span className="block text-[11px] text-[var(--band-tile-sub)]">E-mail</span>
                           {lead.email ? (
-                            <a href={`mailto:${lead.email}`} className="underline underline-offset-2 hover:text-current/90">{lead.email}</a>
+                            <a href={`mailto:${lead.email}`} className="underline underline-offset-2 hover:opacity-80">{lead.email}</a>
                           ) : (
-                            <span className="italic text-current/50">Não informado</span>
+                            <span className="italic text-[var(--band-tile-sub)]">Não informado</span>
                           )}
                         </dd>
                       </div>
                       <div className="flex items-start gap-2">
-                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-current/80" />
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--band-tile-sub)]" />
                         <dd className="min-w-0">
-                          <span className="block text-[11px] text-current/60">Cidade / Estado</span>
+                          <span className="block text-[11px] text-[var(--band-tile-sub)]">Cidade / Estado</span>
                           {lead.city || lead.state ? (
                             [lead.city, lead.state].filter(Boolean).join(" — ")
                           ) : (
-                            <span className="italic text-current/50">Não informado</span>
+                            <span className="italic text-[var(--band-tile-sub)]">Não informado</span>
                           )}
                         </dd>
                       </div>
                       <div className="flex items-start gap-2">
-                        <Tag className="mt-0.5 h-4 w-4 shrink-0 text-current/80" />
+                        <Tag className="mt-0.5 h-4 w-4 shrink-0 text-[var(--band-tile-sub)]" />
                         <dd className="min-w-0 break-words">
-                          <span className="block text-[11px] text-current/60">Origem</span>
-                          {origins.length ? origins.join(" · ") : <span className="italic text-current/50">Não informado</span>}
+                          <span className="block text-[11px] text-[var(--band-tile-sub)]">Origem</span>
+                          {origins.length ? origins.join(" · ") : <span className="italic text-[var(--band-tile-sub)]">Não informado</span>}
                         </dd>
                       </div>
                       <div className="flex items-start gap-2">
-                        <Activity className="mt-0.5 h-4 w-4 shrink-0 text-current/80" />
+                        <Activity className="mt-0.5 h-4 w-4 shrink-0 text-[var(--band-tile-sub)]" />
                         <dd className="min-w-0">
-                          <span className="block text-[11px] text-current/60">Qualificação do formulário</span>
+                          <span className="block text-[11px] text-[var(--band-tile-sub)]">Qualificação do formulário</span>
                           <LeadQualificationBadge
                             classification={lead.lead_classification}
                             score={leadScore}
@@ -685,9 +685,9 @@ export function LeadDrawer({
                       </div>
                       {(lead.utm_campaign || lead.utm_content) && (
                         <div className="flex items-start gap-2 sm:col-span-2">
-                          <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-current/80" />
+                          <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[var(--band-tile-sub)]" />
                           <dd className="min-w-0 break-words">
-                            <span className="block text-[11px] text-current/60">Campanha / anúncio</span>
+                            <span className="block text-[11px] text-[var(--band-tile-sub)]">Campanha / anúncio</span>
                             {[lead.utm_campaign, lead.utm_term, lead.utm_content].filter(Boolean).join(" › ")}
                           </dd>
                         </div>
@@ -781,7 +781,7 @@ export function LeadDrawer({
               <aside className="min-h-0 border-t lg:border-l lg:border-t-0">
                 <div className="min-h-0 h-full overflow-y-auto px-4 py-4">
                   <Tabs value={sideTab} onValueChange={setSideTab}>
-                    <TabsList className="lead-gradient-card grid w-full grid-cols-3 [&>button]:text-current/80 [&>button[data-state=active]]:text-foreground">
+                    <TabsList className="lead-gradient-card grid h-11 w-full grid-cols-3 rounded-xl p-1 [&>button]:rounded-lg [&>button]:font-semibold [&>button]:text-[var(--band-sub)] [&>button[data-state=active]]:bg-[var(--band-cta-bg)] [&>button[data-state=active]]:text-[var(--band-cta-fg)]">
                       <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
                       <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
                       <TabsTrigger value="utm">UTM</TabsTrigger>

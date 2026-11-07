@@ -187,6 +187,6 @@
 - O "x" do `LeadDrawer` fica fixo no canto do cabeçalho (absolute, `aria-label="Fechar o card"`); antes era o último item de uma linha sem quebra e sumia à direita quando havia seletor de pipeline (mais de um pipeline) ou tela estreita.
 - A linha de ações quebra (`flex-wrap`); seletores de pipeline/etapa crescem no celular (mín. 8.5rem) e voltam a 170/190px a partir de `sm`.
 
-## Card do lead na paleta da empresa (07/11/2026)
-- `lead-gradient-card` (styles.css) usa `--band-bg`/`--band-fg`, as mesmas da faixa dos projetos que o `BrandTheme` troca conforme Configurações › Aparência (marca clara, preto, cards brancos). Antes era sempre azul.
-- Dentro do card (LeadDrawer, LeadViewDialog) textos/bordas usam `text-current/…`, `border-current/…`, `bg-current/…` em vez de branco fixo, para ficar legível em faixa clara (texto escuro) e escura (texto branco). Ficam brancos de propósito: selos de tag coloridos e o botão do WhatsApp.
+## Card do lead no padrão da faixa dos projetos (07/11/2026)
+- `lead-gradient-card` (styles.css) = faixa de resumo dos projetos: fundo `--band-bg`, texto `--band-fg` (sem degradê), trocados pelo `BrandTheme` conforme Configurações › Aparência (marca clara, escura, preto, cards brancos).
+- Dentro do card (LeadDrawer/LeadViewDialog), os mesmos papéis da faixa: selos (valor, tag, e-mail, abrir em outra aba) = `--band-chip`/`--band-chip-fg`; seletores de pipeline/etapa e campos de "Dados de cadastro" = indicadores `--band-tile`/`--band-tile-fg`/`--band-tile-sub`; texto secundário = `--band-sub`; Editar e aba ativa = `--band-cta-bg`/`--band-cta-fg`. Ficam com cor própria: tags coloridas, selo de qualificação (branco) e WhatsApp.

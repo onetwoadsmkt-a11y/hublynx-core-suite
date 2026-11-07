@@ -287,14 +287,14 @@
   }
 }
 
-/* Card do lead na paleta da empresa (Configurações › Aparência): mesma faixa dos projetos
-   (--band-bg / --band-fg, trocadas pelo BrandTheme — marca clara, tema preto, cards brancos).
-   Os textos e bordas internos usam a cor do texto da faixa (text-current/…), então ficam
-   legíveis tanto em faixa escura (texto branco) quanto em faixa amarela (texto escuro). */
+/* Card do lead = mesmo padrão da faixa de resumo dos projetos (Configurações › Aparência):
+   fundo --band-bg e texto --band-fg; dentro dele os mesmos papéis da faixa — selos (--band-chip),
+   indicadores/campos (--band-tile), texto secundário (--band-sub) e ação principal (--band-cta).
+   O BrandTheme troca tudo conforme a marca (clara, escura, preto, cards brancos). */
 @utility lead-gradient-card {
-  background: linear-gradient(135deg, var(--band-bg) 0%, color-mix(in oklab, var(--band-bg) 88%, black) 100%);
+  background: var(--band-bg);
   color: var(--band-fg);
-  border-color: color-mix(in oklab, var(--band-fg) 12%, transparent);
+  border-color: transparent;
 }
 
 /* ------------------------------------------------------------------
