@@ -186,3 +186,7 @@
 ## Card do lead: botão Fechar sempre visível (07/11/2026)
 - O "x" do `LeadDrawer` fica fixo no canto do cabeçalho (absolute, `aria-label="Fechar o card"`); antes era o último item de uma linha sem quebra e sumia à direita quando havia seletor de pipeline (mais de um pipeline) ou tela estreita.
 - A linha de ações quebra (`flex-wrap`); seletores de pipeline/etapa crescem no celular (mín. 8.5rem) e voltam a 170/190px a partir de `sm`.
+
+## Card do lead na paleta da empresa (07/11/2026)
+- `lead-gradient-card` (styles.css) usa `--band-bg`/`--band-fg`, as mesmas da faixa dos projetos que o `BrandTheme` troca conforme Configurações › Aparência (marca clara, preto, cards brancos). Antes era sempre azul.
+- Dentro do card (LeadDrawer, LeadViewDialog) textos/bordas usam `text-current/…`, `border-current/…`, `bg-current/…` em vez de branco fixo, para ficar legível em faixa clara (texto escuro) e escura (texto branco). Ficam brancos de propósito: selos de tag coloridos e o botão do WhatsApp.

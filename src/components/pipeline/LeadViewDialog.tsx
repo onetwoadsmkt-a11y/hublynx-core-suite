@@ -58,8 +58,8 @@ export function LeadViewDialog({
         <DialogHeader className="lead-gradient-card rounded-t-lg px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <DialogTitle className="truncate text-white">{lead.name}</DialogTitle>
-              <p className="mt-1 text-sm text-white/80">
+              <DialogTitle className="truncate text-current">{lead.name}</DialogTitle>
+              <p className="mt-1 text-sm text-current/80">
                 {lead.company || "Sem empresa"}
                 {stage ? ` · ${stage.name}` : ""}
                 {pipelineName ? ` · ${pipelineName}` : ""}
