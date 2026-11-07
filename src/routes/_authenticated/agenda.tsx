@@ -516,7 +516,7 @@ function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaE
               <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground font-medium">
                 {fmt(d, { weekday: "short" }).replace(".", "")}.
               </div>
-              <div className={`mt-1 inline-flex items-center justify-center h-8 w-8 rounded-full text-base font-normal ${isToday ? "bg-primary text-primary-foreground font-semibold" : "text-foreground"}`}>
+              <div className={`mt-1 inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-1 text-base font-extrabold tabular-nums ${isToday ? "bg-foreground text-background" : "bg-primary text-primary-foreground"}`}>
                 {d.getDate()}
               </div>
             </button>
@@ -533,7 +533,7 @@ function WeekView({ anchor, events, onPickDay }: { anchor: Date; events: AgendaE
             <div key={d.toISOString()} className="space-y-1 border-b border-border/40 p-2 last:border-b-0 sm:border-b-0 sm:border-r sm:p-1.5 sm:last:border-r-0">
               {/* celular: cabeçalho do dia na própria linha */}
               <button type="button" onClick={() => onPickDay(d)} className="flex w-full items-center gap-2 pb-1 text-left sm:hidden">
-                <span className={`grid h-8 w-8 place-items-center rounded-full text-sm font-semibold ${isToday ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>{d.getDate()}</span>
+                <span className={`grid h-8 min-w-[2rem] place-items-center rounded-lg px-1 text-sm font-extrabold tabular-nums ${isToday ? "bg-foreground text-background" : "bg-primary text-primary-foreground"}`}>{d.getDate()}</span>
                 <span className="text-sm font-medium capitalize">{fmt(d, { weekday: "long" })}</span>
                 <span className="ml-auto text-xs text-muted-foreground">{dayEvents.length ? `${dayEvents.length} item(ns)` : "livre"}</span>
               </button>
@@ -577,23 +577,28 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
               key={d.toISOString()}
               onClick={() => onPickDay(d)}
               aria-label={`${fmt(d, { day: "2-digit", month: "long" })}: ${dayEvents.length} item(ns)${overdueCount ? `, ${overdueCount} atrasado(s)` : ""}`}
-              className={`relative flex min-h-[58px] min-w-0 flex-col border-b border-r border-border/40 p-0.5 text-left transition-colors hover:bg-muted/30 sm:min-h-[112px] sm:p-1.5 ${inMonth ? "" : "bg-muted/10"} ${overdueCount ? "ring-1 ring-inset ring-destructive/40" : ""}`}
+              className={`relative flex min-h-[64px] min-w-0 flex-col border-b border-r border-border/40 text-left transition-colors hover:bg-muted/30 sm:min-h-[118px] ${inMonth ? "" : "bg-muted/10"} ${overdueCount ? "ring-1 ring-inset ring-destructive/40" : ""}`}
             >
-              {overdueCount > 0 && (
-                <span className="absolute right-1.5 top-1.5 hidden rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground sm:inline" title={`${overdueCount} atrasada(s)`}>
-                  {overdueCount}
-                </span>
-              )}
-              <div className="mb-1 flex items-center justify-center">
-                <span className={`inline-flex h-7 min-w-[28px] items-center justify-center rounded-full px-1.5 text-xs font-medium ${
+              {/* cabeçalho do dia na cor da empresa, com o número em destaque; hoje fica invertido */}
+              <div
+                className={`relative flex h-7 items-center justify-center gap-1 text-sm font-extrabold tabular-nums sm:h-8 sm:text-base ${
                   isToday
-                    ? "bg-primary text-primary-foreground"
-                    : inMonth ? "text-foreground" : "text-muted-foreground/60"
-                }`}>
-                  <span className="sm:hidden">{d.getDate()}</span>
-                  <span className="hidden sm:inline">{isFirstOfMonth ? `${d.getDate()} ${fmt(d, { month: "short" }).replace(".", "")}.` : d.getDate()}</span>
-                </span>
+                    ? "bg-foreground text-background"
+                    : inMonth
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-primary/35 text-primary-foreground/70"
+                }`}
+              >
+                <span>{d.getDate()}</span>
+                {isFirstOfMonth && <span className="hidden text-[11px] font-semibold uppercase sm:inline">{fmt(d, { month: "short" }).replace(".", "")}</span>}
+                {isToday && <span className="hidden text-[10px] font-bold uppercase tracking-wide sm:inline">· hoje</span>}
+                {overdueCount > 0 && (
+                  <span className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded-full bg-destructive px-1.5 text-[10px] font-bold leading-4 text-destructive-foreground ring-1 ring-white/70 sm:inline" title={`${overdueCount} atrasada(s)`}>
+                    {overdueCount}
+                  </span>
+                )}
               </div>
+              <div className="flex flex-1 flex-col p-0.5 pt-1 sm:p-1.5">
               {/* celular: bolinhas por tipo + quantidade; toque abre a lista do dia */}
               {dayEvents.length > 0 && (
                 <div className="flex flex-col items-center gap-0.5 sm:hidden">
@@ -612,6 +617,7 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
                 {dayEvents.length > 3 && (
                   <div className="text-[10px] text-muted-foreground px-1.5">+{dayEvents.length - 3} mais</div>
                 )}
+              </div>
               </div>
             </button>
           );
