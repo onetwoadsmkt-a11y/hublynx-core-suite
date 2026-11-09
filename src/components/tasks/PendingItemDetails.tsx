@@ -173,12 +173,13 @@ export function PendingItemDetails({
       ) : null}
 
       {lead && <LeadBlock leadId={lead.lead_id} />}
-      {item.project_id && <ProjectBlock projectId={item.project_id} taskId={lead ? undefined : item.id} onNavigate={onNavigate} />}
+      {/* Com "Abrir tarefa" levando ao projeto, o bloco só abre o projeto (sem dois botões iguais). */}
+      {item.project_id && <ProjectBlock projectId={item.project_id} taskId={lead || onEdit ? undefined : item.id} onNavigate={onNavigate} />}
       {!lead && item.client_id && <ClientLine clientId={item.client_id} />}
 
       {onEdit && (
         <Button variant="outline" size="sm" className="w-full" onClick={onEdit}>
-          <Pencil className="mr-1.5 h-4 w-4" /> {lead ? "Abrir agendamento (observação, concluir, próxima ação)" : "Abrir tarefa"}
+          <Pencil className="mr-1.5 h-4 w-4" /> {lead ? "Abrir agendamento (observação, concluir, próxima ação)" : item.project_id ? "Abrir a tarefa no projeto" : "Abrir tarefa"}
         </Button>
       )}
     </div>

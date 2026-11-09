@@ -85,8 +85,8 @@ const ALLOWED_MIME = [
 ];
 
 export function TaskDrawer({
-  taskId, open, onClose,
-}: { taskId: string | null; open: boolean; onClose: () => void }) {
+  taskId, open, onClose, fallback,
+}: { taskId: string | null; open: boolean; onClose: () => void; fallback?: React.ReactNode }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
@@ -94,16 +94,16 @@ export function TaskDrawer({
         className="flex h-[min(90dvh,860px)] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:rounded-lg"
       >
         <DialogTitle className="sr-only">Detalhes da tarefa</DialogTitle>
-        {taskId && <DrawerBody taskId={taskId} onClose={onClose} />}
+        {taskId && <DrawerBody taskId={taskId} onClose={onClose} fallback={fallback} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }) {
+function DrawerBody({ taskId, onClose, fallback }: { taskId: string; onClose: () => void; fallback?: React.ReactNode }) {
   const qc = useQueryClient();
   const { data: kanbanCols = DEFAULT_STATUS_COLS } = useKanbanColumns();
-  const { data: task, isLoading } = useQuery({
+  const { data: task, isLoading, error: loadError } = useQuery({
     queryKey: ["task", taskId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -215,8 +215,29 @@ function DrawerBody({ taskId, onClose }: { taskId: string; onClose: () => void }
     onError: (e: any) => toast.error(e.message ?? "Erro ao criar Meet"),
   });
 
-  if (isLoading || !task) {
+  if (isLoading) {
     return <div className="p-10 text-sm text-muted-foreground">Carregando…</div>;
+  }
+  if (!task) {
+    // Antes ficava em "Carregando…" para sempre quando a leitura falhava ou não achava a tarefa.
+    if (loadError) console.error("[TaskDrawer] falha ao abrir a tarefa", taskId, loadError);
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <p className="text-sm font-semibold">Detalhes da tarefa</p>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Fechar">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {fallback ?? (
+            <p className="text-sm text-muted-foreground">
+              {loadError ? "Não foi possível abrir esta tarefa agora. Tente novamente em instantes." : "Tarefa não encontrada ou você não tem acesso a ela."}
+            </p>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const status = kanbanCols.find((s) => s.key === task.status) ?? { key: task.status, label: task.status, tone: "bg-muted text-muted-foreground" };

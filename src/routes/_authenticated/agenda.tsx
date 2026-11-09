@@ -38,6 +38,7 @@ import { createContext, useContext } from "react";
 import { TasksViewSwitch } from "@/components/tasks/TasksViewSwitch";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 import { LeadTaskDialog } from "@/components/pipeline/LeadTaskDialog";
+import { openTargetFor } from "@/lib/tasks/open-target";
 
 /** Abre a tarefa/agendamento aqui mesmo no calendário (id da central: "<uuid>" ou "lead:<uuid>"). */
 const OpenItemContext = createContext<(pendingId: string) => void>(() => {});
@@ -167,6 +168,27 @@ function AgendaPage() {
   const setSelected = (id: string | null) =>
     navigate({ to: "/agenda", search: (p: typeof search) => ({ ...p, item: id ?? undefined }), replace: true });
   const pendingById = useMemo(() => new Map(allPendingItems.map((i) => [i.id, i])), [allPendingItems]);
+  // "Abrir tarefa": tarefa de projeto abre dentro da etapa do projeto; o resto abre aqui.
+  const goToProjectTask = (projectId: string, taskId: string) =>
+    navigate({ to: "/projetos/$id", params: { id: projectId }, search: { aba: "etapas", tarefa: taskId } as any });
+  const openItem = async (id: string) => {
+    const target = openTargetFor(id, pendingById.get(id));
+    if (target.kind === "project") return goToProjectTask(target.projectId, target.taskId);
+    if (target.kind === "task" && !pendingById.has(id)) {
+      // fora da lista de pendências (ex.: tarefa de uma reunião): confere o projeto
+      const { data } = await supabase.from("tasks").select("id, project_id").eq("id", id).maybeSingle();
+      if (data?.project_id) return goToProjectTask(data.project_id, id);
+    }
+    setSelected(id);
+  };
+  // link antigo/recarregado com ?item= de uma tarefa de projeto → vai para o projeto
+  useEffect(() => {
+    if (!selected) return;
+    const target = openTargetFor(selected, pendingById.get(selected));
+    if (target.kind === "project") goToProjectTask(target.projectId, target.taskId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, pendingById]);
+  const selectedItem = selected ? pendingById.get(selected) : undefined;
   const selectedLead = selected?.startsWith("lead:") ? allPendingItems.find((i) => i.id === selected)?.leadTask : undefined;
   const clientName = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
   const pendingEvents = useMemo<AgendaEvent[]>(() => {
@@ -384,7 +406,7 @@ function AgendaPage() {
 
         {/* Grid */}
         <PendingByIdContext.Provider value={pendingById}>
-        <OpenItemContext.Provider value={setSelected}>
+        <OpenItemContext.Provider value={openItem}>
         {view === "day" && <DayView anchor={anchor} events={events} />}
         {view === "week" && <WeekView anchor={anchor} events={events} onPickDay={setDayOpen} />}
         {view === "month" && <MonthView anchor={anchor} events={events} onPickDay={setDayOpen} />}
@@ -417,7 +439,7 @@ function AgendaPage() {
             action: e.source === "gcal" ? <CreateLeadFromEventButton event={e} /> : undefined,
           })) : []}
         onOpenChange={(o) => { if (!o) setDayOpen(null); }}
-        onSelect={(id) => { setDayOpen(null); setSelected(id); }}
+        onSelect={(id) => { setDayOpen(null); void openItem(id); }}
         onAdd={(key) => { setDayOpen(null); setNewTaskDate(key); setNewTaskOpen(true); }}
       />
       {selectedLead ? (
@@ -427,6 +449,7 @@ function AgendaPage() {
           taskId={selected && !selected.startsWith("lead:") ? selected : null}
           open={!!selected && !selected.startsWith("lead:")}
           onClose={() => setSelected(null)}
+          fallback={selectedItem && !selectedItem.leadTask ? <PendingItemDetails item={selectedItem} /> : undefined}
         />
       )}
     </div>

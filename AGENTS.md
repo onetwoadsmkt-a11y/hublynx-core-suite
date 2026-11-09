@@ -203,3 +203,5 @@
 - Agenda no celular: sem margem dupla; Mês compacto (número do dia + bolinhas por tipo + quantidade, vermelho = atrasado; toque abre a lista do dia); Semana vira lista de dias; filtros numa linha que desliza; "Sincronizar Google" só com o ícone.
 - Base: `DialogContent` nunca maior que a tela (max-h com safe-area + rolagem; diálogos de tela cheia usam `max-h-none`); `Sheet` com borda transparente do tamanho da área segura (`.sheet-safe-*`).
 - Agenda (07/11/2026): no Mês, cada dia tem um cabeçalho em faixa na cor da empresa (`bg-primary`/`text-primary-foreground`) com o número em destaque; dias de outro mês em tom claro (`bg-primary/35`); hoje invertido (`bg-foreground`/`text-background`, "· hoje" no computador); atrasadas em selo vermelho dentro do cabeçalho. Semana: número do dia no mesmo estilo (bloco na cor da empresa, hoje invertido).
+
+- "Abrir tarefa" outside a project (Agenda, day list) routes through `openTargetFor`: lead schedules open the schedule dialog, project tasks open inside the project stage (`?aba=etapas&tarefa=`), loose tasks open the task dialog — one rule so every entry point lands in the same place.
