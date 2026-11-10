@@ -82,6 +82,7 @@ const conditionSchema = z.union([
 ]);
 const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("move_stage"), stage_id: uuid }),
+  z.object({ type: z.literal("move_pipeline"), pipeline_id: uuid, stage_id: uuid }),
   z.object({ type: z.literal("add_tag"), tag: z.string().min(1).max(40) }),
   z.object({ type: z.literal("remove_tag"), tag: z.string().min(1).max(40) }),
   z.object({ type: z.literal("set_temperature"), value: z.enum(["quente", "morno", "frio"]) }),
@@ -138,6 +139,12 @@ export const saveAutomation = createServerFn({ method: "POST" })
     // A etapa precisa ser deste pipeline (e visível para quem salva).
     const { data: stage } = await db.from("pipeline_stages").select("id, pipeline_id").eq("id", data.stageId).maybeSingle();
     if (!stage || stage.pipeline_id !== data.pipelineId) throw new Error("Etapa inválida para este pipeline.");
+    // "Enviar para outro pipeline": a etapa de destino precisa ser do pipeline escolhido e visível para quem salva.
+    for (const act of data.actions) {
+      if (act.type !== "move_pipeline") continue;
+      const { data: dest } = await db.from("pipeline_stages").select("id, pipeline_id").eq("id", act.stage_id).maybeSingle();
+      if (!dest || dest.pipeline_id !== act.pipeline_id) throw new Error("Escolha uma etapa do pipeline de destino.");
+    }
     const row = {
       organization_id: data.organizationId,
       pipeline_id: data.pipelineId,

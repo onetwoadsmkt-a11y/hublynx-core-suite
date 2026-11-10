@@ -16,6 +16,7 @@ async function admin(): Promise<Db> {
 
 const ACTION_LABEL: Record<AutomationAction["type"], string> = {
   move_stage: "Mover para etapa",
+  move_pipeline: "Enviar para outro pipeline",
   add_tag: "Adicionar tag",
   remove_tag: "Remover tag",
   set_temperature: "Mudar temperatura",
@@ -84,16 +85,30 @@ async function execute(db: Db, a: Automation, leadRow: any, ev: TriggerEvent, de
   for (const act of a.actions ?? []) {
     try {
       switch (act.type) {
-        case "move_stage": {
+        case "move_stage":
+        case "move_pipeline": {
           if (!act.stage_id || act.stage_id === lead.stage_id) break;
-          const { data: st } = await db.from("pipeline_stages").select("id, name, is_won, is_lost").eq("id", act.stage_id).maybeSingle();
+          const { data: st } = await db
+            .from("pipeline_stages")
+            .select("id, name, is_won, is_lost, pipeline_id, organization_id, pipelines(name)")
+            .eq("id", act.stage_id)
+            .maybeSingle();
           if (!st) throw new Error("etapa de destino não existe mais");
+          // Destino sempre da mesma empresa do lead.
+          if (st.organization_id && lead.organization_id && st.organization_id !== lead.organization_id) {
+            throw new Error("etapa de destino é de outra empresa");
+          }
+          if (act.type === "move_pipeline" && st.pipeline_id !== act.pipeline_id) {
+            throw new Error("etapa de destino não pertence ao pipeline escolhido");
+          }
           const status = st.is_won ? "ganho" : st.is_lost ? "perdido" : "aberto";
           const { data: upd, error } = await db.from("leads").update({ stage_id: st.id, status, position: 0 }).eq("id", lead.id).select("*").single();
           if (error) throw new Error(error.message);
           lead = upd;
           movedTo = st.id;
-          log.push(`movido para "${st.name}"`);
+          log.push(act.type === "move_pipeline"
+            ? `enviado para o pipeline "${st.pipelines?.name ?? "?"}" › "${st.name}"`
+            : `movido para "${st.name}"`);
           break;
         }
         case "add_tag":

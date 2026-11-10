@@ -23,6 +23,7 @@ export type AutomationCondition =
 
 export type AutomationAction =
   | { type: "move_stage"; stage_id: string }
+  | { type: "move_pipeline"; pipeline_id: string; stage_id: string }
   | { type: "add_tag"; tag: string }
   | { type: "remove_tag"; tag: string }
   | { type: "set_temperature"; value: "quente" | "morno" | "frio" }
@@ -54,6 +55,7 @@ export type LeadFacts = {
   state?: string | null;
   value?: number | null;
   temperature?: string | null;
+  lead_classification?: string | null;
   tags?: string[] | null;
   stage_id?: string | null;
   stage_entered_at?: string | null;
@@ -63,6 +65,23 @@ export type LeadFacts = {
 
 const low = (a: string[] | null | undefined) => (a ?? []).map((t) => String(t).toLowerCase());
 
+// Classificação do lead scoring (pt/en), a mesma que o card mostra.
+const CLASSIFICATION: Record<string, string> = {
+  hot: "quente", quente: "quente", warm: "morno", morno: "morno", cold: "frio", frio: "frio",
+  nutrition: "nutricao", "nutrição": "nutricao", nutricao: "nutricao",
+};
+
+/**
+ * Temperatura que vale para as automações = a que o card mostra: primeiro a classificação
+ * do formulário/lead scoring, depois a temperatura manual. Antes valia só a manual, que é
+ * "morno" por padrão — um lead "Frio" vindo do formulário nunca batia na condição "Frio".
+ */
+export function automationTemperature(lead: Pick<LeadFacts, "lead_classification" | "temperature">): string {
+  const c = CLASSIFICATION[(lead.lead_classification ?? "").trim().toLowerCase()];
+  if (c) return c;
+  return (lead.temperature ?? "").trim().toLowerCase();
+}
+
 /** Todas as condições precisam bater (E). Lista vazia = sempre. */
 export function conditionsMatch(conds: AutomationCondition[], lead: LeadFacts): boolean {
   const tags = new Set(low(lead.tags));
@@ -70,7 +89,7 @@ export function conditionsMatch(conds: AutomationCondition[], lead: LeadFacts): 
     switch (c.field) {
       case "tags_any": return low(c.value).some((t) => tags.has(t));
       case "tags_none": return !low(c.value).some((t) => tags.has(t));
-      case "temperature": return c.value.includes(lead.temperature ?? "");
+      case "temperature": return c.value.includes(automationTemperature(lead));
       case "value_gte": return Number(lead.value ?? 0) >= Number(c.value);
       case "value_lte": return Number(lead.value ?? 0) <= Number(c.value);
       case "no_open_tasks": return lead.openTasks === 0;

@@ -23,6 +23,19 @@ describe("automações — condições", () => {
   });
 });
 
+describe("automações — temperatura do card", () => {
+  it("classificação do formulário vale antes da temperatura manual", () => {
+    const frio = { ...lead, temperature: "morno", lead_classification: "Frio" };
+    assert.equal(conditionsMatch([{ field: "temperature", value: ["frio"] }], frio), true);
+    assert.equal(conditionsMatch([{ field: "temperature", value: ["morno"] }], frio), false);
+    assert.equal(conditionsMatch([{ field: "temperature", value: ["frio"] }], { ...lead, lead_classification: "cold" }), true);
+    assert.equal(conditionsMatch([{ field: "temperature", value: ["nutricao"] }], { ...lead, lead_classification: "Nutrição" }), true);
+  });
+  it("sem classificação, vale a temperatura manual", () => {
+    assert.equal(conditionsMatch([{ field: "temperature", value: ["quente"] }], { ...lead, lead_classification: null }), true);
+  });
+});
+
 describe("automações — gatilhos", () => {
   it("ao entrar e ao entrar com tag", () => {
     assert.equal(triggerFires({ type: "on_enter" }, { kind: "enter" }, lead), true);

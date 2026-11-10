@@ -19,6 +19,7 @@ import {
   deleteAutomation, deleteEmailTemplate, listAutomations, listEmailTemplates, saveAutomation,
   saveEmailTemplate, sendTestEmailTemplate, toggleAutomation,
 } from "@/lib/automations/automations.functions";
+import { listAllStages } from "@/lib/pipeline/pipeline.functions";
 import {
   describeTrigger, htmlToText, isHtmlBody, renderTemplate, sanitizeEmailHtml, TEMPLATE_VARS,
   type AutomationAction, type AutomationCondition, type AutomationTrigger, type LeadFacts,
@@ -37,6 +38,9 @@ type TagOpt = { slug: string; name: string; color: string };
 type Tab = "automacoes" | "emails" | "execucoes";
 
 const TEMPS = [{ v: "quente", l: "Quente" }, { v: "morno", l: "Morno" }, { v: "frio", l: "Frio" }] as const;
+// Na condição vale a temperatura que o card mostra (classificação do formulário), que também pode ser "Nutrição".
+const COND_TEMPS = [...TEMPS, { v: "nutricao", l: "Nutrição" }] as const;
+type StageOpt = { id: string; name: string; pipeline_id: string | null; pipeline_name: string };
 const KINDS = [{ v: "follow_up", l: "Follow-up" }, { v: "reuniao", l: "Reunião" }, { v: "call", l: "Ligação" }, { v: "tarefa", l: "Tarefa" }] as const;
 const PRIOS = [{ v: "baixa", l: "Baixa" }, { v: "media", l: "Média" }, { v: "alta", l: "Alta" }, { v: "critica", l: "Urgente" }] as const;
 
@@ -53,6 +57,7 @@ const CONDITION_OPTS: { v: AutomationCondition["field"]; l: string }[] = [
 ];
 const ACTION_OPTS: { v: AutomationAction["type"]; l: string }[] = [
   { v: "move_stage", l: "Mover para etapa" },
+  { v: "move_pipeline", l: "Enviar para outro pipeline" },
   { v: "add_tag", l: "Adicionar tag" },
   { v: "remove_tag", l: "Remover tag" },
   { v: "send_email", l: "Enviar e-mail (modelo)" },
@@ -70,6 +75,7 @@ function newCondition(field: AutomationCondition["field"]): AutomationCondition 
 function newAction(type: AutomationAction["type"], stages: PipelineStage[]): AutomationAction {
   switch (type) {
     case "move_stage": return { type, stage_id: stages[0]?.id ?? "" };
+    case "move_pipeline": return { type, pipeline_id: "", stage_id: "" };
     case "add_tag": case "remove_tag": return { type, tag: "" };
     case "send_email": return { type, template_id: "" };
     case "create_task": return { type, kind: "follow_up", title: "Follow-up", days: 1, time: "10:00", priority: "media", duration: 30 };
@@ -78,10 +84,14 @@ function newAction(type: AutomationAction["type"], stages: PipelineStage[]): Aut
   }
 }
 
-function actionSummary(a: AutomationAction, stages: PipelineStage[], templates: any[], tags: TagOpt[]) {
+function actionSummary(a: AutomationAction, stages: PipelineStage[], templates: any[], tags: TagOpt[], allStages: StageOpt[] = []) {
   const tagName = (s: string) => tags.find((t) => t.slug === s)?.name ?? s;
   switch (a.type) {
     case "move_stage": return `Mover para "${stages.find((s) => s.id === a.stage_id)?.name ?? "?"}"`;
+    case "move_pipeline": {
+      const st = allStages.find((s) => s.id === a.stage_id);
+      return `Enviar para o pipeline "${st?.pipeline_name ?? "?"}" › "${st?.name ?? "?"}"`;
+    }
     case "add_tag": return `Adicionar tag "${tagName(a.tag)}"`;
     case "remove_tag": return `Remover tag "${tagName(a.tag)}"`;
     case "send_email": return `Enviar "${templates.find((t) => t.id === a.template_id)?.name ?? "modelo"}"`;
@@ -128,6 +138,13 @@ export function AutomationsDialog({
     queryFn: () => listFn({ data: { pipelineId: pipeline!.id } }),
     enabled: open && !!pipeline,
   });
+  const allStagesFn = useServerFn(listAllStages);
+  const allStagesQ = useQuery({
+    queryKey: ["all-stages", organizationId],
+    queryFn: () => allStagesFn({ data: organizationId ? { organizationId } : {} }),
+    enabled: open,
+  });
+  const allStages = (allStagesQ.data ?? []) as StageOpt[];
   const tplQ = useQuery({
     queryKey: ["email-templates", organizationId],
     queryFn: () => tplFn({ data: { organizationId: organizationId! } }),
@@ -204,7 +221,7 @@ export function AutomationsDialog({
                           {(a.conditions ?? []).length > 0 && <p className="text-[11px] text-muted-foreground">Se: {(a.conditions as AutomationCondition[]).map((c) => CONDITION_OPTS.find((o) => o.v === c.field)?.l).join(" e ")}</p>}
                           <ul className="space-y-0.5 text-[11px]">
                             {(a.actions as AutomationAction[]).map((x, i) => (
-                              <li key={i} className="flex items-center gap-1"><ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />{actionSummary(x, stages, templates, tags)}</li>
+                              <li key={i} className="flex items-center gap-1"><ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />{actionSummary(x, stages, templates, tags, allStages)}</li>
                             ))}
                           </ul>
                           <div className="flex justify-end gap-1">
@@ -251,6 +268,8 @@ export function AutomationsDialog({
             draft={draft}
             setDraft={setDraft}
             stages={stages}
+            allStages={allStages}
+            currentPipelineId={pipeline?.id ?? null}
             tags={tags}
             templates={templates}
             saving={save.isPending}
@@ -283,11 +302,13 @@ function TagSelect({ tags, value, onChange }: { tags: TagOpt[]; value: string; o
 
 /** Editor: QUANDO → SE → ENTÃO. */
 function AutomationEditor({
-  draft, setDraft, stages, tags, templates, saving, onSave, onGoToEmails,
+  draft, setDraft, stages, allStages, currentPipelineId, tags, templates, saving, onSave, onGoToEmails,
 }: {
   draft: Draft;
   setDraft: (d: Draft | null) => void;
   stages: PipelineStage[];
+  allStages: StageOpt[];
+  currentPipelineId: string | null;
   tags: TagOpt[];
   templates: any[];
   saving: boolean;
@@ -304,7 +325,7 @@ function AutomationEditor({
   const setAct = (i: number, a: AutomationAction) => set({ actions: draft.actions.map((x, j) => (j === i ? a : x)) });
   const stageName = stages.find((s) => s.id === draft.stageId)?.name ?? "";
   const valid = draft.name.trim() && draft.actions.length > 0 &&
-    draft.actions.every((a) => (a.type === "move_stage" ? !!a.stage_id : a.type === "add_tag" || a.type === "remove_tag" ? !!a.tag : a.type === "send_email" ? !!a.template_id : a.type === "add_note" ? !!a.text.trim() : true)) &&
+    draft.actions.every((a) => (a.type === "move_stage" ? !!a.stage_id : a.type === "move_pipeline" ? !!a.pipeline_id && !!a.stage_id : a.type === "add_tag" || a.type === "remove_tag" ? !!a.tag : a.type === "send_email" ? !!a.template_id : a.type === "add_note" ? !!a.text.trim() : true)) &&
     (t.type === "on_enter_with_tag" || t.type === "on_tag_added" ? !!t.tag : true);
 
   return (
@@ -374,7 +395,7 @@ function AutomationEditor({
                   )}
                   {c.field === "temperature" && (
                     <div className="flex gap-1">
-                      {TEMPS.map((x) => {
+                      {COND_TEMPS.map((x) => {
                         const on = (c.value as string[]).includes(x.v);
                         return (
                           <button key={x.v} type="button" onClick={() => setCond(i, { ...c, value: on ? (c.value as string[]).filter((y) => y !== x.v) : [...(c.value as string[]), x.v] })}
@@ -415,6 +436,28 @@ function AutomationEditor({
                     <SelectContent>{stages.filter((s) => s.id !== draft.stageId).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
                   </Select>
                 )}
+                {a.type === "move_pipeline" && (() => {
+                  const pipes = Array.from(new Map(
+                    allStages.filter((s) => s.pipeline_id && s.pipeline_id !== currentPipelineId).map((s) => [s.pipeline_id!, s.pipeline_name]),
+                  ));
+                  const destStages = allStages.filter((s) => s.pipeline_id === a.pipeline_id);
+                  return (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Select value={a.pipeline_id || undefined} onValueChange={(v) => {
+                        const first = allStages.find((s) => s.pipeline_id === v);
+                        setAct(i, { ...a, pipeline_id: v, stage_id: first?.id ?? "" });
+                      }}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder={pipes.length ? "Pipeline de destino" : "Nenhum outro pipeline"} /></SelectTrigger>
+                        <SelectContent>{pipes.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Select value={a.stage_id || undefined} onValueChange={(v) => setAct(i, { ...a, stage_id: v })} disabled={!a.pipeline_id}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Etapa de destino" /></SelectTrigger>
+                        <SelectContent>{destStages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground sm:col-span-2">O lead sai deste pipeline e entra na etapa escolhida; as automações daquela etapa rodam em seguida.</p>
+                    </div>
+                  );
+                })()}
                 {(a.type === "add_tag" || a.type === "remove_tag") && <TagSelect tags={tags} value={a.tag} onChange={(v) => setAct(i, { ...a, tag: v })} />}
                 {a.type === "set_temperature" && (
                   <Select value={a.value} onValueChange={(v) => setAct(i, { ...a, value: v as "quente" })}>
