@@ -213,3 +213,7 @@
 
 ## Editar a data do agendamento no card do lead (11/11/2026)
 - Na aba Tarefas do `LeadDrawer`, cada agendamento pendente tem o botão de calendário (e a própria data clicável, com lápis): abre `RescheduleInput` (data + hora de Brasília, grava só em "Remarcar"). Salva por `upsertLeadTask` com o mesmo id, mantendo título, tipo, observações, duração, prioridade e convidados; o evento do Google é atualizado na agenda do dono. Sem data: "Definir data".
+
+## Gravações nunca ficam "em espera" (11/11/2026)
+- `router.tsx`: mutações com `networkMode: "always"` — antes, quando o React Query achava que estava sem internet (no celular o evento "online" pode não chegar depois de voltar do segundo plano), toda gravação ficava pausada: botão carregando e nada salvo, sem aviso. `syncOnlineState()` reconfere `navigator.onLine` ao voltar para a tela/foco/pageshow.
+- `MutationCache.onError` global: mutação sem `onError` próprio mostra "Não foi possível salvar: …" (falha de rede → mensagem de conexão).
