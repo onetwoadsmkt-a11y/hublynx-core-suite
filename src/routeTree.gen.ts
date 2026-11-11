@@ -63,6 +63,7 @@ import { Route as AuthenticatedGestaoClientesRouteImport } from './routes/_authe
 import { Route as AuthenticatedProjetosIndexRouteImport } from './routes/_authenticated/projetos.index'
 import { Route as AuthenticatedProjetosIdRouteImport } from './routes/_authenticated/projetos.$id'
 import { Route as ApiPublicFormsHostRouteImport } from './routes/api/public/forms-host'
+import { Route as ApiPublicSignupRouteImport } from './routes/api/public/signup'
 import { Route as AuthenticatedAppTarefasIdRouteImport } from './routes/_authenticated/app.tarefas.$id'
 import { Route as AuthenticatedConfiguracoesIntegracoesIndexRouteImport } from './routes/_authenticated/configuracoes.integracoes.index'
 import { Route as AuthenticatedConfiguracoesIntegracoesLogsRouteImport } from './routes/_authenticated/configuracoes.integracoes.logs'
@@ -367,6 +368,11 @@ const ApiPublicFormsHostRoute = ApiPublicFormsHostRouteImport.update({
   path: '/api/public/forms-host',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSignupRoute = ApiPublicSignupRouteImport.update({
+  id: '/api/public/signup',
+  path: '/api/public/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAppTarefasIdRoute =
   AuthenticatedAppTarefasIdRouteImport.update({
     id: '/$id',
@@ -475,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/api/public/forms-host': typeof ApiPublicFormsHostRoute
+  '/api/public/signup': typeof ApiPublicSignupRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
@@ -537,6 +544,7 @@ export interface FileRoutesByTo {
   '/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/api/public/forms-host': typeof ApiPublicFormsHostRoute
+  '/api/public/signup': typeof ApiPublicSignupRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesIndexRoute
@@ -604,6 +612,7 @@ export interface FileRoutesById {
   '/_authenticated/gestao/clientes': typeof AuthenticatedGestaoClientesRoute
   '/_authenticated/projetos/$id': typeof AuthenticatedProjetosIdRoute
   '/api/public/forms-host': typeof ApiPublicFormsHostRoute
+  '/api/public/signup': typeof ApiPublicSignupRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/configuracoes/': typeof AuthenticatedConfiguracoesIndexRoute
@@ -671,6 +680,7 @@ export interface FileRouteTypes {
     | '/gestao/clientes'
     | '/projetos/$id'
     | '/api/public/forms-host'
+    | '/api/public/signup'
     | '/admin/'
     | '/app/'
     | '/configuracoes/'
@@ -733,6 +743,7 @@ export interface FileRouteTypes {
     | '/gestao/clientes'
     | '/projetos/$id'
     | '/api/public/forms-host'
+    | '/api/public/signup'
     | '/admin'
     | '/app'
     | '/configuracoes'
@@ -799,6 +810,7 @@ export interface FileRouteTypes {
     | '/_authenticated/gestao/clientes'
     | '/_authenticated/projetos/$id'
     | '/api/public/forms-host'
+    | '/api/public/signup'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/configuracoes/'
@@ -828,6 +840,7 @@ export interface RootRouteChildren {
   PortalEntrarRoute: typeof PortalEntrarRoute
   PortalIndexRoute: typeof PortalIndexRoute
   ApiPublicFormsHostRoute: typeof ApiPublicFormsHostRoute
+  ApiPublicSignupRoute: typeof ApiPublicSignupRoute
   ApiPublicFormAssetsSplatRoute: typeof ApiPublicFormAssetsSplatRoute
   ApiPublicHooksRunAutomationsRoute: typeof ApiPublicHooksRunAutomationsRoute
   ApiPublicHooksRunRemindersRoute: typeof ApiPublicHooksRunRemindersRoute
@@ -1217,6 +1230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFormsHostRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/signup': {
+      id: '/api/public/signup'
+      path: '/api/public/signup'
+      fullPath: '/api/public/signup'
+      preLoaderRoute: typeof ApiPublicSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/tarefas/$id': {
       id: '/_authenticated/app/tarefas/$id'
       path: '/$id'
@@ -1471,6 +1491,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalEntrarRoute: PortalEntrarRoute,
   PortalIndexRoute: PortalIndexRoute,
   ApiPublicFormsHostRoute: ApiPublicFormsHostRoute,
+  ApiPublicSignupRoute: ApiPublicSignupRoute,
   ApiPublicFormAssetsSplatRoute: ApiPublicFormAssetsSplatRoute,
   ApiPublicHooksRunAutomationsRoute: ApiPublicHooksRunAutomationsRoute,
   ApiPublicHooksRunRemindersRoute: ApiPublicHooksRunRemindersRoute,
