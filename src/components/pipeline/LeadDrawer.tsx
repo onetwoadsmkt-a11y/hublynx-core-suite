@@ -38,6 +38,7 @@ import type { Lead, LeadEvent, LeadNote, PipelineStage } from "./types";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { invalidatePendingQueries } from "@/hooks/usePendingItems";
 import { LeadTaskActions, LeadTaskNotes } from "./LeadTaskActions";
+import { RescheduleInput } from "@/components/tasks/RescheduleInput";
 import { TaskCreateDialog } from "@/components/tasks/TaskCreateDialog";
 import { PRIORITY_LABEL, PRIORITY_TONE, type Priority } from "@/components/tasks/TaskDrawer";
 
@@ -292,6 +293,30 @@ export function LeadDrawer({
     mutationFn: (id: string) => delTaskFn({ data: { id } }),
     onSuccess: refreshTasks,
     onError: (error: Error) => toast.error(error.message),
+  });
+  // Editar a data/hora de um agendamento (mantém título, tipo, observações e convidados; Google acompanha).
+  const [editingDue, setEditingDue] = useState<string | null>(null);
+  const editDue = useMutation({
+    mutationFn: (v: { t: any; due: string }) =>
+      taskFn({
+        data: {
+          id: v.t.id,
+          leadId: lead!.id,
+          title: v.t.title,
+          kind: v.t.kind ?? "tarefa",
+          notes: v.t.notes ?? null,
+          due_at: v.due,
+          duration_minutes: Math.min(480, Math.max(10, Number(v.t.duration_minutes) || 30)),
+          ...(v.t.priority ? { priority: v.t.priority } : {}),
+        },
+      }),
+    onSuccess: (res: any) => {
+      setEditingDue(null);
+      if (res?.syncError) toast.error(`Data alterada, mas o Google Agenda falhou: ${res.syncError}`);
+      else toast.success("Data do agendamento alterada.");
+      refreshTasks();
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
   const removeFileFn = useServerFn(removeLeadFile);
   const removeFile = useMutation({
@@ -823,7 +848,22 @@ export function LeadDrawer({
                                     {PRIORITY_LABEL[(t as any).priority as Priority]}
                                   </Badge>
                                 )}
-                                {t.due_at && <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" />{fmt(t.due_at)}</span>}
+                                {t.due_at ? (
+                                  <button
+                                    type="button"
+                                    disabled={t.done}
+                                    onClick={() => setEditingDue(editingDue === t.id ? null : t.id)}
+                                    className="flex items-center gap-1 rounded px-1 -mx-1 hover:bg-muted disabled:pointer-events-none"
+                                    title="Editar data e hora"
+                                  >
+                                    <CalendarClock className="h-3 w-3" />{fmt(t.due_at)}
+                                    {!t.done && <Pencil className="h-3 w-3 opacity-60" />}
+                                  </button>
+                                ) : !t.done && (
+                                  <button type="button" onClick={() => setEditingDue(t.id)} className="flex items-center gap-1 text-primary hover:underline">
+                                    <CalendarClock className="h-3 w-3" /> Definir data
+                                  </button>
+                                )}
                                 {(t as any).duration_minutes && <span>{(t as any).duration_minutes} min</span>}
                                 {(t as any).gcal_event_id && (
                                   <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">Google Agenda</Badge>
@@ -841,10 +881,22 @@ export function LeadDrawer({
                               </p>
                             </div>
 
+                            {!t.done && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingDue(editingDue === t.id ? null : t.id)} aria-label="Editar data" title="Editar data e hora">
+                                <CalendarDays className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeTask.mutate(t.id)} aria-label="Excluir agendamento">
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </div>
+                          {editingDue === t.id && !t.done && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/30 px-2.5 py-2">
+                              <span className="text-xs font-medium">Nova data:</span>
+                              <RescheduleInput due={t.due_at} pending={editDue.isPending} onSave={(iso) => editDue.mutate({ t, due: iso })} />
+                              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingDue(null)}>Cancelar</Button>
+                            </div>
+                          )}
                           <LeadTaskNotes notes={(t as any).notes ?? null} className="mt-2" />
                           <LeadTaskActions task={t as any} leadEmail={lead.email ?? null} />
                           </div>
