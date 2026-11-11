@@ -190,3 +190,120 @@ export const cancelSubscription = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ---------------------------------------------------------------------------
+// Inativar / reativar / excluir conta de assinante (Central de Assinaturas)
+//
+// Inativar: assinatura "cancelado", login bloqueado (ban no Supabase Auth) e as empresas
+// das quais a conta é dona ficam "suspended" (todo mundo dessas empresas vê "Acesso da
+// empresa suspenso"). Reativar desfaz tudo. Excluir é definitivo e só vale para conta
+// já inativada, com o e-mail digitado para confirmar.
+
+const HUBLYNX_ORG = "2d4ce02e-5e15-4b0d-8192-0ca9a63aff1f";
+const BAN_FOREVER = "876000h"; // ~100 anos
+
+async function guardTarget(admin: any, callerId: string, userId: string) {
+  if (userId === callerId) throw new Error("Você não pode inativar ou excluir a sua própria conta.");
+  const { data: pa } = await admin.from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle();
+  if (pa) throw new Error("Esta conta é administradora da plataforma e não pode ser inativada ou excluída aqui.");
+  const { data: hub } = await admin
+    .from("organization_members")
+    .select("user_id")
+    .eq("organization_id", HUBLYNX_ORG)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (hub) throw new Error("Esta conta é da equipe da Hublynx. Tire a pessoa da equipe antes.");
+}
+
+async function ownedOrgs(admin: any, userId: string) {
+  const { data } = await admin
+    .from("organizations")
+    .select("id, name, status")
+    .eq("legacy_owner_id", userId)
+    .neq("id", HUBLYNX_ORG);
+  return (data ?? []) as { id: string; name: string; status: string }[];
+}
+
+export const deactivateSubscriber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { userId: string }) => d)
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminUser(context.supabase, context.userId))) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    await guardTarget(admin, context.userId, data.userId);
+
+    const { error: banErr } = await admin.auth.admin.updateUserById(data.userId, { ban_duration: BAN_FOREVER });
+    if (banErr) throw new Error(`Não foi possível bloquear o login: ${banErr.message}`);
+    await admin.from("subscriptions").update({ status: "cancelado" }).eq("user_id", data.userId);
+    const orgs = await ownedOrgs(admin, data.userId);
+    const toSuspend = orgs.filter((o) => o.status === "active" || o.status === "trial").map((o) => o.id);
+    if (toSuspend.length) await admin.from("organizations").update({ status: "suspended" }).in("id", toSuspend);
+    return { ok: true, suspendedCompanies: toSuspend.length };
+  });
+
+export const reactivateSubscriber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { userId: string }) => d)
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminUser(context.supabase, context.userId))) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+
+    const { error: unbanErr } = await admin.auth.admin.updateUserById(data.userId, { ban_duration: "none" });
+    if (unbanErr) throw new Error(`Não foi possível liberar o login: ${unbanErr.message}`);
+    const { data: sub } = await admin.from("subscriptions").select("plan").eq("user_id", data.userId).maybeSingle();
+    const isTrial = sub?.plan === "teste_14_dias";
+    await admin.from("subscriptions").update({ status: isTrial ? "trial" : "ativo" }).eq("user_id", data.userId);
+    const orgs = await ownedOrgs(admin, data.userId);
+    const suspended = orgs.filter((o) => o.status === "suspended").map((o) => o.id);
+    if (suspended.length) {
+      await admin.from("organizations").update({ status: isTrial ? "trial" : "active" }).in("id", suspended);
+    }
+    return { ok: true };
+  });
+
+export const deleteSubscriber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { userId: string; confirmEmail: string }) => d)
+  .handler(async ({ data, context }) => {
+    if (!(await isAdminUser(context.supabase, context.userId))) throw new Error("Forbidden");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    await guardTarget(admin, context.userId, data.userId);
+
+    const { data: u } = await admin.auth.admin.getUserById(data.userId);
+    const email = String(u?.user?.email ?? "").toLowerCase();
+    if (!email || email !== String(data.confirmEmail ?? "").trim().toLowerCase()) {
+      throw new Error("O e-mail digitado não confere com o da conta.");
+    }
+    const { data: sub } = await admin.from("subscriptions").select("status").eq("user_id", data.userId).maybeSingle();
+    if (sub && sub.status !== "cancelado") throw new Error("Inative a conta antes de excluir.");
+
+    // empresa com outras pessoas ativas não é apagada junto (evita perder dados de uma equipe)
+    const orgs = await ownedOrgs(admin, data.userId);
+    for (const o of orgs) {
+      const { count } = await admin
+        .from("organization_members")
+        .select("user_id", { count: "exact", head: true })
+        .eq("organization_id", o.id)
+        .eq("status", "active")
+        .neq("user_id", data.userId);
+      if ((count ?? 0) > 0) {
+        throw new Error(
+          `A empresa "${o.name}" tem outras pessoas ativas. Passe a empresa para outra pessoa ou tire a equipe antes de excluir esta conta.`,
+        );
+      }
+    }
+
+    const notDeleted: string[] = [];
+    for (const o of orgs) {
+      const { error } = await admin.from("organizations").delete().eq("id", o.id);
+      if (error) notDeleted.push(o.name);
+    }
+    await admin.from("subscriptions").delete().eq("user_id", data.userId);
+    const { error: delErr } = await admin.auth.admin.deleteUser(data.userId);
+    if (delErr) throw new Error(`Não foi possível excluir a conta: ${delErr.message}`);
+    return { ok: true, companiesKept: notDeleted };
+  });

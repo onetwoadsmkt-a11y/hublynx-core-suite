@@ -11,6 +11,9 @@ import {
   upsertSubscription,
   createSubscriber,
   cancelSubscription,
+  deactivateSubscriber,
+  reactivateSubscriber,
+  deleteSubscriber,
 } from "@/lib/subscriptions/subscriptions.functions";
 import {
   ALL_CAPABILITIES,
@@ -33,7 +36,11 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Users, Wallet, CircleCheck } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Plus, Users, Wallet, CircleCheck, Ban, Trash2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/assinaturas")({
@@ -66,6 +73,130 @@ const STATUS_TONE: Record<string, string> = {
   suspenso: "bg-amber-500/15 text-amber-600",
   cancelado: "bg-destructive/15 text-destructive",
 };
+
+/** Inativar (bloqueia login e suspende a empresa), reativar e excluir de vez. */
+function AccountActions({ row, onChanged }: { row: Row; onChanged: () => void }) {
+  const deactivate = useServerFn(deactivateSubscriber);
+  const reactivate = useServerFn(reactivateSubscriber);
+  const remove = useServerFn(deleteSubscriber);
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const status = row.subscription?.status ?? null;
+  const inactive = status === "cancelado";
+
+  const deactivateMut = useMutation({
+    mutationFn: () => deactivate({ data: { userId: row.userId } }),
+    onSuccess: (r) => {
+      onChanged();
+      toast.success(
+        r.suspendedCompanies
+          ? `Conta inativada. Login bloqueado e ${r.suspendedCompanies} empresa(s) suspensa(s).`
+          : "Conta inativada. Login bloqueado.",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const reactivateMut = useMutation({
+    mutationFn: () => reactivate({ data: { userId: row.userId } }),
+    onSuccess: () => { onChanged(); toast.success("Conta reativada. Login e empresa liberados."); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: () => remove({ data: { userId: row.userId, confirmEmail } }),
+    onSuccess: (r) => {
+      onChanged();
+      setConfirmEmail("");
+      toast.success(
+        r.companiesKept.length
+          ? `Conta excluída. A empresa ${r.companiesKept.join(", ")} tinha dados ligados e ficou suspensa.`
+          : "Conta excluída definitivamente.",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (!inactive) {
+    return (
+      <>
+      {status === "suspenso" && (
+        <Button variant="ghost" size="sm" disabled={reactivateMut.isPending} onClick={() => reactivateMut.mutate()}>
+          <RotateCcw className="mr-1.5 h-4 w-4" /> Reativar
+        </Button>
+      )}
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+            <Ban className="mr-1.5 h-4 w-4" /> Inativar
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Inativar {row.subscription?.account_name || row.email}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O login de {row.email} fica bloqueado e a empresa da conta é suspensa: ninguém dela entra
+              no Core até você reativar. Nenhum dado é apagado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deactivateMut.isPending}
+              onClick={() => deactivateMut.mutate()}
+            >
+              Inativar conta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Button variant="ghost" size="sm" disabled={reactivateMut.isPending} onClick={() => reactivateMut.mutate()}>
+        <RotateCcw className="mr-1.5 h-4 w-4" /> Reativar
+      </Button>
+      <AlertDialog onOpenChange={(o) => { if (!o) setConfirmEmail(""); }}>
+        <AlertDialogTrigger asChild>
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+            <Trash2 className="mr-1.5 h-4 w-4" /> Excluir
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir a conta de vez?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A conta {row.email}, a assinatura e a empresa de que ela é dona serão apagadas, junto com os
+              dados dessa empresa. Isso não pode ser desfeito. Se a empresa tiver outras pessoas ativas, a
+              exclusão é recusada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor={`del-${row.userId}`}>Digite o e-mail da conta para confirmar</Label>
+            <Input
+              id={`del-${row.userId}`}
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              placeholder={row.email}
+              autoComplete="off"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMut.isPending || confirmEmail.trim().toLowerCase() !== row.email.toLowerCase()}
+              onClick={() => deleteMut.mutate()}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
 
 const money = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v ?? 0);
@@ -175,18 +306,13 @@ function SubscriptionsPage() {
                             onSave={(v) => saveMut.mutate(v)}
                             pending={saveMut.isPending}
                           />
-                          {s && s.status === "ativo" && (
+                          {s && (s.status === "ativo" || s.status === "trial") && (
                             <Button variant="ghost" size="sm"
                               onClick={() => statusMut.mutate({ userId: r.userId, status: "suspenso" })}>
                               Suspender
                             </Button>
                           )}
-                          {s && s.status !== "ativo" && (
-                            <Button variant="ghost" size="sm"
-                              onClick={() => statusMut.mutate({ userId: r.userId, status: "ativo" })}>
-                              Reativar
-                            </Button>
-                          )}
+                          <AccountActions row={r} onChanged={invalidate} />
                         </div>
                       </TableCell>
                     </TableRow>

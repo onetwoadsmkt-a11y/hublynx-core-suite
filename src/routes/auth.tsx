@@ -101,6 +101,8 @@ function AuthPage() {
           { duration: 10000 },
         );
       if (/invalid login credentials/i.test(error.message)) return toast.error("E-mail ou senha incorretos.");
+      if (/banned/i.test(error.message))
+        return toast.error("Esta conta está inativa. Fale com o Core Suite CRM: WhatsApp (12) 98261-8659.");
       return toast.error(error.message);
     }
     toast.success("Bem-vindo de volta!");
