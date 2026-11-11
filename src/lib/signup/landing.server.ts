@@ -210,38 +210,67 @@ E-mail: <strong>${esc(d.email)}</strong><br>Senha: a que você criou no cadastro
 }
 
 /**
- * 3) envia o e-mail de verificação SOMENTE como "Core Suite CRM" <contato@coresuitecrm.com.br>
- * (SMTP da Hostinger; senha no segredo SIGNUP_SMTP_PASSWORD do servidor). Sem o segredo ou
- * com falha no envio, não manda por outra caixa: o cadastro é desfeito e a pessoa tenta de novo.
+ * 3) envia o e-mail de verificação SOMENTE como "Core Suite CRM" <contato@coresuitecrm.com.br>,
+ * pelo SMTP da Hostinger. A senha vem do segredo SIGNUP_SMTP_PASSWORD ou da caixa
+ * contato@coresuitecrm.com.br salva no Core (Integrações → E-mail IMAP/SMTP). Sem nenhuma das
+ * duas, não manda por outra caixa: o cadastro é desfeito e a pessoa tenta de novo.
  */
-export async function sendVerification(_admin: Admin, d: LandingInput, link: string, origin: string) {
+export async function sendVerification(admin: Admin, d: LandingInput, link: string, origin: string) {
   const mail = verificationMail(d, link, origin);
+  const out = { to: d.email, toName: d.nome, subject: mail.subject, text: mail.text, html: mail.html };
+  const { sendSmtpMail } = await import("@/server/mailSend.server");
+
+  // 1) segredo do servidor (SIGNUP_SMTP_PASSWORD)
   const pass = process.env["SIGNUP_SMTP_PASSWORD"];
-  if (!pass) {
-    console.error("landing signup: SIGNUP_SMTP_PASSWORD não configurado — e-mail não enviado");
-    return { sent: false as const, from: null };
+  if (pass) {
+    try {
+      const user = process.env["SIGNUP_SMTP_USER"] || SIGNUP_FROM;
+      await sendSmtpMail(
+        {
+          email: user,
+          smtp_host: process.env["SIGNUP_SMTP_HOST"] || "smtp.hostinger.com",
+          smtp_port: Number(process.env["SIGNUP_SMTP_PORT"] || 465),
+          smtp_security: (process.env["SIGNUP_SMTP_SECURITY"] as "ssl" | "starttls" | undefined) || "ssl",
+          smtp_username: user,
+          smtp_auth: true,
+        } as never,
+        pass,
+        { ...out, replyTo: user },
+        SIGNUP_FROM_NAME,
+      );
+      return { sent: true as const, from: user };
+    } catch (e) {
+      console.error("landing signup: SMTP (segredo) failed", (e as Error).message);
+    }
   }
+
+  // 2) a mesma caixa contato@coresuitecrm.com.br salva no Core
+  //    (Configurações → Integrações → E-mail IMAP/SMTP, por qualquer pessoa da Hublynx)
   try {
-    const { sendSmtpMail } = await import("@/server/mailSend.server");
-    const user = process.env["SIGNUP_SMTP_USER"] || SIGNUP_FROM;
-    await sendSmtpMail(
-      {
-        email: user,
-        smtp_host: process.env["SIGNUP_SMTP_HOST"] || "smtp.hostinger.com",
-        smtp_port: Number(process.env["SIGNUP_SMTP_PORT"] || 465),
-        smtp_security: (process.env["SIGNUP_SMTP_SECURITY"] as "ssl" | "starttls" | undefined) || "ssl",
-        smtp_username: user,
-        smtp_auth: true,
-      } as never,
-      pass,
-      { to: d.email, toName: d.nome, subject: mail.subject, text: mail.text, html: mail.html, replyTo: user },
-      SIGNUP_FROM_NAME,
-    );
-    return { sent: true as const, from: user };
+    const { data: accounts } = await admin
+      .from("mail_accounts")
+      .select("*")
+      .eq("provider", "imap_smtp")
+      .ilike("email", SIGNUP_FROM)
+      .order("updated_at", { ascending: false })
+      .limit(3);
+    const { getAccountPassword } = await import("@/server/mailAccounts.server");
+    for (const acc of (accounts ?? []) as any[]) {
+      const pw = await getAccountPassword(acc.id as string);
+      if (!pw) continue;
+      try {
+        await sendSmtpMail(acc, pw, { ...out, replyTo: acc.email }, SIGNUP_FROM_NAME);
+        return { sent: true as const, from: acc.email as string };
+      } catch (e) {
+        console.error("landing signup: SMTP (caixa salva) failed", (e as Error).message);
+      }
+    }
   } catch (e) {
-    console.error("landing signup: SMTP contato failed", (e as Error).message);
-    return { sent: false as const, from: null };
+    console.error("landing signup: mailbox lookup failed", (e as Error).message);
   }
+
+  console.error("landing signup: nenhuma forma de enviar como contato@coresuitecrm.com.br");
+  return { sent: false as const, from: null };
 }
 
 /** 4) lead no CRM da Hublynx (pipeline principal, primeira etapa) + automações da etapa. */
