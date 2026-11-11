@@ -29,6 +29,21 @@ function AuthCallbackPage() {
         return;
       }
 
+      // acesso direto vindo do cadastro da landing: confere o token aqui mesmo, sem passar
+      // pelo redirecionamento do Supabase (que depende da lista de URLs permitidas)
+      const tokenHash = query.get("token_hash");
+      if (tokenHash) {
+        const type = (query.get("type") as "magiclink" | "signup" | "email" | null) ?? "magiclink";
+        const { error: otpError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+        if (cancelled) return;
+        window.history.replaceState(null, "", "/auth/callback");
+        if (otpError) {
+          setMessage("Seu link de acesso expirou. Entre com seu e-mail e a senha que você criou.");
+          window.setTimeout(() => window.location.replace("/auth"), 2500);
+          return;
+        }
+      }
+
       if (code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
         if (cancelled) return;

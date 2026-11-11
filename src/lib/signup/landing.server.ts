@@ -105,7 +105,12 @@ export async function accessLink(admin: Admin, email: string): Promise<string> {
       email,
       options: { redirectTo: `${CORE_ORIGIN}/auth/callback` },
     });
-    return error ? fallback : (data?.properties?.action_link ?? fallback);
+    if (error) return fallback;
+    // o próprio Core confere o token (/auth/callback → verifyOtp). Não usa o action_link do
+    // Supabase, que redireciona para a "Site URL" quando o endereço não está na lista permitida.
+    const hashed = data?.properties?.hashed_token as string | undefined;
+    if (hashed) return `${CORE_ORIGIN}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=magiclink`;
+    return data?.properties?.action_link ?? fallback;
   } catch {
     return fallback;
   }
