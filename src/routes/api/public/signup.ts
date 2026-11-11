@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-// Cadastro da landing page (coresuitecrm.com.br) → conta + teste de 14 dias + lead na Hublynx.
+// Cadastro da landing page (coresuitecrm.com.br) → conta + teste de 14 dias + e-mail de verificação
+// (contato@coresuitecrm.com.br) com o link de acesso + lead na Hublynx.
 // A lógica fica em src/lib/signup/landing.server.ts.
 
 const ALLOWED_ORIGINS = new Set([
@@ -10,6 +11,7 @@ const ALLOWED_ORIGINS = new Set([
   "https://corsuitecrm.com.br",
   "https://www.corsuitecrm.com.br",
   "https://core.hublynx.com.br",
+  "https://acesso.coresuitecrm.com.br",
 ]);
 
 function corsHeaders(origin: string | null): Record<string, string> {
@@ -68,7 +70,7 @@ function tooMany(ip: string) {
 // Envio comum de formulário (sem fetch): a resposta é um redirecionamento — para o Core
 // (logado) quando dá certo, ou de volta à landing com ?erro= quando não. Funciona em
 // qualquer navegador, sem depender de CORS (Safari "Load failed").
-function backToLanding(request: Request, message: string) {
+function backToLanding(request: Request, message: string | null) {
   let base = "https://coresuitecrm.com.br/";
   const ref = request.headers.get("referer");
   try {
@@ -81,7 +83,7 @@ function backToLanding(request: Request, message: string) {
   }
   return new Response(null, {
     status: 303,
-    headers: { Location: `${base}?erro=${encodeURIComponent(message)}#teste` },
+    headers: { Location: message ? `${base}?erro=${encodeURIComponent(message)}#teste` : `${base}?enviado=1#teste` },
   });
 }
 
@@ -101,10 +103,8 @@ export const Route = createFileRoute("/api/public/signup")({
         const formMode = ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data");
         const reply = (body: unknown, status: number) => {
           if (formMode) {
-            const b = body as { redirect?: string; message?: string };
-            if (status < 300 && b.redirect) {
-              return new Response(null, { status: 303, headers: { Location: b.redirect } });
-            }
+            const b = body as { message?: string };
+            if (status < 300) return backToLanding(request, null);
             return backToLanding(request, b.message ?? "Não foi possível criar a conta agora.");
           }
           return Response.json(body, { status, headers });
@@ -132,25 +132,35 @@ export const Route = createFileRoute("/api/public/signup")({
         }
         const d = parsed.data;
         // robô: finge sucesso sem fazer nada
-        if (d.website) return reply({ ok: true, redirect: "https://core.hublynx.com.br/auth" }, 201);
+        if (d.website) return reply({ ok: true, sent: true }, 201);
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const admin = supabaseAdmin as never;
-        const { createLandingAccount, accessLink, addLandingLead, sendWelcome, SignupError } = await import(
-          "@/lib/signup/landing.server"
-        );
+        const L = await import("@/lib/signup/landing.server");
 
         try {
-          const input = { ...d, telefone: d.telefone };
-          const trial = await createLandingAccount(admin, input);
-          const [redirect, leadId] = await Promise.all([
-            accessLink(admin, d.email),
-            addLandingLead(admin, input, trial),
-          ]);
-          void sendWelcome(admin, input);
-          return reply({ ok: true, redirect, lead_id: leadId }, 201);
+          const origin = await L.accessOrigin();
+          const trial = await L.createLandingAccount(admin, d);
+          let link: string;
+          try {
+            link = await L.verificationLink(admin, d.email, origin);
+          } catch (e) {
+            if (trial.createdNow) await L.undoAccount(admin, trial.userId);
+            throw e;
+          }
+          const mail = await L.sendVerification(admin, d, link, origin);
+          if (!mail.sent) {
+            // sem e-mail a pessoa não teria como entrar: desfaz a conta criada agora
+            if (trial.createdNow) await L.undoAccount(admin, trial.userId);
+            return reply(
+              { message: "Não conseguimos enviar o e-mail de confirmação agora. Tente de novo em alguns minutos ou fale com a gente no WhatsApp." },
+              502,
+            );
+          }
+          const leadId = trial.createdNow ? await L.addLandingLead(admin, d, trial) : null;
+          return reply({ ok: true, sent: true, resent: !trial.createdNow, lead_id: leadId }, 201);
         } catch (e) {
-          if (e instanceof SignupError) return reply({ message: e.message }, e.status);
+          if (e instanceof L.SignupError) return reply({ message: e.message }, e.status);
           console.error("landing signup failed", (e as Error).message);
           return reply({ message: "Não foi possível criar a conta agora. Tente de novo em instantes." }, 500);
         }

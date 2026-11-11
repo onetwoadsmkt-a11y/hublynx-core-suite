@@ -96,7 +96,10 @@ function AuthPage() {
     setLoading(false);
     if (error) {
       if (/not confirmed/i.test(error.message))
-        return toast.error("Confirme seu e-mail pelo link que enviamos antes de entrar.");
+        return toast.error(
+          "Confirme seu e-mail pelo link que enviamos (de contato@coresuitecrm.com.br). Não chegou? Veja o spam ou cadastre-se de novo em coresuitecrm.com.br com o mesmo e-mail para receber outro.",
+          { duration: 10000 },
+        );
       if (/invalid login credentials/i.test(error.message)) return toast.error("E-mail ou senha incorretos.");
       return toast.error(error.message);
     }
