@@ -18,6 +18,7 @@ export const LANDING_SOURCE = "Landing Core Suite";
 export const ACCESS_ORIGIN = "https://acesso.coresuitecrm.com.br";
 /** Remetente dos e-mails do cadastro (SMTP da Hostinger, senha em segredo do servidor). */
 export const SIGNUP_FROM = "contato@coresuitecrm.com.br";
+export const SIGNUP_FROM_NAME = "Core Suite CRM";
 
 export type LandingInput = {
   nome: string;
@@ -171,10 +172,10 @@ function esc(s: string) {
 
 function verificationMail(d: LandingInput, link: string, origin: string) {
   const first = d.nome.split(/\s+/)[0] || "tudo bem";
-  const subject = "Confirme seu e-mail e acesse o Core Suite";
+  const subject = "Seu acesso ao Core Suite CRM: confirme seu e-mail";
   const text = `Olá, ${first}!
 
-Sua conta no Core Suite foi criada e o teste grátis de 14 dias já está reservado para a ${d.empresa}.
+Sua conta no Core Suite CRM foi criada e o teste grátis de 14 dias já está reservado para a ${d.empresa}.
 
 Confirme seu e-mail e entre no sistema por este link:
 ${link}
@@ -183,7 +184,7 @@ O link vale por pouco tempo e só pode ser usado uma vez. Depois, entre sempre e
 
 Se você não fez este cadastro, ignore este e-mail.
 
-Core Suite
+Core Suite CRM
 WhatsApp (12) 98261-8659 · ${SIGNUP_FROM}`;
   const html = `<!doctype html><html><body style="margin:0;background:#F3F6F5;font-family:Arial,Helvetica,sans-serif;color:#071A3D">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0"><tr><td align="center">
@@ -191,7 +192,7 @@ WhatsApp (12) 98261-8659 · ${SIGNUP_FROM}`;
 <tr><td style="background:#071A3D;color:#ffffff;padding:20px 28px;font-size:18px;font-weight:bold;letter-spacing:3px">CORE <span style="font-weight:normal">SUITE</span></td></tr>
 <tr><td style="padding:28px">
 <p style="margin:0 0 12px;font-size:17px;font-weight:bold">Olá, ${esc(first)}!</p>
-<p style="margin:0 0 20px;font-size:15px;line-height:1.55">Sua conta no Core Suite foi criada e o teste grátis de <strong>14 dias</strong> já está reservado para a <strong>${esc(d.empresa)}</strong>. Confirme seu e-mail para entrar:</p>
+<p style="margin:0 0 20px;font-size:15px;line-height:1.55">Sua conta no Core Suite CRM foi criada e o teste grátis de <strong>14 dias</strong> já está reservado para a <strong>${esc(d.empresa)}</strong>. Confirme seu e-mail para entrar:</p>
 <p style="margin:0 0 22px"><a href="${esc(link)}" style="display:inline-block;background:#00D084;color:#071A3D;text-decoration:none;padding:14px 26px;border-radius:10px;font-weight:bold;font-size:15px">Confirmar e acessar o Core</a></p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;background:#F3F6F5;border-radius:10px;width:100%"><tr><td style="padding:14px 16px;font-size:14px;line-height:1.7">
 Depois, entre sempre em <a href="${esc(origin)}/auth" style="color:#071A3D;font-weight:bold">${esc(origin.replace(/^https:\/\//, ""))}</a><br>
@@ -200,55 +201,44 @@ E-mail: <strong>${esc(d.email)}</strong><br>Senha: a que você criou no cadastro
 <p style="margin:0 0 6px;font-size:13px;color:#4A5874">O link vale por pouco tempo e só pode ser usado uma vez. Se ele vencer, faça o cadastro de novo com o mesmo e-mail que enviamos outro.</p>
 <p style="margin:0;font-size:13px;color:#4A5874">Se você não fez este cadastro, ignore este e-mail.</p>
 </td></tr>
-<tr><td style="padding:16px 28px;border-top:1px solid #DDE5E2;font-size:12px;color:#4A5874">Core Suite · WhatsApp (12) 98261-8659 · ${SIGNUP_FROM}</td></tr>
+<tr><td style="padding:16px 28px;border-top:1px solid #DDE5E2;font-size:12px;color:#4A5874">Core Suite CRM · WhatsApp (12) 98261-8659 · ${SIGNUP_FROM}</td></tr>
 </table></td></tr></table></body></html>`;
   return { subject, text, html };
 }
 
 /**
- * 3) envia o e-mail de verificação. Primeiro pela caixa contato@coresuitecrm.com.br
- * (segredos SIGNUP_SMTP_* no servidor); sem eles, pela caixa conectada da Hublynx.
+ * 3) envia o e-mail de verificação SOMENTE como "Core Suite CRM" <contato@coresuitecrm.com.br>
+ * (SMTP da Hostinger; senha no segredo SIGNUP_SMTP_PASSWORD do servidor). Sem o segredo ou
+ * com falha no envio, não manda por outra caixa: o cadastro é desfeito e a pessoa tenta de novo.
  */
-export async function sendVerification(admin: Admin, d: LandingInput, link: string, origin: string) {
+export async function sendVerification(_admin: Admin, d: LandingInput, link: string, origin: string) {
   const mail = verificationMail(d, link, origin);
   const pass = process.env["SIGNUP_SMTP_PASSWORD"];
-  if (pass) {
-    try {
-      const { sendSmtpMail } = await import("@/server/mailSend.server");
-      const user = process.env["SIGNUP_SMTP_USER"] || SIGNUP_FROM;
-      await sendSmtpMail(
-        {
-          email: user,
-          smtp_host: process.env["SIGNUP_SMTP_HOST"] || "smtp.hostinger.com",
-          smtp_port: Number(process.env["SIGNUP_SMTP_PORT"] || 465),
-          smtp_security: (process.env["SIGNUP_SMTP_SECURITY"] as "ssl" | "starttls" | undefined) || "ssl",
-          smtp_username: user,
-          smtp_auth: true,
-        } as never,
-        pass,
-        { to: d.email, toName: d.nome, subject: mail.subject, text: mail.text, html: mail.html, replyTo: user },
-        "Core Suite",
-      );
-      return { sent: true as const, from: user };
-    } catch (e) {
-      console.error("landing signup: SMTP contato failed", (e as Error).message);
-    }
+  if (!pass) {
+    console.error("landing signup: SIGNUP_SMTP_PASSWORD não configurado — e-mail não enviado");
+    return { sent: false as const, from: null };
   }
   try {
-    const org = await hublynxOrg(admin);
-    const { sendOrgMail } = await import("@/lib/projects/client-invite.server");
-    const r = await sendOrgMail(admin as never, {
-      organizationId: org.id,
-      to: d.email,
-      toName: d.nome,
-      build: () => mail,
-    });
-    if (r.sent) return { sent: true as const, from: r.from };
-    console.error("landing signup: fallback mail failed", r.error);
+    const { sendSmtpMail } = await import("@/server/mailSend.server");
+    const user = process.env["SIGNUP_SMTP_USER"] || SIGNUP_FROM;
+    await sendSmtpMail(
+      {
+        email: user,
+        smtp_host: process.env["SIGNUP_SMTP_HOST"] || "smtp.hostinger.com",
+        smtp_port: Number(process.env["SIGNUP_SMTP_PORT"] || 465),
+        smtp_security: (process.env["SIGNUP_SMTP_SECURITY"] as "ssl" | "starttls" | undefined) || "ssl",
+        smtp_username: user,
+        smtp_auth: true,
+      } as never,
+      pass,
+      { to: d.email, toName: d.nome, subject: mail.subject, text: mail.text, html: mail.html, replyTo: user },
+      SIGNUP_FROM_NAME,
+    );
+    return { sent: true as const, from: user };
   } catch (e) {
-    console.error("landing signup: fallback mail failed", (e as Error).message);
+    console.error("landing signup: SMTP contato failed", (e as Error).message);
+    return { sent: false as const, from: null };
   }
-  return { sent: false as const, from: null };
 }
 
 /** 4) lead no CRM da Hublynx (pipeline principal, primeira etapa) + automações da etapa. */
