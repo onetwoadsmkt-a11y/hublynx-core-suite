@@ -65,15 +65,50 @@ function tooMany(ip: string) {
   return list.length > 5;
 }
 
+// Envio comum de formulário (sem fetch): a resposta é um redirecionamento — para o Core
+// (logado) quando dá certo, ou de volta à landing com ?erro= quando não. Funciona em
+// qualquer navegador, sem depender de CORS (Safari "Load failed").
+function backToLanding(request: Request, message: string) {
+  let base = "https://coresuitecrm.com.br/";
+  const ref = request.headers.get("referer");
+  try {
+    if (ref) {
+      const u = new URL(ref);
+      if (ALLOWED_ORIGINS.has(u.origin)) base = `${u.origin}${u.pathname}`;
+    }
+  } catch {
+    /* referer inválido: volta para a landing principal */
+  }
+  return new Response(null, {
+    status: 303,
+    headers: { Location: `${base}?erro=${encodeURIComponent(message)}#teste` },
+  });
+}
+
 export const Route = createFileRoute("/api/public/signup")({
   server: {
     handlers: {
+      // conferência rápida de que o endereço está publicado
+      GET: async ({ request }) =>
+        Response.json({ ok: true, service: "core-suite-signup" }, { headers: corsHeaders(request.headers.get("origin")) }),
+
       OPTIONS: async ({ request }) =>
         new Response(null, { status: 204, headers: corsHeaders(request.headers.get("origin")) }),
 
       POST: async ({ request }) => {
         const headers = corsHeaders(request.headers.get("origin"));
-        const reply = (body: unknown, status: number) => Response.json(body, { status, headers });
+        const ct = request.headers.get("content-type") ?? "";
+        const formMode = ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data");
+        const reply = (body: unknown, status: number) => {
+          if (formMode) {
+            const b = body as { redirect?: string; message?: string };
+            if (status < 300 && b.redirect) {
+              return new Response(null, { status: 303, headers: { Location: b.redirect } });
+            }
+            return backToLanding(request, b.message ?? "Não foi possível criar a conta agora.");
+          }
+          return Response.json(body, { status, headers });
+        };
 
         const ip =
           request.headers.get("cf-connecting-ip") ??
@@ -82,9 +117,12 @@ export const Route = createFileRoute("/api/public/signup")({
         if (tooMany(ip)) return reply({ message: "Muitas tentativas. Aguarde alguns minutos." }, 429);
 
         // a landing envia JSON como text/plain (pedido "simples", sem pré-verificação CORS)
+        // ou, como reserva, um envio comum de formulário
         let body: unknown;
         try {
-          body = JSON.parse(await request.text());
+          body = formMode
+            ? Object.fromEntries([...(await request.formData()).entries()].map(([k, v]) => [k, String(v)]))
+            : JSON.parse(await request.text());
         } catch {
           return reply({ message: "Envio inválido." }, 400);
         }
