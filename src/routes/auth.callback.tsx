@@ -33,12 +33,24 @@ function AuthCallbackPage() {
       // pelo redirecionamento do Supabase (que depende da lista de URLs permitidas)
       const tokenHash = query.get("token_hash");
       if (tokenHash) {
-        const type = (query.get("type") as "magiclink" | "signup" | "email" | null) ?? "magiclink";
-        const { error: otpError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+        // tenta o tipo informado e, se não bater, os outros (token recusado não é consumido)
+        type OtpType = "magiclink" | "signup" | "email" | "invite" | "recovery";
+        const given = (query.get("type") as OtpType | null) ?? "signup";
+        const order = [given, "signup", "magiclink", "email"].filter(
+          (t, i, all) => all.indexOf(t) === i,
+        ) as OtpType[];
+        let otpError: unknown = null;
+        for (const type of order) {
+          const res = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+          otpError = res.error;
+          if (!res.error) break;
+        }
         if (cancelled) return;
         window.history.replaceState(null, "", "/auth/callback");
         if (otpError) {
-          setMessage("Seu link de acesso expirou. Entre com seu e-mail e a senha que você criou.");
+          setMessage(
+            "Este link de acesso já foi usado ou venceu. Se ainda não entrou, faça o cadastro de novo em coresuitecrm.com.br com o mesmo e-mail para receber outro link.",
+          );
           window.setTimeout(() => window.location.replace("/auth"), 2500);
           return;
         }

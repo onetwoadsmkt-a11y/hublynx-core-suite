@@ -163,7 +163,10 @@ export async function verificationLink(admin: Admin, email: string, origin: stri
   });
   const hashed = data?.properties?.hashed_token as string | undefined;
   if (error || !hashed) throw new SignupError("Não foi possível gerar o link de acesso. Tente de novo.", 500);
-  return `${origin}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=magiclink`;
+  // conta ainda não confirmada: o Supabase gera um token de CONFIRMAÇÃO (signup), não de magic
+  // link — o tipo certo vem em verification_type e precisa ir junto para o verifyOtp aceitar
+  const type = String(data?.properties?.verification_type ?? "magiclink");
+  return `${origin}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=${encodeURIComponent(type)}`;
 }
 
 function esc(s: string) {
