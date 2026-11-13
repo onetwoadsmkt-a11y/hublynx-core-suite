@@ -217,3 +217,7 @@
 ## Gravações nunca ficam "em espera" (11/11/2026)
 - `router.tsx`: mutações com `networkMode: "always"` — antes, quando o React Query achava que estava sem internet (no celular o evento "online" pode não chegar depois de voltar do segundo plano), toda gravação ficava pausada: botão carregando e nada salvo, sem aviso. `syncOnlineState()` reconfere `navigator.onLine` ao voltar para a tela/foco/pageshow.
 - `MutationCache.onError` global: mutação sem `onError` próprio mostra "Não foi possível salvar: …" (falha de rede → mensagem de conexão).
+
+## Tarefa de projeto abre sempre no projeto (13/11/2026)
+- Tarefas (`/tarefas`, lista e kanban): `openTask` leva tarefa com `project_id` para `/projetos/<id>?aba=etapas&tarefa=<id>` (mesmo da Agenda, avisos e lista do dia); `?task=` de tarefa de projeto redireciona. Agendamentos de lead e tarefas soltas continuam na janela.
+- Agenda (`openItem`): se a tarefa não traz o projeto, confere no banco por `project_id` e, se faltar, pela etapa (`stage_id` → `project_stages.project_id`).

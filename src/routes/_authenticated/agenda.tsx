@@ -174,10 +174,15 @@ function AgendaPage() {
   const openItem = async (id: string) => {
     const target = openTargetFor(id, pendingById.get(id));
     if (target.kind === "project") return goToProjectTask(target.projectId, target.taskId);
-    if (target.kind === "task" && !pendingById.has(id)) {
-      // fora da lista de pendências (ex.: tarefa de uma reunião): confere o projeto
-      const { data } = await supabase.from("tasks").select("id, project_id").eq("id", id).maybeSingle();
+    if (target.kind === "task") {
+      // sem projeto na lista (fora das pendências, ou tarefa de etapa sem project_id gravado):
+      // confere no banco pelo projeto ou pela etapa do projeto
+      const { data } = await (supabase as any).from("tasks").select("id, project_id, stage_id").eq("id", id).maybeSingle();
       if (data?.project_id) return goToProjectTask(data.project_id, id);
+      if (data?.stage_id) {
+        const { data: st } = await (supabase as any).from("project_stages").select("project_id").eq("id", data.stage_id).maybeSingle();
+        if (st?.project_id) return goToProjectTask(st.project_id, id);
+      }
     }
     setSelected(id);
   };

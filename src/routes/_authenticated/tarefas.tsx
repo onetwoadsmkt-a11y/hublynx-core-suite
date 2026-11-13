@@ -138,6 +138,22 @@ function TarefasPage() {
   const { items, isLoading, error: pendingError, tasksKey } = usePendingItems();
   const tasks = items as Task[];
   const selectedSchedule = tasks.find((task) => task.id === selectedId)?.leadTask;
+  // Tarefa de projeto abre na página do projeto, dentro da etapa (igual à Agenda e aos avisos).
+  const openTask = (id: string | null) => {
+    if (!id) return setSelectedId(null);
+    const t = tasks.find((x) => x.id === id) as (Task & { project_id?: string | null }) | undefined;
+    if (!id.startsWith("lead:") && !t?.leadTask && t?.project_id) {
+      return navigate({ to: "/projetos/$id", params: { id: t.project_id }, search: { aba: "etapas", tarefa: id } as any });
+    }
+    setSelectedId(id);
+  };
+  // link antigo ?task=<tarefa de projeto> → vai para o projeto
+  useEffect(() => {
+    if (!selectedId || selectedId.startsWith("lead:")) return;
+    const t = tasks.find((x) => x.id === selectedId) as (Task & { project_id?: string | null }) | undefined;
+    if (t?.project_id) openTask(selectedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, tasks]);
 
   const { data: labelsIndex = {} } = useQuery({
     queryKey: ["tasks-labels-index"],
@@ -367,7 +383,7 @@ function TarefasPage() {
               labelsIndex={labelsIndex}
               clientsById={clientsById}
               projectsById={projectsById}
-              onSelect={setSelectedId}
+              onSelect={openTask}
             />
           )}
         </TabsContent>
@@ -393,7 +409,7 @@ function TarefasPage() {
                       labelsIndex={labelsIndex}
                       clientsById={clientsById}
                       projectsById={projectsById}
-                      onSelect={setSelectedId}
+                      onSelect={openTask}
                       onAddInColumn={(k) => openNewIn({ status: k })}
                     />
                   );
