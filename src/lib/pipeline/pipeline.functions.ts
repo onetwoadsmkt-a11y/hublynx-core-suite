@@ -119,20 +119,35 @@ export const listPipeline = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const orgId = await resolveOrganizationId(supabase as never, userId, data.organizationId);
 
-    let { data: pipelines } = await supabase.from("pipelines").select("*").order("position");
-    if (!pipelines || pipelines.length === 0) {
-      const { data: created, error } = await supabase
+    // Só os pipelines da empresa aberta (quem participa de várias empresas não mistura nem cria
+    // nada na empresa errada).
+    let { data: pipelines } = await scopeOrganization(
+      supabase.from("pipelines").select("*").order("position"),
+      orgId,
+    );
+    let justCreated = false;
+    if ((!pipelines || pipelines.length === 0) && orgId) {
+      // empresa realmente sem pipeline (primeiro acesso): cria o principal com as etapas padrão
+      const { count } = await (supabase as any)
         .from("pipelines")
-        .insert({
-          owner_id: userId,
-          ...organizationFields(orgId),
-          name: "Pipeline principal",
-          position: 0,
-        } as never)
-        .select("*");
-      if (error) throw new Error(error.message);
-      pipelines = created ?? [];
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId);
+      if ((count ?? 0) === 0) {
+        const { data: created, error } = await supabase
+          .from("pipelines")
+          .insert({
+            owner_id: userId,
+            ...organizationFields(orgId),
+            name: "Pipeline principal",
+            position: 0,
+          } as never)
+          .select("*");
+        if (error) throw new Error(error.message);
+        pipelines = created ?? [];
+        justCreated = true;
+      }
     }
+    if (!pipelines || pipelines.length === 0) throw new Error("Nenhum pipeline disponível nesta empresa.");
 
     const current =
       pipelines.find((p) => p.id === data.pipelineId) ?? pipelines[0]!;
@@ -144,38 +159,26 @@ export const listPipeline = createServerFn({ method: "GET" })
       .eq("pipeline_id", current.id)
       .order("position");
 
-    if (!stages || stages.length === 0) {
-      // adota etapas antigas sem pipeline no funil principal
-      if (isFirst) {
-        await supabase
-          .from("pipeline_stages")
-          .update({ pipeline_id: current.id })
-          .is("pipeline_id", null);
-        const { data: adopted } = await supabase
-          .from("pipeline_stages")
-          .select("*")
-          .eq("pipeline_id", current.id)
-          .order("position");
-        stages = adopted ?? [];
-      }
-      if (!stages || stages.length === 0) {
-        const rows = DEFAULT_STAGES.map((s, i) => ({
-          owner_id: userId,
-          ...organizationFields(orgId),
-          pipeline_id: current.id,
-          name: s.name,
-          color: s.color,
-          position: i,
-          is_won: s.is_won ?? false,
-          is_lost: s.is_lost ?? false,
-        }));
-        const { data: created, error } = await supabase
-          .from("pipeline_stages")
-          .insert(rows as never)
-          .select("*");
-        if (error) throw new Error(error.message);
-        stages = created ?? [];
-      }
+    // Etapas padrão só no pipeline que acabou de ser criado aqui. Abrir um pipeline existente
+    // sem etapas NÃO cria nada (antes criava 7 etapas padrão sozinho e pegava etapas soltas de
+    // qualquer empresa visível).
+    if ((!stages || stages.length === 0) && justCreated) {
+      const rows = DEFAULT_STAGES.map((s, i) => ({
+        owner_id: userId,
+        ...organizationFields(orgId),
+        pipeline_id: current.id,
+        name: s.name,
+        color: s.color,
+        position: i,
+        is_won: s.is_won ?? false,
+        is_lost: s.is_lost ?? false,
+      }));
+      const { data: created, error } = await supabase
+        .from("pipeline_stages")
+        .insert(rows as never)
+        .select("*");
+      if (error) throw new Error(error.message);
+      stages = created ?? [];
     }
 
     const stageIds = (stages ?? []).map((s) => s.id);

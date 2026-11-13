@@ -221,3 +221,6 @@
 ## Tarefa de projeto abre sempre no projeto (13/11/2026)
 - Tarefas (`/tarefas`, lista e kanban): `openTask` leva tarefa com `project_id` para `/projetos/<id>?aba=etapas&tarefa=<id>` (mesmo da Agenda, avisos e lista do dia); `?task=` de tarefa de projeto redireciona. Agendamentos de lead e tarefas soltas continuam na janela.
 - Agenda (`openItem`): se a tarefa não traz o projeto, confere no banco por `project_id` e, se faltar, pela etapa (`stage_id` → `project_stages.project_id`).
+
+## Pipeline não se altera sozinho (13/11/2026)
+- `listPipeline`: pipelines filtrados pela empresa aberta (`scopeOrganization`). Só cria "Pipeline principal" (com as etapas padrão) quando a empresa realmente não tem nenhum pipeline. Abrir um pipeline existente sem etapas não cria mais as 7 etapas padrão, e não "adota" etapas sem pipeline (antes: update global `pipeline_id is null` em qualquer empresa visível).
