@@ -224,3 +224,9 @@
 
 ## Pipeline não se altera sozinho (13/11/2026)
 - `listPipeline`: pipelines filtrados pela empresa aberta (`scopeOrganization`). Só cria "Pipeline principal" (com as etapas padrão) quando a empresa realmente não tem nenhum pipeline. Abrir um pipeline existente sem etapas não cria mais as 7 etapas padrão, e não "adota" etapas sem pipeline (antes: update global `pipeline_id is null` em qualquer empresa visível).
+
+## Automações: "Temperatura" = Classificação do lead (17/11/2026)
+- Tela: condição "Classificação do lead é" (Quente/Morno/Frio/Nutrição) e ação "Mudar classificação do lead"; o resumo mostra os valores ("Se: Classificação do lead é Frio").
+- Condição usa `automationTemperature` (classificação do lead scoring primeiro, depois a manual) — já era assim. A ação `set_temperature` agora grava `lead_classification` (hot/warm/cold) **e** `temperature`, e reavalia as automações da etapa.
+- Reavaliação quando a classificação muda: webhook (mesmo envio por outro caminho que traz a classificação depois — ex.: Make cria o card, Lead Pro manda "Frio"), edição no card (`upsertLead`). Usa o evento "enter" — o que já rodou nesta passagem não repete (`automation_runs`).
+- "Aplicar aos leads da etapa" (automação ativa de entrada na etapa): `applyAutomationNow` → `applyAutomationToStage` roda nos leads que já estão na etapa (até 1000), com a mesma trava por passagem.

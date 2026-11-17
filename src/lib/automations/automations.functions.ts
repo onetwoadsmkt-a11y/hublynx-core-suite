@@ -195,3 +195,17 @@ export const runDueAutomationsNow = createServerFn({ method: "POST" })
     const { runDueAutomations } = await import("./engine.server");
     return runDueAutomations({ organizationId: data.organizationId, limit: 100 });
   });
+
+/** "Aplicar aos leads que já estão na etapa" (só automações de entrada na etapa). */
+export const applyAutomationNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid, organizationId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: ok } = await (context.supabase as any).rpc("is_org_member", { _org: data.organizationId });
+    if (!ok) throw new Error("Sem acesso a esta empresa.");
+    // a automação precisa ser visível para quem pede (RLS) e da empresa aberta
+    const { data: a } = await (context.supabase as any).from("pipeline_automations").select("id, organization_id").eq("id", data.id).maybeSingle();
+    if (!a || a.organization_id !== data.organizationId) throw new Error("Automação não encontrada nesta empresa.");
+    const { applyAutomationToStage } = await import("./engine.server");
+    return applyAutomationToStage(data.id, data.organizationId);
+  });

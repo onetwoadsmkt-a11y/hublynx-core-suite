@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  deleteAutomation, deleteEmailTemplate, listAutomations, listEmailTemplates, saveAutomation,
+  applyAutomationNow, deleteAutomation, deleteEmailTemplate, listAutomations, listEmailTemplates, saveAutomation,
   saveEmailTemplate, sendTestEmailTemplate, toggleAutomation,
 } from "@/lib/automations/automations.functions";
 import { listAllStages } from "@/lib/pipeline/pipeline.functions";
@@ -38,7 +38,7 @@ type TagOpt = { slug: string; name: string; color: string };
 type Tab = "automacoes" | "emails" | "execucoes";
 
 const TEMPS = [{ v: "quente", l: "Quente" }, { v: "morno", l: "Morno" }, { v: "frio", l: "Frio" }] as const;
-// Na condição vale a temperatura que o card mostra (classificação do formulário), que também pode ser "Nutrição".
+// Classificação do lead = a que o card mostra (lead scoring/formulário, ou a escolhida no card); pode ser "Nutrição".
 const COND_TEMPS = [...TEMPS, { v: "nutricao", l: "Nutrição" }] as const;
 type StageOpt = { id: string; name: string; pipeline_id: string | null; pipeline_name: string };
 const KINDS = [{ v: "follow_up", l: "Follow-up" }, { v: "reuniao", l: "Reunião" }, { v: "call", l: "Ligação" }, { v: "tarefa", l: "Tarefa" }] as const;
@@ -47,7 +47,7 @@ const PRIOS = [{ v: "baixa", l: "Baixa" }, { v: "media", l: "Média" }, { v: "al
 const CONDITION_OPTS: { v: AutomationCondition["field"]; l: string }[] = [
   { v: "tags_any", l: "Tem a tag" },
   { v: "tags_none", l: "Não tem a tag" },
-  { v: "temperature", l: "Temperatura é" },
+  { v: "temperature", l: "Classificação do lead é" },
   { v: "value_gte", l: "Valor maior ou igual a" },
   { v: "value_lte", l: "Valor menor ou igual a" },
   { v: "no_open_tasks", l: "Não tem tarefa em aberto" },
@@ -62,7 +62,7 @@ const ACTION_OPTS: { v: AutomationAction["type"]; l: string }[] = [
   { v: "remove_tag", l: "Remover tag" },
   { v: "send_email", l: "Enviar e-mail (modelo)" },
   { v: "create_task", l: "Criar tarefa / agendamento" },
-  { v: "set_temperature", l: "Mudar temperatura" },
+  { v: "set_temperature", l: "Mudar classificação do lead" },
   { v: "add_note", l: "Adicionar anotação" },
 ];
 
@@ -96,7 +96,7 @@ function actionSummary(a: AutomationAction, stages: PipelineStage[], templates: 
     case "remove_tag": return `Remover tag "${tagName(a.tag)}"`;
     case "send_email": return `Enviar "${templates.find((t) => t.id === a.template_id)?.name ?? "modelo"}"`;
     case "create_task": return `${KINDS.find((k) => k.v === a.kind)?.l}: ${a.title} (+${a.days}d ${a.time})`;
-    case "set_temperature": return `Temperatura: ${a.value}`;
+    case "set_temperature": return `Classificação do lead: ${TEMPS.find((t) => t.v === a.value)?.l ?? a.value}`;
     case "add_note": return "Adicionar anotação";
   }
 }
@@ -132,6 +132,7 @@ export function AutomationsDialog({
   const saveFn = useServerFn(saveAutomation);
   const toggleFn = useServerFn(toggleAutomation);
   const delFn = useServerFn(deleteAutomation);
+  const applyFn = useServerFn(applyAutomationNow);
 
   const autoQ = useQuery({
     queryKey: ["automations", pipeline?.id],
@@ -170,6 +171,15 @@ export function AutomationsDialog({
   const toggle = useMutation({
     mutationFn: (v: { id: string; active: boolean }) => toggleFn({ data: v }),
     onSuccess: refresh,
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const applyNow = useMutation({
+    mutationFn: (id: string) => applyFn({ data: { id, organizationId: organizationId! } }),
+    onSuccess: (r: { checked: number; ran: number }) => {
+      toast.success(r.ran ? `Aplicada em ${r.ran} lead(s) de ${r.checked} na etapa.` : `Nenhum dos ${r.checked} lead(s) da etapa se encaixa (ou já recebeu).`);
+      refresh();
+      qc.invalidateQueries({ queryKey: ["pipeline"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const remove = useMutation({
@@ -218,13 +228,26 @@ export function AutomationsDialog({
                             <Switch checked={a.active} onCheckedChange={(v) => toggle.mutate({ id: a.id, active: v })} aria-label="Ativa" />
                           </div>
                           <p className="flex items-center gap-1 text-[11px] text-primary"><Clock className="h-3 w-3" />{describeTrigger(a.trigger)}</p>
-                          {(a.conditions ?? []).length > 0 && <p className="text-[11px] text-muted-foreground">Se: {(a.conditions as AutomationCondition[]).map((c) => CONDITION_OPTS.find((o) => o.v === c.field)?.l).join(" e ")}</p>}
+                          {(a.conditions ?? []).length > 0 && <p className="text-[11px] text-muted-foreground">Se: {(a.conditions as AutomationCondition[]).map((c) => {
+                            const l = CONDITION_OPTS.find((o) => o.v === c.field)?.l ?? "";
+                            if (c.field === "temperature") return `${l} ${(c.value as string[]).map((v) => COND_TEMPS.find((t) => t.v === v)?.l ?? v).join(" ou ")}`;
+                            if (c.field === "tags_any" || c.field === "tags_none") return `${l} ${(c.value as string[]).join(", ")}`;
+                            if (c.field === "value_gte" || c.field === "value_lte") return `${l} ${c.value}`;
+                            return l;
+                          }).join(" e ")}</p>}
                           <ul className="space-y-0.5 text-[11px]">
                             {(a.actions as AutomationAction[]).map((x, i) => (
                               <li key={i} className="flex items-center gap-1"><ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />{actionSummary(x, stages, templates, tags, allStages)}</li>
                             ))}
                           </ul>
                           <div className="flex justify-end gap-1">
+                            {a.active && (a.trigger?.type === "on_enter" || a.trigger?.type === "on_enter_with_tag") && (
+                              <Button size="sm" variant="ghost" className="mr-auto h-7 px-2 text-[11px]" disabled={applyNow.isPending}
+                                title="Roda nos leads que já estão nesta etapa (cada lead só uma vez)"
+                                onClick={() => { if (confirm(`Aplicar "${a.name}" aos leads que já estão em "${s.name}"? Só os que se encaixam nas condições; quem já recebeu não repete.`)) applyNow.mutate(a.id); }}>
+                                <Zap className="mr-1 h-3 w-3" /> Aplicar aos leads da etapa
+                              </Button>
+                            )}
                             <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Duplicar" onClick={() => setDraft({ ...openEditDraft(a), id: undefined, name: `${a.name} (cópia)` })}><Copy className="h-3.5 w-3.5" /></Button>
                             <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Editar" onClick={() => openEdit(a)}><Pencil className="h-3.5 w-3.5" /></Button>
                             <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" aria-label="Excluir" onClick={() => { if (confirm(`Excluir "${a.name}"?`)) remove.mutate(a.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>

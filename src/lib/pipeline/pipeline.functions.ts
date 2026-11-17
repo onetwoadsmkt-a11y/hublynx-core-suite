@@ -329,8 +329,8 @@ export const upsertLead = createServerFn({ method: "POST" })
     const orgId = lead.id
       ? null
       : await resolveOrganizationId(supabase as never, userId, organizationId);
-    const { data: before } = lead.id
-      ? await supabase.from("leads").select("stage_id").eq("id", lead.id).maybeSingle()
+    const { data: before }: { data: { stage_id: string | null; lead_classification?: string | null; temperature?: string | null } | null } = lead.id
+      ? await (supabase as any).from("leads").select("stage_id, lead_classification, temperature").eq("id", lead.id).maybeSingle()
       : { data: null };
     const payload = lead.id
       ? { ...lead, owner_id: userId }
@@ -341,8 +341,12 @@ export const upsertLead = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
-    // Lead novo ou trocado de etapa: automações da etapa.
-    if (row?.stage_id && (!lead.id || before?.stage_id !== row.stage_id)) {
+    // Lead novo, trocado de etapa ou com a classificação alterada: automações da etapa
+    // (as que já rodaram nesta passagem não repetem).
+    const classChanged =
+      !!lead.id && !!before &&
+      ((before as any).lead_classification !== (row as any)?.lead_classification || (before as any).temperature !== (row as any)?.temperature);
+    if (row?.stage_id && (!lead.id || before?.stage_id !== row.stage_id || classChanged)) {
       const { fireLeadAutomations } = await import("@/lib/automations/engine.server");
       await fireLeadAutomations({ leadId: row.id as string, event: { kind: "enter" } });
     }

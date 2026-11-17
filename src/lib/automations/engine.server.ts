@@ -126,10 +126,15 @@ async function execute(db: Db, a: Automation, leadRow: any, ev: TriggerEvent, de
           break;
         }
         case "set_temperature": {
-          const { data: upd, error } = await db.from("leads").update({ temperature: act.value }).eq("id", lead.id).select("*").single();
+          // "Temperatura" = Classificação do lead (o que o card mostra): grava a classificação
+          // (mesmo código do lead scoring) e a temperatura manual juntas.
+          const code = act.value === "quente" ? "hot" : act.value === "frio" ? "cold" : "warm";
+          const { data: upd, error } = await db.from("leads").update({ lead_classification: code, temperature: act.value }).eq("id", lead.id).select("*").single();
           if (error) throw new Error(error.message);
           lead = upd;
-          log.push(`temperatura: ${act.value}`);
+          log.push(`classificação: ${act.value}`);
+          // as outras automações da etapa reconferem as condições com a classificação nova
+          followUps.push({ kind: "enter" });
           break;
         }
         case "send_email": {
@@ -234,6 +239,26 @@ export async function fireLeadAutomations(opts: { leadId: string; event: Trigger
     console.error("[automations] falha ao disparar:", (e as Error).message);
     return 0;
   }
+}
+
+/**
+ * Aplica uma automação (de entrada na etapa) aos leads que JÁ estão na etapa — para quem
+ * entrou antes de a automação existir ou antes de ter a classificação. Cada lead só recebe
+ * uma vez por passagem na etapa (mesma trava das execuções normais).
+ */
+export async function applyAutomationToStage(automationId: string, organizationId: string): Promise<{ checked: number; ran: number }> {
+  const db = await admin();
+  const { data: a } = await db.from("pipeline_automations").select("*").eq("id", automationId).maybeSingle();
+  if (!a || (a.organization_id && a.organization_id !== organizationId)) return { checked: 0, ran: 0 };
+  const t = (a as Automation).trigger?.type;
+  if (t !== "on_enter" && t !== "on_enter_with_tag") return { checked: 0, ran: 0 };
+  const { data: leads } = await db.from("leads").select("*").eq("stage_id", a.stage_id).limit(1000);
+  let ran = 0;
+  for (const l of (leads ?? []) as any[]) {
+    if (l.organization_id && l.organization_id !== organizationId) continue;
+    if (await execute(db, a as Automation, l, { kind: "enter" }, 0)) ran++;
+  }
+  return { checked: (leads ?? []).length, ran };
 }
 
 /** Automações por tempo ("X dias após entrar na etapa") que já venceram. */

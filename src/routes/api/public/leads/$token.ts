@@ -189,6 +189,17 @@ export const Route = createFileRoute("/api/public/leads/$token")({
                 last_called_at: new Date().toISOString(),
               })
               .eq("id", hook.id);
+            // A classificação (lead scoring) chegou agora — ex.: o Make criou o card antes e o
+            // Lead Pro trouxe "Frio" depois. As automações da etapa reconferem as condições
+            // (as que já rodaram não repetem).
+            if (
+              existing.stage_id &&
+              patch.lead_classification &&
+              String(patch.lead_classification).toLowerCase() !== String(existing.lead_classification ?? "").toLowerCase()
+            ) {
+              const { fireLeadAutomations } = await import("@/lib/automations/engine.server");
+              await fireLeadAutomations({ leadId: existing.id as string, event: { kind: "enter" } });
+            }
             return Response.json({ ok: true, lead_id: existing.id, merged: true }, { status: 200 });
           }
         }
