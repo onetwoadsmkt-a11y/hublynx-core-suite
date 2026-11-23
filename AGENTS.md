@@ -230,3 +230,8 @@
 - Condição usa `automationTemperature` (classificação do lead scoring primeiro, depois a manual) — já era assim. A ação `set_temperature` agora grava `lead_classification` (hot/warm/cold) **e** `temperature`, e reavalia as automações da etapa.
 - Reavaliação quando a classificação muda: webhook (mesmo envio por outro caminho que traz a classificação depois — ex.: Make cria o card, Lead Pro manda "Frio"), edição no card (`upsertLead`). Usa o evento "enter" — o que já rodou nesta passagem não repete (`automation_runs`).
 - "Aplicar aos leads da etapa" (automação ativa de entrada na etapa): `applyAutomationNow` → `applyAutomationToStage` roda nos leads que já estão na etapa (até 1000), com a mesma trava por passagem.
+
+## Central de ajuda (23/11/2026)
+- Menu "Suporte › Central de ajuda" (`/ajuda`, `src/routes/_authenticated/ajuda.tsx`), visível para todos — inclusive equipe só de projeto (`projectOnlyAllows` e filtro do `useNavModel`); no celular fica em "Mais".
+- Conteúdo em `src/lib/help/articles.ts` (temas → guias → passos + dicas + botão "Abrir esta tela"). Temas com `access`: `all` (equipe de projeto vê só estes), `crm`, `admin` (Configurações, só admin da empresa/plataforma). Busca sem acento por todas as palavras (`searchHelp`, testes em `articles.test.ts`). Links diretos: `/ajuda?tema=<id>&artigo=<id>`.
+- **Mudou um botão, uma tela ou um fluxo? Atualize o guia correspondente** — os textos citam os rótulos como aparecem na tela.

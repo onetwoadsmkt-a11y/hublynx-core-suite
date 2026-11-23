@@ -4,7 +4,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, CheckSquare, FolderKanban, Users,
   Calendar, BarChart3, Settings, Search, LogOut, ChevronDown,
-  PanelLeftClose, PanelLeftOpen, Shield, Lock, Filter, MessageSquare, Building2, FileText,
+  PanelLeftClose, PanelLeftOpen, Shield, Lock, Filter, MessageSquare, Building2, FileText, LifeBuoy,
 } from "lucide-react";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -80,6 +80,10 @@ const NAV_GROUPS: NavGroup[] = [
     section: "Administração",
     items: [{ to: "/configuracoes", label: "Configurações", icon: Settings }],
   },
+  {
+    section: "Suporte",
+    items: [{ to: "/ajuda", label: "Central de ajuda", icon: LifeBuoy }],
+  },
 ];
 
 /** Itens do menu que a pessoa pode ver (mesma regra no menu lateral e no rodapé do celular). */
@@ -110,7 +114,7 @@ export function useNavModel() {
       ...g,
       items: g.items.filter((item) => {
         // equipe de projeto: só Projetos
-        if (projectOnly) return item.to === "/projetos";
+        if (projectOnly) return item.to === "/projetos" || item.to === "/ajuda";
         // Módulos contratados pela empresa ativa mandam: se a empresa tem o módulo,
         // o item aparece; se não tem, fica oculto.
         const mod = orgModuleForPath(item.to);

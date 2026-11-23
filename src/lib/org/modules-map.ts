@@ -53,5 +53,5 @@ export function isProjectOnlyAccess(a: { isSuperAdmin: boolean; isOrgAdmin: bool
 
 /** Páginas liberadas para quem é só da equipe de projeto. */
 export function projectOnlyAllows(pathname: string) {
-  return /^\/(projetos|minhas-tarefas|app)(\/|$)/.test(pathname);
+  return /^\/(projetos|minhas-tarefas|app|ajuda)(\/|$)/.test(pathname);
 }
