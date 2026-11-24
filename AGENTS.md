@@ -233,5 +233,5 @@
 
 ## Central de ajuda (23/11/2026)
 - Menu "Suporte › Central de ajuda" (`/ajuda`, `src/routes/_authenticated/ajuda.tsx`), visível para todos — inclusive equipe só de projeto (`projectOnlyAllows` e filtro do `useNavModel`); no celular fica em "Mais".
-- Conteúdo em `src/lib/help/articles.ts` (temas → guias → passos + dicas + botão "Abrir esta tela"). Temas com `access`: `all` (equipe de projeto vê só estes), `crm`, `admin` (Configurações, só admin da empresa/plataforma). Busca sem acento por todas as palavras (`searchHelp`, testes em `articles.test.ts`). Links diretos: `/ajuda?tema=<id>&artigo=<id>`.
+- Conteúdo em `src/lib/help/articles.ts` (23/11: guias detalhados, 30 guias) (temas → guias → passos + dicas + botão "Abrir esta tela"). Temas com `access`: `all` (equipe de projeto vê só estes), `crm`, `admin` (Configurações, só admin da empresa/plataforma). Busca sem acento por todas as palavras (`searchHelp`, testes em `articles.test.ts`). Links diretos: `/ajuda?tema=<id>&artigo=<id>`.
 - **Mudou um botão, uma tela ou um fluxo? Atualize o guia correspondente** — os textos citam os rótulos como aparecem na tela.
