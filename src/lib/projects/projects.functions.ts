@@ -161,6 +161,19 @@ export const deleteProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    // As tarefas do projeto perderiam o vínculo (project_id/stage_id → NULL ao apagar) e
+    // ficariam soltas na Agenda. Antes de apagar, cancela as que ainda estão abertas.
+    const { data: stages } = await (context.supabase as any).from("project_stages").select("id").eq("project_id", data.id);
+    const stageIds = ((stages ?? []) as Array<{ id: string }>).map((s) => s.id);
+    const filter = stageIds.length
+      ? `project_id.eq.${data.id},stage_id.in.(${stageIds.join(",")})`
+      : `project_id.eq.${data.id}`;
+    const { error: cancelErr } = await (context.supabase as any)
+      .from("tasks")
+      .update({ status: "cancelado" })
+      .or(filter)
+      .not("status", "in", "(concluido,cancelado)");
+    if (cancelErr) throw new Error(`Não foi possível encerrar as tarefas do projeto: ${cancelErr.message}`);
     const { error } = await context.supabase.from("projects").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true as const };
