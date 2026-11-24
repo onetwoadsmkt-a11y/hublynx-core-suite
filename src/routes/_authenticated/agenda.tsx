@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { cloneElement, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +44,8 @@ import { openTargetFor } from "@/lib/tasks/open-target";
 const OpenItemContext = createContext<(pendingId: string) => void>(() => {});
 /** Pendências por id, para o detalhe no estilo do Google ao clicar no evento. */
 const PendingByIdContext = createContext<Map<string, PendingItem>>(new Map());
+/** Tarefa de projeto → abre no projeto e devolve true; senão false (mostra o resumo aqui). */
+const OpenInProjectContext = createContext<(taskId: string, projectId?: string | null) => Promise<boolean>>(async () => false);
 const BACKFILL_KEY = "core_gcal_backfill_at";
 const BACKFILL_EVERY_MS = 15 * 60_000;
 
@@ -171,19 +173,33 @@ function AgendaPage() {
   // "Abrir tarefa": tarefa de projeto abre dentro da etapa do projeto; o resto abre aqui.
   const goToProjectTask = (projectId: string, taskId: string) =>
     navigate({ to: "/projetos/$id", params: { id: projectId }, search: { aba: "etapas", tarefa: taskId } as any });
-  const openItem = async (id: string) => {
+  // Projeto de uma tarefa: da lista, ou do banco (tarefa fora das pendências ou de etapa sem
+  // project_id gravado → pela etapa). Guardado para não consultar de novo a cada clique.
+  const projectCache = useRef(new Map<string, string | null>());
+  const projectOfTask = async (id: string, known?: string | null): Promise<string | null> => {
     const target = openTargetFor(id, pendingById.get(id));
-    if (target.kind === "project") return goToProjectTask(target.projectId, target.taskId);
-    if (target.kind === "task") {
-      // sem projeto na lista (fora das pendências, ou tarefa de etapa sem project_id gravado):
-      // confere no banco pelo projeto ou pela etapa do projeto
-      const { data } = await (supabase as any).from("tasks").select("id, project_id, stage_id").eq("id", id).maybeSingle();
-      if (data?.project_id) return goToProjectTask(data.project_id, id);
-      if (data?.stage_id) {
-        const { data: st } = await (supabase as any).from("project_stages").select("project_id").eq("id", data.stage_id).maybeSingle();
-        if (st?.project_id) return goToProjectTask(st.project_id, id);
-      }
+    if (target.kind === "lead") return null;
+    if (target.kind === "project") return target.projectId;
+    if (known) return known;
+    if (projectCache.current.has(id)) return projectCache.current.get(id)!;
+    let pid: string | null = null;
+    const { data } = await (supabase as any).from("tasks").select("id, project_id, stage_id").eq("id", id).maybeSingle();
+    if (data?.project_id) pid = data.project_id;
+    else if (data?.stage_id) {
+      const { data: st } = await (supabase as any).from("project_stages").select("project_id").eq("id", data.stage_id).maybeSingle();
+      pid = st?.project_id ?? null;
     }
+    projectCache.current.set(id, pid);
+    return pid;
+  };
+  const openInProject = async (taskId: string, known?: string | null) => {
+    const pid = await projectOfTask(taskId, known);
+    if (!pid) return false;
+    goToProjectTask(pid, taskId);
+    return true;
+  };
+  const openItem = async (id: string) => {
+    if (await openInProject(id)) return;
     setSelected(id);
   };
   // link antigo/recarregado com ?item= de uma tarefa de projeto → vai para o projeto
@@ -412,9 +428,11 @@ function AgendaPage() {
         {/* Grid */}
         <PendingByIdContext.Provider value={pendingById}>
         <OpenItemContext.Provider value={openItem}>
+        <OpenInProjectContext.Provider value={openInProject}>
         {view === "day" && <DayView anchor={anchor} events={events} />}
         {view === "week" && <WeekView anchor={anchor} events={events} onPickDay={setDayOpen} />}
         {view === "month" && <MonthView anchor={anchor} events={events} onPickDay={setDayOpen} />}
+        </OpenInProjectContext.Provider>
         </OpenItemContext.Provider>
         </PendingByIdContext.Provider>
       </div>
@@ -445,6 +463,7 @@ function AgendaPage() {
           })) : []}
         onOpenChange={(o) => { if (!o) setDayOpen(null); }}
         onSelect={(id) => { setDayOpen(null); void openItem(id); }}
+        onOpenInProject={openInProject}
         onAdd={(key) => { setDayOpen(null); setNewTaskDate(key); setNewTaskOpen(true); }}
       />
       {selectedLead ? (
@@ -655,6 +674,27 @@ function MonthView({ anchor, events, onPickDay }: { anchor: Date; events: Agenda
   );
 }
 
+// ───────── Clique num evento ─────────
+/** Tarefa de projeto abre direto na etapa do projeto; o resto mostra o resumo (popover). */
+function EventPopover({ event, children }: { event: AgendaEvent; children: React.ReactElement<any> }) {
+  const [open, setOpen] = useState(false);
+  const openInProject = useContext(OpenInProjectContext);
+  const isTask = event.source === "task" && !!event.taskId;
+  const onClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isTask) return; // o Popover abre sozinho
+    e.preventDefault(); // decide antes: projeto ou resumo
+    if (await openInProject(event.taskId!, event.projectId)) return;
+    setOpen(true);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{cloneElement(children, { onClick })}</PopoverTrigger>
+      <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
+    </Popover>
+  );
+}
+
 // ───────── Event Row (linha estilo Google Calendar) ─────────
 function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean }) {
   const meta = SOURCE_META[event.source];
@@ -665,9 +705,8 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
   // Atrasadas: destaque em vermelho, em qualquer visão.
   if (event.overdue) {
     return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
+      <EventPopover event={event}>
+        <button
             onClick={(e) => e.stopPropagation()}
             className="w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-semibold bg-destructive text-destructive-foreground shadow-sm hover:brightness-95 flex items-center gap-1"
           >
@@ -675,28 +714,22 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
             {time && <span className="tabular-nums">{time}</span>}
             <span className="truncate">{event.title}</span>
           </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
-      </Popover>
+      </EventPopover>
     );
   }
 
   if (event.allDay) {
     return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <button onClick={(e) => e.stopPropagation()} className={`w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${done ? "bg-muted text-muted-foreground line-through" : meta.bg} hover:brightness-95`}>
+      <EventPopover event={event}>
+        <button onClick={(e) => e.stopPropagation()} className={`w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${done ? "bg-muted text-muted-foreground line-through" : meta.bg} hover:brightness-95`}>
             {done && "✓ "}{event.title}
           </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
-      </Popover>
+      </EventPopover>
     );
   }
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <EventPopover event={event}>
         <button onClick={(e) => e.stopPropagation()} className={`w-full text-left truncate rounded px-1 ${compact ? "py-0" : "py-0.5"} text-[11px] hover:bg-muted/50 transition flex items-center gap-1.5`}>
           {done ? (
             <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-emerald-600" />
@@ -706,9 +739,7 @@ function EventRow({ event, compact }: { event: AgendaEvent; compact?: boolean })
           {time && <span className="tabular-nums text-muted-foreground">{time}</span>}
           <span className={`truncate ${done ? "text-muted-foreground line-through" : "text-foreground"}`}>{event.title}</span>
         </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden"><EventDetails event={event} /></PopoverContent>
-    </Popover>
+      </EventPopover>
   );
 }
 
@@ -721,8 +752,7 @@ function EventChip({ event, expanded }: { event: AgendaEvent; expanded?: boolean
     : fmt(new Date(event.start), { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <EventPopover event={event}>
         <button
           className={`w-full text-left rounded-lg px-2 py-1.5 text-[11px] ring-1 ${done ? "bg-muted text-muted-foreground ring-border line-through" : event.overdue ? "bg-destructive text-destructive-foreground ring-destructive font-semibold" : `${meta.bg} ${meta.ring}`} hover:brightness-95 transition`}
         >
@@ -737,11 +767,7 @@ function EventChip({ event, expanded }: { event: AgendaEvent; expanded?: boolean
             </div>
           )}
         </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[22rem] max-w-[calc(100vw-2rem)] p-0 overflow-hidden">
-        <EventDetails event={event} />
-      </PopoverContent>
-    </Popover>
+      </EventPopover>
   );
 }
 

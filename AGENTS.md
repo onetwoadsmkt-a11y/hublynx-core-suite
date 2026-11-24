@@ -235,3 +235,8 @@
 - Menu "Suporte › Central de ajuda" (`/ajuda`, `src/routes/_authenticated/ajuda.tsx`), visível para todos — inclusive equipe só de projeto (`projectOnlyAllows` e filtro do `useNavModel`); no celular fica em "Mais".
 - Conteúdo em `src/lib/help/articles.ts` (23/11: guias detalhados — 32 guias, 180 passos) (temas → guias → passos + dicas + botão "Abrir esta tela"). Temas com `access`: `all` (equipe de projeto vê só estes), `crm`, `admin` (Configurações, só admin da empresa/plataforma). Busca sem acento por todas as palavras (`searchHelp`, testes em `articles.test.ts`). Links diretos: `/ajuda?tema=<id>&artigo=<id>`.
 - **Mudou um botão, uma tela ou um fluxo? Atualize o guia correspondente** — os textos citam os rótulos como aparecem na tela.
+
+## Agenda: clicar na tarefa de projeto abre no projeto (24/11/2026)
+- Calendário (Mês/Semana/Dia, inclusive atrasadas e dia inteiro): `EventPopover` envolve cada evento. Evento de tarefa (`source: "task"`) decide no clique: se é de projeto (`projectId` do evento/pendência ou, no banco, `tasks.project_id` → `project_stages.project_id`, com cache por tarefa) vai para `/projetos/<id>?aba=etapas&tarefa=<id>`; senão abre o resumo (popover) como antes. Agendamentos de lead, reuniões e Google continuam no popover.
+- Resumo do dia (`DayPendingSheet`, prop `onOpenInProject`): tocar numa tarefa de projeto fecha a gaveta e abre no projeto; as outras continuam expandindo o detalhe.
+- Lógica única em `agenda.tsx`: `projectOfTask`/`openInProject` (também usados por `openItem`).

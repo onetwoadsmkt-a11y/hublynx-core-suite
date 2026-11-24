@@ -41,7 +41,7 @@ function timeOf(due: string | null) {
  * gaveta de baixo para cima no celular, lateral no computador.
  */
 export function DayPendingSheet({
-  date, items, extras = [], onOpenChange, onSelect, onAdd,
+  date, items, extras = [], onOpenChange, onSelect, onAdd, onOpenInProject,
 }: {
   date: Date | null;
   items: DayItem[];
@@ -49,6 +49,8 @@ export function DayPendingSheet({
   onOpenChange: (open: boolean) => void;
   onSelect: (id: string) => void;
   onAdd?: (dateKey: string) => void;
+  /** Tarefa de projeto: abre direto na etapa do projeto (true = abriu). Sem isso, expande o resumo. */
+  onOpenInProject?: (taskId: string, projectId?: string | null) => Promise<boolean>;
 }) {
   const isMobile = useIsMobile();
   const open = !!date;
@@ -85,15 +87,21 @@ export function DayPendingSheet({
             const meeting = i.briefing?.type === "reuniao";
             const time = timeOf(i.due_date);
             const isOpen = expanded === i.id;
-            const toggle = () => setExpanded(isOpen ? null : i.id);
+            const toggle = async () => {
+              if (!isOpen && !i.leadTask && onOpenInProject && (await onOpenInProject(i.id, (i as any).project_id))) {
+                onOpenChange(false);
+                return;
+              }
+              setExpanded(isOpen ? null : i.id);
+            };
             return (
               <div key={i.id} className="space-y-2">
               <div
                 role="button"
                 tabIndex={0}
                 aria-expanded={isOpen}
-                onClick={toggle}
-                onKeyDown={(e) => { if (e.key === "Enter") toggle(); }}
+                onClick={() => void toggle()}
+                onKeyDown={(e) => { if (e.key === "Enter") void toggle(); }}
                 className={cn(
                   "flex min-h-[44px] cursor-pointer items-start gap-3 rounded-xl border p-3 transition hover:shadow-sm",
                   overdue ? "border-destructive/40 bg-destructive/10" : "bg-card",
