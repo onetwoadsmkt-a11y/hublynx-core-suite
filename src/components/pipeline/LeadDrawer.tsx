@@ -1,4 +1,5 @@
 import { DuplicateBadge } from "@/components/pipeline/DuplicateLeadDialog";
+import { ReopenWonLeadDialog } from "@/components/pipeline/ReopenWonLeadDialog";
 import { useDraft } from "@/lib/persist/draft";
 import { leadCardHref } from "@/lib/persist/lead-url";
 import { dropQueuedFile, enqueueLeadFile, isNetworkError, queuedLeadFiles, type QueuedFile } from "@/lib/persist/upload-queue";
@@ -130,6 +131,7 @@ export function LeadDrawer({
   const noteFn = useServerFn(addLeadNote);
 
   const [emailOpen, setEmailOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<LeadNote | null>(null);
   // anotação em andamento fica guardada neste aparelho até ser adicionada
   const noteDraft = useDraft<string>(lead ? `lead-note:${lead.id}` : null, "");
@@ -232,6 +234,13 @@ export function LeadDrawer({
     setPickedPipeline(null);
   }, [lead?.id]);
   const shownPipeline = pickedPipeline ?? currentPipelineId;
+  // Venda ganha: etapa ganha, convertido em cliente/projeto ou tag de ganho
+  const currentStageInfo = allStages.find((s) => s.id === currentStageId) as { is_won?: boolean } | undefined;
+  const isWonLead =
+    !!currentStageInfo?.is_won ||
+    !!(lead as any)?.converted_project_id ||
+    !!(lead as any)?.converted_client_id ||
+    tags.some((t) => t.funnel_key === "ganho" && ((lead?.tags ?? []) as string[]).some((x) => String(x).toLowerCase() === t.slug.toLowerCase()));
   const stagesOfPipeline = allStages.length
     ? allStages.filter((s) => s.pipeline_id === shownPipeline)
     : stages;
@@ -612,6 +621,16 @@ export function LeadDrawer({
               </div>
             </header>
 
+            {isWonLead && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-emerald-50 px-4 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100 md:px-6">
+                <span className="font-semibold">🏆 Venda ganha</span>
+                {(lead as any).converted_at && <span className="text-xs opacity-80">em {fmt((lead as any).converted_at)}</span>}
+                <span className="text-xs opacity-80">Marcado por engano?</span>
+                <Button size="sm" variant="outline" className="h-8 rounded-lg bg-background" onClick={() => setReopenOpen(true)}>
+                  Desfazer venda ganha
+                </Button>
+              </div>
+            )}
             {nextTask && (
               <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground md:px-6">
                 <CalendarDays className="h-3.5 w-3.5 text-primary" />
@@ -998,7 +1017,17 @@ export function LeadDrawer({
               </DialogContent>
             </Dialog>
 
-            <SendLeadEmailDialog
+            {lead && (
+        <ReopenWonLeadDialog
+          leadId={lead.id}
+          leadName={lead.name}
+          open={reopenOpen}
+          onOpenChange={setReopenOpen}
+          stages={allStages as any}
+          onDone={(sid) => { setStageNow(sid); refresh(); }}
+        />
+      )}
+      <SendLeadEmailDialog
               open={emailOpen}
               onOpenChange={setEmailOpen}
               leadId={lead.id}

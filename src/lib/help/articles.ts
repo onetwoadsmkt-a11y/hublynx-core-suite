@@ -175,6 +175,21 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           { title: "Portal do cliente", text: "Marque “Convidar o cliente para o portal” para ele receber o acesso e acompanhar o projeto. Use “Copiar acesso” para mandar por WhatsApp." },
           { title: "Confirme", text: "Confirme a conversão. O lead passa a aparecer em Clientes e o projeto em Projetos, ligados ao histórico do lead." },
         ],
+        tips: ["Marcou como venda ganha por engano? Veja o guia “Desfazer uma venda ganha”."],
+      },
+      {
+        id: "desfazer-ganho",
+        title: "Desfazer uma venda ganha",
+        summary: "Lead marcado como ganho por engano volta para o funil.",
+        path: "/pipeline",
+        steps: [
+          { title: "Abra o card do lead", text: "No Pipeline (coluna de venda ganha) ou em Clientes, clique no lead. No topo do card aparece a faixa “🏆 Venda ganha”." },
+          { title: "Clique em “Desfazer venda ganha”", text: "Abre a janela para reabrir o lead." },
+          { title: "Escolha para onde ele volta", text: "Escolha o Pipeline e a etapa. A etapa em que ele estava antes da venda vem marcada como “(antes da venda)”." },
+          { title: "Projeto e cliente da conversão", text: "Se a venda criou um projeto e um cliente, marque “Excluir o projeto” e “Remover o cliente” para apagá-los (só administrador da empresa; as tarefas abertas do projeto são encerradas). Sem marcar, eles continuam em Projetos e Clientes." },
+          { title: "Motivo e confirmação", text: "Escreva o motivo (opcional) e clique em “Desfazer venda ganha”. O lead volta para a etapa escolhida, sai de Clientes, perde a tag de ganho e a jornada registra “Venda ganha desfeita”." },
+        ],
+        tips: ["As automações da etapa de volta não rodam de novo, para não reenviar e-mails nem criar tarefas repetidas."],
       },
       {
         id: "configurar-funil",

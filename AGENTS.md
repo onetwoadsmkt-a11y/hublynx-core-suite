@@ -241,3 +241,9 @@
 - Resumo do dia (`DayPendingSheet`, prop `onOpenInProject`): tocar numa tarefa de projeto fecha a gaveta e abre no projeto; as outras continuam expandindo o detalhe.
 - Lógica única em `agenda.tsx`: `projectOfTask`/`openInProject` (também usados por `openItem`).
 - Causa do caso Valesafe (sábado 21/11): tarefas criadas por modelo num projeto que depois foi **excluído** — `tasks.project_id`/`stage_id` são `ON DELETE SET NULL`, então viraram tarefas soltas na Agenda (sem projeto, abrem na janela). `deleteProject` agora cancela (`status = cancelado`) as tarefas abertas do projeto (por `project_id` ou etapa) antes de apagar. Limpeza das sobras: SQL com prévia + backup (`backup_tarefas_soltas_20261124`) que cancela tarefas soltas criadas em lote (≥3 no mesmo minuto) com título de tarefa de modelo.
+
+## Desfazer venda ganha (26/11/2026)
+- Card do lead (`LeadDrawer`): lead ganho (etapa `is_won`, `converted_client_id`/`converted_project_id` ou tag de funil "ganho") mostra a faixa "🏆 Venda ganha · Desfazer venda ganha" → `ReopenWonLeadDialog`.
+- Servidor `src/lib/pipeline/reopen.functions.ts`: `getReopenInfo` (etapa de antes pelo último `stage_changed` que entrou na etapa ganha, projeto e cliente da conversão com contagens, se é admin) e `reopenWonLead` (etapa de destino em aberto e da mesma empresa; lead vai para o fim da etapa, `status = aberto`, limpa `converted_*`, tira as tags de ganho; jornada "Venda ganha desfeita" kind `reopened` com motivo). **Não** dispara automações da etapa. Excluir o projeto (encerra as tarefas abertas antes, `cancelOpenProjectTasks`) e remover o cliente (só se nasceu desta conversão — nota "Convertido do lead…" — sem outros projetos/leads, e junto com o projeto) só para `is_org_admin`.
+- `cancelOpenProjectTasks` (`src/lib/projects/cancel-tasks.ts`) é usado também por `deleteProject`. `listAllStages` agora devolve `is_won`/`is_lost`.
+- Central de ajuda: guia "Desfazer uma venda ganha".

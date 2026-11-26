@@ -539,7 +539,7 @@ export const listAllStages = createServerFn({ method: "GET" })
       data.organizationId,
     );
     const { data: stages, error } = await scopeOrganization(
-      supabase.from("pipeline_stages").select("id, name, pipeline_id, position").order("position"),
+      supabase.from("pipeline_stages").select("id, name, pipeline_id, position, is_won, is_lost").order("position"),
       data.organizationId,
     );
     if (error) throw new Error(error.message);
@@ -552,6 +552,8 @@ export const listAllStages = createServerFn({ method: "GET" })
         name: s.name,
         pipeline_id: s.pipeline_id,
         position: s.position,
+        is_won: !!(s as any).is_won,
+        is_lost: !!(s as any).is_lost,
         pipeline_name: s.pipeline_id ? byId.get(s.pipeline_id) ?? "Sem pipeline" : "Sem pipeline",
       }))
       .sort(
