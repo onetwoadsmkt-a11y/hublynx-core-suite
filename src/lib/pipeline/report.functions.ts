@@ -33,8 +33,8 @@ export const getLeadsReport = createServerFn({ method: "GET" })
           .order("id", { ascending: true }),
         data.organizationId,
       );
-      if (data.from) q = q.gte("created_at", `${data.from}T00:00:00`);
-      if (data.to) q = q.lte("created_at", `${data.to}T23:59:59`);
+      if (data.from) q = q.gte("created_at", `${data.from}T00:00:00-03:00`);
+      if (data.to) q = q.lte("created_at", `${data.to}T23:59:59.999-03:00`);
       if (data.pipelineId) {
         const ids = (stages ?? [])
           .filter((s) => s.pipeline_id === data.pipelineId)

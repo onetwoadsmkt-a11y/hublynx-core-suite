@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  AlertTriangle, ChevronDown, FileSpreadsheet, Filter, Flame, Loader2, RotateCcw, Snowflake, Sun, Tag, X,
+  AlertTriangle, ChevronDown, FileSpreadsheet, Filter, Flame, Loader2, RotateCcw, Snowflake, Sprout, Sun, Tag, X,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   applyReportFilters, EMPTY_FILTERS, taskStatsByLead, type ReportFilters, type Temperature,
 } from "@/lib/pipeline/report-filters";
 import { openLeadCard } from "@/components/pipeline/LeadCardHost";
+import { leadTemperature } from "@/lib/pipeline/board-filters";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
@@ -46,8 +47,9 @@ const TEMPS: { key: Temperature; label: string; icon: typeof Flame; tone: string
   { key: "quente", label: "Quente", icon: Flame, tone: "data-[on=true]:bg-rose-600 data-[on=true]:text-white data-[on=true]:border-rose-600" },
   { key: "morno", label: "Morno", icon: Sun, tone: "data-[on=true]:bg-amber-500 data-[on=true]:text-white data-[on=true]:border-amber-500" },
   { key: "frio", label: "Frio", icon: Snowflake, tone: "data-[on=true]:bg-sky-600 data-[on=true]:text-white data-[on=true]:border-sky-600" },
+  { key: "nutricao", label: "Nutrição", icon: Sprout, tone: "data-[on=true]:bg-emerald-600 data-[on=true]:text-white data-[on=true]:border-emerald-600" },
 ];
-const TEMP_LABEL: Record<string, string> = { quente: "Quente", morno: "Morno", frio: "Frio" };
+const TEMP_LABEL: Record<string, string> = { quente: "Quente", morno: "Morno", frio: "Frio", nutricao: "Nutrição" };
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 /** Seção recolhível do painel de filtros (o "submenu" de cada opção). */
@@ -131,7 +133,7 @@ function RelatoriosComerciaisPage() {
       const s = stats.get(l.id);
       if (s?.overdue) overdue++;
       if (!s || s.open === 0) none++;
-      if (l.temperature === "quente") hot++;
+      if (leadTemperature(l) === "quente") hot++;
     }
     return { value, overdue, none, hot };
   }, [leads, stats]);
@@ -283,6 +285,7 @@ function RelatoriosComerciaisPage() {
     ...(filters.overdueTasks ? [{ label: "Tarefas atrasadas", clear: () => set("overdueTasks", false) }] : []),
     ...(filters.noTasks ? [{ label: "Sem tarefas", clear: () => set("noTasks", false) }] : []),
     ...filters.tags.map((t) => ({ label: `#${allTags.find((x: any) => x.slug === t)?.name ?? t}`, clear: () => toggleIn("tags", t) })),
+    ...(from || to ? [{ label: `Entrada: ${from ? from.split("-").reverse().join("/") : "…"} a ${to ? to.split("-").reverse().join("/") : "hoje"}`, clear: () => { setFrom(""); setTo(""); } }] : []),
   ];
 
   return (
@@ -360,7 +363,7 @@ function RelatoriosComerciaisPage() {
                           {l.company && <p className="truncate text-xs text-muted-foreground">{l.company}</p>}
                         </td>
                         <td className="px-4 py-2 text-xs">{l.stage_id ? stageById.get(l.stage_id)?.name ?? "—" : "—"}</td>
-                        <td className="hidden px-4 py-2 text-xs md:table-cell">{TEMP_LABEL[l.temperature] ?? "—"}</td>
+                        <td className="hidden px-4 py-2 text-xs md:table-cell">{TEMP_LABEL[leadTemperature(l) ?? ""] ?? "—"}</td>
                         <td className="hidden max-w-[220px] px-4 py-2 lg:table-cell">
                           <div className="flex flex-wrap gap-1">
                             {(l.tags ?? []).slice(0, 4).map((t: string) => (

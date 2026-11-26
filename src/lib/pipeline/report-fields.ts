@@ -1,3 +1,5 @@
+import { leadTemperature } from "./board-filters";
+const TEMP_LABELS: Record<string, string> = { quente: "Quente", morno: "Morno", frio: "Frio", nutricao: "Nutrição" };
 import type { Lead } from "@/components/pipeline/types";
 
 export type LeadFieldKey =
@@ -95,6 +97,11 @@ export function leadFieldValue(
       return ctx.stageName ?? "";
     case "pipeline":
       return ctx.pipelineName ?? "";
+    case "temperature": {
+      // mesma regra do card e dos filtros: classificação do lead scoring, depois a manual
+      const t = leadTemperature(lead as any);
+      return t ? TEMP_LABELS[t] : "";
+    }
     case "value":
       return lead.value != null ? Number(lead.value) : "";
     case "tags":

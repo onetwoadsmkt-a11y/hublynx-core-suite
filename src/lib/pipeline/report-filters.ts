@@ -1,7 +1,7 @@
 import { leadTemperature } from "./board-filters";
 import { isWonLead } from "./lead-status";
 
-export type Temperature = "quente" | "morno" | "frio";
+export type Temperature = "quente" | "morno" | "frio" | "nutricao";
 export type Situation = "leads" | "ganhos" | "todos";
 
 export type ReportFilters = {

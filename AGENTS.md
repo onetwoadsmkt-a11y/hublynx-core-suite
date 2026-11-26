@@ -247,3 +247,8 @@
 - Servidor `src/lib/pipeline/reopen.functions.ts`: `getReopenInfo` (etapa de antes pelo último `stage_changed` que entrou na etapa ganha, projeto e cliente da conversão com contagens, se é admin) e `reopenWonLead` (etapa de destino em aberto e da mesma empresa; lead vai para o fim da etapa, `status = aberto`, limpa `converted_*`, tira as tags de ganho; jornada "Venda ganha desfeita" kind `reopened` com motivo). **Não** dispara automações da etapa. Excluir o projeto (encerra as tarefas abertas antes, `cancelOpenProjectTasks`) e remover o cliente (só se nasceu desta conversão — nota "Convertido do lead…" — sem outros projetos/leads, e junto com o projeto) só para `is_org_admin`.
 - `cancelOpenProjectTasks` (`src/lib/projects/cancel-tasks.ts`) é usado também por `deleteProject`. `listAllStages` agora devolve `is_won`/`is_lost`.
 - Central de ajuda: guia "Desfazer uma venda ganha".
+
+## Relatório comercial: filtros revisados + guias na ajuda (26/11/2026)
+- Temperatura do relatório = `leadTemperature` em tudo (filtro, coluna da prévia, total "Quentes" e coluna "Temperatura" do Excel via `leadFieldValue`): classificação do lead scoring primeiro, depois a manual. Opção **Nutrição** no filtro (`Temperature` inclui `nutricao`).
+- Período de entrada no horário de Brasília (`-03:00` em `getLeadsReport`); antes o dia era cortado em UTC (21h–23h59 do "Até" ficavam de fora). O período virou etiqueta removível no topo ("Entrada: dd/mm/aaaa a dd/mm/aaaa").
+- Central de ajuda: "Gerar o relatório comercial (passo a passo)", "Entender cada filtro do relatório" (E entre grupos, OU dentro do grupo, Tags Qualquer uma/Todas, Situação, etc.) e "Exemplos de relatórios com filtro".
